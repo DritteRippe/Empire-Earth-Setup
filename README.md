@@ -82,7 +82,7 @@ powershell -ExecutionPolicy Bypass -File ci\build.ps1 -EEAppID <GUID> -NeoEEAppI
 Useful options: `-Variants NeoEE/Regular`, `-OutputDir <dir>`, `-Iscc <path to ISCC.exe>`, `-KeepPreprocessed <dir>`. Run `Get-Help ci\build.ps1 -Detailed` for all of them.
 
 ### Online localized files
-The setups can download localized content (voices, campaigns, lobby texts) from `files.empireearth.eu`, with `storage.ee.zocker-160.de` as mirror. TLS certificates are validated, and a downloaded file is only installed if its SHA-256 matches a hash compiled into the setup; any other file is discarded and the setup installs its own files instead (`downloads.iss`).
+The setups can download localized content (voices, campaigns, lobby texts) from `files.empireearth.eu`, with `storage.ee.zocker-160.de` as mirror. TLS certificates are validated, and a downloaded file is only installed if its SHA-256 matches a hash compiled into the setup; any other file is discarded and the setup installs its own files instead (`downloads.iss`). Downloads only happen with the component "Download localized voices and campaigns" and a game language other than English; AoC files only with AoC. Failed downloads can be skipped, and afterwards the setup lists every file it could not download or verify.
 
 The hashes come from `data\localized-text.sha256`, a list in `sha256sum` format (`<hash>  <path>`, UTF-8 without BOM). The paths are relative to the `localized` folder of the file servers, which has the same layout as `data\localized-text`. Inno Setup 6.2 cannot compute SHA-256 in the preprocessor, so the list has to exist before compiling:
 
