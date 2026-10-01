@@ -24,6 +24,11 @@ Refactoring and quality fixes (no new game content).
   the assets a variant needs (`--list`).
 - `.gitattributes` and `.editorconfig` (UTF-8 with BOM and CRLF for the own `.iss` files).
 - This changelog (moved out of the script header) and a "Building" section in the README.
+- SHA-256 list of the online localized files (`data\localized-text.sha256`, build switch
+  `DownloadHashFile`): `ci/build.ps1` writes it before compiling, `-DownloadHashesOnly` only writes
+  it (for builds in the Inno Setup IDE). See README, "Online localized files".
+- Localized texts (English, German, French) for the new messages and for the task descriptions of
+  the firewall, administrator and certificate options.
 
 ### Changed
 - The hidden setup data folder (holds `EEStatsSetup.dll` for the uninstaller) is now
