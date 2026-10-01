@@ -158,6 +158,18 @@
 #endif
 #define BaseRegCompatibility = "Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers"
 
+; Windows versions for the MinVersion and OnlyBelowVersion parameters. Inno Setup 6 ignores the
+; part before the comma (Windows 95/98/Me) and reads a single value as the Windows NT version:
+; "0.0,6.2", "0,6.2" and "6.2" all mean NT 6.2 (= Windows 8), while "0.6.2" would be version 0.6
+; build 2, which no Windows is below. Setups made with Inno Setup 6 only start on Windows 7 SP1
+; and later, so a minimum of Windows Vista or older always holds.
+#define Win2000 "0.0,5.0"
+#define WinXP "0.0,5.1"
+#define WinVista "0.0,6.0"
+#define Win7 "0.0,6.1"
+#define Win8 "0.0,6.2"
+#define Win10 "0.0,10"
+
 ; TestID (0 if Release)
 #ifndef TestID
   #define TestID = 0
@@ -418,30 +430,30 @@ Name: "custom"; Description: "Custom game install"; Flags: iscustom
 Name: "raw"; Description: "Raw game install";
 
 [Tasks]
-Name: "compatibility"; Description: "Enable compatibility flags"; MinVersion: 0.0,5.1; Check: not IsWine
-Name: "compatibility_windows"; Description: "Enable earlier Windows compatibility mode"; MinVersion: 0.0,5.1; Check: not IsWine
-Name: "firewallexception"; Description: "{cm:TaskFirewall}"; MinVersion: 0.0,5.0; Check: IsAdminInstallMode and not IsWine
+Name: "compatibility"; Description: "Enable compatibility flags"; MinVersion: {#WinXP}; Check: not IsWine
+Name: "compatibility_windows"; Description: "Enable earlier Windows compatibility mode"; MinVersion: {#WinXP}; Check: not IsWine
+Name: "firewallexception"; Description: "{cm:TaskFirewall}"; MinVersion: {#Win2000}; Check: IsAdminInstallMode and not IsWine
 ; GOG Setup install DirectPlay but i don't think it's really important... some kind of default install for old DX game maybe
-Name: "directplay"; Description: "Install DirectPlay"; MinVersion: 6.2; Check: IsAdminInstallMode
-Name: "dxwebsetup"; Description: "Install DirectX End-User Runtime"; MinVersion: 0.0,5.0; Check: IsAdminInstallMode and not IsWine; Components: additional\directx_wrapper\dx9 or not additional\directx_wrapper 
+Name: "directplay"; Description: "Install DirectPlay"; MinVersion: {#Win8}; Check: IsAdminInstallMode
+Name: "dxwebsetup"; Description: "Install DirectX End-User Runtime"; MinVersion: {#Win2000}; Check: IsAdminInstallMode and not IsWine; Components: additional\directx_wrapper\dx9 or not additional\directx_wrapper 
 #if InstallType == "NeoEE"
   ; Since 1.0.1.0 NeoEE CDKeys support HKLM & HKCU
-  Name: "neoee_cdkeys"; Description: "Register NeoEE CDKeys (Required to use the online lobby)"; MinVersion: 0.0,5.0;
+  Name: "neoee_cdkeys"; Description: "Register NeoEE CDKeys (Required to use the online lobby)"; MinVersion: {#Win2000};
 #endif
 
 #if CertInclude
   ; Opt-in, also for administrators: adds the community certificate to the trusted root
   ; certification authorities (all users in administrative install mode, else the current user)
-  Name: "certinclude"; Description: "{cm:TaskCertInclude}"; MinVersion: 0.0,6.0; Flags: unchecked; Check: not IsWine
+  Name: "certinclude"; Description: "{cm:TaskCertInclude}"; MinVersion: {#WinVista}; Flags: unchecked; Check: not IsWine
 #endif
 
 ; Opt-in: the game (online lobby, maps and scenarios from other players) should not run elevated.
 ; Selected, it sets RUNASADMIN for all users (HKLM) and skips the write permissions below.
-Name: "everyoneadminstart"; Description: "{cm:TaskAdminStart}"; MinVersion: 0.0,5.1; Flags: unchecked; Check: IsAdminInstallMode and not IsWine
+Name: "everyoneadminstart"; Description: "{cm:TaskAdminStart}"; MinVersion: {#WinXP}; Flags: unchecked; Check: IsAdminInstallMode and not IsWine
 
 #if InstallMode != "Portable"
   Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
-  Name: "quicklaunchicon"; Description: "{cm:CreateQuickLaunchIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked; OnlyBelowVersion: 0.0,6.1
+  Name: "quicklaunchicon"; Description: "{cm:CreateQuickLaunchIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked; OnlyBelowVersion: {#Win7}
 #endif
 
 [Components]
@@ -463,11 +475,11 @@ Name: "additional\hd\effects"; Description: "HD Effects WIP (by Fortuking)"; Typ
 
 Name: "additional\drexmod"; Description: "dreXmod to enhance/add features (by Yukon)"
 //#if InstallType == "EE" ; Prefer dxm2
-//  Name: "additional\drexmod\v2"; Description: "dreXmod v2 for better Camera/HUD/Lobby "; Flags: exclusive disablenouninstallwarning; Types: full compact; MinVersion: 0,5.1
-//  Name: "additional\drexmod\v3"; Description: "dreXmod v3 for better Camera/HUD/Lobby/Ranking/AntiCheat"; Flags: exclusive disablenouninstallwarning; MinVersion: 0,5.1
+//  Name: "additional\drexmod\v2"; Description: "dreXmod v2 for better Camera/HUD/Lobby "; Flags: exclusive disablenouninstallwarning; Types: full compact; MinVersion: {#WinXP}
+//  Name: "additional\drexmod\v3"; Description: "dreXmod v3 for better Camera/HUD/Lobby/Ranking/AntiCheat"; Flags: exclusive disablenouninstallwarning; MinVersion: {#WinXP}
 //#elif InstallType == "NeoEE" ; Prefer dxm3
-  Name: "additional\drexmod\v3"; Description: "dreXmod v3 for better Camera/HUD/Lobby/Ranking/AntiCheat"; Flags: exclusive disablenouninstallwarning; Types: full compact; MinVersion: 0,5.1
-  Name: "additional\drexmod\v2"; Description: "dreXmod v2 for better Camera/HUD/Lobby"; Flags: exclusive disablenouninstallwarning; MinVersion: 0,5.1
+  Name: "additional\drexmod\v3"; Description: "dreXmod v3 for better Camera/HUD/Lobby/Ranking/AntiCheat"; Flags: exclusive disablenouninstallwarning; Types: full compact; MinVersion: {#WinXP}
+  Name: "additional\drexmod\v2"; Description: "dreXmod v2 for better Camera/HUD/Lobby"; Flags: exclusive disablenouninstallwarning; MinVersion: {#WinXP}
 //#endif
 
 ; Name: "additional\reborn"; Description: "Reborn.dll v0.1 for better Camera, Resolution and Solo Max Units"; Flags: disablenouninstallwarning; Types: full compact; MinVersion: 0,5.1 
@@ -477,19 +489,19 @@ Name: "additional\drexmod"; Description: "dreXmod to enhance/add features (by Yu
   Name: "additional\rms\neoextra"; Description: "NeoEE Extra";
 #endif
 
-Name: "additional\directx_wrapper"; Description: "DirectX Wrapper"; Flags: disablenouninstallwarning; MinVersion: 0.0,6.1
-Name: "additional\directx_wrapper\dx7"; Description: "DirectX 7 [Lightest]"; Flags: exclusive disablenouninstallwarning; MinVersion: 0.0,6.1
-Name: "additional\directx_wrapper\dx9"; Description: "DirectX 9 [Most Compatible]"; Flags: exclusive disablenouninstallwarning; MinVersion: 0.0,6.1
-Name: "additional\directx_wrapper\dx11_lvl10"; Description: "DirectX 11 API lvl 10 v2.82.1"; Flags: exclusive disablenouninstallwarning; MinVersion: 0.0,6.1
-Name: "additional\directx_wrapper\dx11_lvl10_1"; Description: "DirectX 11 API lvl 10.1 v2.82.1"; Flags: exclusive disablenouninstallwarning; MinVersion: 0.0,6.1
-Name: "additional\directx_wrapper\dx11_lvl11"; Description: "DirectX 11 API lvl 11 v2.82.1 [Generally Recommended]"; Flags: exclusive disablenouninstallwarning; MinVersion: 0.0,6.1
-Name: "additional\directx_wrapper\dx12_lvl11"; Description: "DirectX 12 API lvl 11 v2.82.1 [Experimental]"; Flags: exclusive disablenouninstallwarning; MinVersion: 0.0,10;
-Name: "additional\directx_wrapper\dx12_lvl12"; Description: "DirectX 12 API lvl 12 v2.82.1 [Experimental]"; Flags: exclusive disablenouninstallwarning; MinVersion: 0.0,10;
+Name: "additional\directx_wrapper"; Description: "DirectX Wrapper"; Flags: disablenouninstallwarning; MinVersion: {#Win7}
+Name: "additional\directx_wrapper\dx7"; Description: "DirectX 7 [Lightest]"; Flags: exclusive disablenouninstallwarning; MinVersion: {#Win7}
+Name: "additional\directx_wrapper\dx9"; Description: "DirectX 9 [Most Compatible]"; Flags: exclusive disablenouninstallwarning; MinVersion: {#Win7}
+Name: "additional\directx_wrapper\dx11_lvl10"; Description: "DirectX 11 API lvl 10 v2.82.1"; Flags: exclusive disablenouninstallwarning; MinVersion: {#Win7}
+Name: "additional\directx_wrapper\dx11_lvl10_1"; Description: "DirectX 11 API lvl 10.1 v2.82.1"; Flags: exclusive disablenouninstallwarning; MinVersion: {#Win7}
+Name: "additional\directx_wrapper\dx11_lvl11"; Description: "DirectX 11 API lvl 11 v2.82.1 [Generally Recommended]"; Flags: exclusive disablenouninstallwarning; MinVersion: {#Win7}
+Name: "additional\directx_wrapper\dx12_lvl11"; Description: "DirectX 12 API lvl 11 v2.82.1 [Experimental]"; Flags: exclusive disablenouninstallwarning; MinVersion: {#Win10};
+Name: "additional\directx_wrapper\dx12_lvl12"; Description: "DirectX 12 API lvl 12 v2.82.1 [Experimental]"; Flags: exclusive disablenouninstallwarning; MinVersion: {#Win10};
 
-Name: "additional\telemetry"; Description: "Telemetry (Compatibility and Stats)"; Flags: disablenouninstallwarning; MinVersion: 0.0,6.1
-Name: "additional\discord"; Description: "Discord Presence"; Flags: disablenouninstallwarning; Types: full compact; MinVersion: 0.0,6.1; Check: not IsWine
+Name: "additional\telemetry"; Description: "Telemetry (Compatibility and Stats)"; Flags: disablenouninstallwarning; MinVersion: {#Win7}
+Name: "additional\discord"; Description: "Discord Presence"; Flags: disablenouninstallwarning; Types: full compact; MinVersion: {#Win7}; Check: not IsWine
 Name: "additional\tools"; Description: "Tools";
-Name: "additional\tools\diagnostic"; Description: "Empire Earth Diagnostic"; Flags: disablenouninstallwarning; Types: full compact; MinVersion: 0.0,6.1; Check: not IsWine
+Name: "additional\tools\diagnostic"; Description: "Empire Earth Diagnostic"; Flags: disablenouninstallwarning; Types: full compact; MinVersion: {#Win7}; Check: not IsWine
 Name: "additional\civs"; Description: "Civilizations"
 Name: "additional\civs\ec"; Description: "eC Standard Civilizations (25)"; Types: full compact
 Name: "additional\civs\ec_full"; Description: "eC Full Civilizations (71)"; Types: full
@@ -566,7 +578,7 @@ Source: "data\localized-text\{#LocTextBase}Lobby\{#GameLangLobbyDirs[LangIndex]}
 #endif
 
 ;Source: "data\Add-on\DLLs\EEStats\EEStats.dll"; Flags: dontcopy noencryption nocompression; MinVersion: 0.0,6.1
-Source: "data\Add-on\DLLs\EEStats\EEStatsSetup.dll"; DestDir: "{app}\{#SetupDataDir}"; Flags: noencryption nocompression ignoreversion recursesubdirs createallsubdirs; MinVersion: 0.0,5.1
+Source: "data\Add-on\DLLs\EEStats\EEStatsSetup.dll"; DestDir: "{app}\{#SetupDataDir}"; Flags: noencryption nocompression ignoreversion recursesubdirs createallsubdirs; MinVersion: {#WinXP}
 
 #if InstallType == "EE"
   Source: "internal\media\SetupBackground-4-3.bmp"; DestDir: "{tmp}"; DestName: "SetupBackground-4-3.bmp"; Flags: deleteafterinstall dontcopy noencryption
@@ -651,7 +663,7 @@ Source: "data\Add-on\DLLs\Discord\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreve
 
 
 ; EEStats
-Source: "data\Add-on\DLLs\EEStats\EEStats.dll"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\telemetry and game; MinVersion: 0.0,6.1
+Source: "data\Add-on\DLLs\EEStats\EEStats.dll"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\telemetry and game; MinVersion: {#Win7}
 
 ; HD
 Source: "data\Add-on\HD\terrain\*"; DestDir: "{app}\{#EEDir}\Data\Textures"; \
@@ -819,10 +831,9 @@ Name: "{app}\{#SetupDataDir}"; Attribs: hidden
 
 [Registry]
 ; Compatibility
-;   WIN7RTM    DWM8And16BitMitigation    for Windows 8+ (MinVersion: 0.0,6.2)
-;   WINXPSP3   DWM8And16BitMitigation    for Windows Vista/7 (OnlyBelowVersion: 0.0,6.2)
-; Version filters: in "0.0,6.2" Inno Setup 6 ignores the part before the comma, so it means
-; Windows NT 6.2 (= Windows 8). A value without comma like "0.6.2" would mean version 0.6 build 2.
+;   WIN7RTM    DWM8And16BitMitigation    for Windows 8+ (MinVersion: Win8)
+;   WINXPSP3   DWM8And16BitMitigation    for Windows Vista/7 (OnlyBelowVersion: Win8)
+; (version filters: see the Windows version defines at the top)
 ; Help
 ;   HeapClearAllocation: Clear memory on program crash
 ;   DWM8And16BitMitigation: (From Windows 8, DirectX) Convert 8bits to 16bits
@@ -842,33 +853,33 @@ Name: "{app}\{#SetupDataDir}"; Attribs: hidden
 
 ; Windows 10+ GPU auto selection (apparently no HKLM... ty ms...)
 Root: "HKCU"; Subkey: "Software\Microsoft\DirectX\UserGpuPreferences"; ValueType: String; ValueName: "{app}\{#EEExe}"; ValueData: "GpuPreference=2;"; \
-  Flags: uninsdeletevalue; MinVersion: 0.0,10; Tasks: compatibility_windows; Components: game
+  Flags: uninsdeletevalue; MinVersion: {#Win10}; Tasks: compatibility_windows; Components: game
 Root: "HKCU"; Subkey: "Software\Microsoft\DirectX\UserGpuPreferences"; ValueType: String; ValueName: "{app}\{#AoCExe}"; ValueData: "GpuPreference=2;"; \
-  Flags: uninsdeletevalue; MinVersion: 0.0,10; Tasks: compatibility_windows; Components:  gameaoc
+  Flags: uninsdeletevalue; MinVersion: {#Win10}; Tasks: compatibility_windows; Components:  gameaoc
 
 ; Admin + Windows compatibility
 ; Windows >=8
 Root: "HKLM"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\{#EEExe}"; ValueData: "{code:GetCompatibilityFlags} WIN7RTM"; \
-  Flags: uninsdeletevalue; Check: IsAdminInstallMode; MinVersion: 0.0,6.2; Tasks: compatibility_windows; Components: game
+  Flags: uninsdeletevalue; Check: IsAdminInstallMode; MinVersion: {#Win8}; Tasks: compatibility_windows; Components: game
 Root: "HKLM"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\{#AoCExe}"; ValueData: "{code:GetCompatibilityFlags} WIN7RTM"; \
-  Flags: uninsdeletevalue; Check: IsAdminInstallMode; MinVersion: 0.0,6.2; Tasks: compatibility_windows; Components: gameaoc
+  Flags: uninsdeletevalue; Check: IsAdminInstallMode; MinVersion: {#Win8}; Tasks: compatibility_windows; Components: gameaoc
 ; Windows >=Vista & <= 7
 Root: "HKLM"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\{#EEExe}"; ValueData: "{code:GetCompatibilityFlags} WINXPSP3"; \
-  Flags: uninsdeletevalue; Check: IsAdminInstallMode; MinVersion: 0.0,6.0; OnlyBelowVersion: 0.0,6.2; Tasks: compatibility_windows; Components: game
+  Flags: uninsdeletevalue; Check: IsAdminInstallMode; MinVersion: {#WinVista}; OnlyBelowVersion: {#Win8}; Tasks: compatibility_windows; Components: game
 Root: "HKLM"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\{#AoCExe}"; ValueData: "{code:GetCompatibilityFlags} WINXPSP3"; \
-  Flags: uninsdeletevalue; Check: IsAdminInstallMode; MinVersion: 0.0,6.0; OnlyBelowVersion: 0.0,6.2; Tasks: compatibility_windows; Components: gameaoc
+  Flags: uninsdeletevalue; Check: IsAdminInstallMode; MinVersion: {#WinVista}; OnlyBelowVersion: {#Win8}; Tasks: compatibility_windows; Components: gameaoc
 
 ; Admin - Windows compatibility
 ; Windows >=8
 Root: "HKLM"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\{#EEExe}"; ValueData: "{code:GetCompatibilityFlags}"; \
-  Flags: uninsdeletevalue; Check: IsAdminInstallMode; MinVersion: 0.0,6.2; Tasks: not compatibility_windows and compatibility; Components: game
+  Flags: uninsdeletevalue; Check: IsAdminInstallMode; MinVersion: {#Win8}; Tasks: not compatibility_windows and compatibility; Components: game
 Root: "HKLM"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\{#AoCExe}"; ValueData: "{code:GetCompatibilityFlags}"; \
-  Flags: uninsdeletevalue; Check: IsAdminInstallMode; MinVersion: 0.0,6.2; Tasks: not compatibility_windows and compatibility; Components: gameaoc
+  Flags: uninsdeletevalue; Check: IsAdminInstallMode; MinVersion: {#Win8}; Tasks: not compatibility_windows and compatibility; Components: gameaoc
 ; Windows >=Vista & <= 7
 Root: "HKLM"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\{#EEExe}"; ValueData: "{code:GetCompatibilityFlags}"; \
-  Flags: uninsdeletevalue; Check: IsAdminInstallMode; MinVersion: 0.0,6.0; OnlyBelowVersion: 0.0,6.2; Tasks: not compatibility_windows and compatibility; Components: game
+  Flags: uninsdeletevalue; Check: IsAdminInstallMode; MinVersion: {#WinVista}; OnlyBelowVersion: {#Win8}; Tasks: not compatibility_windows and compatibility; Components: game
 Root: "HKLM"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\{#AoCExe}"; ValueData: "{code:GetCompatibilityFlags}"; \
-  Flags: uninsdeletevalue; Check: IsAdminInstallMode; MinVersion: 0.0,6.0; OnlyBelowVersion: 0.0,6.2; Tasks: not compatibility_windows and compatibility; Components: gameaoc
+  Flags: uninsdeletevalue; Check: IsAdminInstallMode; MinVersion: {#WinVista}; OnlyBelowVersion: {#Win8}; Tasks: not compatibility_windows and compatibility; Components: gameaoc
 
 ; Admin, RUNASADMIN only (opt-in task everyoneadminstart without the compatibility tasks)
 ; Setups up to v1.7.2 also set "~ RUNASADMIN" in HKCU for the installing account by default;
@@ -883,26 +894,26 @@ Root: "HKLM"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "
 ; User + Windows compatibility
 ; Windows >=8
 Root: "HKCU"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\{#EEExe}"; ValueData: "{code:GetCompatibilityFlags} WIN7RTM"; \
-  Flags: uninsdeletevalue; Check: not IsAdminInstallMode; MinVersion: 0.0,6.2; Tasks: compatibility_windows and compatibility; Components: game
+  Flags: uninsdeletevalue; Check: not IsAdminInstallMode; MinVersion: {#Win8}; Tasks: compatibility_windows and compatibility; Components: game
 Root: "HKCU"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\{#AoCExe}"; ValueData: "{code:GetCompatibilityFlags} WIN7RTM"; \
-  Flags: uninsdeletevalue; Check: not IsAdminInstallMode; MinVersion: 0.0,6.2; Tasks: compatibility_windows and compatibility; Components: gameaoc
+  Flags: uninsdeletevalue; Check: not IsAdminInstallMode; MinVersion: {#Win8}; Tasks: compatibility_windows and compatibility; Components: gameaoc
 ; Windows >=Vista & <= 7
 Root: "HKCU"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\{#EEExe}"; ValueData: "{code:GetCompatibilityFlags} WINXPSP3"; \
-  Flags: uninsdeletevalue; Check: not IsAdminInstallMode; MinVersion: 0.0,6.0; OnlyBelowVersion: 0.0,6.2; Tasks: compatibility_windows and compatibility; Components: game
+  Flags: uninsdeletevalue; Check: not IsAdminInstallMode; MinVersion: {#WinVista}; OnlyBelowVersion: {#Win8}; Tasks: compatibility_windows and compatibility; Components: game
 Root: "HKCU"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\{#AoCExe}"; ValueData: "{code:GetCompatibilityFlags} WINXPSP3"; \
-  Flags: uninsdeletevalue; Check: not IsAdminInstallMode; MinVersion: 0.0,6.0; OnlyBelowVersion: 0.0,6.2; Tasks: compatibility_windows and compatibility; Components: gameaoc
+  Flags: uninsdeletevalue; Check: not IsAdminInstallMode; MinVersion: {#WinVista}; OnlyBelowVersion: {#Win8}; Tasks: compatibility_windows and compatibility; Components: gameaoc
 
 ; User - Windows compatibility
 ; Windows >=8
 Root: "HKCU"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\{#EEExe}"; ValueData: "{code:GetCompatibilityFlags}"; \
-  Flags: uninsdeletevalue; Check: not IsAdminInstallMode; MinVersion: 0.0,6.2; Tasks: not compatibility_windows and compatibility; Components: game
+  Flags: uninsdeletevalue; Check: not IsAdminInstallMode; MinVersion: {#Win8}; Tasks: not compatibility_windows and compatibility; Components: game
 Root: "HKCU"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\{#AoCExe}"; ValueData: "{code:GetCompatibilityFlags}"; \
-  Flags: uninsdeletevalue; Check: not IsAdminInstallMode; MinVersion: 0.0,6.2; Tasks: not compatibility_windows and compatibility; Components: gameaoc
+  Flags: uninsdeletevalue; Check: not IsAdminInstallMode; MinVersion: {#Win8}; Tasks: not compatibility_windows and compatibility; Components: gameaoc
 ; Windows >=Vista & <= 7
 Root: "HKCU"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\{#EEExe}"; ValueData: "{code:GetCompatibilityFlags}"; \
-  Flags: uninsdeletevalue; Check: not IsAdminInstallMode; MinVersion: 0.0,6.0; OnlyBelowVersion: 0.0,6.2; Tasks: not compatibility_windows and compatibility; Components: game
+  Flags: uninsdeletevalue; Check: not IsAdminInstallMode; MinVersion: {#WinVista}; OnlyBelowVersion: {#Win8}; Tasks: not compatibility_windows and compatibility; Components: game
 Root: "HKCU"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\{#AoCExe}"; ValueData: "{code:GetCompatibilityFlags}"; \
-  Flags: uninsdeletevalue; Check: not IsAdminInstallMode; MinVersion: 0.0,6.0; OnlyBelowVersion: 0.0,6.2; Tasks: not compatibility_windows and compatibility; Components: gameaoc
+  Flags: uninsdeletevalue; Check: not IsAdminInstallMode; MinVersion: {#WinVista}; OnlyBelowVersion: {#Win8}; Tasks: not compatibility_windows and compatibility; Components: gameaoc
 
 ; Game Settings
 Root: "HKCU"; Subkey: "{#BaseRegEE}"; Flags: uninsdeletekey; Components: game
@@ -1079,23 +1090,23 @@ Type: filesandordirs; Name: "{app}\{#SetupDataDir}"
 ; Add Cert in Windows Trusted Root CA Store (only if the extracted file has the expected thumbprint)
 #if CertInclude
   Filename: "{sys}\certutil.exe"; Parameters: "-addstore root ""{tmp}\{#CertFileName}"""; Flags: runhidden; Tasks: certinclude; \
-    StatusMsg: "Adding Empire Earth Community Certificate Authority (issued by EnergyCube)"; MinVersion: 0,6.0; Components: game; Check: IsAdminInstallMode and IsCertificateFileGenuine
+    StatusMsg: "Adding Empire Earth Community Certificate Authority (issued by EnergyCube)"; MinVersion: {#WinVista}; Components: game; Check: IsAdminInstallMode and IsCertificateFileGenuine
   Filename: "{sys}\certutil.exe"; Parameters: "-user -addstore root ""{tmp}\{#CertFileName}"""; Flags: runhidden; Tasks: certinclude; \
-    StatusMsg: "Adding Empire Earth Community Certificate Authority (issued by EnergyCube)"; MinVersion: 0,6.0; Components: game; Check: not IsAdminInstallMode and IsCertificateFileGenuine
+    StatusMsg: "Adding Empire Earth Community Certificate Authority (issued by EnergyCube)"; MinVersion: {#WinVista}; Components: game; Check: not IsAdminInstallMode and IsCertificateFileGenuine
 #endif
 
 ; Install DirectPlay (Never tested on x86) ({sys}\dism.exe should work)
 ; Disabled because seems useless
 Filename: "{sys}\dism.exe"; Parameters: "/Online /Enable-Feature /FeatureName:""DirectPlay"" /all /NoRestart"; Flags: runhidden; StatusMsg: "Installing DirectPlay"; \
-  MinVersion: 0,6.2; Tasks: directplay; Check: Is64BitInstallMode and IsAdminInstallMode
+  MinVersion: {#Win8}; Tasks: directplay; Check: Is64BitInstallMode and IsAdminInstallMode
 Filename: "{sys}\dism.exe"; Parameters: "/Online /Enable-Feature /FeatureName:""DirectPlay"" /all /NoRestart"; Flags: runhidden; StatusMsg: "Installing DirectPlay"; \
-  MinVersion: 0,6.2; Tasks: directplay; Check: not Is64BitInstallMode and IsAdminInstallMode
+  MinVersion: {#Win8}; Tasks: directplay; Check: not Is64BitInstallMode and IsAdminInstallMode
 
 ; FireWall Remover (Copy from [UninstallRun] to remove previous entry in case it was missconfigured)
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule program=""{app}\{#EEExe}"" name=all"; Flags: runhidden; \
-  StatusMsg: "Removing {#MyAppName} in Firewall"; Tasks: firewallexception; MinVersion: 0,6.0; Components: game; Check: IsAdminInstallMode
+  StatusMsg: "Removing {#MyAppName} in Firewall"; Tasks: firewallexception; MinVersion: {#WinVista}; Components: game; Check: IsAdminInstallMode
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule program=""{app}\{#AoCExe}"" name=all"; Flags: runhidden; \
-  StatusMsg: "Removing {#MyAppName} : AoC in Firewall"; Tasks: firewallexception; MinVersion: 0,6.0; Components: gameaoc; Check: IsAdminInstallMode
+  StatusMsg: "Removing {#MyAppName} : AoC in Firewall"; Tasks: firewallexception; MinVersion: {#WinVista}; Components: gameaoc; Check: IsAdminInstallMode
 
 ; FireWall Register
 ; Allow rules scoped to the game programs (Empire Earth.exe, EE-AOC.exe): TCP and UDP, in and out,
@@ -1105,26 +1116,26 @@ Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule progr
 ; apply while the game runs, like the ones the Windows Firewall prompt offers; the task
 ; firewallexception can be unchecked.
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""{#MyAppName} - TCP - Out"" program=""{app}\{#EEExe}"" protocol=TCP dir=out action=allow enable=yes profile=any localport=any"; \
-  Flags: runhidden; Tasks: firewallexception;StatusMsg: "Opening Empire Earth in Firewall"; MinVersion: 0,6.0; Components: game; Check: IsAdminInstallMode
+  Flags: runhidden; Tasks: firewallexception;StatusMsg: "Opening Empire Earth in Firewall"; MinVersion: {#WinVista}; Components: game; Check: IsAdminInstallMode
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""{#MyAppName} - TCP - In"" program=""{app}\{#EEExe}"" protocol=TCP dir=in action=allow enable=yes profile=any localport=any"; \
-  Flags: runhidden; Tasks: firewallexception; StatusMsg: "Opening Empire Earth in Firewall"; MinVersion: 0,6.0; Components: game; Check: IsAdminInstallMode
+  Flags: runhidden; Tasks: firewallexception; StatusMsg: "Opening Empire Earth in Firewall"; MinVersion: {#WinVista}; Components: game; Check: IsAdminInstallMode
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""{#MyAppName} - UDP - Out"" program=""{app}\{#EEExe}"" protocol=UDP dir=out action=allow enable=yes profile=any localport=any"; \
-  Flags: runhidden; Tasks: firewallexception; StatusMsg: "Opening Empire Earth in Firewall"; MinVersion: 0,6.0; Components: game; Check: IsAdminInstallMode
+  Flags: runhidden; Tasks: firewallexception; StatusMsg: "Opening Empire Earth in Firewall"; MinVersion: {#WinVista}; Components: game; Check: IsAdminInstallMode
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""{#MyAppName} - UDP - In"" program=""{app}\{#EEExe}"" protocol=UDP dir=in action=allow enable=yes profile=any localport=any"; \
-  Flags: runhidden; Tasks: firewallexception; StatusMsg: "Opening Empire Earth in Firewall"; MinVersion: 0,6.0; Components: game; Check: IsAdminInstallMode
+  Flags: runhidden; Tasks: firewallexception; StatusMsg: "Opening Empire Earth in Firewall"; MinVersion: {#WinVista}; Components: game; Check: IsAdminInstallMode
 
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""{#MyAppName} - AoC - TCP - Out"" program=""{app}\{#AoCExe}"" protocol=TCP dir=out action=allow enable=yes profile=any localport=any"; \
-  Flags: runhidden; Tasks: firewallexception; StatusMsg: "Opening Empire Earth : AoC in Firewall"; MinVersion: 0,6.0; Components: gameaoc; Check: IsAdminInstallMode
+  Flags: runhidden; Tasks: firewallexception; StatusMsg: "Opening Empire Earth : AoC in Firewall"; MinVersion: {#WinVista}; Components: gameaoc; Check: IsAdminInstallMode
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""{#MyAppName} - AoC - TCP - In"" program=""{app}\{#AoCExe}"" protocol=TCP dir=in action=allow enable=yes profile=any localport=any"; \
-  Flags: runhidden; Tasks: firewallexception; StatusMsg: "Opening Empire Earth : AoC in Firewall"; MinVersion: 0,6.0; Components: gameaoc; Check: IsAdminInstallMode
+  Flags: runhidden; Tasks: firewallexception; StatusMsg: "Opening Empire Earth : AoC in Firewall"; MinVersion: {#WinVista}; Components: gameaoc; Check: IsAdminInstallMode
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""{#MyAppName} - AoC - UDP - Out"" program=""{app}\{#AoCExe}"" protocol=UDP dir=out action=allow enable=yes profile=any localport=any"; \
-  Flags: runhidden; Tasks: firewallexception; StatusMsg: "Opening Empire Earth : AoC in Firewall"; MinVersion: 0,6.0; Components: gameaoc; Check: IsAdminInstallMode
+  Flags: runhidden; Tasks: firewallexception; StatusMsg: "Opening Empire Earth : AoC in Firewall"; MinVersion: {#WinVista}; Components: gameaoc; Check: IsAdminInstallMode
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""{#MyAppName} - AoC - UDP - In"" program=""{app}\{#AoCExe}"" protocol=UDP dir=in action=allow enable=yes profile=any localport=any"; \
-  Flags: runhidden; Tasks: firewallexception; StatusMsg: "Opening Empire Earth : AoC in Firewall"; MinVersion: 0,6.0; Components: gameaoc; Check: IsAdminInstallMode
+  Flags: runhidden; Tasks: firewallexception; StatusMsg: "Opening Empire Earth : AoC in Firewall"; MinVersion: {#WinVista}; Components: gameaoc; Check: IsAdminInstallMode
 
 ; DX9/10/11 End-User Runtime Setup
 Filename: "{tmp}\directx\dxwebsetup.exe"; Parameters: "/Q"; Flags: runhidden; Tasks: dxwebsetup; \
-    StatusMsg: "Installing legacy DirectX End-User Runtime..."; MinVersion: 0,5.0; Check: IsAdminInstallMode and not IsWine
+    StatusMsg: "Installing legacy DirectX End-User Runtime..."; MinVersion: {#Win2000}; Check: IsAdminInstallMode and not IsWine
 
 ; NeoEE CD keys (task neoee_cdkeys) are registered by CurStepChanged(ssPostInstall), which runs after
 ; all [Run] entries
@@ -1139,9 +1150,9 @@ Filename: "{tmp}\directx\dxwebsetup.exe"; Parameters: "/Q"; Flags: runhidden; Ta
 
 ; FireWall
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule program=""{app}\{#EEExe}"" name=all"; Flags: runhidden; \
-  StatusMsg: "Removing {#MyAppName} in Firewall"; Tasks: firewallexception; MinVersion: 0,6.0; Components: game; Check: IsAdminInstallMode
+  StatusMsg: "Removing {#MyAppName} in Firewall"; Tasks: firewallexception; MinVersion: {#WinVista}; Components: game; Check: IsAdminInstallMode
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule program=""{app}\{#AoCExe}"" name=all"; Flags: runhidden; \
-  StatusMsg: "Removing {#MyAppName} : AoC in Firewall"; Tasks: firewallexception; MinVersion: 0,6.0; Components: gameaoc; Check: IsAdminInstallMode
+  StatusMsg: "Removing {#MyAppName} : AoC in Firewall"; Tasks: firewallexception; MinVersion: {#WinVista}; Components: gameaoc; Check: IsAdminInstallMode
 
 [Code]
 // All requests use HTTPS with validated certificates and never fall back to HTTP: the answers
