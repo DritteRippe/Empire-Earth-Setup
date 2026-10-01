@@ -21,7 +21,7 @@
 ; ---------------------------------------
 ; External Dep.
 ;   InnoSetup Downloader Plugin (download files + support mirrors), BASS (audio module)
-; Additinal Content
+; Additional Content
 ;   Omega (Patch & Neo Content Patch), yukon aka. drex (dreXmod.dll)
 ;   Dege (DX Wrapper: dgVoodoo), GOG (DX Wrapper), zocker_160 & EnergyCube (Reborn.dll)
 ; Other Help
@@ -444,7 +444,6 @@ Name: "everyoneadminstart"; Description: "{cm:TaskAdminStart}"; MinVersion: {#Wi
 
 #if InstallMode != "Portable"
   Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
-  Name: "quicklaunchicon"; Description: "{cm:CreateQuickLaunchIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked; OnlyBelowVersion: {#Win7}
 #endif
 
 [Components]
@@ -905,9 +904,6 @@ Root: "HKCU"; Subkey: "{#GameRegKey}"; ValueType: string; ValueName: "Installed 
   ; Name: "{group}\{cm:UninstallProgram,Empire Earth}"; Filename: "{uninstallexe}";
   Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#EEExe}"; Components: game; Tasks: desktopicon;
   Name: "{autodesktop}\{#MyAppName} - AoC"; Filename: "{app}\{#AoCExe}"; Components: gameaoc; Tasks: desktopicon;
-  Name: "{autoappdata}\Microsoft\Internet Explorer\Quick Launch\{#MyAppName}"; Filename: "{app}\{#EEExe}"; Components: game; Tasks: quicklaunchicon;
-  Name: "{autoappdata}\Microsoft\Internet Explorer\Quick Launch\{#MyAppName} - AoC"; Filename: "{app}\{#AoCExe}"; Components: gameaoc; Tasks: quicklaunchicon;
-  Name: "{autoappdata}\Microsoft\Internet Explorer\Quick Launch\{#MyAppName} Diagnostic"; Filename: "{app}\Tools\Diagnostic\EE-Diagnostic.exe"; Parameters: "{#SetupSetting("AppId")}_is1"; Components: additional\tools\diagnostic; Tasks: quicklaunchicon;
 #endif
 
 [InstallDelete]

@@ -78,7 +78,8 @@ Refactoring and quality fixes (no new game content).
 ### Removed
 - Entries for Windows XP and older: the WIN98 compatibility mode and the pre-Vista `netsh
   firewall` rules (23 entries). Setups made with Inno Setup 6 do not start on these systems, so
-  the entries never ran.
+  the entries never ran. For the same reason the Quick Launch shortcut task (shown only below
+  Windows 7) and its three shortcuts are removed.
 
 ### Fixed
 - English installation mode page: "Recommended settings" instead of "Recommanded settings".
