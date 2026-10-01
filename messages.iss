@@ -144,11 +144,21 @@ ko.UserInstallMode=사용자 모드 설치를 사용하고 있으므로 설치�
 %n이 모드는 컴퓨터의 방화벽으로 게임을 등록할 수 없으며, 이는 게임을 호스팅하는 것을 방지할 수 있습니다(하지만 여전히 게임에 참여할 수 있어야 합니다). \
 %n컴퓨터에 관리자 권한이 있는 경우 관리자 모드를 선호합니다.
 
-; Online files (downloads.iss): downloaded files that do not match their SHA-256
-; %1 = number of files, %2 = list of the files (each on its own line)
-DownloadVerificationFailed=%1 downloaded file(s) discarded because the checksum does not match the one built into this setup:%2%n%nThe setup uses its own files instead, so some content may not be translated.
-de.DownloadVerificationFailed=%1 heruntergeladene Datei(en) verworfen, weil die Prüfsumme nicht mit der in dieses Setup eingebauten übereinstimmt:%2%n%nDas Setup verwendet stattdessen seine eigenen Dateien, daher sind einige Inhalte möglicherweise nicht übersetzt.
-fr.DownloadVerificationFailed=%1 fichier(s) téléchargé(s) rejeté(s), car leur somme de contrôle ne correspond pas à celle intégrée à ce programme d'installation :%2%n%nL'installation utilise ses propres fichiers à la place, certains contenus pourraient donc ne pas être traduits.
+; Online files (RegisterOnlineFiles, downloads.iss)
+OnlineFilesUnreachable=Unable to reach the servers of the localized files. The setup only uses its own files, so some content may not be translated.
+de.OnlineFilesUnreachable=Die Server der lokalisierten Dateien sind nicht erreichbar. Das Setup verwendet nur seine eigenen Dateien, daher sind einige Inhalte möglicherweise nicht übersetzt.
+fr.OnlineFilesUnreachable=Impossible de joindre les serveurs des fichiers traduits. L'installation utilise uniquement ses propres fichiers, certains contenus pourraient donc ne pas être traduits.
+; Localized files that are not installed from the download: %1 = list, one "DownloadFile..." line per file
+DownloadIncomplete=Some localized files could not be installed from the download:%1%n%nThe setup installs its own versions of these files instead, so some content may not be translated.
+de.DownloadIncomplete=Einige lokalisierte Dateien konnten nicht aus dem Download installiert werden:%1%n%nDas Setup installiert stattdessen seine eigenen Versionen dieser Dateien, daher sind einige Inhalte möglicherweise nicht übersetzt.
+fr.DownloadIncomplete=Certains fichiers traduits n'ont pas pu être installés depuis le téléchargement :%1%n%nL'installation utilise ses propres versions de ces fichiers à la place, certains contenus pourraient donc ne pas être traduits.
+; %1 = file, e.g. Empire Earth\Data\data.ssa
+DownloadFileMissing=%1 (not downloaded)
+de.DownloadFileMissing=%1 (nicht heruntergeladen)
+fr.DownloadFileMissing=%1 (non téléchargé)
+DownloadFileRejected=%1 (checksum does not match the one built into this setup, discarded)
+de.DownloadFileRejected=%1 (Prüfsumme stimmt nicht mit der in dieses Setup eingebauten überein, verworfen)
+fr.DownloadFileRejected=%1 (la somme de contrôle ne correspond pas à celle intégrée à ce programme d'installation, rejeté)
 
 ; Tasks
 TaskAdminStart=Always run the game as administrator, for all users (not recommended, only if the game does not work otherwise)

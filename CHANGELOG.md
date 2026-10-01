@@ -95,6 +95,19 @@ Refactoring and quality fixes (no new game content).
   (the AMD option of the GPU page was saved under the wrong name), and two texts no longer start
   with "=". English telemetry option: "its" instead of "it''s".
 - The game language page no longer explains "*"/"**" quality markers that no language carries.
+- Localized downloads: deselecting "Download localized voices and campaigns" now also stops the
+  Empire Earth downloads (the condition was "game or download", and `game` is always selected),
+  and AoC files are only downloaded with AoC (the NeoEE AoC `Language.dll` was downloaded without
+  it). Timeouts are 15/30 s instead of 0.5 s, which made slow, mobile or VPN connections fail.
+  The servers are no longer contacted for English or with the download deselected, and if only
+  the mirror answers, the files are downloaded from it first. After the download the setup lists
+  every localized file that could not be downloaded or verified and installs its own version of
+  it; it used to continue silently with a partly translated game. The message about unreachable
+  servers is localized.
+- AoC gets the downloaded localized lobby files it shares with Empire Earth: IDP downloads a URL
+  only once and silently dropped the second target.
+- NeoEE: where a NeoEE version of a localized file exists, only that one is downloaded. If its
+  download failed, the EE version downloaded to the same place replaced the NeoEE file.
 
 ### Security
 - Online localized files: TLS certificates are validated (invalid certificates used to be

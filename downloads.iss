@@ -6,8 +6,9 @@
 //  - AddOnlineFile registers a file only if a hash is known for its server path,
 //  - VerifyDownloadedFiles (ssInstall, before any file is installed) checks every downloaded file
 //    and moves the matching ones to {tmp}\verified\, the only folder [Files] installs them from.
-//    A mismatching file is deleted, logged and reported like a failed download; the setup then
-//    keeps the files it contains itself.
+//    A mismatching file is deleted. Every registered file that does not arrive there (download
+//    failed or skipped, checksum mismatch) is logged and reported; for it the setup installs the
+//    file it contains itself.
 //
 // The hashes come from a list in sha256sum format ("<SHA-256 in hex>  <path>", one file per line,
 // paths relative to the "localized" folder of the file servers, which has the same layout as
@@ -74,11 +75,14 @@ type
     RelPath: String;
     RelDest: String;  // download target relative to {tmp}, e.g. EE\Language.dll
     SHA256: String;
+    CopyOf: Integer;  // -1, or the entry with the same URL: its verified file is copied to RelDest
   end;
 
 var
   DownloadPins: array of TDownloadPin;
   OnlineFiles: array of TOnlineFile;
+  // Server tried first and mirror, see SelectOnlineFilesServer
+  OnlineFilesPrimaryURL, OnlineFilesSecondaryURL: String;
 
 procedure AddDownloadPin(const RelPath, SHA256: String);
 var
@@ -135,20 +139,43 @@ begin
   Result := 'https://storage.' + DomainMirror + '/localized';
 end;
 
+// Chooses the server the files are downloaded from: the main server, or the mirror if only the
+// mirror answers (the other one stays registered as IDP mirror). With realistic timeouts, an
+// unreachable main server would otherwise delay every single file. False if neither answers.
+function SelectOnlineFilesServer: Boolean;
+begin
+  Result := True;
+  if SendRequest(OnlineFilesURL, False) <> -1 then
+  begin
+    OnlineFilesPrimaryURL := OnlineFilesURL;
+    OnlineFilesSecondaryURL := OnlineFilesMirrorURL;
+  end
+  else if SendRequest(OnlineFilesMirrorURL, False) <> -1 then
+  begin
+    Log('Main online files server unreachable, downloading from the mirror first');
+    OnlineFilesPrimaryURL := OnlineFilesMirrorURL;
+    OnlineFilesSecondaryURL := OnlineFilesURL;
+  end
+  else
+    Result := False;
+end;
+
 procedure ClearOnlineFiles;
 begin
   idpClearFiles();
   SetArrayLength(OnlineFiles, 0);
 end;
 
-// Registers a download of OnlineFilesURL/RelPath (mirror: OnlineFilesMirrorURL/RelPath) to
-// {tmp}\RelDest for the given components, but only if its SHA-256 is known
-procedure AddOnlineFile(const RelPath, RelDest, Components: String);
+// Registers the download of <server>/RelPath to {tmp}\RelDest, but only if its SHA-256 is known
+// and no other file is registered for RelDest yet. The caller registers only what is selected
+// (IDP would download a file if any one of its components is selected). Call
+// SelectOnlineFilesServer first. True if the file is registered.
+function AddOnlineFile(const RelPath, RelDest: String): Boolean;
 var
-  I, N: Integer;
+  I, N, CopyOf: Integer;
   Hash, Url: String;
-  KnownUrl: Boolean;
 begin
+  Result := False;
   Hash := GetDownloadPin(RelPath);
   if Hash = '' then
   begin
@@ -156,15 +183,28 @@ begin
     Exit;
   end;
 
-  Url := OnlineFilesURL + '/' + RelPath;
-  KnownUrl := False;
+  CopyOf := -1;
   for I := 0 to GetArrayLength(OnlineFiles) - 1 do
-    if OnlineFiles[I].Url = Url then
-      KnownUrl := True;
+  begin
+    if CompareText(OnlineFiles[I].RelDest, RelDest) = 0 then
+    begin
+      Log('Online file skipped, ' + RelDest + ' is already downloaded from ' + OnlineFiles[I].RelPath);
+      Exit;
+    end;
+    if (OnlineFiles[I].RelPath = RelPath) and (OnlineFiles[I].CopyOf < 0) then
+      CopyOf := I;
+  end;
 
-  idpAddFileComp(Url, ExpandConstant('{tmp}\' + RelDest), Components);
-  if not KnownUrl then
-    idpAddMirror(Url, OnlineFilesMirrorURL + '/' + RelPath);
+  if CopyOf < 0 then
+  begin
+    Url := OnlineFilesPrimaryURL + '/' + RelPath;
+    idpAddFile(Url, ExpandConstant('{tmp}\' + RelDest));
+    idpAddMirror(Url, OnlineFilesSecondaryURL + '/' + RelPath);
+  end
+  else
+    // IDP downloads a URL only once and ignores a second target for it (checked with idp.dll
+    // 1.6.0), so a file needed in both game folders is downloaded once and copied
+    Url := OnlineFiles[CopyOf].Url;
 
   N := GetArrayLength(OnlineFiles);
   SetArrayLength(OnlineFiles, N + 1);
@@ -172,85 +212,121 @@ begin
   OnlineFiles[N].RelPath := RelPath;
   OnlineFiles[N].RelDest := RelDest;
   OnlineFiles[N].SHA256 := Hash;
+  OnlineFiles[N].CopyOf := CopyOf;
+  Result := True;
 end;
 
-// Checks every downloaded file against the SHA-256 of the server path(s) it was downloaded from
-// (EE and NeoEE files can share a target, e.g. EE\Language.dll) and moves the matching ones to
-// {tmp}\verified\<RelDest>. Must run before [Files] is processed (ssInstall).
+// RelDest as the player sees it: the game folder instead of EE/AoC
+function OnlineFileDisplayName(const RelDest: String): String;
+begin
+  Result := RelDest;
+  if CompareText(Copy(Result, 1, 3), 'EE\') = 0 then
+    Result := 'Empire Earth\' + Copy(Result, 4, Length(Result))
+  else if CompareText(Copy(Result, 1, 4), 'AoC\') = 0 then
+    Result := 'Empire Earth - The Art of Conquest\' + Copy(Result, 5, Length(Result));
+end;
+
+// Result of VerifyDownloadedFiles for one file: '' if it is in {tmp}\verified, else the name of
+// the custom message that describes the problem
+function VerifyOnlineFile(const OnlineFile: TOnlineFile): String;
+var
+  Source, Target, Hash: String;
+begin
+  Source := ExpandConstant('{tmp}\' + OnlineFile.RelDest);
+  Target := ExpandConstant('{tmp}\verified\' + OnlineFile.RelDest);
+
+  if not idpFileDownloaded(OnlineFile.Url) or not FileExists(Source) then
+  begin
+    Log('Online file not downloaded: ' + OnlineFile.RelPath);
+    Result := 'DownloadFileMissing';
+    // A partial download must not stay next to the verified files
+    DeleteFile(Source);
+    Exit;
+  end;
+
+  try
+    Hash := LowerCase(GetSHA256OfFile(Source));
+  except
+    Hash := '';
+    Log('Unable to hash ' + Source + ': ' + GetExceptionMessage);
+  end;
+
+  // Only a file with the expected SHA-256 is moved to the verified folder
+  Result := 'DownloadFileRejected';
+  if Hash <> OnlineFile.SHA256 then
+    Log('Online file rejected, SHA-256 mismatch: ' + OnlineFile.RelPath + ' (got ' + Hash + ')')
+  else if ForceDirectories(ExtractFileDir(Target)) and RenameFile(Source, Target) then
+  begin
+    Log('Online file verified: ' + OnlineFile.RelPath + ' (SHA-256 ' + Hash + ')');
+    Result := '';
+  end
+  else
+    Log('Unable to move the verified file ' + Source + ' to ' + Target);
+
+  if (Result <> '') and FileExists(Source) and not DeleteFile(Source) then
+    Log('Unable to delete ' + Source + ' (it is not installed anyway)');
+end;
+
+// Checks every downloaded file against its SHA-256 and moves the matching ones to
+// {tmp}\verified\<RelDest>, copies files needed in both game folders, then reports every
+// registered file that is not there, so the player knows which localized content stays as the
+// setup installs it itself (some of it in English). Must run before [Files] is processed
+// (ssInstall).
 procedure VerifyDownloadedFiles;
 var
-  I, J, Rejected: Integer;
-  Source, Target, Hash, RejectedList: String;
-  Done: TStringList;
-  Downloaded, Matches: Boolean;
+  I, Missing: Integer;
+  Problem: array of String;
+  Target, Report: String;
+  Rejected: Boolean;
 begin
   // [Files] installs from these folders, so they have to exist even if nothing was downloaded
   ForceDirectories(ExpandConstant('{tmp}\verified\EE'));
   ForceDirectories(ExpandConstant('{tmp}\verified\AoC'));
 
-  Rejected := 0;
-  RejectedList := '';
-  Done := TStringList.Create;
-  try
-    for I := 0 to GetArrayLength(OnlineFiles) - 1 do
+  SetArrayLength(Problem, GetArrayLength(OnlineFiles));
+  Missing := 0;
+  Report := '';
+  Rejected := False;
+  for I := 0 to GetArrayLength(OnlineFiles) - 1 do
+  begin
+    if OnlineFiles[I].CopyOf < 0 then
+      Problem[I] := VerifyOnlineFile(OnlineFiles[I])
+    else
     begin
-      if Done.IndexOf(OnlineFiles[I].RelDest) >= 0 then
-        Continue;
-      Done.Add(OnlineFiles[I].RelDest);
-
-      Source := ExpandConstant('{tmp}\' + OnlineFiles[I].RelDest);
+      // The original entry comes first, so it has already been verified
+      Problem[I] := Problem[OnlineFiles[I].CopyOf];
       Target := ExpandConstant('{tmp}\verified\' + OnlineFiles[I].RelDest);
-      if not FileExists(Source) then
-        Continue;
-
-      // Not downloaded (failed, skipped or not selected): IDP already reported failures
-      Downloaded := False;
-      for J := I to GetArrayLength(OnlineFiles) - 1 do
-        if OnlineFiles[J].RelDest = OnlineFiles[I].RelDest then
-          if idpFileDownloaded(OnlineFiles[J].Url) then
-            Downloaded := True;
-      if not Downloaded then
-      begin
-        Log('Online file not downloaded, ignored: ' + OnlineFiles[I].RelDest);
-        DeleteFile(Source);
-        Continue;
-      end;
-
-      try
-        Hash := LowerCase(GetSHA256OfFile(Source));
-      except
-        Hash := '';
-        Log('Unable to hash ' + Source + ': ' + GetExceptionMessage);
-      end;
-
-      Matches := False;
-      if Hash <> '' then
-        for J := I to GetArrayLength(OnlineFiles) - 1 do
-          if (OnlineFiles[J].RelDest = OnlineFiles[I].RelDest) and (OnlineFiles[J].SHA256 = Hash) then
-          begin
-            Matches := True;
-            Log('Online file verified: ' + OnlineFiles[J].RelPath + ' (SHA-256 ' + Hash + ')');
-          end;
-
-      // Nested on purpose: an unverified file must never reach the verified folder
-      if Matches then
-      begin
-        if ForceDirectories(ExtractFileDir(Target)) then
-          if RenameFile(Source, Target) then
-            Continue;
-        Log('Unable to move the verified file ' + Source + ' to ' + Target);
-      end else
-        Log('Online file rejected, SHA-256 mismatch: ' + OnlineFiles[I].RelDest + ' (got ' + Hash + ')');
-
-      if not DeleteFile(Source) then
-        Log('Unable to delete ' + Source + ' (it is not installed anyway)');
-      Rejected := Rejected + 1;
-      RejectedList := RejectedList + #13#10 + OnlineFiles[I].RelDest;
+      if Problem[I] = '' then
+        if not ForceDirectories(ExtractFileDir(Target)) or
+           not FileCopy(ExpandConstant('{tmp}\verified\' + OnlineFiles[OnlineFiles[I].CopyOf].RelDest), Target, False) then
+        begin
+          Log('Unable to copy the verified file to ' + Target);
+          Problem[I] := 'DownloadFileRejected';
+        end;
     end;
-  finally
-    Done.Free;
+
+    if Problem[I] <> '' then
+    begin
+      Missing := Missing + 1;
+      if Problem[I] = 'DownloadFileRejected' then
+        Rejected := True;
+      Report := Report + #13#10 + '  ' + FmtMessage(CustomMessage(Problem[I]), [OnlineFileDisplayName(OnlineFiles[I].RelDest)]);
+    end;
   end;
 
-  if (Rejected > 0) and not SilentInstall and not SuppressMsgBoxes then
-    MsgBox(FmtMessage(CustomMessage('DownloadVerificationFailed'), [IntToStr(Rejected), RejectedList]), mbError, MB_OK);
+  if Missing = 0 then
+  begin
+    if GetArrayLength(OnlineFiles) > 0 then
+      Log('All ' + IntToStr(GetArrayLength(OnlineFiles)) + ' online files verified');
+    Exit;
+  end;
+
+  Log(IntToStr(Missing) + ' of ' + IntToStr(GetArrayLength(OnlineFiles)) + ' online files are missing, the setup installs its own files instead:' + Report);
+  if SilentInstall or SuppressMsgBoxes then
+    Exit;
+  // An error if a file did not match its checksum (damaged or tampered with), else a notice
+  if Rejected then
+    MsgBox(FmtMessage(CustomMessage('DownloadIncomplete'), [Report]), mbError, MB_OK)
+  else
+    MsgBox(FmtMessage(CustomMessage('DownloadIncomplete'), [Report]), mbInformation, MB_OK);
 end;

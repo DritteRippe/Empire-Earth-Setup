@@ -600,7 +600,7 @@ Source: "data\localized-text\Lobby\zh\shared\*"; DestDir: "{app}\Empire Earth"; 
 #endif
 
 ; EE Online Lang Any Based Content (only downloads that passed the SHA-256 check, see downloads.iss)
-Source: "{tmp}\verified\EE\*"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs external skipifsourcedoesntexist; Components: game language\update;
+Source: "{tmp}\verified\EE\*"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs external skipifsourcedoesntexist; Components: game and language\update;
 
 ; DreXmod 2 (+privacy patched dll, because nothing allow to disable it in config)
 Source: "data\Add-on\DLLs\dreXmod\2\*"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\drexmod\v2 and game;
@@ -1748,22 +1748,48 @@ begin
   WizardSelectComponents('language\' + Lang);
 end;
 
+// NeoEE setups install the NeoEE version of a localized file where there is one, like [Files]
+// does with the local files (the NeoEE entries come last and overwrite the EE ones); otherwise,
+// and in EE setups, the EE version
+procedure AddLocalizedOnlineFile(const RelPath, NeoEERelPath, RelDest: String);
+begin
+#if InstallType == "NeoEE"
+  if AddOnlineFile(NeoEERelPath, RelDest) then
+    Exit;
+#endif
+  AddOnlineFile(RelPath, RelDest);
+end;
+
 procedure RegisterOnlineFiles();
 var
-  LangCode: String;
+  LangCode, Game, Lobby, NeoGame, NeoLobby: String;
 begin
   // Register Online Files (Game default is in english, online files will recover the located one if asked)
   // Mirror Order
-  // EE Community (Energy) => Zocker
+  // EE Community (Energy) => Zocker (SelectOnlineFilesServer starts with the mirror if only it answers)
   // Storage Localized structure : {base_url}/localized/{scope}/{language}/{GameType}/
-  // Note: EELearningCampaign.ssa is the same for AoC, the setup will copy the one of EE
+  // Note: EELearningCampaign.ssa is the same for AoC, [Files] installs the one of EE for both
   // AddOnlineFile (downloads.iss) registers the file on both servers (same path on the mirror),
   // but only if its SHA-256 is known: every download is verified before it is installed.
-  LangCode := CorrectLanguageCode(GetSelectedLanguageFromComponents(''));
+  // Only selected content is registered: IDP downloads a file if any one of the components given
+  // to it is selected, so 'game' (always selected) used to make every file download.
 
   // Clears files if the user have the bad idea of going back to component to change them
   Log('Clear download file list');
   ClearOnlineFiles();
+
+  if (not WizardIsComponentSelected('language\update')) then
+  begin
+    Log('Download of localized files not selected, the setup will only use local files.');
+    Exit;
+  end;
+
+  LangCode := CorrectLanguageCode(GetSelectedLanguageFromComponents(''));
+  if (LangCode = 'en') then
+  begin
+    Log('English language selected, no need to download online files.');
+    Exit;
+  end;
 
   if (not HasDownloadPins()) then
   begin
@@ -1771,57 +1797,53 @@ begin
     Exit;
   end;
 
-  if ((SendRequest(OnlineFilesURL, False) = -1) and (SendRequest(OnlineFilesMirrorURL, False) = -1)) then
+  if (not SelectOnlineFilesServer()) then
   begin
     Log('Unable to reach the online files server! The setup will only use local files...');
     if (not SilentInstall and not SuppressMsgBoxes) then
-      MsgBox('Unable to reach the online files servers! The setup will using only local setup files. Some content may not be translated.', mbError, MB_OK);
-    Exit;
-  end;
-
-  if (LangCode = 'en') then
-  begin
-    Log('English language selected, no need to download online files.');
+      MsgBox(CustomMessage('OnlineFilesUnreachable'), mbInformation, MB_OK);
     Exit;
   end;
 
   Log('Adding file list to download');
-  AddOnlineFile('Game/' + LangCode + '/EE/Language.dll', 'EE\Language.dll', 'game, language\update');
-  AddOnlineFile('Game/' + LangCode + '/EE/Data/data.ssa', 'EE\Data\data.ssa', 'game, language\update');
-  AddOnlineFile('Game/' + LangCode + '/EE/Data/Campaigns/EELearningCampaign.ssa', 'EE\Data\Campaigns\EELearningCampaign.ssa', 'game, language\update');
-  AddOnlineFile('Game/' + LangCode + '/EE/Data/Campaigns/EETheBritish.ssa', 'EE\Data\Campaigns\EETheBritish.ssa', 'game, language\update');
-  AddOnlineFile('Game/' + LangCode + '/EE/Data/Campaigns/EETheFuture.ssa', 'EE\Data\Campaigns\EETheFuture.ssa', 'game, language\update');
-  AddOnlineFile('Game/' + LangCode + '/EE/Data/Campaigns/EETheGermans.ssa', 'EE\Data\Campaigns\EETheGermans.ssa', 'game, language\update');
-  AddOnlineFile('Game/' + LangCode + '/EE/Data/Campaigns/EETheGreeks.ssa', 'EE\Data\Campaigns\EETheGreeks.ssa', 'game, language\update');
+  Game := 'Game/' + LangCode;
+  Lobby := 'Lobby/' + LangCode;
+  NeoGame := 'Mods/NeoEE/Game/' + LangCode;
+  NeoLobby := 'Mods/NeoEE/Lobby/' + LangCode;
+
+  // -------- EE (always installed) --------
+  AddLocalizedOnlineFile(Game + '/EE/Language.dll', NeoGame + '/EE/Language.dll', 'EE\Language.dll');
+  AddOnlineFile(Game + '/EE/Data/data.ssa', 'EE\Data\data.ssa');
+  AddOnlineFile(Game + '/EE/Data/Campaigns/EELearningCampaign.ssa', 'EE\Data\Campaigns\EELearningCampaign.ssa');
+  AddOnlineFile(Game + '/EE/Data/Campaigns/EETheBritish.ssa', 'EE\Data\Campaigns\EETheBritish.ssa');
+  AddOnlineFile(Game + '/EE/Data/Campaigns/EETheFuture.ssa', 'EE\Data\Campaigns\EETheFuture.ssa');
+  AddOnlineFile(Game + '/EE/Data/Campaigns/EETheGermans.ssa', 'EE\Data\Campaigns\EETheGermans.ssa');
+  AddOnlineFile(Game + '/EE/Data/Campaigns/EETheGreeks.ssa', 'EE\Data\Campaigns\EETheGreeks.ssa');
   if (WizardIsComponentSelected('additional\movies')) then
-  begin
-    AddOnlineFile('Game/' + LangCode + '/EE/Data/Movies/Empire Earth.bik', 'EE\Data\Movies\Empire Earth.bik', 'game, language\update');
-  end;
-  AddOnlineFile('Lobby/' + LangCode + '/shared/Data/WONLobby Resources/_WONStatus.cfg', 'EE\Data\WONLobby Resources\_WONStatus.cfg', 'game, language\update');
-  AddOnlineFile('Lobby/' + LangCode + '/shared/Data/WONLobby Resources/_GameResource.cfg', 'EE\Data\WONLobby Resources\_GameResource.cfg', 'game, language\update');
-  AddOnlineFile('Lobby/' + LangCode + '/shared/Data/WONLobby Resources/_LobbyResource.cfg', 'EE\Data\WONLobby Resources\_LobbyResource.cfg', 'game, language\update');
-  AddOnlineFile('Lobby/' + LangCode + '/EE/WONLobby.cfg', 'EE\WONLobby.cfg', 'game, language\update');
+    AddOnlineFile(Game + '/EE/Data/Movies/Empire Earth.bik', 'EE\Data\Movies\Empire Earth.bik');
+  AddOnlineFile(Lobby + '/shared/Data/WONLobby Resources/_WONStatus.cfg', 'EE\Data\WONLobby Resources\_WONStatus.cfg');
+  AddOnlineFile(Lobby + '/shared/Data/WONLobby Resources/_GameResource.cfg', 'EE\Data\WONLobby Resources\_GameResource.cfg');
+  AddOnlineFile(Lobby + '/shared/Data/WONLobby Resources/_LobbyResource.cfg', 'EE\Data\WONLobby Resources\_LobbyResource.cfg');
+  AddLocalizedOnlineFile(Lobby + '/EE/WONLobby.cfg', NeoLobby + '/EE/WONLobby.cfg', 'EE\WONLobby.cfg');
   #if InstallType == "NeoEE"
-    AddOnlineFile('Mods/NeoEE/Lobby/' + LangCode + '/shared/Data/WONLobby Resources/_NeoEEResource.cfg', 'EE\Data\WONLobby Resources\_NeoEEResource.cfg', 'game, language\update');
-    AddOnlineFile('Mods/NeoEE/Lobby/' + LangCode + '/EE/WONLobby.cfg', 'EE\WONLobby.cfg', 'game, language\update');
-    AddOnlineFile('Mods/NeoEE/Game/' + LangCode + '/EE/Language.dll', 'EE\Language.dll', 'game, language\update');
+    AddOnlineFile(NeoLobby + '/shared/Data/WONLobby Resources/_NeoEEResource.cfg', 'EE\Data\WONLobby Resources\_NeoEEResource.cfg');
   #endif
 
   // -------- AoC --------
-
-  AddOnlineFile('Game/' + LangCode + '/AoC/Language.dll', 'AoC\Language.dll', 'gameaoc, language\update');
-  AddOnlineFile('Game/' + LangCode + '/AoC/Data/data.ssa', 'AoC\Data\data.ssa', 'gameaoc, language\update');
-  AddOnlineFile('Game/' + LangCode + '/AoC/Data/Campaigns/AOCAsian.ssa', 'AoC\Data\Campaigns\AOCAsian.ssa', 'gameaoc, language\update');
-  AddOnlineFile('Game/' + LangCode + '/AoC/Data/Campaigns/AOCPacific.ssa', 'AoC\Data\Campaigns\AOCPacific.ssa', 'gameaoc, language\update');
-  AddOnlineFile('Game/' + LangCode + '/AoC/Data/Campaigns/AOCRoman.ssa', 'AoC\Data\Campaigns\AOCRoman.ssa', 'gameaoc, language\update');
-  AddOnlineFile('Lobby/' + LangCode + '/shared/Data/WONLobby Resources/_WONStatus.cfg', 'AoC\Data\WONLobby Resources\_WONStatus.cfg', 'gameaoc, language\update');
-  AddOnlineFile('Lobby/' + LangCode + '/shared/Data/WONLobby Resources/_GameResource.cfg', 'AoC\Data\WONLobby Resources\_GameResource.cfg', 'gameaoc, language\update');
-  AddOnlineFile('Lobby/' + LangCode + '/shared/Data/WONLobby Resources/_LobbyResource.cfg', 'AoC\Data\WONLobby Resources\_LobbyResource.cfg', 'gameaoc, language\update');
-  AddOnlineFile('Lobby/' + LangCode + '/AoC/WONLobby.cfg', 'AoC\WONLobby.cfg', 'gameaoc, language\update');
+  if (not WizardIsComponentSelected('gameaoc')) then
+    Exit;
+  AddLocalizedOnlineFile(Game + '/AoC/Language.dll', NeoGame + '/AoC/Language.dll', 'AoC\Language.dll');
+  AddOnlineFile(Game + '/AoC/Data/data.ssa', 'AoC\Data\data.ssa');
+  AddOnlineFile(Game + '/AoC/Data/Campaigns/AOCAsian.ssa', 'AoC\Data\Campaigns\AOCAsian.ssa');
+  AddOnlineFile(Game + '/AoC/Data/Campaigns/AOCPacific.ssa', 'AoC\Data\Campaigns\AOCPacific.ssa');
+  AddOnlineFile(Game + '/AoC/Data/Campaigns/AOCRoman.ssa', 'AoC\Data\Campaigns\AOCRoman.ssa');
+  // Same files as for EE: downloaded once and copied (see AddOnlineFile)
+  AddOnlineFile(Lobby + '/shared/Data/WONLobby Resources/_WONStatus.cfg', 'AoC\Data\WONLobby Resources\_WONStatus.cfg');
+  AddOnlineFile(Lobby + '/shared/Data/WONLobby Resources/_GameResource.cfg', 'AoC\Data\WONLobby Resources\_GameResource.cfg');
+  AddOnlineFile(Lobby + '/shared/Data/WONLobby Resources/_LobbyResource.cfg', 'AoC\Data\WONLobby Resources\_LobbyResource.cfg');
+  AddLocalizedOnlineFile(Lobby + '/AoC/WONLobby.cfg', NeoLobby + '/AoC/WONLobby.cfg', 'AoC\WONLobby.cfg');
   #if InstallType == "NeoEE"
-    AddOnlineFile('Mods/NeoEE/Lobby/' + LangCode + '/shared/Data/WONLobby Resources/_NeoEEResource.cfg', 'AoC\Data\WONLobby Resources\_NeoEEResource.cfg', 'gameaoc, language\update');
-    AddOnlineFile('Mods/NeoEE/Lobby/' + LangCode + '/AoC/WONLobby.cfg', 'AoC\WONLobby.cfg', 'gameaoc, language\update');
-    AddOnlineFile('Mods/NeoEE/Game/' + LangCode + '/AoC/Language.dll', 'AoC\Language.dll', 'game, language\update');
+    AddOnlineFile(NeoLobby + '/shared/Data/WONLobby Resources/_NeoEEResource.cfg', 'AoC\Data\WONLobby Resources\_NeoEEResource.cfg');
   #endif
 end;
 
@@ -2069,13 +2091,17 @@ begin
   CreateDir(ExpandConstant('{tmp}\AoC\Data\WONLobby Resources'));
 
   idpSetOption('DetailedMode',  '1');
-  idpSetOption('ConnectTimeout', '500');
-  idpSetOption('SendTimeout', '500');
-  idpSetOption('ReceiveTimeout', '500');
+  // Timeouts in milliseconds, per connection attempt and per network operation (not for a whole
+  // file, so large files like the intro video are fine): 0.5 s used to make slow, mobile or VPN
+  // connections fail. RegisterOnlineFiles only uses a server that answered.
+  idpSetOption('ConnectTimeout', '15000');
+  idpSetOption('SendTimeout', '30000');
+  idpSetOption('ReceiveTimeout', '30000');
   idpSetOption('ErrorDialog', 'UrlList');
   // Never accept an invalid TLS certificate (the IDP default would let the user ignore it).
   // Downloads are also checked against their SHA-256 (downloads.iss).
   idpSetOption('InvalidCert', 'Stop');
+  // Failed downloads can be skipped: VerifyDownloadedFiles reports every file that is missing then
   idpSetOption('AllowContinue', '1');
 
   idpDownloadAfter(wpReady);
