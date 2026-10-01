@@ -20,7 +20,7 @@
 // data\localized-text, see README.md "Online localized files". Without the list the setup compiles
 // with a warning and does not offer the download (component language\update).
 //
-// Requires: OnlineFilesURL, OnlineFilesMirrorURL (setup_is6.iss), EEDir, AoCDir (ISPP),
+// Requires: EEDir, AoCDir (ISPP, setup_is6.iss), OnlineFilesURL, OnlineFilesMirrorURL,
 // GetHttpStatus (utils.iss), SilentInstall, SuppressMsgBoxes (extension.iss), the IDP functions
 // (idp.iss), the Download* messages (messages.iss).
 
@@ -142,7 +142,7 @@ begin
 end;
 
 // Chooses the server the files are downloaded from (OnlineFilesURL and OnlineFilesMirrorURL,
-// setup_is6.iss): the main server, or the mirror if only the mirror answers (the other one stays
+// utils.iss): the main server, or the mirror if only the mirror answers (the other one stays
 // registered as IDP mirror). With realistic timeouts, an unreachable main server would otherwise
 // delay every single file. Any HTTP answer counts (GetHttpStatus, utils.iss). False if neither
 // answers.

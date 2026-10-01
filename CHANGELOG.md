@@ -29,6 +29,11 @@ Refactoring and quality fixes (no new game content).
   lists the missing translations per language and the Traditional Chinese texts that are copies
   of the Simplified Chinese ones; the workflow prints that report.
 - `.gitattributes` and `.editorconfig` (UTF-8 with BOM and CRLF for the own `.iss` files).
+- Unit tests of the `[Code]` helpers that only compute something (`ci/tests/unit_tests.iss`, run
+  by `ci/run_unit_tests.ps1`, on Linux/Wine by `ci/tests/run_unit_tests.sh`, and by the
+  workflow): string split, language tag, compatibility flags, uninstall keys, URL encoding and the
+  URL checks of the update question. The test setup only computes, it installs nothing and uses
+  no network.
 - This changelog (moved out of the script header) and a "Building" section in the README.
 - SHA-256 list of the online localized files (`data\localized-text.sha256`, build switch
   `DownloadHashFile`): `ci/build.ps1` writes it before compiling, `-DownloadHashesOnly` only writes
@@ -180,6 +185,9 @@ merged or cleaned up with the same effect (listed below).
   `config_ee.iss` and `config_neoee.iss` instead of `#if InstallType` branches spread over the
   script; `InstallType` includes one of them. The remaining branches select product content
   (NeoEE files, tasks and code).
+- The URL constants of the web endpoints, `IsAllowedUpdateUrl` and `GetLanguageTag` moved to
+  `utils.iss`; the compatibility value is built by `BuildCompatibilityFlags` from two flags
+  instead of reading the wizard, so these helpers are covered by the unit tests.
 - `RegisterOnlineFiles` registers EE and AoC from one file list; the download target of a file is
   derived from its server path.
 - `eestats.iss` holds the `EEStatsSetup.dll` imports and the functions the rest of the script

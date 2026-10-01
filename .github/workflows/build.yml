@@ -30,6 +30,11 @@ jobs:
         shell: pwsh
         run: python ci/check_messages.py --coverage
 
+      # Unit tests of the [Code] helpers: a tiny test setup that only computes (no network)
+      - name: Unit tests
+        shell: pwsh
+        run: ./ci/run_unit_tests.ps1
+
       - name: Build
         shell: pwsh
         run: ./ci/build.ps1 -Placeholders -RequireVersion 6.2.2 -KeepPreprocessed out/preprocessed

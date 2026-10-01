@@ -101,8 +101,17 @@ powershell -ExecutionPolicy Bypass -File ci\build.ps1 -Placeholders
 ```
 creates a small placeholder file for every missing asset (existing files are never overwritten) and uses dummy AppIds. Such a build only proves that the script compiles for all variants: **never distribute it**, and remove the placeholder files before building with the real data.
 
+### Unit tests
+`ci\tests\unit_tests.iss` tests the `[Code]` helpers that only compute something (string split, language tag, compatibility flags, uninstall keys, URL encoding and the URL checks of the update question, all in `utils.iss`). It is a tiny setup that runs the tests and exits without installing anything or using the network:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ci\run_unit_tests.ps1
+```
+
+On Linux with Wine: `ISCC='<Windows path of ISCC.exe>' sh ci/tests/run_unit_tests.sh`. Code that needs the wizard, the registry or the network is not covered; a helper that can be written without them belongs into `utils.iss` with a test.
+
 ### Continuous integration
-`.github/workflows/build.yml` checks the messages (`python ci/check_messages.py`), runs the placeholder build with Inno Setup 6.2.2 on `windows-latest` for every push and pull request and uploads the preprocessed script of every variant as an artifact.
+`.github/workflows/build.yml` checks the messages (`python ci/check_messages.py`), runs the unit tests, runs the placeholder build with Inno Setup 6.2.2 on `windows-latest` for every push and pull request and uploads the preprocessed script of every variant as an artifact.
 
 ### Conventions
 The own `.iss` files are UTF-8 **with BOM** and CRLF (see `.editorconfig` and `.gitattributes`): Inno Setup 6.2 reads files without BOM as ANSI and would break non-ASCII text. Release notes go into [CHANGELOG.md](CHANGELOG.md). After changing `messages.iss`, run `python ci/check_messages.py`: it reports duplicate messages, `==` typos, unknown language prefixes and messages that are used but not defined, which Inno Setup compiles without a warning, and translations out of the standard order (`--sort` fixes that). `--coverage` adds the list of missing translations per language (see [TRANSLATING.md](TRANSLATING.md)).

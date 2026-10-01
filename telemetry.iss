@@ -3,8 +3,8 @@
 // page. Only sent with consent, i.e. when the telemetry component of this product is selected in
 // this setup (check box of the installation mode page, or the component in the custom settings):
 // otherwise no request is made at all. The uninstaller never sends any.
-// Requires: TelemetryApiURL, GetSelectedLanguageFromComponents, GetLanguageTag
-// (setup_is6.iss), AppID, MySetupVersion, MyAppVersion (ISPP, setup_is6.iss), UrlEncode,
+// Requires: GetSelectedLanguageFromComponents (setup_is6.iss), AppID, MySetupVersion,
+// MyAppVersion (ISPP, setup_is6.iss), TelemetryApiURL, GetLanguageTag, UrlEncode,
 // GetHttpStatus, IsGameInstalled (utils.iss), WizardIsUpdate (extension.iss), IsWine,
 // GetWineVersion, GetProcessorArch, GetEEStatsUID, IsRunningInVM (eestats.iss).
 

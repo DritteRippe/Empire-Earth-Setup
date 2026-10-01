@@ -1,7 +1,28 @@
 ﻿[Code]
-// Base helpers of the [Code] part: string split, uninstall keys of EE and NeoEE, the HTTP requests
-// and URL checks. Included first, before every other [Code] part.
+// Base helpers of the [Code] part: the URL constants, string split, language tag, compatibility
+// flags, uninstall keys of EE and NeoEE, the HTTP requests and URL checks. Included first, before
+// every other [Code] part.
 // Requires: AppID, OtherAppID (ISPP, product configuration config_*.iss).
+// The functions without wizard access are tested by ci/tests/unit_tests.iss.
+
+// All requests use HTTPS with validated certificates and never fall back to HTTP: the answers
+// decide what the (elevated) setup opens or installs.
+const
+  // Hosts: the EE community website and the mirror of its file server
+  DomainMain = 'empireearth.eu';
+  DomainMirror = 'ee.zocker-160.de';
+  // One base URL per endpoint; the code only appends paths and parameters
+  SetupURL = 'https://' + DomainMain + '/download';                      // download page of the setup
+  ApiURL = 'https://api.' + DomainMain;                                  // web API of the website
+  UpdateApiURL = ApiURL + '/setup/?product={#AppID}';                    // update check (QueryUpdateApi)
+  TelemetryApiURL = ApiURL + '/eestats/setup/';                          // setup statistics (SendSetupTelemetry)
+  OnlineFilesURL = 'https://files.' + DomainMain + '/localized';         // localized files (downloads.iss)
+  OnlineFilesMirrorURL = 'https://storage.' + DomainMirror + '/localized';
+  GogStoreURL = 'https://www.gog.com/game/empire_earth_gold_edition';    // legal question
+  // Besides DomainMain, the hosts a download URL of the update API may point to (IsAllowedUpdateUrl)
+  DomainNeoEE = 'neoee.net';
+  GitHubHost = 'github.com';
+  GitHubProjectPath = '/EE-modders/';
 
 // Splits Text at every Separator (Pascal Script of Inno Setup 6.2 has no split function)
 function StrSplit(Text: String; Separator: String): TArrayOfString;
@@ -23,6 +44,27 @@ begin
     end;
   until Length(Text)=0;
   Result := Dest;
+end;
+
+// Language tag of a game language: the component name with '-' instead of '_' (pt_BR -> pt-BR),
+// as the language folders of data\localized-text and of the file servers are named
+function GetLanguageTag(Lang: String): String;
+begin
+  if (Pos('_', Lang) > 0) then
+    Lang[Pos('_', Lang)] := '-';
+  Result := Lang;
+end;
+
+// Value of the compatibility entries ([Registry], AppCompatFlags\Layers) without the Windows
+// version layer: RunAsAdmin for the task everyoneadminstart, Compatibility for the task
+// compatibility. GetCompatibilityFlags (setup_is6.iss) passes the selected tasks.
+function BuildCompatibilityFlags(const RunAsAdmin, Compatibility: Boolean): String;
+begin
+  Result := '~';
+  if RunAsAdmin then
+    Result := Result + ' RUNASADMIN';
+  if Compatibility then
+    Result := Result + ' DWM8And16BitMitigation HIGHDPIAWARE HeapClearAllocation';
 end;
 
 // Uninstall key (below HKA) of this product
@@ -186,4 +228,20 @@ function IsDomainOrSubdomain(const Host, Domain: String): Boolean;
 begin
   Result := (Host = Domain) or ((Length(Host) > Length(Domain) + 1) and
     (Copy(Host, Length(Host) - Length(Domain), Length(Domain) + 1) = '.' + Domain));
+end;
+
+// The download URL comes from the update API: only https URLs on the project's own hosts may be
+// opened (EE community website, NeoEE website, EE-modders on GitHub)
+function IsAllowedUpdateUrl(const Url: String): Boolean;
+var
+  Host, Path: String;
+begin
+  Result := False;
+  if not SplitHttpsUrl(Url, Host, Path) then
+    Exit;
+  if IsDomainOrSubdomain(Host, DomainMain) or IsDomainOrSubdomain(Host, DomainNeoEE) then
+    Result := True
+  else if Host = GitHubHost then
+    // Anyone can publish on github.com: only the EE-modders organization, no dot segments/escapes
+    Result := (CompareText(Copy(Path, 1, Length(GitHubProjectPath)), GitHubProjectPath) = 0) and (Pos('..', Path) = 0) and (Pos('%', Path) = 0);
 end;

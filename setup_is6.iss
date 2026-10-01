@@ -369,8 +369,9 @@ ArchitecturesInstallIn64BitMode=x64 arm64 ia64
 ; of the includes here and in [Code] matters. Every own file lists what it requires in its header.
 ;   config_ee.iss / config_neoee.iss  product configuration, included further up after the
 ;                   AppId checks (needs EE_AppID, NeoEE_AppID)
-;   utils.iss       [Code] base helpers: uninstall keys, HTTP requests, URLs (needs AppID,
-;                   OtherAppID; first, every other [Code] part may use it)
+;   utils.iss       [Code] base helpers: URL constants, string and language helpers, uninstall
+;                   keys, HTTP requests, URL checks (needs AppID, OtherAppID; first, every other
+;                   [Code] part may use it)
 ;   messages.iss    [CustomMessages] and [Messages] (needs InstallType, MyAppVersion,
 ;                   MySetupVersion, MySetupPassword)
 ;   idp.iss, bass.iss  third-party: download plugin and setup music (needs BassLoopSound)
@@ -1063,31 +1064,13 @@ Filename: "{tmp}\directx\dxwebsetup.exe"; Parameters: "/Q"; Flags: runhidden; Ta
 #call FirewallDeleteRules
 
 [Code]
-// All requests use HTTPS with validated certificates and never fall back to HTTP: the answers
-// decide what the (elevated) setup opens or installs.
-const
-  // Hosts: the EE community website and the mirror of its file server
-  DomainMain = 'empireearth.eu';
-  DomainMirror = 'ee.zocker-160.de';
-  // One base URL per endpoint; the code only appends paths and parameters
-  SetupURL = 'https://' + DomainMain + '/download';                      // download page of the setup
-  ApiURL = 'https://api.' + DomainMain;                                  // web API of the website
-  UpdateApiURL = ApiURL + '/setup/?product={#AppID}';                    // update check (QueryUpdateApi)
-  TelemetryApiURL = ApiURL + '/eestats/setup/';                          // setup statistics (SendSetupTelemetry)
-  OnlineFilesURL = 'https://files.' + DomainMain + '/localized';         // localized files (downloads.iss)
-  OnlineFilesMirrorURL = 'https://storage.' + DomainMirror + '/localized';
-  GogStoreURL = 'https://www.gog.com/game/empire_earth_gold_edition';    // legal question
-  // Besides DomainMain, the hosts a download URL of the update API may point to (IsAllowedUpdateUrl)
-  DomainNeoEE = 'neoee.net';
-  GitHubHost = 'github.com';
-  GitHubProjectPath = '/EE-modders/';
+// The URL constants of the web endpoints and the URL checks are in utils.iss.
 
 // Own [Code] files, in this order (each header lists what it requires):
 //   eestats.iss     EEStatsSetup.dll: IsWine, GetWineVersion, GetGpuVendorId, statistics values
 //   extension.iss   command line switches, previous installation, Windows version (needs utils.iss)
 //   pages.iss       the custom wizard pages (needs Langs below, extension.iss, eestats.iss)
-//   downloads.iss   online localized files (needs the URL constants above, utils.iss,
-//                   extension.iss, idp.iss)
+//   downloads.iss   online localized files (needs utils.iss, extension.iss, idp.iss)
 //   randommaps.iss  random map scripts of the previous setup (needs extension.iss)
 //   telemetry.iss   setup statistics, included further down after the language functions it uses
 #include "eestats.iss"
@@ -1112,19 +1095,11 @@ var
 #include "downloads.iss"
 #include "randommaps.iss"
 
+// [Registry] value of the compatibility entries, from the selected tasks (BuildCompatibilityFlags,
+// utils.iss)
 function GetCompatibilityFlags(Param: String): String;
 begin
-  Result := '~';
-
-  if WizardIsTaskSelected('everyoneadminstart') then
-  begin
-    Result := Result + ' RUNASADMIN';
-  end;
-
-  if WizardIsTaskSelected('compatibility') then
-  begin
-    Result := Result + ' DWM8And16BitMitigation HIGHDPIAWARE HeapClearAllocation';
-  end;
+  Result := BuildCompatibilityFlags(WizardIsTaskSelected('everyoneadminstart'), WizardIsTaskSelected('compatibility'));
 end;
 
 function GetInstallDriveLetter(Param: String): String;
@@ -1216,22 +1191,6 @@ begin
     end;
 end;
 
-// The download URL comes from the update API: only https URLs on the project's own hosts may be
-// opened (EE community website, NeoEE website, EE-modders on GitHub)
-function IsAllowedUpdateUrl(const Url: String): Boolean;
-var
-  Host, Path: String;
-begin
-  Result := False;
-  if not SplitHttpsUrl(Url, Host, Path) then
-    Exit;
-  if IsDomainOrSubdomain(Host, DomainMain) or IsDomainOrSubdomain(Host, DomainNeoEE) then
-    Result := True
-  else if Host = GitHubHost then
-    // Anyone can publish on github.com: only the EE-modders organization, no dot segments/escapes
-    Result := (CompareText(Copy(Path, 1, Length(GitHubProjectPath)), GitHubProjectPath) = 0) and (Pos('..', Path) = 0) and (Pos('%', Path) = 0);
-end;
-
 // Opens the download of the latest setup, or the fixed download page if the API gives no
 // acceptable URL. The browser runs as the original user, not with the setup's admin rights.
 procedure OpenUpdateDownloadPage;
@@ -1281,15 +1240,6 @@ begin
     Result := AskForUpdate(ExpandConstant('{cm:GameUpdate}'), 'game')
   else if IsUpdateAvailable('setup', '{#MySetupVersion}') then
     Result := AskForUpdate(ExpandConstant('{cm:SetupUpdate}'), 'setup');
-end;
-
-// Language tag of a game language: the component name with '-' instead of '_' (pt_BR -> pt-BR),
-// as the language folders of data\localized-text and of the file servers are named
-function GetLanguageTag(Lang: String): String;
-begin
-  if (Pos('_', Lang) > 0) then
-    Lang[Pos('_', Lang)] := '-';
-  Result := Lang;
 end;
 
 // Game language of the selected components ('en' if none), '' in the uninstaller
