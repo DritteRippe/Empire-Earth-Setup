@@ -6,7 +6,7 @@
 ;   Reborn : discord.com/invite/BjUXbFB
 ; ---------------------------------------
 ; Don't change the UTF-8 BOM encoding!
-; UTF-8 doesn't preserve all characters
+; Without the BOM Inno Setup reads the file as ANSI and breaks non-ASCII characters
 ; ---------------------------------------
 ;                 Credit
 ; ---------------------------------------
@@ -88,7 +88,7 @@
 ; Sign Setup/Uninstall
 
 ; Note: Signing the setup allows you to avoid the warning messages of Windows (saying that it would be
-;       a virus...). This certificate is not free because everyone knows that trust can be bought...
+;       a virus...). A code signing certificate has to be bought.
 ;       A signed setup also offers to install the joint certificate on the computer (CertInclude,
 ;       opt-in task certinclude, unchecked by default). If you want to use
 ;       the community certificate, contact me on discord, I will sign your setup after a verification.
@@ -338,10 +338,14 @@ ShowLanguageDialog=auto
 ; So never uncomment that line unless we want to restrict the install to some arch
 ; ArchitecturesAllowed=x86 x64 arm64
 
-; I have condemned myself forever to use this option...
-; I don't need it at all but I didn't understand how ArchitecturesAllowed works
-; So I had to use it to avoid regedit redirection in WOW6432Node on x64
-; I should have used IsWin64 and HK[...]64 or not IsWin64 and HK[...]32
+; The game is 32-bit: the 64-bit install mode is only used so that the registry entries (e.g. the
+; compatibility flags in HKLM) are written to the 64-bit view instead of being redirected to
+; WOW6432Node on 64-bit Windows. It also makes {sys} the 64-bit System32 folder and puts the
+; uninstall key into the 64-bit view.
+; TODO: install in 32-bit mode and choose the registry view per entry instead (HKLM64/HKCU64 with
+; Check: IsWin64, HKLM/HKCU otherwise). That changes the view of the uninstall key and of every
+; [Registry] entry and the meaning of {sys}, so updates over existing installations must be tested
+; on 32-bit and 64-bit Windows before.
 ArchitecturesInstallIn64BitMode=x64 arm64 ia64
 
 ; Warning for MinVersion < 6.1sp1
@@ -433,7 +437,7 @@ Name: "raw"; Description: "Raw game install";
 Name: "compatibility"; Description: "Enable compatibility flags"; MinVersion: {#WinXP}; Check: not IsWine
 Name: "compatibility_windows"; Description: "Enable earlier Windows compatibility mode"; MinVersion: {#WinXP}; Check: not IsWine
 Name: "firewallexception"; Description: "{cm:TaskFirewall}"; MinVersion: {#Win2000}; Check: IsAdminInstallMode and not IsWine
-; GOG Setup install DirectPlay but i don't think it's really important... some kind of default install for old DX game maybe
+; DirectPlay: Windows feature used by old DirectX games, the GOG setup enables it too (see [Run])
 Name: "directplay"; Description: "Install DirectPlay"; MinVersion: {#Win8}; Check: IsAdminInstallMode
 Name: "dxwebsetup"; Description: "Install DirectX End-User Runtime"; MinVersion: {#Win2000}; Check: IsAdminInstallMode and not IsWine; Components: additional\directx_wrapper\dx9 or not additional\directx_wrapper 
 #if InstallType == "NeoEE"
@@ -474,15 +478,10 @@ Name: "additional\hd\tech"; Description: "HD Tech Icons v3.0.1 (by Fortuking)"; 
 Name: "additional\hd\effects"; Description: "HD Effects WIP (by Fortuking)"; Types: full;
 
 Name: "additional\drexmod"; Description: "dreXmod to enhance/add features (by Yukon)"
-//#if InstallType == "EE" ; Prefer dxm2
-//  Name: "additional\drexmod\v2"; Description: "dreXmod v2 for better Camera/HUD/Lobby "; Flags: exclusive disablenouninstallwarning; Types: full compact; MinVersion: {#WinXP}
-//  Name: "additional\drexmod\v3"; Description: "dreXmod v3 for better Camera/HUD/Lobby/Ranking/AntiCheat"; Flags: exclusive disablenouninstallwarning; MinVersion: {#WinXP}
-//#elif InstallType == "NeoEE" ; Prefer dxm3
-  Name: "additional\drexmod\v3"; Description: "dreXmod v3 for better Camera/HUD/Lobby/Ranking/AntiCheat"; Flags: exclusive disablenouninstallwarning; Types: full compact; MinVersion: {#WinXP}
-  Name: "additional\drexmod\v2"; Description: "dreXmod v2 for better Camera/HUD/Lobby"; Flags: exclusive disablenouninstallwarning; MinVersion: {#WinXP}
-//#endif
+; v3 is preselected (full and compact installation), v2 can be chosen instead
+Name: "additional\drexmod\v3"; Description: "dreXmod v3 for better Camera/HUD/Lobby/Ranking/AntiCheat"; Flags: exclusive disablenouninstallwarning; Types: full compact; MinVersion: {#WinXP}
+Name: "additional\drexmod\v2"; Description: "dreXmod v2 for better Camera/HUD/Lobby"; Flags: exclusive disablenouninstallwarning; MinVersion: {#WinXP}
 
-; Name: "additional\reborn"; Description: "Reborn.dll v0.1 for better Camera, Resolution and Solo Max Units"; Flags: disablenouninstallwarning; Types: full compact; MinVersion: 0,5.1 
 #if InstallType == "EE"
   Name: "additional\rms"; Description: "Random Map Scripts";
   Name: "additional\rms\omega"; Description: "Omega Pack";
@@ -608,12 +607,10 @@ Source: "data\Add-on\DLLs\Discord\*"; DestDir: "{app}\{#AddOnDir}"; Flags: ignor
 
 [Files]
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
-; For future ? signonce/sign
 #if CertInclude
   Source: "internal\misc\{#CertFileName}"; DestDir: "{tmp}"; DestName: "{#CertFileName}"; Flags: deleteafterinstall; Tasks: certinclude;
 #endif
 
-;Source: "data\Add-on\DLLs\EEStats\EEStats.dll"; Flags: dontcopy noencryption nocompression; MinVersion: 0.0,6.1
 Source: "data\Add-on\DLLs\EEStats\EEStatsSetup.dll"; DestDir: "{app}\{#SetupDataDir}"; Flags: noencryption nocompression ignoreversion recursesubdirs createallsubdirs; MinVersion: {#WinXP}
 
 #if InstallType == "EE"
@@ -630,7 +627,6 @@ Source: "internal\runtime\directx\dxwebsetup.exe"; DestDir: "{tmp}\directx"; Fla
 
 ; EE Base
 Source: "data\Empire Earth Base\Empire Earth\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game;
-;Source: "data\Empire Earth Base\shared\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game;
 ; EE Movies
 Source: "data\Add-on\Movies\EE\*"; DestDir: "{app}\{#EEDir}\Data\Movies"; Flags: ignoreversion recursesubdirs createallsubdirs nocompression; Components: additional\movies and game;
 
@@ -663,10 +659,6 @@ Source: "{tmp}\verified\EE\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion r
 #expr AddOnDir = EEDir, AddOnComp = "game", AddOnOmega = "EE"
 #call GameAddOnFiles
 
-; Reborn.dll
-; Source: "data\Add-on\DLLs\Reborn\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\reborn and game
-
-
 ; EEStats
 Source: "data\Add-on\DLLs\EEStats\EEStats.dll"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\telemetry and game; MinVersion: {#Win7}
 
@@ -695,9 +687,7 @@ Source: "data\Add-on\HD\effects\*"; DestDir: "{app}\{#EEDir}\Data\Textures"; \
 ; AoC Base
 Source: "data\Empire Earth Base\Empire Earth - The Art of Conquest\*"; DestDir: "{app}\{#AoCDir}"; \
   Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc;
-;Source: "data\Empire Earth Base\shared\*"; DestDir: "{app}\{#AoCDir}"; \
-;  Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc;
-; EE Movies
+; AoC Movies
 Source: "data\Add-on\Movies\AoC\*"; DestDir: "{app}\{#AoCDir}\Data\Movies"; \
   Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\movies and gameaoc;
 
@@ -714,7 +704,6 @@ Source: "data\Add-on\Movies\AoC\*"; DestDir: "{app}\{#AoCDir}\Data\Movies"; \
     Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc; Check: IsAdminInstallMode
   Source: "data\NeoEE - User\Empire Earth - The Art of Conquest\*"; DestDir: "{app}\{#AoCDir}"; \
     Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc; Check: not IsAdminInstallMode
-  ; Already done in EE part Source: authtools.exe
   Source: "data\NeoEE - CDKeys\_wonkver.pub"; DestDir: "{app}\{#AoCDir}"; \
     Flags: deleteafterinstall ignoreversion recursesubdirs createallsubdirs; Components: gameaoc
   ; NeoEE - Wine Fix (GDI)
@@ -743,17 +732,12 @@ Source: "{tmp}\verified\EE\Data\Campaigns\EELearningCampaign.ssa"; DestDir: "{ap
 #expr AddOnDir = AoCDir, AddOnComp = "gameaoc", AddOnOmega = "AoC"
 #call GameAddOnFiles
 
-; Reborn.dll
-; Not supported Source: "data\Add-on\DLLs\Reborn\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\reborn and gameaoc
+; EEStats.dll is only installed for Empire Earth, it does not support AoC
 
-; EEStats
-; Not supported Source: "data\Add-on\DLLs\EEStats\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\telemetry and gameaoc; MinVersion: 0.0,6.1
-
-; HD & Music & Tech & Building
-; Inherited from EE natively
+; HD & Music & Tech & Building: AoC uses the files of Empire Earth
 
 ; -------------------
-;  Allow config edit, move the files to the exact same dir but with good perm :>
+;  Write permissions for the config files: each file is copied onto itself (external) to set them
 ; -------------------
 ; The game runs unelevated and writes its configs (and Data, Users, see [Dirs]) inside {app}, so
 ; all authenticated users get modify rights there. Trade-off: on a shared PC every user can change
@@ -811,7 +795,8 @@ Name: "{app}\{#SetupDataDir}"; Attribs: hidden
 ; "Installed From" values the game reads from HKCU); the compatibility flags, including the opt-in
 ; RUNASADMIN, use HKLM in that mode.
 
-; Windows 10+ GPU auto selection (apparently no HKLM... ty ms...)
+; Windows 10+: run the games on the high-performance graphics card (GpuPreference=2). Windows only
+; has this setting per user (HKCU).
 Root: "HKCU"; Subkey: "Software\Microsoft\DirectX\UserGpuPreferences"; ValueType: String; ValueName: "{app}\{#EEExe}"; ValueData: "GpuPreference=2;"; \
   Flags: uninsdeletevalue; MinVersion: {#Win10}; Tasks: compatibility_windows; Components: game
 Root: "HKCU"; Subkey: "Software\Microsoft\DirectX\UserGpuPreferences"; ValueType: String; ValueName: "{app}\{#AoCExe}"; ValueData: "GpuPreference=2;"; \
@@ -1033,12 +1018,11 @@ Type: filesandordirs; Name: "{app}\{#SetupDataDir}"
     StatusMsg: "Adding Empire Earth Community Certificate Authority (issued by EnergyCube)"; MinVersion: {#WinVista}; Components: game; Check: not IsAdminInstallMode and IsCertificateFileGenuine
 #endif
 
-; Install DirectPlay (Never tested on x86) ({sys}\dism.exe should work)
-; Disabled because seems useless
+; Enable DirectPlay (task directplay, administrators, Windows 8 and later) with DISM. Not tested on
+; 32-bit Windows. One entry: there used to be two with the same command that differed only in
+; Check: Is64BitInstallMode / not Is64BitInstallMode, so exactly one of them always ran.
 Filename: "{sys}\dism.exe"; Parameters: "/Online /Enable-Feature /FeatureName:""DirectPlay"" /all /NoRestart"; Flags: runhidden; StatusMsg: "Installing DirectPlay"; \
-  MinVersion: {#Win8}; Tasks: directplay; Check: Is64BitInstallMode and IsAdminInstallMode
-Filename: "{sys}\dism.exe"; Parameters: "/Online /Enable-Feature /FeatureName:""DirectPlay"" /all /NoRestart"; Flags: runhidden; StatusMsg: "Installing DirectPlay"; \
-  MinVersion: {#Win8}; Tasks: directplay; Check: not Is64BitInstallMode and IsAdminInstallMode
+  MinVersion: {#Win8}; Tasks: directplay; Check: IsAdminInstallMode
 
 ; Firewall (task firewallexception): the rules of an earlier installation are removed first, in case
 ; they were misconfigured (the same entries as in [UninstallRun]), then the rules are added.
@@ -1084,12 +1068,7 @@ Filename: "{tmp}\directx\dxwebsetup.exe"; Parameters: "/Q"; Flags: runhidden; Ta
 ; all [Run] entries
 
 [UninstallRun]
-; Uninstall DirectPlay
-; No DirectPlay uninstallation because it could possibly break some other games that still use it.
-; Filename: "{sys}\dism.exe"; Parameters: "/Online /Disable-Feature /FeatureName:""DirectPlay"" /NoRestart"; Flags: runhidden; \
-;  StatusMsg: "Uninstalling DirectPlay"; MinVersion: 0,6.2; Tasks: directplay; Check: Is64BitInstallMode and IsAdminInstallMode
-;Filename: "{sys}\dism.exe"; Parameters: "/Online /Disable-Feature /FeatureName:""DirectPlay"" /NoRestart"; Flags: runhidden; \
-;  StatusMsg: "Uninstalling DirectPlay"; MinVersion: 0,6.2; Tasks: directplay; Check: not Is64BitInstallMode and IsAdminInstallMode
+; DirectPlay is not disabled on uninstall: other games may still use it.
 
 ; Firewall: the delete rules of [Run]
 #call FirewallDeleteRules
@@ -1124,13 +1103,12 @@ const
     external 'generate_cdkeys@files:authtools.dll cdecl setuponly delayload';
 #endif
 
-    // GetSystemMetrics
-  function GetSystemMetrics(nIndex: Integer): Integer;
+// Screen size for the default game window (GetScreenResolutionWidth/Height)
+function GetSystemMetrics(nIndex: Integer): Integer;
     external 'GetSystemMetrics@user32.dll stdcall';
 
 var
   Langs: TStringList;
-  ServersReacheable: Boolean;
 
 #include "extension.iss"
 #include "pages.iss"
@@ -1557,9 +1535,9 @@ end;
 
 // Registers the NeoEE CD keys with the NeoEE auth server (generate_cdkeys of authtools.dll):
 // HKLM in administrative install mode, HKCU otherwise
-// NeoEE CDKeys Regedit Hell
-// HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Sierra\CDKeys
-// HKEY_LOCAL_MACHINE\Software\Sierra\CDKeys
+// authtools.dll writes the keys below Sierra\CDKeys; in HKLM that is one of
+//   HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Sierra\CDKeys
+//   HKEY_LOCAL_MACHINE\Software\Sierra\CDKeys
 procedure RegisterCDKeys();
 var
   AuthExitCode: Integer;
@@ -1681,7 +1659,8 @@ procedure RegisterOnlineFiles();
 var
   LangCode: String;
 begin
-  // Register Online Files (Game default is in english, online files will recover the located one if asked)
+  // Register Online Files (the game files are English, the online files replace them with the
+  // localized ones if asked)
   // Mirror Order
   // EE Community (Energy) => Zocker (SelectOnlineFilesServer starts with the mirror if only it answers)
   // Storage Localized structure : {base_url}/localized/{scope}/{language}/{GameType}/
@@ -1870,7 +1849,6 @@ end;
 
 function InitializeUninstall(): Boolean;
 begin
-  RegisterLangs()
 #if CertInclude
   CertAddedBySetup := UninstallKeyHasTask(GetUninstallRegPath(), 'certinclude');
 #endif

@@ -1,5 +1,5 @@
 ﻿[Code]
-// Yeah... Too much complex to be by default in IS Pascal I guess...
+// Splits Text at every Separator (Pascal Script of Inno Setup 6.2 has no split function)
 function StrSplit(Text: String; Separator: String): TArrayOfString;
 var
   i, p: Integer;
@@ -43,15 +43,6 @@ begin
 #else
   #error "Unknown Install Type"
 #endif
-end;
-
-function IsAnotherGameInstalled(): Boolean;
-begin
-  Result := False;
-  if RegValueExists(HKA, GetOtherProductUninstallRegPath(), 'UninstallString')
-  then begin
-    Result := True;
-  end;
 end;
 
 function IsGameInstalled(): Boolean;

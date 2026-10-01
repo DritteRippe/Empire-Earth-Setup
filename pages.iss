@@ -119,12 +119,12 @@ begin
   LanguageSelected := False;
   for i := 0 to Langs.Count - 1 do
   begin
-    LanguageInstallQuestionPage.AddEx({ '&' + } ExpandConstant('{cm:LIQP_' + Langs[i] + '}'), 0, True);
+    LanguageInstallQuestionPage.AddEx(ExpandConstant('{cm:LIQP_' + Langs[i] + '}'), 0, True);
     if (Langs[i] = ActiveLanguage) then
     begin
       LanguageInstallQuestionPage.Values[i] := True;
       LanguageSelected := True;
-      // Break; not break, because we want to register all langs to the page
+      // No Break: the remaining languages still have to be added to the page
     end;
   end;
 

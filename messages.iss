@@ -10,18 +10,6 @@
 ; chinese, russian and korean have been translated with a translator and are therefore
 ; probably of poor quality. If you can check them and suggest improvements that's perfect!
 
-; AntiVirus
-AntiVirusWarning=It is highly recommended to disable your AntiVirus before installation.%nBut you should not encounter any problems if you do not disable it.
-fr.AntiVirusWarning=Il est fortement recommandé de désactiver votre antivirus avant l'installation.%nMais vous ne devriez pas rencontrer de problèmes si vous ne le désactivez pas.
-de.AntiVirusWarning=Es wird dringend empfohlen, dass Sie ihr Antivirenprogramm vor der Installation deaktivieren.%nIm Normalfall sollten Sie aber auch keine Probleme haben, wenn Sie es nicht deaktivieren.
-it.AntiVirusWarning=Si consiglia vivamente di disattivare l'AntiVirus prima dell'installazione.%nMa non dovreste incontrare alcun problema se non lo disattivate.
-es.AntiVirusWarning=Se recomienda encarecidamente desactivar el AntiVirus antes de la instalación.%nPero no debería encontrar ningún problema si no lo deshabilita.
-ru.AntiVirusWarning=Настоятельно рекомендуется отключить ваш антивирус перед установкой.%nНо вы не столкнетесь с какими-либо проблемами, если не отключите его.
-pl.AntiVirusWarning=Mimo że nie powinieneś napotkać żadnych problemów podczas instalacji.%nZalecamy wyłączyć program antywirusowy przed rozpoczęciem instalacji, w celu uniknięcia dodatkowych problemów.
-zh_CN.AntiVirusWarning=强烈建议在安装前禁用你的反病毒软件。%n但如果你不禁用它，应该不会遇到任何问题。
-zh_TW.AntiVirusWarning=强烈建议在安装前禁用你的反病毒软件。%n但如果你不禁用它，应该不会遇到任何问题。
-ko.AntiVirusWarning=설치하기 전에 바이러스 백신을 사용하지 않도록 설정하는 것이 좋습니다.%n그러나 비활성화하지 않으면 문제가 발생하지 않아야합니다.
-
 ; Legal
 LegalQuestion=Do you have the original game and its expansion (or Gold Edition) on CD with valid keys or did you purchase the game digitally?
 fr.LegalQuestion=Avez-vous le jeu original et son extension (ou l'édition Gold) sur CD avec des clés valides ou avez-vous acheté le jeu numériquement ?
