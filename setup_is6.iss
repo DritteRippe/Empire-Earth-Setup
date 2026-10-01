@@ -1697,21 +1697,61 @@ begin
   WizardSelectComponents('language\' + Lang);
 end;
 
+// Registers the file FilePath (with '/') of the server folder ServerDir (path below the "localized"
+// folder of the servers, ending with '/') for the game folder GameKey (EE or AoC): it is downloaded
+// to {tmp}\<GameKey>\<FilePath>. The server folders have the layout of the game folders.
+function AddGameOnlineFile(const ServerDir, GameKey, FilePath: String): Boolean;
+var
+  RelDest: String;
+begin
+  RelDest := FilePath;
+  StringChangeEx(RelDest, '/', '\', True);
+  Result := AddOnlineFile(ServerDir + FilePath, GameKey + '\' + RelDest);
+end;
+
 // NeoEE setups install the NeoEE version of a localized file where there is one, like [Files]
 // does with the local files (the NeoEE entries come last and overwrite the EE ones); otherwise,
 // and in EE setups, the EE version
-procedure AddLocalizedOnlineFile(const RelPath, NeoEERelPath, RelDest: String);
+procedure AddLocalizedGameOnlineFile(const ServerDir, NeoEEServerDir, GameKey, FilePath: String);
 begin
 #if InstallType == "NeoEE"
-  if AddOnlineFile(NeoEERelPath, RelDest) then
+  if AddGameOnlineFile(NeoEEServerDir, GameKey, FilePath) then
     Exit;
 #endif
-  AddOnlineFile(RelPath, RelDest);
+  AddGameOnlineFile(ServerDir, GameKey, FilePath);
+end;
+
+// Registers the localized files of one game for the language folder LangCode: GameKey (EE or
+// AoC) is the game subfolder of the language folders, Campaigns are its campaign files and
+// WithMovie adds the intro movie. The lobby resources are shared by EE and AoC on the servers
+// (downloaded once and copied, see AddOnlineFile).
+procedure RegisterGameOnlineFiles(const LangCode, GameKey: String; const Campaigns: array of String; WithMovie: Boolean);
+var
+  Game, Lobby, NeoLobby: String;
+  I: Integer;
+begin
+  Game := 'Game/' + LangCode + '/' + GameKey + '/';
+  Lobby := 'Lobby/' + LangCode + '/';
+  NeoLobby := 'Mods/NeoEE/Lobby/' + LangCode + '/';
+
+  AddLocalizedGameOnlineFile(Game, 'Mods/NeoEE/' + Game, GameKey, 'Language.dll');
+  AddGameOnlineFile(Game, GameKey, 'Data/data.ssa');
+  for I := 0 to GetArrayLength(Campaigns) - 1 do
+    AddGameOnlineFile(Game, GameKey, 'Data/Campaigns/' + Campaigns[I]);
+  if WithMovie then
+    AddGameOnlineFile(Game, GameKey, 'Data/Movies/Empire Earth.bik');
+  AddGameOnlineFile(Lobby + 'shared/', GameKey, 'Data/WONLobby Resources/_WONStatus.cfg');
+  AddGameOnlineFile(Lobby + 'shared/', GameKey, 'Data/WONLobby Resources/_GameResource.cfg');
+  AddGameOnlineFile(Lobby + 'shared/', GameKey, 'Data/WONLobby Resources/_LobbyResource.cfg');
+  AddLocalizedGameOnlineFile(Lobby + GameKey + '/', NeoLobby + GameKey + '/', GameKey, 'WONLobby.cfg');
+#if InstallType == "NeoEE"
+  AddGameOnlineFile(NeoLobby + 'shared/', GameKey, 'Data/WONLobby Resources/_NeoEEResource.cfg');
+#endif
 end;
 
 procedure RegisterOnlineFiles();
 var
-  LangCode, Game, Lobby, NeoGame, NeoLobby: String;
+  LangCode: String;
 begin
   // Register Online Files (Game default is in english, online files will recover the located one if asked)
   // Mirror Order
@@ -1755,45 +1795,11 @@ begin
   end;
 
   Log('Adding file list to download');
-  Game := 'Game/' + LangCode;
-  Lobby := 'Lobby/' + LangCode;
-  NeoGame := 'Mods/NeoEE/Game/' + LangCode;
-  NeoLobby := 'Mods/NeoEE/Lobby/' + LangCode;
-
-  // -------- EE (always installed) --------
-  AddLocalizedOnlineFile(Game + '/EE/Language.dll', NeoGame + '/EE/Language.dll', 'EE\Language.dll');
-  AddOnlineFile(Game + '/EE/Data/data.ssa', 'EE\Data\data.ssa');
-  AddOnlineFile(Game + '/EE/Data/Campaigns/EELearningCampaign.ssa', 'EE\Data\Campaigns\EELearningCampaign.ssa');
-  AddOnlineFile(Game + '/EE/Data/Campaigns/EETheBritish.ssa', 'EE\Data\Campaigns\EETheBritish.ssa');
-  AddOnlineFile(Game + '/EE/Data/Campaigns/EETheFuture.ssa', 'EE\Data\Campaigns\EETheFuture.ssa');
-  AddOnlineFile(Game + '/EE/Data/Campaigns/EETheGermans.ssa', 'EE\Data\Campaigns\EETheGermans.ssa');
-  AddOnlineFile(Game + '/EE/Data/Campaigns/EETheGreeks.ssa', 'EE\Data\Campaigns\EETheGreeks.ssa');
-  if (WizardIsComponentSelected('additional\movies')) then
-    AddOnlineFile(Game + '/EE/Data/Movies/Empire Earth.bik', 'EE\Data\Movies\Empire Earth.bik');
-  AddOnlineFile(Lobby + '/shared/Data/WONLobby Resources/_WONStatus.cfg', 'EE\Data\WONLobby Resources\_WONStatus.cfg');
-  AddOnlineFile(Lobby + '/shared/Data/WONLobby Resources/_GameResource.cfg', 'EE\Data\WONLobby Resources\_GameResource.cfg');
-  AddOnlineFile(Lobby + '/shared/Data/WONLobby Resources/_LobbyResource.cfg', 'EE\Data\WONLobby Resources\_LobbyResource.cfg');
-  AddLocalizedOnlineFile(Lobby + '/EE/WONLobby.cfg', NeoLobby + '/EE/WONLobby.cfg', 'EE\WONLobby.cfg');
-  #if InstallType == "NeoEE"
-    AddOnlineFile(NeoLobby + '/shared/Data/WONLobby Resources/_NeoEEResource.cfg', 'EE\Data\WONLobby Resources\_NeoEEResource.cfg');
-  #endif
-
-  // -------- AoC --------
-  if (not WizardIsComponentSelected('gameaoc')) then
-    Exit;
-  AddLocalizedOnlineFile(Game + '/AoC/Language.dll', NeoGame + '/AoC/Language.dll', 'AoC\Language.dll');
-  AddOnlineFile(Game + '/AoC/Data/data.ssa', 'AoC\Data\data.ssa');
-  AddOnlineFile(Game + '/AoC/Data/Campaigns/AOCAsian.ssa', 'AoC\Data\Campaigns\AOCAsian.ssa');
-  AddOnlineFile(Game + '/AoC/Data/Campaigns/AOCPacific.ssa', 'AoC\Data\Campaigns\AOCPacific.ssa');
-  AddOnlineFile(Game + '/AoC/Data/Campaigns/AOCRoman.ssa', 'AoC\Data\Campaigns\AOCRoman.ssa');
-  // Same files as for EE: downloaded once and copied (see AddOnlineFile)
-  AddOnlineFile(Lobby + '/shared/Data/WONLobby Resources/_WONStatus.cfg', 'AoC\Data\WONLobby Resources\_WONStatus.cfg');
-  AddOnlineFile(Lobby + '/shared/Data/WONLobby Resources/_GameResource.cfg', 'AoC\Data\WONLobby Resources\_GameResource.cfg');
-  AddOnlineFile(Lobby + '/shared/Data/WONLobby Resources/_LobbyResource.cfg', 'AoC\Data\WONLobby Resources\_LobbyResource.cfg');
-  AddLocalizedOnlineFile(Lobby + '/AoC/WONLobby.cfg', NeoLobby + '/AoC/WONLobby.cfg', 'AoC\WONLobby.cfg');
-  #if InstallType == "NeoEE"
-    AddOnlineFile(NeoLobby + '/shared/Data/WONLobby Resources/_NeoEEResource.cfg', 'AoC\Data\WONLobby Resources\_NeoEEResource.cfg');
-  #endif
+  // Empire Earth (always installed), then AoC
+  RegisterGameOnlineFiles(LangCode, 'EE', ['EELearningCampaign.ssa', 'EETheBritish.ssa', 'EETheFuture.ssa',
+    'EETheGermans.ssa', 'EETheGreeks.ssa'], WizardIsComponentSelected('additional\movies'));
+  if (WizardIsComponentSelected('gameaoc')) then
+    RegisterGameOnlineFiles(LangCode, 'AoC', ['AOCAsian.ssa', 'AOCPacific.ssa', 'AOCRoman.ssa'], False);
 end;
 
 // Setups up to v1.7.2 set "~ RUNASADMIN" for the installing account (HKCU, administrative install
