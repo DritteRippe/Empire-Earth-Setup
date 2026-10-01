@@ -221,9 +221,9 @@ function OnlineFileDisplayName(const RelDest: String): String;
 begin
   Result := RelDest;
   if CompareText(Copy(Result, 1, 3), 'EE\') = 0 then
-    Result := 'Empire Earth\' + Copy(Result, 4, Length(Result))
+    Result := '{#EEDir}\' + Copy(Result, 4, Length(Result))
   else if CompareText(Copy(Result, 1, 4), 'AoC\') = 0 then
-    Result := 'Empire Earth - The Art of Conquest\' + Copy(Result, 5, Length(Result));
+    Result := '{#AoCDir}\' + Copy(Result, 5, Length(Result));
 end;
 
 // Result of VerifyDownloadedFiles for one file: '' if it is in {tmp}\verified, else the name of

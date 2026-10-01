@@ -210,6 +210,15 @@
 ; AppId ("{app}\<AppId>"); [InstallDelete] removes that old folder.
 #define SetupDataDir "_setupdata"
 
+; Game folders below {app} (Empire Earth and its add-on The Art of Conquest), the game programs
+; relative to {app}, and the random map folder inside a game folder. The sections and the [Code]
+; use these names, only the source folders below data\ name the game folders themselves.
+#define EEDir "Empire Earth"
+#define AoCDir "Empire Earth - The Art of Conquest"
+#define EEExe EEDir + "\Empire Earth.exe"
+#define AoCExe AoCDir + "\EE-AOC.exe"
+#define RmsSubDir "Data\Random Map Scripts"
+
 #if InstallType == "EE"
   #define AppID EE_AppID
   #define MyAppVersion "2.0.0.0"
@@ -507,330 +516,330 @@ Source: "internal\runtime\directx\dxwebsetup.exe"; DestDir: "{tmp}\directx"; Fla
 ; ----------------
 
 ; EE Base
-Source: "data\Empire Earth Base\Empire Earth\*"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game;
-;Source: "data\Empire Earth Base\shared\*"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game;
+Source: "data\Empire Earth Base\Empire Earth\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game;
+;Source: "data\Empire Earth Base\shared\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game;
 ; EE Movies
-Source: "data\Add-on\Movies\EE\*"; DestDir: "{app}\Empire Earth\Data\Movies"; Flags: ignoreversion recursesubdirs createallsubdirs nocompression; Components: additional\movies and game;
+Source: "data\Add-on\Movies\EE\*"; DestDir: "{app}\{#EEDir}\Data\Movies"; Flags: ignoreversion recursesubdirs createallsubdirs nocompression; Components: additional\movies and game;
 
 #if InstallType == "NeoEE"
-  Source: "data\NeoEE Base\Empire Earth\*"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game
-  Source: "data\NeoEE Base\shared\*"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game
-  Source: "data\Add-on\RMS\Omega\EE\*"; DestDir: "{app}\Empire Earth\Data\Random Map Scripts"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game
-  Source: "data\Add-on\RMS\NeoExtra\*"; DestDir: "{app}\Empire Earth\Data\Random Map Scripts"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game
-  Source: "data\NeoEE - Admin\Empire Earth\*"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game; Check: IsAdminInstallMode
-  Source: "data\NeoEE - User\Empire Earth\*"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game; Check: not IsAdminInstallMode
+  Source: "data\NeoEE Base\Empire Earth\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game
+  Source: "data\NeoEE Base\shared\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game
+  Source: "data\Add-on\RMS\Omega\EE\*"; DestDir: "{app}\{#EEDir}\{#RmsSubDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game
+  Source: "data\Add-on\RMS\NeoExtra\*"; DestDir: "{app}\{#EEDir}\{#RmsSubDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game
+  Source: "data\NeoEE - Admin\Empire Earth\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game; Check: IsAdminInstallMode
+  Source: "data\NeoEE - User\Empire Earth\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game; Check: not IsAdminInstallMode
   Source: "data\NeoEE - CDKeys\authtools.dll"; DestDir: "{tmp}"; DestName: "authtools.dll"; Flags: dontcopy noencryption nocompression; Components: game;
-  Source: "data\NeoEE - CDKeys\_wonkver.pub"; DestDir: "{app}\Empire Earth"; Flags: deleteafterinstall ignoreversion recursesubdirs createallsubdirs; Components: game
+  Source: "data\NeoEE - CDKeys\_wonkver.pub"; DestDir: "{app}\{#EEDir}"; Flags: deleteafterinstall ignoreversion recursesubdirs createallsubdirs; Components: game
   ; NeoEE - Wine Fix (GDI)
-  Source: "data\NeoEE - Wine\NeoEE.cfg"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game; Check: IsWine
+  Source: "data\NeoEE - Wine\NeoEE.cfg"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game; Check: IsWine
 #endif
 
 ; EE Lang Game Based Content
-Source: "data\localized-text\Game\de\EE\Language.dll"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\de
-Source: "data\localized-text\Game\en\EE\Language.dll"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\en
-Source: "data\localized-text\Game\es\EE\Language.dll"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\es
-Source: "data\localized-text\Game\fr\EE\Language.dll"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\fr
-Source: "data\localized-text\Game\it\EE\Language.dll"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\it
-Source: "data\localized-text\Game\ko\EE\Language.dll"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\ko
-Source: "data\localized-text\Game\pl\EE\Language.dll"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\pl
-Source: "data\localized-text\Game\pt-BR\EE\Language.dll"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\pt_BR
-Source: "data\localized-text\Game\ru\EE\Language.dll"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\ru
-Source: "data\localized-text\Game\zh-CN\EE\Language.dll"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\zh_CN
-Source: "data\localized-text\Game\zh-TW\EE\Language.dll"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\zh_TW
+Source: "data\localized-text\Game\de\EE\Language.dll"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\de
+Source: "data\localized-text\Game\en\EE\Language.dll"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\en
+Source: "data\localized-text\Game\es\EE\Language.dll"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\es
+Source: "data\localized-text\Game\fr\EE\Language.dll"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\fr
+Source: "data\localized-text\Game\it\EE\Language.dll"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\it
+Source: "data\localized-text\Game\ko\EE\Language.dll"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\ko
+Source: "data\localized-text\Game\pl\EE\Language.dll"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\pl
+Source: "data\localized-text\Game\pt-BR\EE\Language.dll"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\pt_BR
+Source: "data\localized-text\Game\ru\EE\Language.dll"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\ru
+Source: "data\localized-text\Game\zh-CN\EE\Language.dll"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\zh_CN
+Source: "data\localized-text\Game\zh-TW\EE\Language.dll"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\zh_TW
 
 ; EE Lang Lobby Based Content
-Source: "data\localized-text\Lobby\de\EE\*"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\de
-Source: "data\localized-text\Lobby\en\EE\*"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\en
-Source: "data\localized-text\Lobby\es\EE\*"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\es
-Source: "data\localized-text\Lobby\fr\EE\*"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\fr
-Source: "data\localized-text\Lobby\it\EE\*"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\it
-Source: "data\localized-text\Lobby\ko\EE\*"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\ko
-Source: "data\localized-text\Lobby\pl\EE\*"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\pl
-Source: "data\localized-text\Lobby\pt-BR\EE\*"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\pt_BR
-Source: "data\localized-text\Lobby\ru\EE\*"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\ru
-Source: "data\localized-text\Lobby\zh\EE\*"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and (language\zh_CN or language\zh_TW)
+Source: "data\localized-text\Lobby\de\EE\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\de
+Source: "data\localized-text\Lobby\en\EE\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\en
+Source: "data\localized-text\Lobby\es\EE\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\es
+Source: "data\localized-text\Lobby\fr\EE\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\fr
+Source: "data\localized-text\Lobby\it\EE\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\it
+Source: "data\localized-text\Lobby\ko\EE\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\ko
+Source: "data\localized-text\Lobby\pl\EE\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\pl
+Source: "data\localized-text\Lobby\pt-BR\EE\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\pt_BR
+Source: "data\localized-text\Lobby\ru\EE\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\ru
+Source: "data\localized-text\Lobby\zh\EE\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and (language\zh_CN or language\zh_TW)
 
-Source: "data\localized-text\Lobby\de\shared\*"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\de
-Source: "data\localized-text\Lobby\en\shared\*"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\en
-Source: "data\localized-text\Lobby\es\shared\*"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\es
-Source: "data\localized-text\Lobby\fr\shared\*"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\fr
-Source: "data\localized-text\Lobby\it\shared\*"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\it
-Source: "data\localized-text\Lobby\ko\shared\*"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\ko
-Source: "data\localized-text\Lobby\pl\shared\*"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\pl
-Source: "data\localized-text\Lobby\pt-BR\shared\*"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\pt_BR
-Source: "data\localized-text\Lobby\ru\shared\*"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\ru
-Source: "data\localized-text\Lobby\zh\shared\*"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and (language\zh_CN or language\zh_TW)
+Source: "data\localized-text\Lobby\de\shared\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\de
+Source: "data\localized-text\Lobby\en\shared\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\en
+Source: "data\localized-text\Lobby\es\shared\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\es
+Source: "data\localized-text\Lobby\fr\shared\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\fr
+Source: "data\localized-text\Lobby\it\shared\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\it
+Source: "data\localized-text\Lobby\ko\shared\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\ko
+Source: "data\localized-text\Lobby\pl\shared\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\pl
+Source: "data\localized-text\Lobby\pt-BR\shared\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\pt_BR
+Source: "data\localized-text\Lobby\ru\shared\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\ru
+Source: "data\localized-text\Lobby\zh\shared\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and (language\zh_CN or language\zh_TW)
 
 
 #if InstallType == "NeoEE"
   ; NeoEE Lang Lobby Based Content
-  Source: "data\localized-text\Mods\NeoEE\Game\de\EE\Language.dll"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\de
-  Source: "data\localized-text\Mods\NeoEE\Game\en\EE\Language.dll"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\en
-  Source: "data\localized-text\Mods\NeoEE\Game\es\EE\Language.dll"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\es
-  Source: "data\localized-text\Mods\NeoEE\Game\fr\EE\Language.dll"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\fr
-  Source: "data\localized-text\Mods\NeoEE\Game\it\EE\Language.dll"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\it
-  Source: "data\localized-text\Mods\NeoEE\Game\ko\EE\Language.dll"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\ko
-  Source: "data\localized-text\Mods\NeoEE\Game\pl\EE\Language.dll"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\pl
-  Source: "data\localized-text\Mods\NeoEE\Game\pt-BR\EE\Language.dll"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\pt_BR
-  Source: "data\localized-text\Mods\NeoEE\Game\ru\EE\Language.dll"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\ru
-  Source: "data\localized-text\Mods\NeoEE\Game\zh-CN\EE\Language.dll"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\zh_CN
-  Source: "data\localized-text\Mods\NeoEE\Game\zh-TW\EE\Language.dll"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\zh_TW
+  Source: "data\localized-text\Mods\NeoEE\Game\de\EE\Language.dll"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\de
+  Source: "data\localized-text\Mods\NeoEE\Game\en\EE\Language.dll"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\en
+  Source: "data\localized-text\Mods\NeoEE\Game\es\EE\Language.dll"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\es
+  Source: "data\localized-text\Mods\NeoEE\Game\fr\EE\Language.dll"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\fr
+  Source: "data\localized-text\Mods\NeoEE\Game\it\EE\Language.dll"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\it
+  Source: "data\localized-text\Mods\NeoEE\Game\ko\EE\Language.dll"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\ko
+  Source: "data\localized-text\Mods\NeoEE\Game\pl\EE\Language.dll"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\pl
+  Source: "data\localized-text\Mods\NeoEE\Game\pt-BR\EE\Language.dll"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\pt_BR
+  Source: "data\localized-text\Mods\NeoEE\Game\ru\EE\Language.dll"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\ru
+  Source: "data\localized-text\Mods\NeoEE\Game\zh-CN\EE\Language.dll"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\zh_CN
+  Source: "data\localized-text\Mods\NeoEE\Game\zh-TW\EE\Language.dll"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\zh_TW
 
-  Source: "data\localized-text\Mods\NeoEE\Lobby\de\EE\*"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\de
-  Source: "data\localized-text\Mods\NeoEE\Lobby\en\EE\*"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\en
-  Source: "data\localized-text\Mods\NeoEE\Lobby\es\EE\*"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\es
-  Source: "data\localized-text\Mods\NeoEE\Lobby\fr\EE\*"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\fr
-  Source: "data\localized-text\Mods\NeoEE\Lobby\it\EE\*"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\it
-  Source: "data\localized-text\Mods\NeoEE\Lobby\ko\EE\*"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\ko
-  Source: "data\localized-text\Mods\NeoEE\Lobby\pl\EE\*"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\pl
-  Source: "data\localized-text\Mods\NeoEE\Lobby\pt-BR\EE\*"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\pt_BR
-  Source: "data\localized-text\Mods\NeoEE\Lobby\ru\EE\*"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\ru
-  Source: "data\localized-text\Mods\NeoEE\Lobby\zh\EE\*"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and (language\zh_CN or language\zh_TW)
+  Source: "data\localized-text\Mods\NeoEE\Lobby\de\EE\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\de
+  Source: "data\localized-text\Mods\NeoEE\Lobby\en\EE\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\en
+  Source: "data\localized-text\Mods\NeoEE\Lobby\es\EE\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\es
+  Source: "data\localized-text\Mods\NeoEE\Lobby\fr\EE\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\fr
+  Source: "data\localized-text\Mods\NeoEE\Lobby\it\EE\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\it
+  Source: "data\localized-text\Mods\NeoEE\Lobby\ko\EE\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\ko
+  Source: "data\localized-text\Mods\NeoEE\Lobby\pl\EE\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\pl
+  Source: "data\localized-text\Mods\NeoEE\Lobby\pt-BR\EE\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\pt_BR
+  Source: "data\localized-text\Mods\NeoEE\Lobby\ru\EE\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\ru
+  Source: "data\localized-text\Mods\NeoEE\Lobby\zh\EE\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and (language\zh_CN or language\zh_TW)
 
-  Source: "data\localized-text\Mods\NeoEE\Lobby\de\shared\*"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\de
-  Source: "data\localized-text\Mods\NeoEE\Lobby\en\shared\*"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\en
-  Source: "data\localized-text\Mods\NeoEE\Lobby\es\shared\*"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\es
-  Source: "data\localized-text\Mods\NeoEE\Lobby\fr\shared\*"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\fr
-  Source: "data\localized-text\Mods\NeoEE\Lobby\it\shared\*"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\it
-  Source: "data\localized-text\Mods\NeoEE\Lobby\ko\shared\*"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\ko
-  Source: "data\localized-text\Mods\NeoEE\Lobby\pl\shared\*"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\pl
-  Source: "data\localized-text\Mods\NeoEE\Lobby\pt-BR\shared\*"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\pt_BR
-  Source: "data\localized-text\Mods\NeoEE\Lobby\ru\shared\*"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\ru
-  Source: "data\localized-text\Mods\NeoEE\Lobby\zh\shared\*"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and (language\zh_CN or language\zh_TW)
+  Source: "data\localized-text\Mods\NeoEE\Lobby\de\shared\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\de
+  Source: "data\localized-text\Mods\NeoEE\Lobby\en\shared\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\en
+  Source: "data\localized-text\Mods\NeoEE\Lobby\es\shared\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\es
+  Source: "data\localized-text\Mods\NeoEE\Lobby\fr\shared\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\fr
+  Source: "data\localized-text\Mods\NeoEE\Lobby\it\shared\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\it
+  Source: "data\localized-text\Mods\NeoEE\Lobby\ko\shared\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\ko
+  Source: "data\localized-text\Mods\NeoEE\Lobby\pl\shared\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\pl
+  Source: "data\localized-text\Mods\NeoEE\Lobby\pt-BR\shared\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\pt_BR
+  Source: "data\localized-text\Mods\NeoEE\Lobby\ru\shared\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\ru
+  Source: "data\localized-text\Mods\NeoEE\Lobby\zh\shared\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and (language\zh_CN or language\zh_TW)
 #endif
 
 ; EE Online Lang Any Based Content (only downloads that passed the SHA-256 check, see downloads.iss)
-Source: "{tmp}\verified\EE\*"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs external skipifsourcedoesntexist; Components: game and language\update;
+Source: "{tmp}\verified\EE\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs external skipifsourcedoesntexist; Components: game and language\update;
 
 ; DreXmod 2 (+privacy patched dll, because nothing allow to disable it in config)
-Source: "data\Add-on\DLLs\dreXmod\2\*"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\drexmod\v2 and game;
-Source: "data\Add-on\DLLs\dreXmod\2_privacy\*"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\drexmod\v2 and game and not additional\telemetry;
+Source: "data\Add-on\DLLs\dreXmod\2\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\drexmod\v2 and game;
+Source: "data\Add-on\DLLs\dreXmod\2_privacy\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\drexmod\v2 and game and not additional\telemetry;
 
 ; DreXmod 3 (+privacy config)
-Source: "data\Add-on\DLLs\dreXmod\3\*"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\drexmod\v3 and game;
-Source: "data\Add-on\DLLs\dreXmod\3_privacy\*"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\drexmod\v3 and game and not additional\telemetry;
+Source: "data\Add-on\DLLs\dreXmod\3\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\drexmod\v3 and game;
+Source: "data\Add-on\DLLs\dreXmod\3_privacy\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\drexmod\v3 and game and not additional\telemetry;
 
 ; RMS
 #if InstallType == "EE"
   ; Omega
-  Source: "data\Add-on\RMS\Omega\EE\*"; DestDir: "{app}\Empire Earth\Data\Random Map Scripts"; \
+  Source: "data\Add-on\RMS\Omega\EE\*"; DestDir: "{app}\{#EEDir}\{#RmsSubDir}"; \
     Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\rms\omega and game
-  Source: "data\Add-on\RMS\NeoExtra\*"; DestDir: "{app}\Empire Earth\Data\Random Map Scripts"; \
+  Source: "data\Add-on\RMS\NeoExtra\*"; DestDir: "{app}\{#EEDir}\{#RmsSubDir}"; \
     Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\rms\neoextra and game
 #endif
 
 ; dgVoodoo  Bin
-Source: "data\Add-on\DirectX_Wrapper\dgVoodoo_bin\*"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper and game and not additional\directx_wrapper\dx9 and not additional\directx_wrapper\dx7
-Source: "data\\Add-on\DirectX_Wrapper\GOG\DDraw.dll"; DestDir: "{app}\Empire Earth"; DestName: "DDraw.dll"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper\dx9 and game;
-Source: "data\\Add-on\DirectX_Wrapper\DDrawCompat\DDraw.dll"; DestDir: "{app}\Empire Earth"; DestName: "DDraw.dll"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper\dx7 and game;
+Source: "data\Add-on\DirectX_Wrapper\dgVoodoo_bin\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper and game and not additional\directx_wrapper\dx9 and not additional\directx_wrapper\dx7
+Source: "data\\Add-on\DirectX_Wrapper\GOG\DDraw.dll"; DestDir: "{app}\{#EEDir}"; DestName: "DDraw.dll"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper\dx9 and game;
+Source: "data\\Add-on\DirectX_Wrapper\DDrawCompat\DDraw.dll"; DestDir: "{app}\{#EEDir}"; DestName: "DDraw.dll"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper\dx7 and game;
 ; dgVoodoo Conf
-Source: "data\Add-on\DirectX_Wrapper\dgVoodoo_conf\dgVoodoo_DX11_LVL10.conf"; DestDir: "{app}\Empire Earth"; DestName: "dgVoodoo.conf"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper\dx11_lvl10 and game;
-Source: "data\Add-on\DirectX_Wrapper\dgVoodoo_conf\dgVoodoo_DX11_LVL10_1.conf"; DestDir: "{app}\Empire Earth"; DestName: "dgVoodoo.conf"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper\dx11_lvl10_1 and game;
-Source: "data\Add-on\DirectX_Wrapper\dgVoodoo_conf\dgVoodoo_DX11_LVL11.conf"; DestDir: "{app}\Empire Earth"; DestName: "dgVoodoo.conf"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper\dx11_lvl11 and game;
-Source: "data\Add-on\DirectX_Wrapper\dgVoodoo_conf\dgVoodoo_DX12_LVL11.conf"; DestDir: "{app}\Empire Earth"; DestName: "dgVoodoo.conf"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper\dx12_lvl11 and game;
-Source: "data\Add-on\DirectX_Wrapper\dgVoodoo_conf\dgVoodoo_DX12_LVL12.conf"; DestDir: "{app}\Empire Earth"; DestName: "dgVoodoo.conf"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper\dx12_lvl12 and game;
+Source: "data\Add-on\DirectX_Wrapper\dgVoodoo_conf\dgVoodoo_DX11_LVL10.conf"; DestDir: "{app}\{#EEDir}"; DestName: "dgVoodoo.conf"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper\dx11_lvl10 and game;
+Source: "data\Add-on\DirectX_Wrapper\dgVoodoo_conf\dgVoodoo_DX11_LVL10_1.conf"; DestDir: "{app}\{#EEDir}"; DestName: "dgVoodoo.conf"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper\dx11_lvl10_1 and game;
+Source: "data\Add-on\DirectX_Wrapper\dgVoodoo_conf\dgVoodoo_DX11_LVL11.conf"; DestDir: "{app}\{#EEDir}"; DestName: "dgVoodoo.conf"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper\dx11_lvl11 and game;
+Source: "data\Add-on\DirectX_Wrapper\dgVoodoo_conf\dgVoodoo_DX12_LVL11.conf"; DestDir: "{app}\{#EEDir}"; DestName: "dgVoodoo.conf"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper\dx12_lvl11 and game;
+Source: "data\Add-on\DirectX_Wrapper\dgVoodoo_conf\dgVoodoo_DX12_LVL12.conf"; DestDir: "{app}\{#EEDir}"; DestName: "dgVoodoo.conf"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper\dx12_lvl12 and game;
 
 ; Civs
-Source: "data\Add-on\Civs\eC\*"; DestDir: "{app}\Empire Earth\Users\default\Civilizations"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\civs\ec and game
-Source: "data\Add-on\Civs\eC_full\*"; DestDir: "{app}\Empire Earth\Users\default\Civilizations"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\civs\ec_full and game
+Source: "data\Add-on\Civs\eC\*"; DestDir: "{app}\{#EEDir}\Users\default\Civilizations"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\civs\ec and game
+Source: "data\Add-on\Civs\eC_full\*"; DestDir: "{app}\{#EEDir}\Users\default\Civilizations"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\civs\ec_full and game
 
 ; Discord
-Source: "data\Add-on\DLLs\Discord\*"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\discord and game
+Source: "data\Add-on\DLLs\Discord\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\discord and game
 
 ; Reborn.dll
-; Source: "data\Add-on\DLLs\Reborn\*"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\reborn and game
+; Source: "data\Add-on\DLLs\Reborn\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\reborn and game
 
 
 ; EEStats
-Source: "data\Add-on\DLLs\EEStats\EEStats.dll"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\telemetry and game; MinVersion: 0.0,6.1
+Source: "data\Add-on\DLLs\EEStats\EEStats.dll"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\telemetry and game; MinVersion: 0.0,6.1
 
 ; HD
-Source: "data\Add-on\HD\terrain\*"; DestDir: "{app}\Empire Earth\Data\Textures"; \
+Source: "data\Add-on\HD\terrain\*"; DestDir: "{app}\{#EEDir}\Data\Textures"; \
   Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\hd\terrain and game
 
 ; Music
-Source: "data\Add-on\HD\music\*"; DestDir: "{app}\Empire Earth\Data\Sounds"; \
+Source: "data\Add-on\HD\music\*"; DestDir: "{app}\{#EEDir}\Data\Sounds"; \
   Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\hd\music and game
 
 ; Tech
-Source: "data\Add-on\HD\tech\*"; DestDir: "{app}\Empire Earth\Data\Textures"; \
+Source: "data\Add-on\HD\tech\*"; DestDir: "{app}\{#EEDir}\Data\Textures"; \
   Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\hd\tech and game
 
 ; Building
-Source: "data\Add-on\HD\buildings\*"; DestDir: "{app}\Empire Earth\Data\Textures"; \
+Source: "data\Add-on\HD\buildings\*"; DestDir: "{app}\{#EEDir}\Data\Textures"; \
   Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\hd\buildings and game
 
 ; Effects
-Source: "data\Add-on\HD\effects\*"; DestDir: "{app}\Empire Earth\Data\Textures"; \
+Source: "data\Add-on\HD\effects\*"; DestDir: "{app}\{#EEDir}\Data\Textures"; \
   Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\hd\effects and game
 
 ; ----------------
 
 ; AoC Base
-Source: "data\Empire Earth Base\Empire Earth - The Art of Conquest\*"; DestDir: "{app}\Empire Earth - The Art of Conquest"; \
+Source: "data\Empire Earth Base\Empire Earth - The Art of Conquest\*"; DestDir: "{app}\{#AoCDir}"; \
   Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc;
-;Source: "data\Empire Earth Base\shared\*"; DestDir: "{app}\Empire Earth - The Art of Conquest"; \
+;Source: "data\Empire Earth Base\shared\*"; DestDir: "{app}\{#AoCDir}"; \
 ;  Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc;
 ; EE Movies
-Source: "data\Add-on\Movies\AoC\*"; DestDir: "{app}\Empire Earth - The Art of Conquest\Data\Movies"; \
+Source: "data\Add-on\Movies\AoC\*"; DestDir: "{app}\{#AoCDir}\Data\Movies"; \
   Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\movies and gameaoc;
 
 #if InstallType == "NeoEE"
-  Source: "data\NeoEE Base\Empire Earth - The Art of Conquest\*"; DestDir: "{app}\Empire Earth - The Art of Conquest"; \
+  Source: "data\NeoEE Base\Empire Earth - The Art of Conquest\*"; DestDir: "{app}\{#AoCDir}"; \
     Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc
-  Source: "data\NeoEE Base\shared\*"; DestDir: "{app}\Empire Earth - The Art of Conquest"; \
+  Source: "data\NeoEE Base\shared\*"; DestDir: "{app}\{#AoCDir}"; \
     Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc
-  Source: "data\Add-on\RMS\Omega\AoC\*"; DestDir: "{app}\Empire Earth - The Art of Conquest\Data\Random Map Scripts"; \
+  Source: "data\Add-on\RMS\Omega\AoC\*"; DestDir: "{app}\{#AoCDir}\{#RmsSubDir}"; \
     Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc
-  Source: "data\Add-on\RMS\NeoExtra\*"; DestDir: "{app}\Empire Earth - The Art of Conquest\Data\Random Map Scripts"; \
+  Source: "data\Add-on\RMS\NeoExtra\*"; DestDir: "{app}\{#AoCDir}\{#RmsSubDir}"; \
     Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc
-  Source: "data\NeoEE - Admin\Empire Earth - The Art of Conquest\*"; DestDir: "{app}\Empire Earth - The Art of Conquest"; \
+  Source: "data\NeoEE - Admin\Empire Earth - The Art of Conquest\*"; DestDir: "{app}\{#AoCDir}"; \
     Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc; Check: IsAdminInstallMode
-  Source: "data\NeoEE - User\Empire Earth - The Art of Conquest\*"; DestDir: "{app}\Empire Earth - The Art of Conquest"; \
+  Source: "data\NeoEE - User\Empire Earth - The Art of Conquest\*"; DestDir: "{app}\{#AoCDir}"; \
     Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc; Check: not IsAdminInstallMode
   ; Already done in EE part Source: authtools.exe
-  Source: "data\NeoEE - CDKeys\_wonkver.pub"; DestDir: "{app}\Empire Earth - The Art of Conquest"; \
+  Source: "data\NeoEE - CDKeys\_wonkver.pub"; DestDir: "{app}\{#AoCDir}"; \
     Flags: deleteafterinstall ignoreversion recursesubdirs createallsubdirs; Components: gameaoc
   ; NeoEE - Wine Fix (GDI)
-  Source: "data\NeoEE - Wine\NeoEE.cfg"; DestDir: "{app}\Empire Earth - The Art of Conquest"; \
+  Source: "data\NeoEE - Wine\NeoEE.cfg"; DestDir: "{app}\{#AoCDir}"; \
     Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc; Check: IsWine
 #endif
 
 ; EE Lang Game Based Content
-Source: "data\localized-text\Game\de\AoC\Language.dll"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\de
-Source: "data\localized-text\Game\en\AoC\Language.dll"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\en
-Source: "data\localized-text\Game\es\AoC\Language.dll"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\es
-Source: "data\localized-text\Game\fr\AoC\Language.dll"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\fr
-Source: "data\localized-text\Game\it\AoC\Language.dll"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\it
-Source: "data\localized-text\Game\ko\AoC\Language.dll"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\ko
-Source: "data\localized-text\Game\pl\AoC\Language.dll"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\pl
-Source: "data\localized-text\Game\pt-BR\AoC\Language.dll"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\pt_BR
-Source: "data\localized-text\Game\ru\AoC\Language.dll"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\ru
-Source: "data\localized-text\Game\zh-CN\AoC\Language.dll"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\zh_CN
-Source: "data\localized-text\Game\zh-TW\AoC\Language.dll"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\zh_TW
+Source: "data\localized-text\Game\de\AoC\Language.dll"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\de
+Source: "data\localized-text\Game\en\AoC\Language.dll"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\en
+Source: "data\localized-text\Game\es\AoC\Language.dll"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\es
+Source: "data\localized-text\Game\fr\AoC\Language.dll"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\fr
+Source: "data\localized-text\Game\it\AoC\Language.dll"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\it
+Source: "data\localized-text\Game\ko\AoC\Language.dll"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\ko
+Source: "data\localized-text\Game\pl\AoC\Language.dll"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\pl
+Source: "data\localized-text\Game\pt-BR\AoC\Language.dll"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\pt_BR
+Source: "data\localized-text\Game\ru\AoC\Language.dll"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\ru
+Source: "data\localized-text\Game\zh-CN\AoC\Language.dll"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\zh_CN
+Source: "data\localized-text\Game\zh-TW\AoC\Language.dll"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\zh_TW
 
 ; EE Lang Lobby Based Content
-Source: "data\localized-text\Lobby\de\AoC\*"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\de
-Source: "data\localized-text\Lobby\en\AoC\*"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\en
-Source: "data\localized-text\Lobby\es\AoC\*"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\es
-Source: "data\localized-text\Lobby\fr\AoC\*"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\fr
-Source: "data\localized-text\Lobby\it\AoC\*"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\it
-Source: "data\localized-text\Lobby\ko\AoC\*"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\ko
-Source: "data\localized-text\Lobby\pl\AoC\*"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\pl
-Source: "data\localized-text\Lobby\pt-BR\AoC\*"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\pt_BR
-Source: "data\localized-text\Lobby\ru\AoC\*"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\ru
-Source: "data\localized-text\Lobby\zh\AoC\*"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and (language\zh_CN or language\zh_TW)
+Source: "data\localized-text\Lobby\de\AoC\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\de
+Source: "data\localized-text\Lobby\en\AoC\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\en
+Source: "data\localized-text\Lobby\es\AoC\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\es
+Source: "data\localized-text\Lobby\fr\AoC\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\fr
+Source: "data\localized-text\Lobby\it\AoC\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\it
+Source: "data\localized-text\Lobby\ko\AoC\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\ko
+Source: "data\localized-text\Lobby\pl\AoC\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\pl
+Source: "data\localized-text\Lobby\pt-BR\AoC\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\pt_BR
+Source: "data\localized-text\Lobby\ru\AoC\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\ru
+Source: "data\localized-text\Lobby\zh\AoC\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and (language\zh_CN or language\zh_TW)
 
-Source: "data\localized-text\Lobby\de\shared\*"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\de
-Source: "data\localized-text\Lobby\en\shared\*"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\en
-Source: "data\localized-text\Lobby\es\shared\*"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\es
-Source: "data\localized-text\Lobby\fr\shared\*"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\fr
-Source: "data\localized-text\Lobby\it\shared\*"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\it
-Source: "data\localized-text\Lobby\ko\shared\*"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\ko
-Source: "data\localized-text\Lobby\pl\shared\*"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\pl
-Source: "data\localized-text\Lobby\pt-BR\shared\*"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\pt_BR
-Source: "data\localized-text\Lobby\ru\shared\*"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\ru
-Source: "data\localized-text\Lobby\zh\shared\*"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and (language\zh_CN or language\zh_TW)
+Source: "data\localized-text\Lobby\de\shared\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\de
+Source: "data\localized-text\Lobby\en\shared\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\en
+Source: "data\localized-text\Lobby\es\shared\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\es
+Source: "data\localized-text\Lobby\fr\shared\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\fr
+Source: "data\localized-text\Lobby\it\shared\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\it
+Source: "data\localized-text\Lobby\ko\shared\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\ko
+Source: "data\localized-text\Lobby\pl\shared\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\pl
+Source: "data\localized-text\Lobby\pt-BR\shared\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\pt_BR
+Source: "data\localized-text\Lobby\ru\shared\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\ru
+Source: "data\localized-text\Lobby\zh\shared\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and (language\zh_CN or language\zh_TW)
 
 #if InstallType == "NeoEE"
   ; NeoEE Lang Lobby Based Content
-  Source: "data\localized-text\Mods\NeoEE\Game\de\AoC\Language.dll"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\de
-  Source: "data\localized-text\Mods\NeoEE\Game\en\AoC\Language.dll"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\en
-  Source: "data\localized-text\Mods\NeoEE\Game\es\AoC\Language.dll"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\es
-  Source: "data\localized-text\Mods\NeoEE\Game\fr\AoC\Language.dll"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\fr
-  Source: "data\localized-text\Mods\NeoEE\Game\it\AoC\Language.dll"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\it
-  Source: "data\localized-text\Mods\NeoEE\Game\ko\AoC\Language.dll"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\ko
-  Source: "data\localized-text\Mods\NeoEE\Game\pl\AoC\Language.dll"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\pl
-  Source: "data\localized-text\Mods\NeoEE\Game\pt-BR\AoC\Language.dll"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\pt_BR
-  Source: "data\localized-text\Mods\NeoEE\Game\ru\AoC\Language.dll"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\ru
-  Source: "data\localized-text\Mods\NeoEE\Game\zh-CN\AoC\Language.dll"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\zh_CN
-  Source: "data\localized-text\Mods\NeoEE\Game\zh-TW\AoC\Language.dll"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\zh_TW
+  Source: "data\localized-text\Mods\NeoEE\Game\de\AoC\Language.dll"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\de
+  Source: "data\localized-text\Mods\NeoEE\Game\en\AoC\Language.dll"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\en
+  Source: "data\localized-text\Mods\NeoEE\Game\es\AoC\Language.dll"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\es
+  Source: "data\localized-text\Mods\NeoEE\Game\fr\AoC\Language.dll"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\fr
+  Source: "data\localized-text\Mods\NeoEE\Game\it\AoC\Language.dll"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\it
+  Source: "data\localized-text\Mods\NeoEE\Game\ko\AoC\Language.dll"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\ko
+  Source: "data\localized-text\Mods\NeoEE\Game\pl\AoC\Language.dll"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\pl
+  Source: "data\localized-text\Mods\NeoEE\Game\pt-BR\AoC\Language.dll"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\pt_BR
+  Source: "data\localized-text\Mods\NeoEE\Game\ru\AoC\Language.dll"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\ru
+  Source: "data\localized-text\Mods\NeoEE\Game\zh-CN\AoC\Language.dll"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\zh_CN
+  Source: "data\localized-text\Mods\NeoEE\Game\zh-TW\AoC\Language.dll"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\zh_TW
 
-  Source: "data\localized-text\Mods\NeoEE\Lobby\de\AoC\*"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\de
-  Source: "data\localized-text\Mods\NeoEE\Lobby\en\AoC\*"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\en
-  Source: "data\localized-text\Mods\NeoEE\Lobby\es\AoC\*"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\es
-  Source: "data\localized-text\Mods\NeoEE\Lobby\fr\AoC\*"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\fr
-  Source: "data\localized-text\Mods\NeoEE\Lobby\it\AoC\*"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\it
-  Source: "data\localized-text\Mods\NeoEE\Lobby\ko\AoC\*"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\ko
-  Source: "data\localized-text\Mods\NeoEE\Lobby\pl\AoC\*"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\pl
-  Source: "data\localized-text\Mods\NeoEE\Lobby\pt-BR\AoC\*"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\pt_BR
-  Source: "data\localized-text\Mods\NeoEE\Lobby\ru\AoC\*"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\ru
-  Source: "data\localized-text\Mods\NeoEE\Lobby\zh\AoC\*"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and (language\zh_CN or language\zh_TW)
+  Source: "data\localized-text\Mods\NeoEE\Lobby\de\AoC\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\de
+  Source: "data\localized-text\Mods\NeoEE\Lobby\en\AoC\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\en
+  Source: "data\localized-text\Mods\NeoEE\Lobby\es\AoC\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\es
+  Source: "data\localized-text\Mods\NeoEE\Lobby\fr\AoC\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\fr
+  Source: "data\localized-text\Mods\NeoEE\Lobby\it\AoC\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\it
+  Source: "data\localized-text\Mods\NeoEE\Lobby\ko\AoC\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\ko
+  Source: "data\localized-text\Mods\NeoEE\Lobby\pl\AoC\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\pl
+  Source: "data\localized-text\Mods\NeoEE\Lobby\pt-BR\AoC\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\pt_BR
+  Source: "data\localized-text\Mods\NeoEE\Lobby\ru\AoC\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\ru
+  Source: "data\localized-text\Mods\NeoEE\Lobby\zh\AoC\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and (language\zh_CN or language\zh_TW)
 
-  Source: "data\localized-text\Mods\NeoEE\Lobby\de\shared\*"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\de
-  Source: "data\localized-text\Mods\NeoEE\Lobby\en\shared\*"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\en
-  Source: "data\localized-text\Mods\NeoEE\Lobby\es\shared\*"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\es
-  Source: "data\localized-text\Mods\NeoEE\Lobby\fr\shared\*"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\fr
-  Source: "data\localized-text\Mods\NeoEE\Lobby\it\shared\*"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\it
-  Source: "data\localized-text\Mods\NeoEE\Lobby\ko\shared\*"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\ko
-  Source: "data\localized-text\Mods\NeoEE\Lobby\pl\shared\*"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\pl
-  Source: "data\localized-text\Mods\NeoEE\Lobby\pt-BR\shared\*"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\pt_BR
-  Source: "data\localized-text\Mods\NeoEE\Lobby\ru\shared\*"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\ru
-  Source: "data\localized-text\Mods\NeoEE\Lobby\zh\shared\*"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and (language\zh_CN or language\zh_TW)
+  Source: "data\localized-text\Mods\NeoEE\Lobby\de\shared\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\de
+  Source: "data\localized-text\Mods\NeoEE\Lobby\en\shared\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\en
+  Source: "data\localized-text\Mods\NeoEE\Lobby\es\shared\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\es
+  Source: "data\localized-text\Mods\NeoEE\Lobby\fr\shared\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\fr
+  Source: "data\localized-text\Mods\NeoEE\Lobby\it\shared\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\it
+  Source: "data\localized-text\Mods\NeoEE\Lobby\ko\shared\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\ko
+  Source: "data\localized-text\Mods\NeoEE\Lobby\pl\shared\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\pl
+  Source: "data\localized-text\Mods\NeoEE\Lobby\pt-BR\shared\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\pt_BR
+  Source: "data\localized-text\Mods\NeoEE\Lobby\ru\shared\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\ru
+  Source: "data\localized-text\Mods\NeoEE\Lobby\zh\shared\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and (language\zh_CN or language\zh_TW)
 #endif
 
 ; skipifsourcedoesntexist: {tmp}\verified\AoC is empty when nothing was downloaded for AoC (English,
 ; download not selected or failed), which Setup would otherwise report as a missing source file
-Source: "{tmp}\verified\AoC\*"; DestDir: "{app}\Empire Earth - The Art of Conquest"; \
+Source: "{tmp}\verified\AoC\*"; DestDir: "{app}\{#AoCDir}"; \
   Flags: ignoreversion recursesubdirs createallsubdirs external skipifsourcedoesntexist; Components: gameaoc and language\update
 ; AoC uses the learning campaign of EE (see RegisterOnlineFiles)
-Source: "{tmp}\verified\EE\Data\Campaigns\EELearningCampaign.ssa"; DestDir: "{app}\Empire Earth - The Art of Conquest\Data\Campaigns"; \
+Source: "{tmp}\verified\EE\Data\Campaigns\EELearningCampaign.ssa"; DestDir: "{app}\{#AoCDir}\Data\Campaigns"; \
   Flags: ignoreversion recursesubdirs createallsubdirs external skipifsourcedoesntexist; Components: gameaoc and language\update
 
   ; DreXmod 2 (+privacy patched dll, because nothing allow to disable it in config)
-Source: "data\Add-on\DLLs\dreXmod\2\*"; DestDir: "{app}\Empire Earth - The Art of Conquest"; \
+Source: "data\Add-on\DLLs\dreXmod\2\*"; DestDir: "{app}\{#AoCDir}"; \
   Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\drexmod\v2 and gameaoc;
-Source: "data\Add-on\DLLs\dreXmod\2_privacy\*"; DestDir: "{app}\Empire Earth - The Art of Conquest"; \
+Source: "data\Add-on\DLLs\dreXmod\2_privacy\*"; DestDir: "{app}\{#AoCDir}"; \
   Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\drexmod\v2 and gameaoc and not additional\telemetry;
 
 ; DreXmod 3 (+privacy config)
-Source: "data\Add-on\DLLs\dreXmod\3\*"; DestDir: "{app}\Empire Earth - The Art of Conquest"; \
+Source: "data\Add-on\DLLs\dreXmod\3\*"; DestDir: "{app}\{#AoCDir}"; \
   Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\drexmod\v3 and gameaoc;
-Source: "data\Add-on\DLLs\dreXmod\3_privacy\*"; DestDir: "{app}\Empire Earth - The Art of Conquest"; \
+Source: "data\Add-on\DLLs\dreXmod\3_privacy\*"; DestDir: "{app}\{#AoCDir}"; \
   Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\drexmod\v3 and gameaoc and not additional\telemetry;
 
 ; RMS
 #if InstallType == "EE"
   ; Omega
-  Source: "data\Add-on\RMS\Omega\AoC\*"; DestDir: "{app}\Empire Earth - The Art of Conquest\Data\Random Map Scripts"; \
+  Source: "data\Add-on\RMS\Omega\AoC\*"; DestDir: "{app}\{#AoCDir}\{#RmsSubDir}"; \
     Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\rms\omega and gameaoc
-  Source: "data\Add-on\RMS\NeoExtra\*"; DestDir: "{app}\Empire Earth - The Art of Conquest\Data\Random Map Scripts"; \
+  Source: "data\Add-on\RMS\NeoExtra\*"; DestDir: "{app}\{#AoCDir}\{#RmsSubDir}"; \
     Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\rms\neoextra and gameaoc
 #endif
 
 ; dgVoodoo  Bin
-Source: "data\Add-on\DirectX_Wrapper\dgVoodoo_bin\*"; DestDir: "{app}\Empire Earth - The Art of Conquest"; \
+Source: "data\Add-on\DirectX_Wrapper\dgVoodoo_bin\*"; DestDir: "{app}\{#AoCDir}"; \
   Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper and gameaoc and not additional\directx_wrapper\dx9 and not additional\directx_wrapper\dx7
-Source: "data\\Add-on\DirectX_Wrapper\GOG\DDraw.dll"; DestDir: "{app}\Empire Earth - The Art of Conquest"; DestName: "DDraw.dll"; \
+Source: "data\\Add-on\DirectX_Wrapper\GOG\DDraw.dll"; DestDir: "{app}\{#AoCDir}"; DestName: "DDraw.dll"; \
   Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper\dx9 and gameaoc;
-Source: "data\\Add-on\DirectX_Wrapper\DDrawCompat\DDraw.dll"; DestDir: "{app}\Empire Earth - The Art of Conquest"; DestName: "DDraw.dll"; \
+Source: "data\\Add-on\DirectX_Wrapper\DDrawCompat\DDraw.dll"; DestDir: "{app}\{#AoCDir}"; DestName: "DDraw.dll"; \
   Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper\dx7 and gameaoc;
 ; dgVoodoo Conf
-Source: "data\Add-on\DirectX_Wrapper\dgVoodoo_conf\dgVoodoo_DX11_LVL10.conf"; DestDir: "{app}\Empire Earth - The Art of Conquest"; DestName: "dgVoodoo.conf"; \
+Source: "data\Add-on\DirectX_Wrapper\dgVoodoo_conf\dgVoodoo_DX11_LVL10.conf"; DestDir: "{app}\{#AoCDir}"; DestName: "dgVoodoo.conf"; \
   Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper\dx11_lvl10 and gameaoc;
-Source: "data\Add-on\DirectX_Wrapper\dgVoodoo_conf\dgVoodoo_DX11_LVL10_1.conf"; DestDir: "{app}\Empire Earth - The Art of Conquest"; DestName: "dgVoodoo.conf"; \
+Source: "data\Add-on\DirectX_Wrapper\dgVoodoo_conf\dgVoodoo_DX11_LVL10_1.conf"; DestDir: "{app}\{#AoCDir}"; DestName: "dgVoodoo.conf"; \
   Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper\dx11_lvl10_1 and gameaoc;
-Source: "data\Add-on\DirectX_Wrapper\dgVoodoo_conf\dgVoodoo_DX11_LVL11.conf"; DestDir: "{app}\Empire Earth - The Art of Conquest"; DestName: "dgVoodoo.conf"; \
+Source: "data\Add-on\DirectX_Wrapper\dgVoodoo_conf\dgVoodoo_DX11_LVL11.conf"; DestDir: "{app}\{#AoCDir}"; DestName: "dgVoodoo.conf"; \
   Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper\dx11_lvl11 and gameaoc;
-Source: "data\Add-on\DirectX_Wrapper\dgVoodoo_conf\dgVoodoo_DX12_LVL11.conf"; DestDir: "{app}\Empire Earth - The Art of Conquest"; DestName: "dgVoodoo.conf"; \
+Source: "data\Add-on\DirectX_Wrapper\dgVoodoo_conf\dgVoodoo_DX12_LVL11.conf"; DestDir: "{app}\{#AoCDir}"; DestName: "dgVoodoo.conf"; \
   Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper\dx12_lvl11 and gameaoc;
-Source: "data\Add-on\DirectX_Wrapper\dgVoodoo_conf\dgVoodoo_DX12_LVL12.conf"; DestDir: "{app}\Empire Earth - The Art of Conquest"; DestName: "dgVoodoo.conf"; \
+Source: "data\Add-on\DirectX_Wrapper\dgVoodoo_conf\dgVoodoo_DX12_LVL12.conf"; DestDir: "{app}\{#AoCDir}"; DestName: "dgVoodoo.conf"; \
   Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper\dx12_lvl12 and gameaoc;
 
 ; Civs
-Source: "data\Add-on\Civs\eC\*"; DestDir: "{app}\Empire Earth - The Art of Conquest\Users\default\Civilizations"; \
+Source: "data\Add-on\Civs\eC\*"; DestDir: "{app}\{#AoCDir}\Users\default\Civilizations"; \
   Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\civs\ec and gameaoc
-Source: "data\Add-on\Civs\eC_full\*"; DestDir: "{app}\Empire Earth - The Art of Conquest\Users\default\Civilizations"; \
+Source: "data\Add-on\Civs\eC_full\*"; DestDir: "{app}\{#AoCDir}\Users\default\Civilizations"; \
   Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\civs\ec_full and gameaoc
 
 ; Discord
-Source: "data\Add-on\DLLs\Discord\*"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\discord and gameaoc
+Source: "data\Add-on\DLLs\Discord\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\discord and gameaoc
 
 ; Reborn.dll
-; Not supported Source: "data\Add-on\DLLs\Reborn\*"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\reborn and gameaoc
+; Not supported Source: "data\Add-on\DLLs\Reborn\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\reborn and gameaoc
 
 ; EEStats
-; Not supported Source: "data\Add-on\DLLs\EEStats\*"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\telemetry and gameaoc; MinVersion: 0.0,6.1
+; Not supported Source: "data\Add-on\DLLs\EEStats\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\telemetry and gameaoc; MinVersion: 0.0,6.1
 
 ; HD & Music & Tech & Building
 ; Herit from EE natively
@@ -844,15 +853,15 @@ Source: "data\Add-on\DLLs\Discord\*"; DestDir: "{app}\Empire Earth - The Art of 
 ; With the opt-in task everyoneadminstart the game runs elevated, needs no write permissions and
 ; must not read files that standard users can change: then nothing is granted. Never grant write
 ; access to code (exe/dll). Permissions granted by an earlier installation are not revoked.
-Source: "{app}\Empire Earth\*.cfg"; DestDir: "{app}\Empire Earth"; Permissions: authusers-modify; Flags: ignoreversion recursesubdirs createallsubdirs external; Components: game; Tasks: not everyoneadminstart; Check: not IsWine and IsAdminInstallMode
-Source: "{app}\Empire Earth\*.config"; DestDir: "{app}\Empire Earth"; Permissions: authusers-modify; Flags: ignoreversion recursesubdirs createallsubdirs external; Components: game; Tasks: not everyoneadminstart; Check: not IsWine and IsAdminInstallMode
-Source: "{app}\Empire Earth\*.conf"; DestDir: "{app}\Empire Earth"; Permissions: authusers-modify; Flags: ignoreversion recursesubdirs createallsubdirs external; Components: game; Tasks: not everyoneadminstart; Check: not IsWine and IsAdminInstallMode
-Source: "{app}\Empire Earth\*.ini"; DestDir: "{app}\Empire Earth"; Permissions: authusers-modify; Flags: ignoreversion recursesubdirs createallsubdirs external; Components: game; Tasks: not everyoneadminstart; Check: not IsWine and IsAdminInstallMode
+Source: "{app}\{#EEDir}\*.cfg"; DestDir: "{app}\{#EEDir}"; Permissions: authusers-modify; Flags: ignoreversion recursesubdirs createallsubdirs external; Components: game; Tasks: not everyoneadminstart; Check: not IsWine and IsAdminInstallMode
+Source: "{app}\{#EEDir}\*.config"; DestDir: "{app}\{#EEDir}"; Permissions: authusers-modify; Flags: ignoreversion recursesubdirs createallsubdirs external; Components: game; Tasks: not everyoneadminstart; Check: not IsWine and IsAdminInstallMode
+Source: "{app}\{#EEDir}\*.conf"; DestDir: "{app}\{#EEDir}"; Permissions: authusers-modify; Flags: ignoreversion recursesubdirs createallsubdirs external; Components: game; Tasks: not everyoneadminstart; Check: not IsWine and IsAdminInstallMode
+Source: "{app}\{#EEDir}\*.ini"; DestDir: "{app}\{#EEDir}"; Permissions: authusers-modify; Flags: ignoreversion recursesubdirs createallsubdirs external; Components: game; Tasks: not everyoneadminstart; Check: not IsWine and IsAdminInstallMode
 ; ----------------
-Source: "{app}\Empire Earth - The Art of Conquest\*.cfg"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Permissions: authusers-modify; Flags: ignoreversion recursesubdirs createallsubdirs external; Components: gameaoc; Tasks: not everyoneadminstart; Check: not IsWine and IsAdminInstallMode
-Source: "{app}\Empire Earth - The Art of Conquest\*.config"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Permissions: authusers-modify; Flags: ignoreversion recursesubdirs createallsubdirs external; Components: gameaoc; Tasks: not everyoneadminstart; Check: not IsWine and IsAdminInstallMode
-Source: "{app}\Empire Earth - The Art of Conquest\*.conf"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Permissions: authusers-modify; Flags: ignoreversion recursesubdirs createallsubdirs external; Components: gameaoc; Tasks: not everyoneadminstart; Check: not IsWine and IsAdminInstallMode
-Source: "{app}\Empire Earth - The Art of Conquest\*.ini"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Permissions: authusers-modify; Flags: ignoreversion recursesubdirs createallsubdirs external; Components: gameaoc; Tasks: not everyoneadminstart; Check: not IsWine and IsAdminInstallMode
+Source: "{app}\{#AoCDir}\*.cfg"; DestDir: "{app}\{#AoCDir}"; Permissions: authusers-modify; Flags: ignoreversion recursesubdirs createallsubdirs external; Components: gameaoc; Tasks: not everyoneadminstart; Check: not IsWine and IsAdminInstallMode
+Source: "{app}\{#AoCDir}\*.config"; DestDir: "{app}\{#AoCDir}"; Permissions: authusers-modify; Flags: ignoreversion recursesubdirs createallsubdirs external; Components: gameaoc; Tasks: not everyoneadminstart; Check: not IsWine and IsAdminInstallMode
+Source: "{app}\{#AoCDir}\*.conf"; DestDir: "{app}\{#AoCDir}"; Permissions: authusers-modify; Flags: ignoreversion recursesubdirs createallsubdirs external; Components: gameaoc; Tasks: not everyoneadminstart; Check: not IsWine and IsAdminInstallMode
+Source: "{app}\{#AoCDir}\*.ini"; DestDir: "{app}\{#AoCDir}"; Permissions: authusers-modify; Flags: ignoreversion recursesubdirs createallsubdirs external; Components: gameaoc; Tasks: not everyoneadminstart; Check: not IsWine and IsAdminInstallMode
 
 ; ---------------------
 ;         Tools
@@ -863,11 +872,11 @@ Source: "data\Add-on\Tools\Diagnostic\*"; DestDir: "{app}\Tools\Diagnostic"; Fla
 ; ---------------------
 ;  Allow Data/Civ edit (see the permission notes in [Files])
 ; ---------------------
-Name: "{app}\Empire Earth\Data"; Permissions: authusers-modify; Components: game; Tasks: not everyoneadminstart; Check: not IsWine and IsAdminInstallMode
-Name: "{app}\Empire Earth\Users"; Permissions: authusers-modify; Components: game; Tasks: not everyoneadminstart; Check: not IsWine and IsAdminInstallMode
+Name: "{app}\{#EEDir}\Data"; Permissions: authusers-modify; Components: game; Tasks: not everyoneadminstart; Check: not IsWine and IsAdminInstallMode
+Name: "{app}\{#EEDir}\Users"; Permissions: authusers-modify; Components: game; Tasks: not everyoneadminstart; Check: not IsWine and IsAdminInstallMode
 ; ----------------
-Name: "{app}\Empire Earth - The Art of Conquest\Data"; Permissions: authusers-modify; Components: gameaoc; Tasks: not everyoneadminstart; Check: not IsWine and IsAdminInstallMode
-Name: "{app}\Empire Earth - The Art of Conquest\Users"; Permissions: authusers-modify; Components: gameaoc; Tasks: not everyoneadminstart; Check: not IsWine and IsAdminInstallMode
+Name: "{app}\{#AoCDir}\Data"; Permissions: authusers-modify; Components: gameaoc; Tasks: not everyoneadminstart; Check: not IsWine and IsAdminInstallMode
+Name: "{app}\{#AoCDir}\Users"; Permissions: authusers-modify; Components: gameaoc; Tasks: not everyoneadminstart; Check: not IsWine and IsAdminInstallMode
 
 ; Additional setup related data
 Name: "{app}\{#SetupDataDir}"; Attribs: hidden
@@ -896,67 +905,67 @@ Name: "{app}\{#SetupDataDir}"; Attribs: hidden
 ; RUNASADMIN, use HKLM in that mode.
 
 ; Windows 10+ GPU auto selection (apparently no HKLM... ty ms...)
-Root: "HKCU"; Subkey: "Software\Microsoft\DirectX\UserGpuPreferences"; ValueType: String; ValueName: "{app}\Empire Earth\Empire Earth.exe"; ValueData: "GpuPreference=2;"; \
+Root: "HKCU"; Subkey: "Software\Microsoft\DirectX\UserGpuPreferences"; ValueType: String; ValueName: "{app}\{#EEExe}"; ValueData: "GpuPreference=2;"; \
   Flags: uninsdeletevalue; MinVersion: 0.0,10; Tasks: compatibility_windows; Components: game
-Root: "HKCU"; Subkey: "Software\Microsoft\DirectX\UserGpuPreferences"; ValueType: String; ValueName: "{app}\Empire Earth - The Art of Conquest\EE-AOC.exe"; ValueData: "GpuPreference=2;"; \
+Root: "HKCU"; Subkey: "Software\Microsoft\DirectX\UserGpuPreferences"; ValueType: String; ValueName: "{app}\{#AoCExe}"; ValueData: "GpuPreference=2;"; \
   Flags: uninsdeletevalue; MinVersion: 0.0,10; Tasks: compatibility_windows; Components:  gameaoc
 
 ; Admin + Windows compatibility
 ; Windows >=8
-Root: "HKLM"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\Empire Earth\Empire Earth.exe"; ValueData: "{code:GetCompatibilityFlags} WIN7RTM"; \
+Root: "HKLM"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\{#EEExe}"; ValueData: "{code:GetCompatibilityFlags} WIN7RTM"; \
   Flags: uninsdeletevalue; Check: IsAdminInstallMode; MinVersion: 0.0,6.2; Tasks: compatibility_windows; Components: game
-Root: "HKLM"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\Empire Earth - The Art of Conquest\EE-AOC.exe"; ValueData: "{code:GetCompatibilityFlags} WIN7RTM"; \
+Root: "HKLM"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\{#AoCExe}"; ValueData: "{code:GetCompatibilityFlags} WIN7RTM"; \
   Flags: uninsdeletevalue; Check: IsAdminInstallMode; MinVersion: 0.0,6.2; Tasks: compatibility_windows; Components: gameaoc
 ; Windows >=Vista & <= 7
-Root: "HKLM"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\Empire Earth\Empire Earth.exe"; ValueData: "{code:GetCompatibilityFlags} WINXPSP3"; \
+Root: "HKLM"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\{#EEExe}"; ValueData: "{code:GetCompatibilityFlags} WINXPSP3"; \
   Flags: uninsdeletevalue; Check: IsAdminInstallMode; MinVersion: 0.0,6.0; OnlyBelowVersion: 0.0,6.2; Tasks: compatibility_windows; Components: game
-Root: "HKLM"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\Empire Earth - The Art of Conquest\EE-AOC.exe"; ValueData: "{code:GetCompatibilityFlags} WINXPSP3"; \
+Root: "HKLM"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\{#AoCExe}"; ValueData: "{code:GetCompatibilityFlags} WINXPSP3"; \
   Flags: uninsdeletevalue; Check: IsAdminInstallMode; MinVersion: 0.0,6.0; OnlyBelowVersion: 0.0,6.2; Tasks: compatibility_windows; Components: gameaoc
 
 ; Admin - Windows compatibility
 ; Windows >=8
-Root: "HKLM"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\Empire Earth\Empire Earth.exe"; ValueData: "{code:GetCompatibilityFlags}"; \
+Root: "HKLM"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\{#EEExe}"; ValueData: "{code:GetCompatibilityFlags}"; \
   Flags: uninsdeletevalue; Check: IsAdminInstallMode; MinVersion: 0.0,6.2; Tasks: not compatibility_windows and compatibility; Components: game
-Root: "HKLM"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\Empire Earth - The Art of Conquest\EE-AOC.exe"; ValueData: "{code:GetCompatibilityFlags}"; \
+Root: "HKLM"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\{#AoCExe}"; ValueData: "{code:GetCompatibilityFlags}"; \
   Flags: uninsdeletevalue; Check: IsAdminInstallMode; MinVersion: 0.0,6.2; Tasks: not compatibility_windows and compatibility; Components: gameaoc
 ; Windows >=Vista & <= 7
-Root: "HKLM"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\Empire Earth\Empire Earth.exe"; ValueData: "{code:GetCompatibilityFlags}"; \
+Root: "HKLM"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\{#EEExe}"; ValueData: "{code:GetCompatibilityFlags}"; \
   Flags: uninsdeletevalue; Check: IsAdminInstallMode; MinVersion: 0.0,6.0; OnlyBelowVersion: 0.0,6.2; Tasks: not compatibility_windows and compatibility; Components: game
-Root: "HKLM"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\Empire Earth - The Art of Conquest\EE-AOC.exe"; ValueData: "{code:GetCompatibilityFlags}"; \
+Root: "HKLM"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\{#AoCExe}"; ValueData: "{code:GetCompatibilityFlags}"; \
   Flags: uninsdeletevalue; Check: IsAdminInstallMode; MinVersion: 0.0,6.0; OnlyBelowVersion: 0.0,6.2; Tasks: not compatibility_windows and compatibility; Components: gameaoc
 
 ; Admin, RUNASADMIN only (opt-in task everyoneadminstart without the compatibility tasks)
 ; Setups up to v1.7.2 also set "~ RUNASADMIN" in HKCU for the installing account by default;
 ; CurStepChanged removes that old value (RemoveLegacyRunAsAdmin).
-Root: "HKLM"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\Empire Earth\Empire Earth.exe"; ValueData: "{code:GetCompatibilityFlags}"; \
+Root: "HKLM"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\{#EEExe}"; ValueData: "{code:GetCompatibilityFlags}"; \
   Flags: uninsdeletevalue; Check: IsAdminInstallMode; Tasks: everyoneadminstart and not compatibility_windows and not compatibility; Components: game
-Root: "HKLM"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\Empire Earth - The Art of Conquest\EE-AOC.exe"; ValueData: "{code:GetCompatibilityFlags}"; \
+Root: "HKLM"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\{#AoCExe}"; ValueData: "{code:GetCompatibilityFlags}"; \
   Flags: uninsdeletevalue; Check: IsAdminInstallMode; Tasks: everyoneadminstart and not compatibility_windows and not compatibility; Components: gameaoc
 
 ; ---------
 
 ; User + Windows compatibility
 ; Windows >=8
-Root: "HKCU"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\Empire Earth\Empire Earth.exe"; ValueData: "{code:GetCompatibilityFlags} WIN7RTM"; \
+Root: "HKCU"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\{#EEExe}"; ValueData: "{code:GetCompatibilityFlags} WIN7RTM"; \
   Flags: uninsdeletevalue; Check: not IsAdminInstallMode; MinVersion: 0.0,6.2; Tasks: compatibility_windows and compatibility; Components: game
-Root: "HKCU"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\Empire Earth - The Art of Conquest\EE-AOC.exe"; ValueData: "{code:GetCompatibilityFlags} WIN7RTM"; \
+Root: "HKCU"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\{#AoCExe}"; ValueData: "{code:GetCompatibilityFlags} WIN7RTM"; \
   Flags: uninsdeletevalue; Check: not IsAdminInstallMode; MinVersion: 0.0,6.2; Tasks: compatibility_windows and compatibility; Components: gameaoc
 ; Windows >=Vista & <= 7
-Root: "HKCU"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\Empire Earth\Empire Earth.exe"; ValueData: "{code:GetCompatibilityFlags} WINXPSP3"; \
+Root: "HKCU"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\{#EEExe}"; ValueData: "{code:GetCompatibilityFlags} WINXPSP3"; \
   Flags: uninsdeletevalue; Check: not IsAdminInstallMode; MinVersion: 0.0,6.0; OnlyBelowVersion: 0.0,6.2; Tasks: compatibility_windows and compatibility; Components: game
-Root: "HKCU"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\Empire Earth - The Art of Conquest\EE-AOC.exe"; ValueData: "{code:GetCompatibilityFlags} WINXPSP3"; \
+Root: "HKCU"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\{#AoCExe}"; ValueData: "{code:GetCompatibilityFlags} WINXPSP3"; \
   Flags: uninsdeletevalue; Check: not IsAdminInstallMode; MinVersion: 0.0,6.0; OnlyBelowVersion: 0.0,6.2; Tasks: compatibility_windows and compatibility; Components: gameaoc
 
 ; User - Windows compatibility
 ; Windows >=8
-Root: "HKCU"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\Empire Earth\Empire Earth.exe"; ValueData: "{code:GetCompatibilityFlags}"; \
+Root: "HKCU"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\{#EEExe}"; ValueData: "{code:GetCompatibilityFlags}"; \
   Flags: uninsdeletevalue; Check: not IsAdminInstallMode; MinVersion: 0.0,6.2; Tasks: not compatibility_windows and compatibility; Components: game
-Root: "HKCU"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\Empire Earth - The Art of Conquest\EE-AOC.exe"; ValueData: "{code:GetCompatibilityFlags}"; \
+Root: "HKCU"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\{#AoCExe}"; ValueData: "{code:GetCompatibilityFlags}"; \
   Flags: uninsdeletevalue; Check: not IsAdminInstallMode; MinVersion: 0.0,6.2; Tasks: not compatibility_windows and compatibility; Components: gameaoc
 ; Windows >=Vista & <= 7
-Root: "HKCU"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\Empire Earth\Empire Earth.exe"; ValueData: "{code:GetCompatibilityFlags}"; \
+Root: "HKCU"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\{#EEExe}"; ValueData: "{code:GetCompatibilityFlags}"; \
   Flags: uninsdeletevalue; Check: not IsAdminInstallMode; MinVersion: 0.0,6.0; OnlyBelowVersion: 0.0,6.2; Tasks: not compatibility_windows and compatibility; Components: game
-Root: "HKCU"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\Empire Earth - The Art of Conquest\EE-AOC.exe"; ValueData: "{code:GetCompatibilityFlags}"; \
+Root: "HKCU"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\{#AoCExe}"; ValueData: "{code:GetCompatibilityFlags}"; \
   Flags: uninsdeletevalue; Check: not IsAdminInstallMode; MinVersion: 0.0,6.0; OnlyBelowVersion: 0.0,6.2; Tasks: not compatibility_windows and compatibility; Components: gameaoc
 
 ; Game Settings
@@ -991,7 +1000,7 @@ Root: "HKCU"; Subkey: "{#BaseRegEE}"; ValueType: Dword; ValueName: "Game Bit Dep
 Root: "HKCU"; Subkey: "{#BaseRegEE}"; ValueType: Dword; ValueName: "Texture Bit Depth"; ValueData: "$20"; Flags: deletevalue; Components: game
 ; Adding Installed From to allow AoC to be started without having to start EE first.
 Root: "HKCU"; Subkey: "{#BaseRegEE}"; ValueType: string; ValueName: "Installed From Volume"; ValueData: "{code:GetInstallDriveLetter}"; Flags: deletevalue; Components: game
-Root: "HKCU"; Subkey: "{#BaseRegEE}"; ValueType: string; ValueName: "Installed From Directory"; ValueData: "{code:GetInstallWithoutDriveLetterBase}\Empire Earth\"; Flags: deletevalue; Components: game
+Root: "HKCU"; Subkey: "{#BaseRegEE}"; ValueType: string; ValueName: "Installed From Directory"; ValueData: "{code:GetInstallWithoutDriveLetterBase}\{#EEDir}\"; Flags: deletevalue; Components: game
 
 ; ----------------
 
@@ -1025,19 +1034,19 @@ Root: "HKCU"; Subkey: "{#BaseRegAoC}"; ValueType: Dword; ValueName: "Game Window
 Root: "HKCU"; Subkey: "{#BaseRegAoC}"; ValueType: Dword; ValueName: "Game Bit Depth"; ValueData: "$20"; Flags: deletevalue; Components: gameaoc
 Root: "HKCU"; Subkey: "{#BaseRegAoC}"; ValueType: Dword; ValueName: "Texture Bit Depth"; ValueData: "$20"; Flags: deletevalue; Components: gameaoc
 Root: "HKCU"; Subkey: "{#BaseRegAoC}"; ValueType: string; ValueName: "Installed From Volume"; ValueData: "{code:GetInstallDriveLetter}"; Flags: deletevalue; Components: gameaoc
-Root: "HKCU"; Subkey: "{#BaseRegAoC}"; ValueType: string; ValueName: "Installed From Directory"; ValueData: "{code:GetInstallWithoutDriveLetterBase}\Empire Earth - The Art of Conquest\"; Flags: deletevalue; Components: gameaoc
+Root: "HKCU"; Subkey: "{#BaseRegAoC}"; ValueType: string; ValueName: "Installed From Directory"; ValueData: "{code:GetInstallWithoutDriveLetterBase}\{#AoCDir}\"; Flags: deletevalue; Components: gameaoc
 
 [Icons]
 #if InstallMode != "Portable"
-  Name: "{group}\{#MyAppName}"; Filename: "{app}\Empire Earth\Empire Earth.exe"; Components: game;
-  Name: "{group}\{#MyAppName} - AoC"; Filename: "{app}\Empire Earth - The Art of Conquest\EE-AOC.exe"; Components: gameaoc;
+  Name: "{group}\{#MyAppName}"; Filename: "{app}\{#EEExe}"; Components: game;
+  Name: "{group}\{#MyAppName} - AoC"; Filename: "{app}\{#AoCExe}"; Components: gameaoc;
   Name: "{group}\{#MyAppName} Diagnostic"; Filename: "{app}\Tools\Diagnostic\EE-Diagnostic.exe"; Parameters: "{#SetupSetting("AppId")}_is1"; Components: additional\tools\diagnostic;
   ; Uncomment to add the Uninstall shortcut in the Start Menu
   ; Name: "{group}\{cm:UninstallProgram,Empire Earth}"; Filename: "{uninstallexe}";
-  Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\Empire Earth\Empire Earth.exe"; Components: game; Tasks: desktopicon;
-  Name: "{autodesktop}\{#MyAppName} - AoC"; Filename: "{app}\Empire Earth - The Art of Conquest\EE-AOC.exe"; Components: gameaoc; Tasks: desktopicon;
-  Name: "{autoappdata}\Microsoft\Internet Explorer\Quick Launch\{#MyAppName}"; Filename: "{app}\Empire Earth\Empire Earth.exe"; Components: game; Tasks: quicklaunchicon;
-  Name: "{autoappdata}\Microsoft\Internet Explorer\Quick Launch\{#MyAppName} - AoC"; Filename: "{app}\Empire Earth - The Art of Conquest\EE-AOC.exe"; Components: gameaoc; Tasks: quicklaunchicon;
+  Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#EEExe}"; Components: game; Tasks: desktopicon;
+  Name: "{autodesktop}\{#MyAppName} - AoC"; Filename: "{app}\{#AoCExe}"; Components: gameaoc; Tasks: desktopicon;
+  Name: "{autoappdata}\Microsoft\Internet Explorer\Quick Launch\{#MyAppName}"; Filename: "{app}\{#EEExe}"; Components: game; Tasks: quicklaunchicon;
+  Name: "{autoappdata}\Microsoft\Internet Explorer\Quick Launch\{#MyAppName} - AoC"; Filename: "{app}\{#AoCExe}"; Components: gameaoc; Tasks: quicklaunchicon;
   Name: "{autoappdata}\Microsoft\Internet Explorer\Quick Launch\{#MyAppName} Diagnostic"; Filename: "{app}\Tools\Diagnostic\EE-Diagnostic.exe"; Parameters: "{#SetupSetting("AppId")}_is1"; Components: additional\tools\diagnostic; Tasks: quicklaunchicon;
 #endif
 
@@ -1045,52 +1054,52 @@ Root: "HKCU"; Subkey: "{#BaseRegAoC}"; ValueType: string; ValueName: "Installed 
 ; Supported Component modification : old GOG or Retail | dgVoodoo | dreXmod | Discord | Movies | Reborn | EEStats
 ; Other component are too hard to delete without maybe deleting user files (modding)
 ; Random Map Scripts: only the files installed by the previous setup are removed, see randommaps.iss
-Type: files; Name: "{app}\Empire Earth\Empire Earth.exe"
-Type: files; Name: "{app}\Empire Earth\D3D8.dll"
-Type: files; Name: "{app}\Empire Earth\D3D9.dll"
-Type: files; Name: "{app}\Empire Earth\D3DImm.dll"
-Type: files; Name: "{app}\Empire Earth\DDraw.dll"
-Type: files; Name: "{app}\Empire Earth\DDrawCompat*.log"
-Type: files; Name: "{app}\Empire Earth\dgVoodooCpl.exe"
-Type: files; Name: "{app}\Empire Earth\dgVoodoo.conf"
-Type: files; Name: "{app}\Empire Earth\dreXmod.config"
-Type: files; Name: "{app}\Empire Earth\dreXmod.dll"
-Type: files; Name: "{app}\Empire Earth\Reborn.ini"
-Type: files; Name: "{app}\Empire Earth\Reborn.dll"
-Type: files; Name: "{app}\Empire Earth\EEStats.dll"
-Type: files; Name: "{app}\Empire Earth\EEStats.log"
-Type: filesandordirs; Name: "{app}\Empire Earth\Data\dxm"
-Type: files; Name: "{app}\Empire Earth\dxmdata"
-Type: files; Name: "{app}\Empire Earth\discord_game_sdk.dll"
-Type: files; Name: "{app}\Empire Earth\EEDiscordRichPresence.dll"
-Type: files; Name: "{app}\Empire Earth\EEDiscord.dll"
-Type: files; Name: "{app}\Empire Earth\Data\Scenarios\ScenDefault.scn"
+Type: files; Name: "{app}\{#EEExe}"
+Type: files; Name: "{app}\{#EEDir}\D3D8.dll"
+Type: files; Name: "{app}\{#EEDir}\D3D9.dll"
+Type: files; Name: "{app}\{#EEDir}\D3DImm.dll"
+Type: files; Name: "{app}\{#EEDir}\DDraw.dll"
+Type: files; Name: "{app}\{#EEDir}\DDrawCompat*.log"
+Type: files; Name: "{app}\{#EEDir}\dgVoodooCpl.exe"
+Type: files; Name: "{app}\{#EEDir}\dgVoodoo.conf"
+Type: files; Name: "{app}\{#EEDir}\dreXmod.config"
+Type: files; Name: "{app}\{#EEDir}\dreXmod.dll"
+Type: files; Name: "{app}\{#EEDir}\Reborn.ini"
+Type: files; Name: "{app}\{#EEDir}\Reborn.dll"
+Type: files; Name: "{app}\{#EEDir}\EEStats.dll"
+Type: files; Name: "{app}\{#EEDir}\EEStats.log"
+Type: filesandordirs; Name: "{app}\{#EEDir}\Data\dxm"
+Type: files; Name: "{app}\{#EEDir}\dxmdata"
+Type: files; Name: "{app}\{#EEDir}\discord_game_sdk.dll"
+Type: files; Name: "{app}\{#EEDir}\EEDiscordRichPresence.dll"
+Type: files; Name: "{app}\{#EEDir}\EEDiscord.dll"
+Type: files; Name: "{app}\{#EEDir}\Data\Scenarios\ScenDefault.scn"
 
-Type: files; Name: "{app}\Empire Earth\OOS *.log"
-Type: filesandordirs; Name: "{app}\Empire Earth\Data\Movies\";
+Type: files; Name: "{app}\{#EEDir}\OOS *.log"
+Type: filesandordirs; Name: "{app}\{#EEDir}\Data\Movies\";
 ; ----------------
-Type: files; Name: "{app}\Empire Earth - The Art of Conquest\EE-AOC.exe"
-Type: files; Name: "{app}\Empire Earth - The Art of Conquest\D3D8.dll"
-Type: files; Name: "{app}\Empire Earth - The Art of Conquest\D3D9.dll"
-Type: files; Name: "{app}\Empire Earth - The Art of Conquest\D3DImm.dll"
-Type: files; Name: "{app}\Empire Earth - The Art of Conquest\DDraw.dll"
-Type: files; Name: "{app}\Empire Earth - The Art of Conquest\dgVoodooCpl.exe"
-Type: files; Name: "{app}\Empire Earth - The Art of Conquest\dgVoodoo.conf"
-Type: files; Name: "{app}\Empire Earth - The Art of Conquest\dreXmod.config"
-Type: files; Name: "{app}\Empire Earth - The Art of Conquest\dreXmod.dll"
-Type: files; Name: "{app}\Empire Earth - The Art of Conquest\Reborn.ini"
-Type: files; Name: "{app}\Empire Earth - The Art of Conquest\Reborn.dll"
-Type: files; Name: "{app}\Empire Earth - The Art of Conquest\EEStats.dll"
-Type: files; Name: "{app}\Empire Earth - The Art of Conquest\EEStats.log"
-Type: filesandordirs; Name: "{app}\Empire Earth - The Art of Conquest\Data\dxm"
-Type: files; Name: "{app}\Empire Earth - The Art of Conquest\dxmdata"
-Type: files; Name: "{app}\Empire Earth - The Art of Conquest\discord_game_sdk.dll"
-Type: files; Name: "{app}\Empire Earth - The Art of Conquest\EEDiscordRichPresence.dll"
-Type: files; Name: "{app}\Empire Earth - The Art of Conquest\EEDiscord.dll"
-Type: files; Name: "{app}\Empire Earth - The Art of Conquest\Data\Scenarios\ScenDefault.scn"
+Type: files; Name: "{app}\{#AoCExe}"
+Type: files; Name: "{app}\{#AoCDir}\D3D8.dll"
+Type: files; Name: "{app}\{#AoCDir}\D3D9.dll"
+Type: files; Name: "{app}\{#AoCDir}\D3DImm.dll"
+Type: files; Name: "{app}\{#AoCDir}\DDraw.dll"
+Type: files; Name: "{app}\{#AoCDir}\dgVoodooCpl.exe"
+Type: files; Name: "{app}\{#AoCDir}\dgVoodoo.conf"
+Type: files; Name: "{app}\{#AoCDir}\dreXmod.config"
+Type: files; Name: "{app}\{#AoCDir}\dreXmod.dll"
+Type: files; Name: "{app}\{#AoCDir}\Reborn.ini"
+Type: files; Name: "{app}\{#AoCDir}\Reborn.dll"
+Type: files; Name: "{app}\{#AoCDir}\EEStats.dll"
+Type: files; Name: "{app}\{#AoCDir}\EEStats.log"
+Type: filesandordirs; Name: "{app}\{#AoCDir}\Data\dxm"
+Type: files; Name: "{app}\{#AoCDir}\dxmdata"
+Type: files; Name: "{app}\{#AoCDir}\discord_game_sdk.dll"
+Type: files; Name: "{app}\{#AoCDir}\EEDiscordRichPresence.dll"
+Type: files; Name: "{app}\{#AoCDir}\EEDiscord.dll"
+Type: files; Name: "{app}\{#AoCDir}\Data\Scenarios\ScenDefault.scn"
 
-Type: files; Name: "{app}\Empire Earth - The Art of Conquest\OOS *.log"
-Type: filesandordirs; Name: "{app}\Empire Earth - The Art of Conquest\Data\Movies\"
+Type: files; Name: "{app}\{#AoCDir}\OOS *.log"
+Type: filesandordirs; Name: "{app}\{#AoCDir}\Data\Movies\"
 ; ----------------
 ; Setup data folder of setups up to v1.7.2 (now {#SetupDataDir}). Safe: AppID is checked to be a GUID
 Type: filesandordirs; Name: "{app}\{#AppID}"
@@ -1098,33 +1107,33 @@ Type: filesandordirs; Name: "{app}\{#AppID}"
 [UninstallDelete]
 ; A little extra cleaning of the installed files
 ; Convention : Never delete the entire program folder !
-Type: files; Name: "{app}\Empire Earth\0_Error.log"
-Type: files; Name: "{app}\Empire Earth\neoee.log"
-Type: files; Name: "{app}\Empire Earth\upnp_info.txt"
-Type: files; Name: "{app}\Empire Earth\Reborn.ini"
-Type: files; Name: "{app}\Empire Earth\EEStats.log"
-Type: filesandordirs; Name: "{app}\Empire Earth\Data\dxm"
-Type: files; Name: "{app}\Empire Earth\_won*"
-Type: files; Name: "{app}\Empire Earth\upnp_info.txt"
-Type: filesandordirs; Name: "{app}\Empire Earth\_wonHTTPCache"
-Type: files; Name: "{app}\Empire Earth\Data\Scenarios\ScenDefault.scn"
-Type: files; Name: "{app}\Empire Earth\OOS *.log"
+Type: files; Name: "{app}\{#EEDir}\0_Error.log"
+Type: files; Name: "{app}\{#EEDir}\neoee.log"
+Type: files; Name: "{app}\{#EEDir}\upnp_info.txt"
+Type: files; Name: "{app}\{#EEDir}\Reborn.ini"
+Type: files; Name: "{app}\{#EEDir}\EEStats.log"
+Type: filesandordirs; Name: "{app}\{#EEDir}\Data\dxm"
+Type: files; Name: "{app}\{#EEDir}\_won*"
+Type: files; Name: "{app}\{#EEDir}\upnp_info.txt"
+Type: filesandordirs; Name: "{app}\{#EEDir}\_wonHTTPCache"
+Type: files; Name: "{app}\{#EEDir}\Data\Scenarios\ScenDefault.scn"
+Type: files; Name: "{app}\{#EEDir}\OOS *.log"
 ; pt_BR create that dir for some reasons (not used)
-Type: filesandordirs; Name: "{app}\Empire Earth\Users\default\Civilizações"
+Type: filesandordirs; Name: "{app}\{#EEDir}\Users\default\Civilizações"
 ; ----------------
-Type: files; Name: "{app}\Empire Earth - The Art of Conquest\0_Error.log"
-Type: files; Name: "{app}\Empire Earth - The Art of Conquest\neoee.log"
-Type: files; Name: "{app}\Empire Earth - The Art of Conquest\upnp_info.txt"
-Type: files; Name: "{app}\Empire Earth - The Art of Conquest\Reborn.ini"
-Type: files; Name: "{app}\Empire Earth - The Art of Conquest\EEStats.log"
-Type: filesandordirs; Name: "{app}\Empire Earth - The Art of Conquest\Data\dxm"
-Type: files; Name: "{app}\Empire Earth - The Art of Conquest\_won*"
-Type: files; Name: "{app}\Empire Earth - The Art of Conquest\upnp_info.txt"
-Type: filesandordirs; Name: "{app}\Empire Earth - The Art of Conquest\_wonHTTPCache"
-Type: files; Name: "{app}\Empire Earth - The Art of Conquest\Data\Scenarios\ScenDefault.scn"
-Type: files; Name: "{app}\Empire Earth - The Art of Conquest\OOS *.log"
+Type: files; Name: "{app}\{#AoCDir}\0_Error.log"
+Type: files; Name: "{app}\{#AoCDir}\neoee.log"
+Type: files; Name: "{app}\{#AoCDir}\upnp_info.txt"
+Type: files; Name: "{app}\{#AoCDir}\Reborn.ini"
+Type: files; Name: "{app}\{#AoCDir}\EEStats.log"
+Type: filesandordirs; Name: "{app}\{#AoCDir}\Data\dxm"
+Type: files; Name: "{app}\{#AoCDir}\_won*"
+Type: files; Name: "{app}\{#AoCDir}\upnp_info.txt"
+Type: filesandordirs; Name: "{app}\{#AoCDir}\_wonHTTPCache"
+Type: files; Name: "{app}\{#AoCDir}\Data\Scenarios\ScenDefault.scn"
+Type: files; Name: "{app}\{#AoCDir}\OOS *.log"
 ; pt_BR create that dir for some reasons (not used)
-Type: filesandordirs; Name: "{app}\Empire Earth - The Art of Conquest\Users\default\Civilizações"
+Type: filesandordirs; Name: "{app}\{#AoCDir}\Users\default\Civilizações"
 ; ----------------
 Type: filesandordirs; Name: "{app}\Tools\Diagnostic\log.txt"
 
@@ -1147,9 +1156,9 @@ Filename: "{sys}\dism.exe"; Parameters: "/Online /Enable-Feature /FeatureName:""
   MinVersion: 0,6.2; Tasks: directplay; Check: not Is64BitInstallMode and IsAdminInstallMode
 
 ; FireWall Remover (Copy from [UninstallRun] to remove previous entry in case it was missconfigured)
-Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule program=""{app}\Empire Earth\Empire Earth.exe"" name=all"; Flags: runhidden; \
+Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule program=""{app}\{#EEExe}"" name=all"; Flags: runhidden; \
   StatusMsg: "Removing {#MyAppName} in Firewall"; Tasks: firewallexception; MinVersion: 0,6.0; Components: game; Check: IsAdminInstallMode
-Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule program=""{app}\Empire Earth - The Art of Conquest\EE-AOC.exe"" name=all"; Flags: runhidden; \
+Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule program=""{app}\{#AoCExe}"" name=all"; Flags: runhidden; \
   StatusMsg: "Removing {#MyAppName} : AoC in Firewall"; Tasks: firewallexception; MinVersion: 0,6.0; Components: gameaoc; Check: IsAdminInstallMode
 
 ; FireWall Register
@@ -1159,22 +1168,22 @@ Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule progr
 ; as "Public" too, so the rules are deliberately not limited to private networks. The rules only
 ; apply while the game runs, like the ones the Windows Firewall prompt offers; the task
 ; firewallexception can be unchecked.
-Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""{#MyAppName} - TCP - Out"" program=""{app}\Empire Earth\Empire Earth.exe"" protocol=TCP dir=out action=allow enable=yes profile=any localport=any"; \
+Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""{#MyAppName} - TCP - Out"" program=""{app}\{#EEExe}"" protocol=TCP dir=out action=allow enable=yes profile=any localport=any"; \
   Flags: runhidden; Tasks: firewallexception;StatusMsg: "Opening Empire Earth in Firewall"; MinVersion: 0,6.0; Components: game; Check: IsAdminInstallMode
-Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""{#MyAppName} - TCP - In"" program=""{app}\Empire Earth\Empire Earth.exe"" protocol=TCP dir=in action=allow enable=yes profile=any localport=any"; \
+Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""{#MyAppName} - TCP - In"" program=""{app}\{#EEExe}"" protocol=TCP dir=in action=allow enable=yes profile=any localport=any"; \
   Flags: runhidden; Tasks: firewallexception; StatusMsg: "Opening Empire Earth in Firewall"; MinVersion: 0,6.0; Components: game; Check: IsAdminInstallMode
-Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""{#MyAppName} - UDP - Out"" program=""{app}\Empire Earth\Empire Earth.exe"" protocol=UDP dir=out action=allow enable=yes profile=any localport=any"; \
+Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""{#MyAppName} - UDP - Out"" program=""{app}\{#EEExe}"" protocol=UDP dir=out action=allow enable=yes profile=any localport=any"; \
   Flags: runhidden; Tasks: firewallexception; StatusMsg: "Opening Empire Earth in Firewall"; MinVersion: 0,6.0; Components: game; Check: IsAdminInstallMode
-Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""{#MyAppName} - UDP - In"" program=""{app}\Empire Earth\Empire Earth.exe"" protocol=UDP dir=in action=allow enable=yes profile=any localport=any"; \
+Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""{#MyAppName} - UDP - In"" program=""{app}\{#EEExe}"" protocol=UDP dir=in action=allow enable=yes profile=any localport=any"; \
   Flags: runhidden; Tasks: firewallexception; StatusMsg: "Opening Empire Earth in Firewall"; MinVersion: 0,6.0; Components: game; Check: IsAdminInstallMode
 
-Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""{#MyAppName} - AoC - TCP - Out"" program=""{app}\Empire Earth - The Art of Conquest\EE-AOC.exe"" protocol=TCP dir=out action=allow enable=yes profile=any localport=any"; \
+Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""{#MyAppName} - AoC - TCP - Out"" program=""{app}\{#AoCExe}"" protocol=TCP dir=out action=allow enable=yes profile=any localport=any"; \
   Flags: runhidden; Tasks: firewallexception; StatusMsg: "Opening Empire Earth : AoC in Firewall"; MinVersion: 0,6.0; Components: gameaoc; Check: IsAdminInstallMode
-Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""{#MyAppName} - AoC - TCP - In"" program=""{app}\Empire Earth - The Art of Conquest\EE-AOC.exe"" protocol=TCP dir=in action=allow enable=yes profile=any localport=any"; \
+Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""{#MyAppName} - AoC - TCP - In"" program=""{app}\{#AoCExe}"" protocol=TCP dir=in action=allow enable=yes profile=any localport=any"; \
   Flags: runhidden; Tasks: firewallexception; StatusMsg: "Opening Empire Earth : AoC in Firewall"; MinVersion: 0,6.0; Components: gameaoc; Check: IsAdminInstallMode
-Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""{#MyAppName} - AoC - UDP - Out"" program=""{app}\Empire Earth - The Art of Conquest\EE-AOC.exe"" protocol=UDP dir=out action=allow enable=yes profile=any localport=any"; \
+Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""{#MyAppName} - AoC - UDP - Out"" program=""{app}\{#AoCExe}"" protocol=UDP dir=out action=allow enable=yes profile=any localport=any"; \
   Flags: runhidden; Tasks: firewallexception; StatusMsg: "Opening Empire Earth : AoC in Firewall"; MinVersion: 0,6.0; Components: gameaoc; Check: IsAdminInstallMode
-Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""{#MyAppName} - AoC - UDP - In"" program=""{app}\Empire Earth - The Art of Conquest\EE-AOC.exe"" protocol=UDP dir=in action=allow enable=yes profile=any localport=any"; \
+Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""{#MyAppName} - AoC - UDP - In"" program=""{app}\{#AoCExe}"" protocol=UDP dir=in action=allow enable=yes profile=any localport=any"; \
   Flags: runhidden; Tasks: firewallexception; StatusMsg: "Opening Empire Earth : AoC in Firewall"; MinVersion: 0,6.0; Components: gameaoc; Check: IsAdminInstallMode
 
 ; DX9/10/11 End-User Runtime Setup
@@ -1193,9 +1202,9 @@ Filename: "{tmp}\directx\dxwebsetup.exe"; Parameters: "/Q"; Flags: runhidden; Ta
 ;  StatusMsg: "Uninstalling DirectPlay"; MinVersion: 0,6.2; Tasks: directplay; Check: not Is64BitInstallMode and IsAdminInstallMode
 
 ; FireWall
-Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule program=""{app}\Empire Earth\Empire Earth.exe"" name=all"; Flags: runhidden; \
+Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule program=""{app}\{#EEExe}"" name=all"; Flags: runhidden; \
   StatusMsg: "Removing {#MyAppName} in Firewall"; Tasks: firewallexception; MinVersion: 0,6.0; Components: game; Check: IsAdminInstallMode
-Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule program=""{app}\Empire Earth - The Art of Conquest\EE-AOC.exe"" name=all"; Flags: runhidden; \
+Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule program=""{app}\{#AoCExe}"" name=all"; Flags: runhidden; \
   StatusMsg: "Removing {#MyAppName} : AoC in Firewall"; Tasks: firewallexception; MinVersion: 0,6.0; Components: gameaoc; Check: IsAdminInstallMode
 
 [Code]
@@ -1696,10 +1705,10 @@ begin
 
   if (not WizardIsComponentSelected('game')) then
     Exit;
-  EEDir := ExpandConstant('{app}\Empire Earth');
+  EEDir := ExpandConstant('{app}\{#EEDir}');
   AoCDir := '';
   if (WizardIsComponentSelected('gameaoc')) then
-    AoCDir := ExpandConstant('{app}\Empire Earth - The Art of Conquest');
+    AoCDir := ExpandConstant('{app}\{#AoCDir}');
 
   if (not IsCDKeysPathSupported(EEDir) or not IsCDKeysPathSupported(AoCDir)) then
   begin
@@ -1878,8 +1887,8 @@ begin
     FinishRandomMapScripts();
     if (IsAdminInstallMode and not IsWine()) then
     begin
-      RemoveLegacyRunAsAdmin(ExpandConstant('{app}\Empire Earth\Empire Earth.exe'));
-      RemoveLegacyRunAsAdmin(ExpandConstant('{app}\Empire Earth - The Art of Conquest\EE-AOC.exe'));
+      RemoveLegacyRunAsAdmin(ExpandConstant('{app}\{#EEExe}'));
+      RemoveLegacyRunAsAdmin(ExpandConstant('{app}\{#AoCExe}'));
     end;
 #if InstallType == "NeoEE"
     // After all [Run] entries (it used to be the AfterInstall of a dummy "cmd.exe /C" entry)

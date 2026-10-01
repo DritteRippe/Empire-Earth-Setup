@@ -15,7 +15,8 @@
 // one, and only the files it does not install again stay in the backup (own maps, maps of older
 // versions); the player is told where they are. Without list and old folder (new installation,
 // reinstallation after uninstalling) all files already in the folder count as the player's.
-// Uses: SetupDataDir, AppID (setup_is6.iss), SilentInstall, SuppressMsgBoxes (extention.iss).
+// Uses: SetupDataDir, AppID, EEDir, AoCDir, RmsSubDir (setup_is6.iss), SilentInstall,
+// SuppressMsgBoxes (extention.iss).
 
 type
   TRmsFolder = record
@@ -30,7 +31,7 @@ var
 
 function RmsDir(const Game: String): String;
 begin
-  Result := ExpandConstant('{app}\') + Game + '\Data\Random Map Scripts';
+  Result := ExpandConstant('{app}\') + Game + '\{#RmsSubDir}';
 end;
 
 function RmsListFile(const Id: String): String;
@@ -182,13 +183,13 @@ var
 begin
   SetArrayLength(RmsFolders, 1);
   RmsFolders[0].Id := 'EE';
-  RmsFolders[0].Game := 'Empire Earth';
+  RmsFolders[0].Game := '{#EEDir}';
   // A folder of a game that is not (re)installed now is left alone, with its list
   if WizardIsComponentSelected('gameaoc') then
   begin
     SetArrayLength(RmsFolders, 2);
     RmsFolders[1].Id := 'AoC';
-    RmsFolders[1].Game := 'Empire Earth - The Art of Conquest';
+    RmsFolders[1].Game := '{#AoCDir}';
   end;
   for I := 0 to GetArrayLength(RmsFolders) - 1 do
     PrepareRmsFolder(I);
