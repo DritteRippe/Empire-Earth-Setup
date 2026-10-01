@@ -137,7 +137,7 @@ begin
   GPUInstallQuestionPage.Add('&' + ExpandConstant('{cm:GPUIQP_Default}' + ' (DirectX Wrapper 9)'));
   GPUInstallQuestionPage.Add('&Native');
 
-  VendorId := String(EEStats_getGpuVendorId());
+  VendorId := GetGpuVendorId();
 
   if (VendorId = '10DE') then
   begin

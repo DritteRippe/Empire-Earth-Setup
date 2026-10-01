@@ -1154,18 +1154,8 @@ const
   GitHubHost = 'github.com';
   GitHubProjectPath = '/EE-modders/';
 
-  function EEStats_runInVM: BOOL;
-    external 'EEStats_runInVM@files:EEStatsSetup.dll cdecl setuponly';
-  function EEStats_getUID: PAnsiChar;
-    external 'EEStats_getUID@files:EEStatsSetup.dll cdecl setuponly';
-  function EEStats_isWine: BOOL;
-    external 'EEStats_isWine@files:EEStatsSetup.dll cdecl setuponly';
-  function EEStats_getWineVersion: PAnsiChar;
-    external 'EEStats_getWineVersion@files:EEStatsSetup.dll cdecl setuponly';
-  function EEStats_getProcessorArch: PAnsiChar;
-    external 'EEStats_getProcessorArch@files:EEStatsSetup.dll cdecl setuponly';
-  function EEStats_getGpuVendorId: PAnsiChar;
-    external 'EEStats_getGpuVendorId@files:EEStatsSetup.dll cdecl setuponly';
+// EEStatsSetup.dll (IsWine, GetWineVersion, GetGpuVendorId and the statistics values)
+#include "eestats.iss"
 
 #if InstallType == "NeoEE"
   // Closed-source NeoEE tool, see RegisterCDKeys. delayload: the DLL is only loaded when the keys
@@ -1173,13 +1163,6 @@ const
   function generate_cdkeys(args: PAnsiChar; admin: BOOL): DWORD;
     external 'generate_cdkeys@files:authtools.dll cdecl setuponly delayload';
 #endif
-
-  // The uninstaller cannot use "files:" DLLs, it loads EEStatsSetup.dll from {app}\{#SetupDataDir}.
-  // delayload: the DLL is only loaded when the function is called (IsWine catches a failure), so a
-  // missing DLL cannot stop the uninstaller from starting. The current uninstall code never calls
-  // it, so the elevated uninstaller does not load code from the installation folder.
-  function EEStats_isWine_U: BOOL;
-    external 'EEStats_isWine@{app}\{#SetupDataDir}\EEStatsSetup.dll cdecl uninstallonly delayload';
 
     // GetSystemMetrics
   function GetSystemMetrics(nIndex: Integer): Integer;
@@ -1226,22 +1209,6 @@ begin
   S := ExpandConstant('{app}');
   delete(S, 1, 2);
   Result := S;
-end;
-
-function IsWine(): Boolean;
-begin
-  if not IsUninstaller then
-    Result := EEStats_IsWine()
-  else
-  begin
-    try
-      Result := EEStats_IsWine_U();
-    except
-      // EEStatsSetup.dll missing or not loadable (e.g. removed by an anti-virus): assume Windows
-      Log('Unable to use EEStatsSetup.dll, assuming Windows: ' + GetExceptionMessage);
-      Result := False;
-    end;
-  end;
 end;
 
 function GetInstallWithoutDriveLetterBase(Param: String): String;
@@ -1439,7 +1406,7 @@ begin
 
   if (IsWine()) then
   begin
-    Log('Wine detected v' + EEStats_getWineVersion());
+    Log('Wine detected v' + GetWineVersion());
   end;
 
   if (not SuppressMsgBoxes and not SilentInstall) then
@@ -1519,18 +1486,18 @@ begin
     + '&game_version=' + UrlEncode('{#MyAppVersion}')
     + '&components=' + UrlEncode(WizardSelectedComponents(False))
     + '&tasks=' + UrlEncode(WizardSelectedTasks(False))
-    + '&arch=' + UrlEncode(String(EEStats_getProcessorArch()))
-    + '&user_uid=' + UrlEncode(String(EEStats_getUID()));
+    + '&arch=' + UrlEncode(GetProcessorArch())
+    + '&user_uid=' + UrlEncode(GetEEStatsUID());
 
   if (IsInstalled) then
     InstallUrlStats := InstallUrlStats + '&already_installed=1&install_update=' + IntToStr(Integer(IsUpdate))
   else
     InstallUrlStats := InstallUrlStats + '&already_installed=0&install_update=0';
 
-  InstallUrlStats := InstallUrlStats + '&os_virtual_machine=' + IntToStr(Integer(EEStats_runInVM()));
+  InstallUrlStats := InstallUrlStats + '&os_virtual_machine=' + IntToStr(Integer(IsRunningInVM()));
 
   if (IsWine()) then
-    InstallUrlStats := InstallUrlStats + '&wine=1&os_version=' + UrlEncode(String(EEStats_getWineVersion()))
+    InstallUrlStats := InstallUrlStats + '&wine=1&os_version=' + UrlEncode(GetWineVersion())
   else
     InstallUrlStats := InstallUrlStats + '&os_version=' + UrlEncode(GetWindowsVersionString()) + '&wine=0';
 
