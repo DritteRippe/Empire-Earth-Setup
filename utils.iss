@@ -61,6 +61,13 @@ begin
   end;
 end;
 
+const
+  // WinHTTP timeouts in milliseconds of SendRequest and DownloadString (WinHttpRequest.SetTimeouts:
+  // name resolution, connect, send, receive)
+  RequestResolveTimeoutMs = 6000;
+  DownloadResolveTimeoutMs = 8000;
+  HttpTimeoutMs = 4000;
+
 // Return HTTP code or -1 if error (-2 if Asynchronous). There is no fallback to HTTP.
 // The query is not logged: telemetry requests carry the anonymous user id there.
 function SendRequest(const URL: String; const Asynchronous: Boolean): Integer;
@@ -77,7 +84,7 @@ begin
 
   try
     WinHttpRequest := CreateOleObject('WinHttp.WinHttpRequest.5.1'); // 5.0 for < Win2000 SP3 / WinXP SP1 ?
-    WinHttpRequest.SetTimeouts(6000, 4000, 4000, 4000);
+    WinHttpRequest.SetTimeouts(RequestResolveTimeoutMs, HttpTimeoutMs, HttpTimeoutMs, HttpTimeoutMs);
     WinHttpRequest.Open('GET', URL, False);
     WinHttpRequest.Send;
     if (Asynchronous) then
@@ -147,7 +154,7 @@ begin
   try
     Response := '';
     WinHttpRequest := CreateOleObject('WinHttp.WinHttpRequest.5.1'); // 5.0 for < Win2000 SP3 / WinXP SP1 ?
-    WinHttpRequest.SetTimeouts(8000, 4000, 4000, 4000);
+    WinHttpRequest.SetTimeouts(DownloadResolveTimeoutMs, HttpTimeoutMs, HttpTimeoutMs, HttpTimeoutMs);
     WinHttpRequest.Open('GET', URL, False);
     WinHttpRequest.Send;
     WinHttpRequest.WaitForResponse(); 

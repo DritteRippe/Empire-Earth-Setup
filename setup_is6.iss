@@ -1249,15 +1249,25 @@ begin
     Result := UpperCase(GetInstallWithoutDriveLetter(Param));
 end;
 
+const
+  // GetSystemMetrics indexes (Win32 API): width and height of the primary screen
+  SM_CXSCREEN = 0;
+  SM_CYSCREEN = 1;
+  // The default game window ([Registry]) is the size of the screen, within these limits
+  MinGameWindowWidth = 1024;
+  MaxGameWindowWidth = 1920;
+  MinGameWindowHeight = 768;
+  MaxGameWindowHeight = 1080;
+
 function GetScreenResolutionHeight(Param: String): String;
 var
   Tmp: Integer;
 begin
-  Tmp := GetSystemMetrics(1)
-  if Tmp < 768 then
-    Tmp := 768;
-  if Tmp > 1080 then
-    Tmp := 1080;
+  Tmp := GetSystemMetrics(SM_CYSCREEN)
+  if Tmp < MinGameWindowHeight then
+    Tmp := MinGameWindowHeight;
+  if Tmp > MaxGameWindowHeight then
+    Tmp := MaxGameWindowHeight;
   Result := IntToStr(Tmp); 
 end;
 
@@ -1265,11 +1275,11 @@ function GetScreenResolutionWidth(Param: String): String;
 var
   Tmp: Integer;
 begin
-  Tmp := GetSystemMetrics(0)
-  if Tmp < 1024 then
-    Tmp := 1024;
-  if Tmp > 1920 then
-    Tmp := 1920;
+  Tmp := GetSystemMetrics(SM_CXSCREEN)
+  if Tmp < MinGameWindowWidth then
+    Tmp := MinGameWindowWidth;
+  if Tmp > MaxGameWindowWidth then
+    Tmp := MaxGameWindowWidth;
   Result := IntToStr(Tmp); 
 end;
 
@@ -1287,12 +1297,16 @@ begin
     Response := '';
 end;
 
+const
+  // Longest answer of the update API that is shown as the latest version
+  MaxVersionTextLength = 32;
+
 // Latest version for the update question, '?' if the answer does not look like a version
 function GetLatestVersionText(const Params: String): String;
 var
   I: Integer;
 begin
-  if not QueryUpdateApi(Params, Result) or (Result = '') or (Length(Result) > 32) then
+  if not QueryUpdateApi(Params, Result) or (Result = '') or (Length(Result) > MaxVersionTextLength) then
   begin
     Result := '?';
     Exit;
@@ -1600,6 +1614,14 @@ end;
 const
   CDKeysAuthServer = 'neoee.net';
   CDKeysAuthPort = '10003';
+  // Results of generate_cdkeys (see RegisterCDKeys for the messages)
+  CDKeysResultOK = 0;
+  CDKeysResultVM = 1;
+  CDKeysResultGeneral = 2;
+  CDKeysResultNetwork = 3;
+  CDKeysResultRegistry = 4;
+  CDKeysResultSyntax = 5;
+  CDKeysResultProtection = 6;
 
 // Arguments of generate_cdkeys, exactly in the format authtools.dll has always received:
 // '-eec=<EE folder>[, -aoc=<AoC folder>], -authserv=neoee.net, -port=10003'
@@ -1672,13 +1694,13 @@ begin
 
   Log('CD Keys generation result: ' + IntToStr(AuthExitCode));
   case AuthExitCode of
-    0: Log('CD Keys registered');
-    1: ShowCDKeysError(CustomMessage('CDKeysErrorVM'));
-    2: ShowCDKeysError(CustomMessage('CDKeysErrorGeneral'));
-    3: ShowCDKeysError(CustomMessage('CDKeysErrorNetwork'));
-    4: ShowCDKeysError(CustomMessage('CDKeysErrorRegistry'));
-    5: ShowCDKeysError(CustomMessage('CDKeysErrorSyntax'));
-    6: ShowCDKeysError(CustomMessage('CDKeysErrorProtection'));
+    CDKeysResultOK: Log('CD Keys registered');
+    CDKeysResultVM: ShowCDKeysError(CustomMessage('CDKeysErrorVM'));
+    CDKeysResultGeneral: ShowCDKeysError(CustomMessage('CDKeysErrorGeneral'));
+    CDKeysResultNetwork: ShowCDKeysError(CustomMessage('CDKeysErrorNetwork'));
+    CDKeysResultRegistry: ShowCDKeysError(CustomMessage('CDKeysErrorRegistry'));
+    CDKeysResultSyntax: ShowCDKeysError(CustomMessage('CDKeysErrorSyntax'));
+    CDKeysResultProtection: ShowCDKeysError(CustomMessage('CDKeysErrorProtection'));
   else
     ShowCDKeysError(FmtMessage(CustomMessage('CDKeysErrorUnknown'), [IntToStr(AuthExitCode)]));
   end;
@@ -1983,6 +2005,14 @@ begin
   Result := True;
 end;
 
+const
+  // Setup background: the 16:9 image if the window is wider than this (width / height), else the
+  // 4:3 one (16:9 = 1.78, 4:3 = 1.33)
+  WideBackgroundMinRatio = 1.55;
+  // IDP download timeouts in milliseconds, per connection attempt and per network operation
+  IdpConnectTimeoutMs = 15000;
+  IdpTransferTimeoutMs = 30000;
+
 { Setup }
 procedure InitializeWizard;
 var
@@ -2020,13 +2050,13 @@ begin
   Diff := ScrWidth / ScrHeight
 
   Log('Extracting and defining image banner');
-  if (Diff > 1.55) then
+  if (Diff > WideBackgroundMinRatio) then
   begin
     ExtractTemporaryFile('SetupBackground-16-9.bmp');
     BackgroundImage.Bitmap.LoadFromFile(ExpandConstant('{tmp}\SetupBackground-16-9.bmp'));
   end;
 
-  if (Diff <= 1.55) then
+  if (Diff <= WideBackgroundMinRatio) then
   begin
     ExtractTemporaryFile('SetupBackground-4-3.bmp');
     BackgroundImage.Bitmap.LoadFromFile(ExpandConstant('{tmp}\SetupBackground-4-3.bmp'));
@@ -2052,9 +2082,9 @@ begin
   // Timeouts in milliseconds, per connection attempt and per network operation (not for a whole
   // file, so large files like the intro video are fine): 0.5 s used to make slow, mobile or VPN
   // connections fail. RegisterOnlineFiles only uses a server that answered.
-  idpSetOption('ConnectTimeout', '15000');
-  idpSetOption('SendTimeout', '30000');
-  idpSetOption('ReceiveTimeout', '30000');
+  idpSetOption('ConnectTimeout', IntToStr(IdpConnectTimeoutMs));
+  idpSetOption('SendTimeout', IntToStr(IdpTransferTimeoutMs));
+  idpSetOption('ReceiveTimeout', IntToStr(IdpTransferTimeoutMs));
   idpSetOption('ErrorDialog', 'UrlList');
   // Never accept an invalid TLS certificate (the IDP default would let the user ignore it).
   // Downloads are also checked against their SHA-256 (downloads.iss).
