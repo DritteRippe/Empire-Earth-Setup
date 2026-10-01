@@ -378,6 +378,11 @@
   #error EE_AppID and NeoEE_AppID must differ, otherwise EE and NeoEE share one AppId and uninstall key
 #endif
 
+; Hidden folder in {app} for the files the uninstaller needs (EEStatsSetup.dll). It has a fixed name
+; so that no build setting can turn it into {app} itself. Setups up to v1.7.2 named it after the
+; AppId ("{app}\<AppId>"); [InstallDelete] removes that old folder.
+#define SetupDataDir "_setupdata"
+
 #if InstallType == "EE"
   #define AppID EE_AppID
   #define MyAppVersion "2.0.0.0"
@@ -657,7 +662,7 @@ Name: "language\update"; Description: "Download localized voices and campaigns";
 #endif
 
 ;Source: "data\Add-on\DLLs\EEStats\EEStats.dll"; Flags: dontcopy noencryption nocompression; MinVersion: 0.0,6.1
-Source: "data\Add-on\DLLs\EEStats\EEStatsSetup.dll"; DestDir: "{app}\{#AppID}"; Flags: noencryption nocompression ignoreversion recursesubdirs createallsubdirs; MinVersion: 0.0,5.1
+Source: "data\Add-on\DLLs\EEStats\EEStatsSetup.dll"; DestDir: "{app}\{#SetupDataDir}"; Flags: noencryption nocompression ignoreversion recursesubdirs createallsubdirs; MinVersion: 0.0,5.1
 
 #if InstallType == "EE"
   Source: "internal\media\SetupBackground-4-3.bmp"; DestDir: "{tmp}"; DestName: "SetupBackground-4-3.bmp"; Flags: deleteafterinstall dontcopy noencryption
@@ -1026,7 +1031,7 @@ Name: "{app}\Empire Earth - The Art of Conquest\Data"; Permissions: authusers-mo
 Name: "{app}\Empire Earth - The Art of Conquest\Users"; Permissions: authusers-modify; Components: gameaoc; Check: not IsWine and IsAdminInstallMode
 
 ; Additional setup related data
-Name: "{app}\{#AppID}"; Attribs: hidden
+Name: "{app}\{#SetupDataDir}"; Attribs: hidden
 
 [Registry]
 ; Compatibility
@@ -1260,7 +1265,8 @@ Type: files; Name: "{app}\Empire Earth - The Art of Conquest\Data\Scenarios\Scen
 Type: files; Name: "{app}\Empire Earth - The Art of Conquest\OOS *.log"
 Type: filesandordirs; Name: "{app}\Empire Earth - The Art of Conquest\Data\Movies\"
 ; ----------------
-Type: files; Name: "{app}\{#AppID}"
+; Setup data folder of setups up to v1.7.2 (now {#SetupDataDir}). Safe: AppID is checked to be a GUID
+Type: filesandordirs; Name: "{app}\{#AppID}"
 
 [UninstallDelete]
 ; A little extra cleaning of the installed files
@@ -1295,7 +1301,7 @@ Type: filesandordirs; Name: "{app}\Empire Earth - The Art of Conquest\Users\defa
 ; ----------------
 Type: filesandordirs; Name: "{app}\Tools\Diagnostic\log.txt"
 
-Type: filesandordirs; Name: "{app}\{#AppID}"
+Type: filesandordirs; Name: "{app}\{#SetupDataDir}"
 
 [Run]
 ; Add Cert in Windows Trusted Root CA Store
@@ -1433,17 +1439,17 @@ const
 
   // Yeah I know that's horrible x2 function just because we can add a a dll inside the uninstall setup
   function EEStats_runInVM_U: BOOL;
-    external 'EEStats_runInVM@{app}\{#AppID}\EEStatsSetup.dll cdecl uninstallonly';
+    external 'EEStats_runInVM@{app}\{#SetupDataDir}\EEStatsSetup.dll cdecl uninstallonly';
   function EEStats_getUID_U: PAnsiChar;
-    external 'EEStats_getUID@{app}\{#AppID}\EEStatsSetup.dll cdecl uninstallonly';
+    external 'EEStats_getUID@{app}\{#SetupDataDir}\EEStatsSetup.dll cdecl uninstallonly';
   function EEStats_isWine_U: BOOL;
-    external 'EEStats_isWine@{app}\{#AppID}\EEStatsSetup.dll cdecl uninstallonly';
+    external 'EEStats_isWine@{app}\{#SetupDataDir}\EEStatsSetup.dll cdecl uninstallonly';
   function EEStats_getWineVersion_U: PAnsiChar;
-    external 'EEStats_getWineVersion@{app}\{#AppID}\EEStatsSetup.dll cdecl uninstallonly';
+    external 'EEStats_getWineVersion@{app}\{#SetupDataDir}\EEStatsSetup.dll cdecl uninstallonly';
   function EEStats_getProcessorArch_U: PAnsiChar;
-    external 'EEStats_getProcessorArch@{app}\{#AppID}\EEStatsSetup.dll cdecl uninstallonly';
+    external 'EEStats_getProcessorArch@{app}\{#SetupDataDir}\EEStatsSetup.dll cdecl uninstallonly';
   function EEStats_getGpuVendorId_U: PAnsiChar;
-    external 'EEStats_getGpuVendorId@{app}\{#AppID}\EEStatsSetup.dll cdecl uninstallonly';
+    external 'EEStats_getGpuVendorId@{app}\{#SetupDataDir}\EEStatsSetup.dll cdecl uninstallonly';
 
     // GetSystemMetrics
   function GetSystemMetrics(nIndex: Integer): Integer;
@@ -1761,7 +1767,7 @@ var
 begin
   if (CurUninstallStep = usUninstall) then begin
     SendSetupTelemetry();
-    UnloadDLL(ExpandConstant('{app}\{#AppID}\EEStatsSetup.dll'));
+    UnloadDLL(ExpandConstant('{app}\{#SetupDataDir}\EEStatsSetup.dll'));
   end else if (CurUninstallStep = usPostUninstall) then
   begin
 #if CertInclude
