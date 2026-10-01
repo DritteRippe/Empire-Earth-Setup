@@ -26,7 +26,7 @@ INNO_CUSTOM_MESSAGES = {
     "AddonHostProgramNotFound",
 }
 OWN_SCRIPTS = ["setup_is6.iss", "utils.iss", "extension.iss", "pages.iss", "downloads.iss", "randommaps.iss",
-               "eestats.iss", "messages.iss"]
+               "eestats.iss", "telemetry.iss", "messages.iss"]
 
 
 def read_lines(path):

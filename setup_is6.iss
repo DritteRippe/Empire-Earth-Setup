@@ -1130,8 +1130,6 @@ const
 
 var
   Langs: TStringList;
-  IsUpdate: Boolean;
-  IsInstalled: Boolean;
   ServersReacheable: Boolean;
 
 #include "extension.iss"
@@ -1350,117 +1348,101 @@ begin
   Log('Registered languages: ' + Langs.CommaText);
 end;
 
-function InitializeSetup: Boolean;
+// Update check (not in silent mode): True if the user wants to download the update, the setup
+// exits then
+function UpdateRequested: Boolean;
+begin
+  Result := False;
+  if (SuppressMsgBoxes or SilentInstall) then
+  begin
+    Log('Update check skipped because using silent mode');
+    Exit;
+  end;
+  Result := CheckUpdate();
+  if (Result) then
+    Log('Update found and user want to download it! Exiting setup...');
+end;
+
+// Legal question on a first installation (not in silent mode): without the original game or a
+// digital purchase the GOG store page opens and the setup exits (False)
+function ConfirmLegalCopy: Boolean;
 var
-  ErrorCode : Integer;
+  ErrorCode: Integer;
+begin
+  Result := True;
+  if (IsGameInstalled or SilentInstall or SuppressMsgBoxes) then
+    Exit;
+  if MsgBox(ExpandConstant('{cm:LegalQuestion}'), mbConfirmation, MB_YESNO) = IDNO then
+  begin
+    ShellExecAsOriginalUser('open', GogStoreURL, '', '', SW_SHOWNORMAL, ewNoWait, ErrorCode);
+    Result := False;
+  end;
+end;
+
+#if TestID != 0
+// Test builds only, shown even in silent mode
+procedure ShowTestSetupWarning;
+begin
+  MsgBox('THIS IS A TEST SETUP ID = {#TestID} [Setup v{#MySetupVersion} - Game v{#MyAppVersion}]' + #13#10 + 'PLEASE USE THIS INSTALLER ONLY FOR TESTING' + #13#10 + 'DO >>NOT<< SHARE IT!' , mbInformation, MB_OK);
+end;
+#endif
+
+// Explains the install mode (not in silent mode): the portable setup asks whether to continue
+// (False = exit), a non-administrative installation explains its limits
+function ConfirmInstallMode: Boolean;
+begin
+  Result := True;
+  if (SilentInstall or SuppressMsgBoxes) then
+    Exit;
+#if InstallMode == "Portable"
+  if MsgBox(ExpandConstant('{cm:PortableQuestion}'), mbConfirmation, MB_YESNO) = IDNO then
+    Result := False;
+#else
+  if (not IsAdminInstallMode) then
+    MsgBox(ExpandConstant('{cm:UserInstallMode}'), mbInformation, MB_OK);
+#endif
+end;
+
+#if InstallType == "NeoEE"
+// Under Wine the NeoEE connection GUI crashes the game (it uses GDI/GDI+): the NeoEE.cfg of
+// "NeoEE - Wine" ([Files]) disables it, this tells the user
+procedure ShowWineNeoEEGuiNotice;
+begin
+  if (IsWine() and not SilentInstall and not SuppressMsgBoxes) then
+    MsgBox('Wine Detected !' + #13#10 + 'NeoEE connection GUI which causes the game to crash because it uses GDI/GDI+!'
+            + #13#10 + 'To avoid crash the NeoEE connection GUI will be disabled, if you install it with Winetricks you can enable the GUI again in NeoEE.cfg.', mbInformation, MB_OK);
+end;
+#endif
+
+// Before the wizard: setup music, update check and the questions that can end the setup
+function InitializeSetup: Boolean;
 begin
   Result := False;
 
   if (not SilentInstall and not IsWine) then
-  begin
     bassInit();
-  end;
-
   if (IsWine()) then
-  begin
     Log('Wine detected v' + GetWineVersion());
-  end;
 
-  if (not SuppressMsgBoxes and not SilentInstall) then
-  begin
-    if (CheckUpdate()) then
-    begin
-      Log('Update found and user want to download it! Exiting setup...');
-      Exit;
-    end;
-  end else begin
-    Log('Update check skipped because using silent mode');
-  end;
-
-  // Already Installed
-  if (not IsGameInstalled and (not SilentInstall and not SuppressMsgBoxes)) then
-  begin
-    // Legal Question
-    if MsgBox(ExpandConstant('{cm:LegalQuestion}'), mbConfirmation, MB_YESNO) = IDNO then
-    begin
-      ShellExecAsOriginalUser('open', GogStoreURL, '', '', SW_SHOWNORMAL, ewNoWait, ErrorCode);
-      Exit;
-    end;
-  end;
-
-#if TestID != 0
-  // Test Warning, force pop up even with silent mode
-  MsgBox('THIS IS A TEST SETUP ID = {#TestID} [Setup v{#MySetupVersion} - Game v{#MyAppVersion}]' + #13#10 + 'PLEASE USE THIS INSTALLER ONLY FOR TESTING' + #13#10 + 'DO >>NOT<< SHARE IT!' , mbInformation, MB_OK);
-#endif
-
-  // AntiVirus/Portable/User Warning
-  if (not SilentInstall and not SuppressMsgBoxes) then
-  begin
-    //if IsAdminInstallMode and not IsWine then
-    //begin
-    //  MsgBox(ExpandConstant('{cm:AntiVirusWarning}'), mbInformation, MB_OK);
-    //end;
-
-    if (ExpandConstant('{#InstallMode}') = 'Portable') then
-    begin
-      if MsgBox(ExpandConstant('{cm:PortableQuestion}'), mbConfirmation, MB_YESNO) = IDNO then
-        Exit;
-      end
-    else if (not IsAdminInstallMode) then
-    begin
-      MsgBox(ExpandConstant('{cm:UserInstallMode}'), mbInformation, MB_OK);
-    end;
-  end;
-
-#if InstallType == "NeoEE"
-  // Wine Environment Detection
-  if (IsWine() and (not SilentInstall and not SuppressMsgBoxes)) then
-    MsgBox('Wine Detected !' + #13#10 + 'NeoEE connection GUI which causes the game to crash because it uses GDI/GDI+!'
-            + #13#10 + 'To avoid crash the NeoEE connection GUI will be disabled, if you install it with Winetricks you can enable the GUI again in NeoEE.cfg.', mbInformation, MB_OK);
-#endif
-
-  Result :=  True;
-end;
-
-// Setup statistics. Only sent with consent, i.e. when the telemetry component of this product is
-// selected in this setup: otherwise no request is made at all. The uninstaller never sends any.
-procedure SendSetupTelemetry();
-var
-  InstallUrlStats: String;
-begin
-  if (IsUninstaller or not WizardIsComponentSelected('additional\telemetry')) then
-  begin
-    Log('Setup stats not sent (no consent)');
+  if (UpdateRequested()) then
     Exit;
-  end;
+  if (not ConfirmLegalCopy()) then
+    Exit;
+#if TestID != 0
+  ShowTestSetupWarning();
+#endif
+  if (not ConfirmInstallMode()) then
+    Exit;
+#if InstallType == "NeoEE"
+  ShowWineNeoEEGuiNotice();
+#endif
 
-  Log('Sending setup stats over HTTPS!');
-  InstallUrlStats := TelemetryApiURL
-    + '?install_type=' + UrlEncode('{#AppID}')
-    + '&install_lang=' + UrlEncode(CorrectLanguageCode(GetSelectedLanguageFromComponents('')))
-    + '&is_uninstall=0'
-    + '&setup_version=' + UrlEncode('{#MySetupVersion}')
-    + '&game_version=' + UrlEncode('{#MyAppVersion}')
-    + '&components=' + UrlEncode(WizardSelectedComponents(False))
-    + '&tasks=' + UrlEncode(WizardSelectedTasks(False))
-    + '&arch=' + UrlEncode(GetProcessorArch())
-    + '&user_uid=' + UrlEncode(GetEEStatsUID());
-
-  if (IsInstalled) then
-    InstallUrlStats := InstallUrlStats + '&already_installed=1&install_update=' + IntToStr(Integer(IsUpdate))
-  else
-    InstallUrlStats := InstallUrlStats + '&already_installed=0&install_update=0';
-
-  InstallUrlStats := InstallUrlStats + '&os_virtual_machine=' + IntToStr(Integer(IsRunningInVM()));
-
-  if (IsWine()) then
-    InstallUrlStats := InstallUrlStats + '&wine=1&os_version=' + UrlEncode(GetWineVersion())
-  else
-    InstallUrlStats := InstallUrlStats + '&os_version=' + UrlEncode(GetWindowsVersionString()) + '&wine=0';
-
-  // Synchronous like every request (see HttpGet), the answer does not matter
-  GetHttpStatus(InstallUrlStats);
+  Result := True;
 end;
+
+// Setup statistics (SendSetupTelemetry, RecordInstallStateForTelemetry). Needs the language
+// functions above.
+#include "telemetry.iss"
 
 #if CertInclude
 var
@@ -1795,81 +1777,93 @@ begin
   end;
 end;
 
-function NextButtonClick(CurPageID: Integer): Boolean;
-var
-  i: Integer;
+// Installation mode page: the games of the recommended settings and the telemetry consent
+procedure OnManualInstallPageNext;
 begin
-  if (not SilentInstall and (CurPageID = ManualInstallQuestionPage.ID)) then
+  if (ManualInstallQuestionPage.Values[MiqpRecommended]) then
   begin
-    // Game selection
-    if (ManualInstallQuestionPage.Values[MiqpRecommended]) then
+    if (ManualInstallQuestionPage.Values[MiqpRecommendedEE]) then
     begin
-      if (ManualInstallQuestionPage.Values[MiqpRecommendedEE]) then
-      begin
-        WizardSelectComponents('game');
-        WizardSelectComponents('!gameaoc');
-      end else if (ManualInstallQuestionPage.Values[MiqpRecommendedEEAoC]) then
-      begin
-        WizardSelectComponents('game');
-        WizardSelectComponents('gameaoc');
-      end;
-    end
-    else if (IsGameInstalled()) then
+      WizardSelectComponents('game');
+      WizardSelectComponents('!gameaoc');
+    end else if (ManualInstallQuestionPage.Values[MiqpRecommendedEEAoC]) then
     begin
-      // For some reasons WizardSelectComponents (on top) will badly unselect the component
-      // This make any component(/task?) unselected by code automatically re-selected on reinstall...
-      if (WizardIsComponentInstalled('gameaoc')) then
-        WizardSelectComponents('gameaoc')
-      else
-        WizardSelectComponents('!gameaoc');
+      WizardSelectComponents('game');
+      WizardSelectComponents('gameaoc');
     end;
-
-    // Telemetry consent
-    if (ManualInstallQuestionPage.Values[MiqpTelemetry]) then
-      WizardSelectComponents('additional\telemetry')
+  end
+  else if (IsGameInstalled()) then
+  begin
+    // Repair/update or custom settings: AoC as in the previous installation, also when a choice
+    // of the recommended settings changed it before the user came back to this page
+    if (WizardIsComponentInstalled('gameaoc')) then
+      WizardSelectComponents('gameaoc')
     else
-      WizardSelectComponents('!additional\telemetry');
+      WizardSelectComponents('!gameaoc');
   end;
 
-  if (CurPageID = GPUInstallQuestionPage.ID) then
-    ApplyGpuOption();
+  if (ManualInstallQuestionPage.Values[MiqpTelemetry]) then
+    WizardSelectComponents('additional\telemetry')
+  else
+    WizardSelectComponents('!additional\telemetry');
+end;
 
-  if (CurPageID = LanguageInstallQuestionPage.ID) then
-  begin
-    for i := 0 to Langs.Count - 1 do
+// Language page: the language component of the checked language
+procedure OnLanguagePageNext;
+var
+  I: Integer;
+begin
+  for I := 0 to Langs.Count - 1 do
+    if (LanguageInstallQuestionPage.Values[I]) then
     begin
-      if (LanguageInstallQuestionPage.Values[i]) then
-      begin
-        SelectLanguageFromIndex(i);
-        break;
-      end;
+      SelectLanguageFromIndex(I);
+      Break;
     end;
-  end;
+end;
 
-  if (CurPageID = wpFinished) then
-  begin
-    SendSetupTelemetry();
 #if InstallMode == "Regular"
-    // Portable installations have no uninstall key (CreateUninstallRegKey=no): writing the value
-    // there would create one that is never removed
-    if (ManualInstallQuestionPage.Values[MiqpRecommended]) then
-    begin
-      // We need to force register the install type as custom
-      // because we edited ourselves the components list
-      Log('Forcing custom install type, because we used the manual install question page.');
-      if not RegKeyExists(HKA, GetUninstallRegPath(False)) then
-        Log('Uninstall key not found, install type not changed')
-      else if not RegWriteStringValue(HKA, GetUninstallRegPath(False), 'Inno Setup: Setup Type', 'custom') then
-        Log('Unable to write the install type to the uninstall key');
-    end;
+// The recommended settings select the components by code, so the uninstall key records the
+// setup type 'custom' instead of the type Inno Setup derived. Not in portable setups: they have
+// no uninstall key (CreateUninstallRegKey=no), writing the value would create one that is never
+// removed.
+procedure RecordCustomSetupType;
+begin
+  if (not ManualInstallQuestionPage.Values[MiqpRecommended]) then
+    Exit;
+  Log('Forcing custom install type, because we used the manual install question page.');
+  if not RegKeyExists(HKA, GetUninstallRegPath(False)) then
+    Log('Uninstall key not found, install type not changed')
+  else if not RegWriteStringValue(HKA, GetUninstallRegPath(False), 'Inno Setup: Setup Type', 'custom') then
+    Log('Unable to write the install type to the uninstall key');
+end;
 #endif
-  end;
 
-  // Register files after components page
-  if (CurPageID = wpReady) then
-	begin
-    RegisterOnlineFiles();
-  end;
+// Finished page (the user clicked Finish): statistics and the setup type
+procedure OnFinishedPageNext;
+begin
+  SendSetupTelemetry();
+#if InstallMode == "Regular"
+  RecordCustomSetupType();
+#endif
+end;
+
+// Dispatches to the handler of the page; no page blocks the Next button
+function NextButtonClick(CurPageID: Integer): Boolean;
+begin
+  if (CurPageID = ManualInstallQuestionPage.ID) then
+  begin
+    if (not SilentInstall) then
+      OnManualInstallPageNext();
+  end
+  else if (CurPageID = GPUInstallQuestionPage.ID) then
+    ApplyGpuOption()
+  else if (CurPageID = LanguageInstallQuestionPage.ID) then
+    OnLanguagePageNext()
+  else if (CurPageID = wpReady) then
+    // The components are final now: register the downloads (IDP downloads after wpReady)
+    RegisterOnlineFiles()
+  else if (CurPageID = wpFinished) then
+    OnFinishedPageNext();
   Result := True;
 end;
 
@@ -1890,72 +1884,52 @@ const
   IdpConnectTimeoutMs = 15000;
   IdpTransferTimeoutMs = 30000;
 
-{ Setup }
-procedure InitializeWizard;
+// Setup background behind the wizard: the 16:9 or the 4:3 image, whichever fits the window
+procedure CreateSetupBackground;
 var
   BackgroundImage: TBitmapImage;
-  Diff: double;
-  ScrWidth: double;
-  ScrHeight: double;
+  Ratio: Double;
+  ScrWidth: Double;
+  ScrHeight: Double;
 begin
-
-  if (not SilentInstall and not IsWine) then
-  begin
-    bassCreateButton();
-  end;
-
-  RegisterLangs();
-  RegisterDownloadPins();
-  IsUpdate := WizardIsUpdate();
-  IsInstalled := IsGameInstalled();
-
-  Log('Init custom setup pages');
-  SetupLanguagePage();
-  SetupManualCustomInstallPage();
-  SetupGPUInstallPage();
-
   Log('Init setup background');
   BackgroundImage := TBitmapImage.Create(MainForm);
   BackgroundImage.Parent := MainForm;
   BackgroundImage.SetBounds(0, 0, MainForm.ClientWidth, MainForm.ClientHeight);
   BackgroundImage.Stretch := True;
 
-  // Auto Select 16:9 or 4:3
+  // Width / height as a fraction (Double), compared with WideBackgroundMinRatio
   ScrWidth := MainForm.ClientWidth;
   ScrHeight := MainForm.ClientHeight;
-
-  Diff := ScrWidth / ScrHeight
+  Ratio := ScrWidth / ScrHeight;
 
   Log('Extracting and defining image banner');
-  if (Diff > WideBackgroundMinRatio) then
+  if (Ratio > WideBackgroundMinRatio) then
   begin
     ExtractTemporaryFile('SetupBackground-16-9.bmp');
     BackgroundImage.Bitmap.LoadFromFile(ExpandConstant('{tmp}\SetupBackground-16-9.bmp'));
-  end;
-
-  if (Diff <= WideBackgroundMinRatio) then
+  end
+  else
   begin
     ExtractTemporaryFile('SetupBackground-4-3.bmp');
     BackgroundImage.Bitmap.LoadFromFile(ExpandConstant('{tmp}\SetupBackground-4-3.bmp'));
   end;
+end;
 
-  if (not SilentInstall and not IsWine) then
-  begin
-    bassPlay();
-  end;
-
-  // Create tmp dir to download files
+// Download folders in {tmp} and IDP options of the online localized files (RegisterOnlineFiles)
+procedure InitOnlineFilesDownload;
+begin
   CreateDir(ExpandConstant('{tmp}\EE'));
   CreateDir(ExpandConstant('{tmp}\EE\Data'));
   CreateDir(ExpandConstant('{tmp}\EE\Data\Campaigns'));
   CreateDir(ExpandConstant('{tmp}\EE\Data\Movies'));
-  CreateDir(ExpandConstant('{tmp}\EE\Data\WONLobby Resources'))
+  CreateDir(ExpandConstant('{tmp}\EE\Data\WONLobby Resources'));
   CreateDir(ExpandConstant('{tmp}\AoC'));
   CreateDir(ExpandConstant('{tmp}\AoC\Data'));
   CreateDir(ExpandConstant('{tmp}\AoC\Data\Campaigns'));
   CreateDir(ExpandConstant('{tmp}\AoC\Data\WONLobby Resources'));
 
-  idpSetOption('DetailedMode',  '1');
+  idpSetOption('DetailedMode', '1');
   // Timeouts in milliseconds, per connection attempt and per network operation (not for a whole
   // file, so large files like the intro video are fine): 0.5 s used to make slow, mobile or VPN
   // connections fail. RegisterOnlineFiles only uses a server that answered.
@@ -1970,6 +1944,28 @@ begin
   idpSetOption('AllowContinue', '1');
 
   idpDownloadAfter(wpReady);
+end;
+
+procedure InitializeWizard;
+begin
+  if (not SilentInstall and not IsWine) then
+    bassCreateButton();
+
+  RegisterLangs();
+  RegisterDownloadPins();
+  RecordInstallStateForTelemetry();
+
+  Log('Init custom setup pages');
+  SetupLanguagePage();
+  SetupManualCustomInstallPage();
+  SetupGPUInstallPage();
+
+  CreateSetupBackground();
+
+  if (not SilentInstall and not IsWine) then
+    bassPlay();
+
+  InitOnlineFilesDownload();
 end;
 
 procedure DeinitializeSetup;
