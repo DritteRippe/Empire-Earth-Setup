@@ -35,6 +35,19 @@ Refactoring and quality fixes (no new game content).
   uninstall) and let EE and NeoEE share one uninstall key.
 - `setup_is6.iss` has its UTF-8 BOM again (lost in 1.6.0). Without it Inno Setup read the file as
   ANSI, so the uninstall cleanup of the pt_BR folder `Users\default\Civilizações` never matched.
+- Every online localized file is requested from the mirror at the same path as on the main server
+  (some AoC mirror URLs pointed to wrong paths).
+
+### Security
+- Online localized files: TLS certificates are validated (invalid certificates used to be
+  ignored), and a downloaded file is only installed if its SHA-256 matches a hash compiled into
+  the setup. Other files are deleted, logged and reported, and the setup installs its own files
+  instead. The hashes come from `data\localized-text.sha256`, which `ci/build.ps1` writes from
+  `data\localized-text`; a setup built without it downloads nothing (see README, "Online
+  localized files"). The reachability check of the file servers no longer falls back to HTTP.
+  Very old Windows 7 installations without updated root certificates can no longer download
+  these files and continue with the files included in the setup; they should install the
+  Windows updates or use the full/offline setup.
 
 ## 1.7.2 - 2023-12-04
 

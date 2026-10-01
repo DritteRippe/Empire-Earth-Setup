@@ -10,7 +10,7 @@
 💻 Can run on Windows 10/11 powered by an ARM/ARM64 processor\
 💡 Simple and advanced installation mode\
 📣 Discord Status\
-📥 Download localized content online (support mirror)\
+📥 Download localized content online (support mirror, every file checked against its SHA-256)\
 ✅ Online update checker (support mirror)\
 🖥️ DirectX Wrapper (DX7 to DX12)\
 🪛 Better compatibility with additonal flags\
@@ -64,6 +64,7 @@ Every switch has a default in the settings block of `setup_is6.iss` and can be o
 | `SignSetup` | `0`, `1` | `0` |
 | `CertFileName`, `CertHashSHA1` | certificate in `internal\misc` and its SHA1 (signed builds only) | `cert_name.crt`, empty |
 | `TestID` | `0` = release, `> 0` = test build (fast compression, warning on start) | `0` |
+| `DownloadHashFile` | SHA-256 list of the online localized files (see [Online localized files](#online-localized-files)) | `data\localized-text.sha256` |
 
 ```bat
 ISCC /DInstallType=NeoEE /DInstallMode=Portable /DEE_AppID=<GUID> /DNeoEE_AppID=<GUID> setup_is6.iss
@@ -80,6 +81,17 @@ powershell -ExecutionPolicy Bypass -File ci\build.ps1 -EEAppID <GUID> -NeoEEAppI
 
 Useful options: `-Variants NeoEE/Regular`, `-OutputDir <dir>`, `-Iscc <path to ISCC.exe>`, `-KeepPreprocessed <dir>`. Run `Get-Help ci\build.ps1 -Detailed` for all of them.
 
+### Online localized files
+The setups can download localized content (voices, campaigns, lobby texts) from `files.empireearth.eu`, with `storage.ee.zocker-160.de` as mirror. TLS certificates are validated, and a downloaded file is only installed if its SHA-256 matches a hash compiled into the setup; any other file is discarded and the setup installs its own files instead (`downloads.iss`).
+
+The hashes come from `data\localized-text.sha256`, a list in `sha256sum` format (`<hash>  <path>`, UTF-8 without BOM). The paths are relative to the `localized` folder of the file servers, which has the same layout as `data\localized-text`. Inno Setup 6.2 cannot compute SHA-256 in the preprocessor, so the list has to exist before compiling:
+
+- `ci\build.ps1` writes it from `data\localized-text` before every build. Before compiling in the IDE or with ISCC directly, run `powershell -ExecutionPolicy Bypass -File ci\build.ps1 -DownloadHashesOnly`, or on Linux/Wine `(cd data/localized-text && find . -type f -print0 | sort -z | xargs -0 sha256sum) > data/localized-text.sha256`.
+- Files that only exist on the servers (voices, campaigns, the localized intro movie) are only downloaded if the same file is placed in `data\localized-text` at its server path before the list is written. When the files on the servers change, rebuild the setup.
+- Without the list the compiler prints a warning and the setup never downloads anything. `ISCC /DDownloadHashFile=<file>` uses another list.
+
+Very old Windows 7 installations without updated root certificates or TLS 1.2 support can no longer download these files (the setup no longer ignores invalid certificates): the installation continues with the files included in the setup. Such systems should install the Windows updates or use the full/offline setup.
+
 ### Contributing without the game data
 ```powershell
 powershell -ExecutionPolicy Bypass -File ci\build.ps1 -Placeholders
@@ -93,4 +105,4 @@ creates a small placeholder file for every missing asset (existing files are nev
 The own `.iss` files are UTF-8 **with BOM** and CRLF (see `.editorconfig` and `.gitattributes`): Inno Setup 6.2 reads files without BOM as ANSI and would break non-ASCII text. Release notes go into [CHANGELOG.md](CHANGELOG.md).
 
 ## License
-Consider setup_is6.iss, utils.iss, pages.iss, messages.iss, extention.iss under **GPL-3.0 License**.
+Consider setup_is6.iss, utils.iss, pages.iss, messages.iss, extention.iss, downloads.iss under **GPL-3.0 License**.

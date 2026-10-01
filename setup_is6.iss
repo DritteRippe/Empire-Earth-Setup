@@ -580,8 +580,8 @@ Source: "data\localized-text\Lobby\zh\shared\*"; DestDir: "{app}\Empire Earth"; 
   Source: "data\localized-text\Mods\NeoEE\Lobby\zh\shared\*"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and (language\zh_CN or language\zh_TW)
 #endif
 
-; EE Online Lang Any Based Content
-Source: "{tmp}\EE\*"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs external skipifsourcedoesntexist; Components: game language\update;
+; EE Online Lang Any Based Content (only downloads that passed the SHA-256 check, see downloads.iss)
+Source: "{tmp}\verified\EE\*"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs external skipifsourcedoesntexist; Components: game language\update;
 
 ; DreXmod 2 (+privacy patched dll, because nothing allow to disable it in config)
 Source: "data\Add-on\DLLs\dreXmod\2\*"; DestDir: "{app}\Empire Earth"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\drexmod\v2 and game;
@@ -750,9 +750,9 @@ Source: "data\localized-text\Lobby\zh\shared\*"; DestDir: "{app}\Empire Earth - 
   Source: "data\localized-text\Mods\NeoEE\Lobby\zh\shared\*"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and (language\zh_CN or language\zh_TW)
 #endif
 
-Source: "{tmp}\AoC\*"; DestDir: "{app}\Empire Earth - The Art of Conquest"; \
+Source: "{tmp}\verified\AoC\*"; DestDir: "{app}\Empire Earth - The Art of Conquest"; \
   Flags: ignoreversion recursesubdirs createallsubdirs external; Components: gameaoc and language\update
-Source: "{tmp}\EE\Data\Campaigns\EELearningCampaign.ssa"; DestDir: "{app}\Empire Earth\Data\Campaigns"; \
+Source: "{tmp}\verified\EE\Data\Campaigns\EELearningCampaign.ssa"; DestDir: "{app}\Empire Earth\Data\Campaigns"; \
   Flags: ignoreversion recursesubdirs createallsubdirs external skipifsourcedoesntexist; Components: gameaoc and language\update
 
   ; DreXmod 2 (+privacy patched dll, because nothing allow to disable it in config)
@@ -1277,6 +1277,7 @@ var
 
 #include "extention.iss"
 #include "pages.iss"
+#include "downloads.iss"
 
 function GetCompatibilityFlags(Param: String): String;
 begin
@@ -1701,8 +1702,6 @@ end;
 
 procedure RegisterOnlineFiles();
 var
-  BaseDomainName: String;
-  BaseDomainMirror: String;
   LangCode: String;
 begin
   // Register Online Files (Game default is in english, online files will recover the located one if asked)
@@ -1710,15 +1709,21 @@ begin
   // EE Community (Energy) => Zocker
   // Storage Localized structure : {base_url}/localized/{scope}/{language}/{GameType}/
   // Note: EELearningCampaign.ssa is the same for AoC, the setup will copy the one of EE
-  BaseDomainName := 'https://files.' + DomainMain + '/localized';
-  BaseDomainMirror := 'https://storage.' + DomainMirror + '/localized';
+  // AddOnlineFile (downloads.iss) registers the file on both servers (same path on the mirror),
+  // but only if its SHA-256 is known: every download is verified before it is installed.
   LangCode := CorrectLanguageCode(GetSelectedLanguageFromComponents(''));
 
   // Clears files if the user have the bad idea of going back to component to change them
   Log('Clear download file list');
-  idpClearFiles();
+  ClearOnlineFiles();
 
-  if ((SendRequest(BaseDomainName, True, False) = -1) and (SendRequest(BaseDomainMirror, True, False) = -1)) then
+  if (not HasDownloadPins()) then
+  begin
+    Log('This setup knows no SHA-256 of online files, it will only use local files.');
+    Exit;
+  end;
+
+  if ((SendRequest(OnlineFilesURL, False, False) = -1) and (SendRequest(OnlineFilesMirrorURL, False, False) = -1)) then
   begin
     Log('Unable to reach the online files server! The setup will only use local files...');
     if (not SilentInstall and not SuppressMsgBoxes) then
@@ -1733,83 +1738,53 @@ begin
   end;
 
   Log('Adding file list to download');
-  // EE Community Server
-  idpAddFileComp(BaseDomainName + '/Game/' + LangCode + '/EE/Language.dll', ExpandConstant('{tmp}\EE\Language.dll'), 'game, language\update');
-  idpAddFileComp(BaseDomainName + '/Game/' + LangCode + '/EE/Data/data.ssa', ExpandConstant('{tmp}\EE\Data\data.ssa'), 'game, language\update');
-  idpAddFileComp(BaseDomainName + '/Game/' + LangCode + '/EE/Data/Campaigns/EELearningCampaign.ssa', ExpandConstant('{tmp}\EE\Data\Campaigns\EELearningCampaign.ssa'), 'game, language\update');
-  idpAddFileComp(BaseDomainName + '/Game/' + LangCode + '/EE/Data/Campaigns/EETheBritish.ssa', ExpandConstant('{tmp}\EE\Data\Campaigns\EETheBritish.ssa'), 'game, language\update');
-  idpAddFileComp(BaseDomainName + '/Game/' + LangCode + '/EE/Data/Campaigns/EETheFuture.ssa', ExpandConstant('{tmp}\EE\Data\Campaigns\EETheFuture.ssa'), 'game, language\update');
-  idpAddFileComp(BaseDomainName + '/Game/' + LangCode + '/EE/Data/Campaigns/EETheGermans.ssa', ExpandConstant('{tmp}\EE\Data\Campaigns\EETheGermans.ssa'), 'game, language\update');
-  idpAddFileComp(BaseDomainName + '/Game/' + LangCode + '/EE/Data/Campaigns/EETheGreeks.ssa', ExpandConstant('{tmp}\EE\Data\Campaigns\EETheGreeks.ssa'), 'game, language\update');
+  AddOnlineFile('Game/' + LangCode + '/EE/Language.dll', 'EE\Language.dll', 'game, language\update');
+  AddOnlineFile('Game/' + LangCode + '/EE/Data/data.ssa', 'EE\Data\data.ssa', 'game, language\update');
+  AddOnlineFile('Game/' + LangCode + '/EE/Data/Campaigns/EELearningCampaign.ssa', 'EE\Data\Campaigns\EELearningCampaign.ssa', 'game, language\update');
+  AddOnlineFile('Game/' + LangCode + '/EE/Data/Campaigns/EETheBritish.ssa', 'EE\Data\Campaigns\EETheBritish.ssa', 'game, language\update');
+  AddOnlineFile('Game/' + LangCode + '/EE/Data/Campaigns/EETheFuture.ssa', 'EE\Data\Campaigns\EETheFuture.ssa', 'game, language\update');
+  AddOnlineFile('Game/' + LangCode + '/EE/Data/Campaigns/EETheGermans.ssa', 'EE\Data\Campaigns\EETheGermans.ssa', 'game, language\update');
+  AddOnlineFile('Game/' + LangCode + '/EE/Data/Campaigns/EETheGreeks.ssa', 'EE\Data\Campaigns\EETheGreeks.ssa', 'game, language\update');
   if (WizardIsComponentSelected('additional\movies')) then
   begin
-    idpAddFileComp(BaseDomainName + '/Game/' + LangCode + '/EE/Data/Movies/Empire Earth.bik', ExpandConstant('{tmp}\EE\Data\Movies\Empire Earth.bik'), 'game, language\update');
+    AddOnlineFile('Game/' + LangCode + '/EE/Data/Movies/Empire Earth.bik', 'EE\Data\Movies\Empire Earth.bik', 'game, language\update');
   end;
-  idpAddFileComp(BaseDomainName + '/Lobby/' + LangCode + '/shared/Data/WONLobby Resources/_WONStatus.cfg', ExpandConstant('{tmp}\EE\Data\WONLobby Resources\_WONStatus.cfg'), 'game, language\update');
-  idpAddFileComp(BaseDomainName + '/Lobby/' + LangCode + '/shared/Data/WONLobby Resources/_GameResource.cfg', ExpandConstant('{tmp}\EE\Data\WONLobby Resources\_GameResource.cfg'), 'game, language\update');
-  idpAddFileComp(BaseDomainName + '/Lobby/' + LangCode + '/shared/Data/WONLobby Resources/_LobbyResource.cfg', ExpandConstant('{tmp}\EE\Data\WONLobby Resources\_LobbyResource.cfg'), 'game, language\update');
-  idpAddFileComp(BaseDomainName + '/Lobby/' + LangCode + '/EE/WONLobby.cfg', ExpandConstant('{tmp}\EE\WONLobby.cfg'), 'game, language\update');
+  AddOnlineFile('Lobby/' + LangCode + '/shared/Data/WONLobby Resources/_WONStatus.cfg', 'EE\Data\WONLobby Resources\_WONStatus.cfg', 'game, language\update');
+  AddOnlineFile('Lobby/' + LangCode + '/shared/Data/WONLobby Resources/_GameResource.cfg', 'EE\Data\WONLobby Resources\_GameResource.cfg', 'game, language\update');
+  AddOnlineFile('Lobby/' + LangCode + '/shared/Data/WONLobby Resources/_LobbyResource.cfg', 'EE\Data\WONLobby Resources\_LobbyResource.cfg', 'game, language\update');
+  AddOnlineFile('Lobby/' + LangCode + '/EE/WONLobby.cfg', 'EE\WONLobby.cfg', 'game, language\update');
   #if InstallType == "NeoEE"
-    idpAddFileComp(BaseDomainName + '/Mods/NeoEE/Lobby/' + LangCode + '/shared/Data/WONLobby Resources/_NeoEEResource.cfg', ExpandConstant('{tmp}\EE\Data\WONLobby Resources\_NeoEEResource.cfg'), 'game, language\update');
-    idpAddFileComp(BaseDomainName + '/Mods/NeoEE/Lobby/' + LangCode + '/EE/WONLobby.cfg', ExpandConstant('{tmp}\EE\WONLobby.cfg'), 'game, language\update');
-    idpAddFileComp(BaseDomainName + '/Mods/NeoEE/Game/' + LangCode + '/EE/Language.dll', ExpandConstant('{tmp}\EE\Language.dll'), 'game, language\update');
-  #endif
-
-  // Zocker Server
-  idpAddMirror(BaseDomainName + '/Game/' + LangCode + '/EE/Language.dll', BaseDomainMirror + '/Game/' + LangCode + '/EE/Language.dll');
-  idpAddMirror(BaseDomainName + '/Game/' + LangCode + '/EE/Data/data.ssa', BaseDomainMirror + '/Game/' + LangCode + '/EE/Data/data.ssa');
-  idpAddMirror(BaseDomainName + '/Game/' + LangCode + '/EE/Data/Campaigns/EELearningCampaign.ssa', BaseDomainMirror + '/Game/' + LangCode + '/EE/Data/Campaigns/EELearningCampaign.ssa');
-  idpAddMirror(BaseDomainName + '/Game/' + LangCode + '/EE/Data/Campaigns/EETheBritish.ssa', BaseDomainMirror + '/Game/' + LangCode + '/EE/Data/Campaigns/EETheBritish.ssa');
-  idpAddMirror(BaseDomainName + '/Game/' + LangCode + '/EE/Data/Campaigns/EETheFuture.ssa', BaseDomainMirror + '/Game/' + LangCode + '/EE/Data/Campaigns/EETheFuture.ssa');
-  idpAddMirror(BaseDomainName + '/Game/' + LangCode + '/EE/Data/Campaigns/EETheGermans.ssa', BaseDomainMirror + '/Game/' + LangCode + '/EE/Data/Campaigns/EETheGermans.ssa');
-  idpAddMirror(BaseDomainName + '/Game/' + LangCode + '/EE/Data/Campaigns/EETheGreeks.ssa', BaseDomainMirror + '/Game/' + LangCode + '/EE/Data/Campaigns/EETheGreeks.ssa');
-  if (WizardIsComponentSelected('additional\movies')) then
-  begin
-    idpAddMirror(BaseDomainName + '/Game/' + LangCode + '/EE/Data/Movies/Empire Earth.bik', BaseDomainMirror + '/Game/' + LangCode + '/EE/Data/Movies/Empire Earth.bik');
-  end;
-  idpAddMirror(BaseDomainName + '/Lobby/' + LangCode + '/shared/Data/WONLobby Resources/_WONStatus.cfg', BaseDomainMirror + '/Lobby/' + LangCode + '/shared/Data/WONLobby Resources/_WONStatus.cfg');
-  idpAddMirror(BaseDomainName + '/Lobby/' + LangCode + '/shared/Data/WONLobby Resources/_GameResource.cfg', BaseDomainMirror + '/Lobby/' + LangCode + '/shared/Data/WONLobby Resources/_GameResource.cfg');
-  idpAddMirror(BaseDomainName + '/Lobby/' + LangCode + '/shared/Data/WONLobby Resources/_LobbyResource.cfg', BaseDomainMirror + '/Lobby/' + LangCode + '/shared/Data/WONLobby Resources/_LobbyResource.cfg');
-  idpAddMirror(BaseDomainName + '/Lobby/' + LangCode + '/EE/WONLobby.cfg', BaseDomainMirror + '/Lobby/' + LangCode + '/EE/WONLobby.cfg');
-  #if InstallType == "NeoEE"
-    idpAddMirror(BaseDomainName + '/Mods/NeoEE/Lobby/' + LangCode + '/shared/Data/WONLobby Resources/_NeoEEResource.cfg', BaseDomainMirror + '/Mods/NeoEE/Lobby/' + LangCode + '/shared/Data/WONLobby Resources/_NeoEEResource.cfg');
-    idpAddMirror(BaseDomainName + '/Mods/NeoEE/Lobby/' + LangCode + '/EE/WONLobby.cfg', BaseDomainMirror + '/Mods/NeoEE/Lobby/' + LangCode + '/EE/WONLobby.cfg');
-    idpAddMirror(BaseDomainName + '/Mods/NeoEE/Game/' + LangCode + '/EE/Language.dll', BaseDomainMirror + '/Mods/NeoEE/Game/' + LangCode + '/EE/Language.dll');
+    AddOnlineFile('Mods/NeoEE/Lobby/' + LangCode + '/shared/Data/WONLobby Resources/_NeoEEResource.cfg', 'EE\Data\WONLobby Resources\_NeoEEResource.cfg', 'game, language\update');
+    AddOnlineFile('Mods/NeoEE/Lobby/' + LangCode + '/EE/WONLobby.cfg', 'EE\WONLobby.cfg', 'game, language\update');
+    AddOnlineFile('Mods/NeoEE/Game/' + LangCode + '/EE/Language.dll', 'EE\Language.dll', 'game, language\update');
   #endif
 
   // -------- AoC --------
 
-  // EE Community Server
-  idpAddFileComp(BaseDomainName + '/Game/' + LangCode + '/AoC/Language.dll', ExpandConstant('{tmp}\AoC\Language.dll'), 'gameaoc, language\update');
-  idpAddFileComp(BaseDomainName + '/Game/' + LangCode + '/AoC/Data/data.ssa', ExpandConstant('{tmp}\AoC\Data\data.ssa'), 'gameaoc, language\update');
-  idpAddFileComp(BaseDomainName + '/Game/' + LangCode + '/AoC/Data/Campaigns/AOCAsian.ssa', ExpandConstant('{tmp}\AoC\Data\Campaigns\AOCAsian.ssa'), 'gameaoc, language\update');
-  idpAddFileComp(BaseDomainName + '/Game/' + LangCode + '/AoC/Data/Campaigns/AOCPacific.ssa', ExpandConstant('{tmp}\AoC\Data\Campaigns\AOCPacific.ssa'), 'gameaoc, language\update');
-  idpAddFileComp(BaseDomainName + '/Game/' + LangCode + '/AoC/Data/Campaigns/AOCRoman.ssa', ExpandConstant('{tmp}\AoC\Data\Campaigns\AOCRoman.ssa'), 'gameaoc, language\update');
-  idpAddFileComp(BaseDomainName + '/Lobby/' + LangCode + '/shared/Data/WONLobby Resources/_WONStatus.cfg', ExpandConstant('{tmp}\AoC\Data\WONLobby Resources\_WONStatus.cfg'), 'gameaoc, language\update');
-  idpAddFileComp(BaseDomainName + '/Lobby/' + LangCode + '/shared/Data/WONLobby Resources/_GameResource.cfg', ExpandConstant('{tmp}\AoC\Data\WONLobby Resources\_GameResource.cfg'), 'gameaoc, language\update');
-  idpAddFileComp(BaseDomainName + '/Lobby/' + LangCode + '/shared/Data/WONLobby Resources/_LobbyResource.cfg', ExpandConstant('{tmp}\AoC\Data\WONLobby Resources\_LobbyResource.cfg'), 'gameaoc, language\update');
-  idpAddFileComp(BaseDomainName + '/Lobby/' + LangCode + '/AoC/WONLobby.cfg', ExpandConstant('{tmp}\AoC\WONLobby.cfg'), 'gameaoc, language\update');
+  AddOnlineFile('Game/' + LangCode + '/AoC/Language.dll', 'AoC\Language.dll', 'gameaoc, language\update');
+  AddOnlineFile('Game/' + LangCode + '/AoC/Data/data.ssa', 'AoC\Data\data.ssa', 'gameaoc, language\update');
+  AddOnlineFile('Game/' + LangCode + '/AoC/Data/Campaigns/AOCAsian.ssa', 'AoC\Data\Campaigns\AOCAsian.ssa', 'gameaoc, language\update');
+  AddOnlineFile('Game/' + LangCode + '/AoC/Data/Campaigns/AOCPacific.ssa', 'AoC\Data\Campaigns\AOCPacific.ssa', 'gameaoc, language\update');
+  AddOnlineFile('Game/' + LangCode + '/AoC/Data/Campaigns/AOCRoman.ssa', 'AoC\Data\Campaigns\AOCRoman.ssa', 'gameaoc, language\update');
+  AddOnlineFile('Lobby/' + LangCode + '/shared/Data/WONLobby Resources/_WONStatus.cfg', 'AoC\Data\WONLobby Resources\_WONStatus.cfg', 'gameaoc, language\update');
+  AddOnlineFile('Lobby/' + LangCode + '/shared/Data/WONLobby Resources/_GameResource.cfg', 'AoC\Data\WONLobby Resources\_GameResource.cfg', 'gameaoc, language\update');
+  AddOnlineFile('Lobby/' + LangCode + '/shared/Data/WONLobby Resources/_LobbyResource.cfg', 'AoC\Data\WONLobby Resources\_LobbyResource.cfg', 'gameaoc, language\update');
+  AddOnlineFile('Lobby/' + LangCode + '/AoC/WONLobby.cfg', 'AoC\WONLobby.cfg', 'gameaoc, language\update');
   #if InstallType == "NeoEE"
-    idpAddFileComp(BaseDomainName + '/Mods/NeoEE/Lobby/' + LangCode + '/shared/Data/WONLobby Resources/_NeoEEResource.cfg', ExpandConstant('{tmp}\AoC\Data\WONLobby Resources\_NeoEEResource.cfg'), 'gameaoc, language\update');
-    idpAddFileComp(BaseDomainName + '/Mods/NeoEE/Lobby/' + LangCode + '/AoC/WONLobby.cfg', ExpandConstant('{tmp}\AoC\WONLobby.cfg'), 'gameaoc, language\update');
-    idpAddFileComp(BaseDomainName + '/Mods/NeoEE/Game/' + LangCode + '/AoC/Language.dll', ExpandConstant('{tmp}\AoC\Language.dll'), 'game, language\update');
+    AddOnlineFile('Mods/NeoEE/Lobby/' + LangCode + '/shared/Data/WONLobby Resources/_NeoEEResource.cfg', 'AoC\Data\WONLobby Resources\_NeoEEResource.cfg', 'gameaoc, language\update');
+    AddOnlineFile('Mods/NeoEE/Lobby/' + LangCode + '/AoC/WONLobby.cfg', 'AoC\WONLobby.cfg', 'gameaoc, language\update');
+    AddOnlineFile('Mods/NeoEE/Game/' + LangCode + '/AoC/Language.dll', 'AoC\Language.dll', 'game, language\update');
   #endif
+end;
 
-  // Zocker Server
-  idpAddMirror(BaseDomainName + '/Game/' + LangCode + '/AoC/Language.dll', BaseDomainMirror + '/Game/' + LangCode + '/AoC/Language.dll');
-  idpAddMirror(BaseDomainName + '/Game/' + LangCode + '/AoC/Data/data.ssa', BaseDomainMirror + '/Game/' + LangCode + '/AoC/Data/data.ssa')
-  idpAddMirror(BaseDomainName + '/Game/' + LangCode + '/AoC/Data/Campaigns/AOCAsian.ssa', BaseDomainMirror + '/Game/' + LangCode + '/AoC/Data/Campaigns/AOCAsian.ssa');
-  idpAddMirror(BaseDomainName + '/Game/' + LangCode + '/AoC/Data/Campaigns/AOCPacific.ssa', BaseDomainMirror + '/Game/' + LangCode + '/AoC/Data/Campaigns/AOCPacific.ssa');
-  idpAddMirror(BaseDomainName + '/Game/' + LangCode + '/AoC/Data/Campaigns/AOCRoman.ssa', BaseDomainMirror + '/Game/' + LangCode + '/AoC/Data/Campaigns/AOCRoman.ssa');
-  idpAddMirror(BaseDomainName + '/Lobby/' + LangCode + '/shared/Data/Data/WONLobby Resources/_WONStatus.cfg', BaseDomainMirror + '/Lobby/' + LangCode + '/shared/Data/Data/WONLobby Resources/_WONStatus.cfg');
-  idpAddMirror(BaseDomainName + '/Lobby/' + LangCode + '/shared/Data/Data/WONLobby Resources/_GameResource.cfg', BaseDomainMirror + '/Lobby/' + LangCode + '/shared/Data/Data/WONLobby Resources/_GameResource.cfg');
-  idpAddMirror(BaseDomainName + '/Lobby/' + LangCode + '/shared/Data/Data/WONLobby Resources/_LobbyResource.cfg', BaseDomainMirror + '/Lobby/' + LangCode + '/shared/Data/Data/WONLobby Resources/_LobbyResource.cfg');
-  idpAddMirror(BaseDomainName + '/Lobby/' + LangCode + '/AoC/WONLobby.cfg', BaseDomainMirror + '/AoC/WONLobby.cfg');
-  #if InstallType == "NeoEE"
-    idpAddMirror(BaseDomainName + '/Mods/NeoEE/Lobby/' + LangCode + '/shared/Data/WONLobby Resources/_NeoEEResource.cfg', BaseDomainMirror + '/Mods/NeoEE/Lobby/' + LangCode + '/shared/Data/WONLobby Resources/_NeoEEResource.cfg');
-    idpAddMirror(BaseDomainName + '/Mods/NeoEE/Lobby/' + LangCode + '/AoC/WONLobby.cfg', BaseDomainMirror + '/Mods/NeoEE/Lobby/' + LangCode + '/AoC/WONLobby.cfg');
-    idpAddMirror(BaseDomainName + '/Mods/NeoEE/Game/' + LangCode + '/AoC/Language.dll', BaseDomainMirror + '/Mods/NeoEE/Game/' + LangCode + '/AoC/Language.dll');
-  #endif
+// Installation steps
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  if (CurStep = ssInstall) then
+  begin
+    // Runs before [Files]: only downloads matching their SHA-256 are moved to {tmp}\verified
+    VerifyDownloadedFiles();
+  end;
 end;
 
 function NextButtonClick(CurPageID: Integer): Boolean;
@@ -1950,6 +1925,7 @@ begin
   end;
 
   RegisterLangs();
+  RegisterDownloadPins();
   IsUpdate := WizardIsUpdate();
   IsInstalled := IsGameInstalled();
 
@@ -2004,7 +1980,9 @@ begin
   idpSetOption('SendTimeout', '500');
   idpSetOption('ReceiveTimeout', '500');
   idpSetOption('ErrorDialog', 'UrlList');
-  idpSetOption('InvalidCert', 'Ignore');
+  // Never accept an invalid TLS certificate (the IDP default would let the user ignore it).
+  // Downloads are also checked against their SHA-256 (downloads.iss).
+  idpSetOption('InvalidCert', 'Stop');
   idpSetOption('AllowContinue', '1');
 
   idpDownloadAfter(wpReady);

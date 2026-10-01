@@ -8,7 +8,9 @@
        "#expr SaveToFile(...)" line appended, so ISCC dumps the fully resolved script.
     2. With -Placeholders: create a dummy file for every asset the resolved scripts reference
        but that does not exist (ci/make_placeholder_assets.py). Existing files are never touched.
-    3. Compile every variant with ISCC /DInstallType /DInstallMode /DEE_AppID /DNeoEE_AppID into
+    3. Write data\localized-text.sha256, the SHA-256 list of data\localized-text: the setups only
+       download online localized files whose hash is in this list (see downloads.iss).
+    4. Compile every variant with ISCC /DInstallType /DInstallMode /DEE_AppID /DNeoEE_AppID into
        its own output folder and check that the file name proves the variant took effect.
 
   Without -Placeholders the real assets (data\, internal\media, internal\misc, internal\runtime,
@@ -44,8 +46,14 @@
 .PARAMETER KeepPreprocessed
   Folder to copy the resolved script of every variant into (<Type>_<Mode>.iss), e.g. for diffs.
 
+.PARAMETER DownloadHashesOnly
+  Only write data\localized-text.sha256 and exit, e.g. before compiling in the Inno Setup IDE.
+
 .EXAMPLE
   powershell -ExecutionPolicy Bypass -File ci\build.ps1 -Placeholders
+
+.EXAMPLE
+  powershell -ExecutionPolicy Bypass -File ci\build.ps1 -DownloadHashesOnly
 
 .EXAMPLE
   .\ci\build.ps1 -Variants NeoEE/Portable -EEAppID <GUID> -NeoEEAppID <GUID>
@@ -62,7 +70,8 @@ param(
   [string]$Iscc,
   [string]$RequireVersion,
   [string]$Python = 'python',
-  [string]$KeepPreprocessed
+  [string]$KeepPreprocessed,
+  [switch]$DownloadHashesOnly
 )
 
 Set-StrictMode -Version 2.0
@@ -134,6 +143,32 @@ function Show-LogErrors([string]$LogFile) {
     ForEach-Object { Write-Host "    $_" }
 }
 
+# SHA-256 list of the online localized files in sha256sum format ("<hash>  <path>", paths relative
+# to data\localized-text with forward slashes, UTF-8 without BOM). downloads.iss compiles it into
+# the setup, which then only accepts downloads matching it. ISPP 6.2 has no SHA-256 function,
+# so the list has to be written before compiling.
+function Write-DownloadHashes([string]$Folder, [string]$ListFile) {
+  if (-not (Test-Path -LiteralPath $Folder -PathType Container)) {
+    Write-Warning "$Folder not found: the setups will not download any localized files."
+    return
+  }
+  $base = (Get-Item -LiteralPath $Folder).FullName.TrimEnd('\') + '\'
+  $lines = @(Get-ChildItem -LiteralPath $Folder -Recurse -File | Sort-Object FullName | ForEach-Object {
+    $relative = $_.FullName.Substring($base.Length).Replace('\', '/')
+    $hash = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+    "$hash  $relative"
+  })
+  [System.IO.File]::WriteAllLines($ListFile, [string[]]$lines, [System.Text.UTF8Encoding]::new($false))
+  Write-Host "Download hashes: $($lines.Count) file(s) of $Folder -> $ListFile"
+}
+
+$LocalizedFolder = Join-Path $Root 'data\localized-text'
+$DownloadHashList = Join-Path $Root 'data\localized-text.sha256'
+if ($DownloadHashesOnly) {
+  Write-DownloadHashes $LocalizedFolder $DownloadHashList
+  exit 0
+}
+
 if (-not $Iscc) { $Iscc = Find-Iscc }
 $WorkDir = Join-Path ([System.IO.Path]::GetTempPath()) ('ee-setup-build-' + [System.Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $WorkDir | Out-Null
@@ -194,6 +229,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Placeholder generation failed.' }
   }
   foreach ($dump in $resolved) { Remove-Item -LiteralPath $dump }
+
+  Write-DownloadHashes $LocalizedFolder $DownloadHashList
 
   # Pass 2: the real compile, one output folder per variant.
   foreach ($variant in $Variants) {
