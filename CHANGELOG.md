@@ -6,8 +6,9 @@ features. Up to 1.0.4.1 the setup used the four-part version format of the game,
 uses semantic versioning.
 
 Until 1.7.2 these notes lived in the header of `setup_is6.iss`. They were moved here unchanged
-apart from spelling fixes, the 1.7.1 correction noted there and an off-topic personal remark in
-1.0.3.0 that was left out. Dates are the release dates given in the header.
+apart from spelling fixes, the 1.7.1 correction noted there, a correction of 1.6.0 and an
+off-topic personal remark in 1.0.3.0 that was left out. Dates are the release dates given in the
+header.
 
 ## Unreleased
 
@@ -31,6 +32,15 @@ Refactoring and quality fixes (no new game content).
   it (for builds in the Inno Setup IDE). See README, "Online localized files".
 - Localized texts (English, German, French) for the new messages and for the task descriptions of
   the firewall, administrator and certificate options.
+- German and French texts for the installation types, the tasks and components, the status texts
+  shown while installing, the DirectX wrapper part of the graphics card options and the remaining
+  message boxes (Wine notice of NeoEE setups, test builds). They were English in every language;
+  the other languages still show them in English. Names of games, mods and content packs and the
+  shortcut names stay untranslated.
+- `TRANSLATING.md`: how to translate the setup, and which texts still need native translators
+  (Brazilian Portuguese beyond the language page, Traditional Chinese texts that are copies of the
+  Simplified Chinese ones, and every text added after 1.7.2 in the languages other than English,
+  German and French). These gaps are documented rather than machine translated.
 
 ### Changed
 - The hidden setup data folder (holds `EEStatsSetup.dll` for the uninstaller) is now
@@ -50,6 +60,7 @@ Refactoring and quality fixes (no new game content).
   unless `CertHashSHA1` is the thumbprint of the DER certificate file; the setup only adds a
   certificate file with that thumbprint, and the uninstaller removes it only if this product added
   it and the other product (EE/NeoEE) does not use it, with consistent `certutil` arguments.
+- The Wine notice of NeoEE setups is worded as a proper sentence (same content).
 
 ### Removed
 - Entries for Windows XP and older: the WIN98 compatibility mode and the pre-Vista `netsh
@@ -57,6 +68,7 @@ Refactoring and quality fixes (no new game content).
   the entries never ran.
 
 ### Fixed
+- English installation mode page: "Recommended settings" instead of "Recommanded settings".
 - The build refuses empty, malformed or identical AppIds. An empty AppId used to compile, turned
   the setup data folder into the install folder itself (hidden, and deleted completely on
   uninstall) and let EE and NeoEE share one uninstall key.
@@ -140,7 +152,8 @@ Refactoring and quality fixes (no new game content).
 
 ### Internal
 Refactoring without any change to what the setups install or do: the preprocessed scripts of all
-four variants keep the same entries in the same order in every section.
+four variants keep the same entries in the same order in every section, except a few entries
+merged or cleaned up with the same effect (listed below).
 - The game languages are listed once (`GameLangs`, `GameLangLobbyDirs` in `setup_is6.iss`). The
   language components, the localized-text `[Files]` entries (124 hand-written lines before) and
   the language list of the code are generated from it with ISPP; adding a language means adding
@@ -159,6 +172,33 @@ four variants keep the same entries in the same order in every section.
   uses instead of them (`IsWine`, `GetWineVersion`, `GetGpuVendorId`, ...).
 - ISPP 6.2 pitfall, documented in the script: after a `#sub` has run, later plain `#define`s of
   the same file are invisible inside subs and in files included afterwards.
+- `NextButtonClick` only dispatches to one handler per page (`OnManualInstallPageNext`,
+  `ApplyGpuOption`, `OnLanguagePageNext`, `OnFinishedPageNext`, ...); `InitializeSetup` and
+  `InitializeWizard` are lists of named steps. The setup statistics moved to `telemetry.iss`; they
+  are still sent when the user leaves the finished page.
+- The options of the installation mode page are addressed by named indexes (`MiqpRecommended`,
+  `MiqpCustom`, `MiqpTelemetry`, ...) instead of `Values[0]`..`Values[5]`, whose meaning shifted
+  with the repair/update option. The graphics card page is defined in one table
+  (`RegisterGpuOptions`: label, DirectX wrapper component, PCI vendor id). A probe setup confirmed
+  the same page behaviour as before in 23552 combinations.
+- One HTTP implementation, `HttpGet`, with the wrappers `GetHttpStatus` and `DownloadString`. It is
+  synchronous and says so: the 1.6.0 note "Stats send is now asynchronous" was never true (the
+  flag only skipped reading the status), and an asynchronous request would be cancelled because
+  the statistics are sent when the setup exits.
+- Names: `extention.iss` is now `extension.iss`; `MIQP_Recommanded*` messages are
+  `MIQP_Recommended*`; `GetUninstallRegPath(Reverse)` is split into `GetUninstallRegPath` and
+  `GetOtherProductUninstallRegPath`; `CorrectLanguageCode` is `GetLanguageTag`. `messages.iss`
+  explains the `LIQP_`/`MIQP_`/`GPUIQP_` prefixes.
+- Dead code removed: commented-out entries (Reborn.dll, old dreXmod variants, DirectPlay
+  uninstall, ...) and code, the unused variable `ServersReacheable`, unused helpers and the
+  `AntiVirusWarning` message (unused since 1.7.0). Wrong, outdated and off-topic comments are
+  rewritten; the 64-bit install mode, used only to avoid the registry redirection, is a documented
+  TODO.
+- Same effect, fewer entries: one DirectPlay `[Run]` entry instead of two that differed only in
+  `Is64BitInstallMode` / `not Is64BitInstallMode`; `upnp_info.txt` is no longer listed twice per
+  game in `[UninstallDelete]`; two `[Files]` sources lost a doubled backslash.
+- Consistent style (semicolons, indentation, `;` comments in sections, no trailing whitespace),
+  and every include file states what it requires; the include sites explain why the order matters.
 
 ## 1.7.2 - 2023-12-04
 
@@ -233,6 +273,9 @@ NeoEE maps update, localization fix and dXm update
 - Added Kazter RMS Pack v1 for Neo (and included Perfect Island by yukon) (+13 (11 + 2) maps)
 - Stats send is now asynchronous (not sure that it work)
 - Removed J2 civs
+
+Correction: the statistics request stayed synchronous (the setup waited for the answer); see the
+Internal notes of the release after 1.7.2.
 
 ## 1.5.0 - 2023-02-06
 
