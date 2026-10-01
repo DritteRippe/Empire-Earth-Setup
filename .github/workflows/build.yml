@@ -24,10 +24,11 @@ jobs:
         shell: pwsh
         run: choco install innosetup --version=6.2.2 --allow-downgrade --no-progress -y
 
-      # Mistakes in messages.iss (duplicate keys, '==' typos, ...) compile without a warning
+      # Mistakes in messages.iss (duplicate keys, '==' typos, ...) compile without a warning.
+      # --coverage also prints the missing translations per language (a report, not an error).
       - name: Check messages
         shell: pwsh
-        run: python ci/check_messages.py
+        run: python ci/check_messages.py --coverage
 
       - name: Build
         shell: pwsh

@@ -39,8 +39,12 @@ fr.TaskDirectPlay=Installer DirectPlay
   (they are file names and must not change with the setup language) and the Mute/Unmute button
   of the setup music (kept short and English on purpose).
 - `messages.iss` is UTF-8 **with BOM** and CRLF, like all own `.iss` files.
+- Order: the English default first, then the translations in alphabetical order of their prefix
+  (`de`, `es`, `fr`, `it`, `ko`, `pl`, `pt_BR`, `ru`, `zh_CN`, `zh_TW`, then the setup-only
+  languages). `python ci/check_messages.py --sort` puts new lines in place.
 - After editing run `python ci/check_messages.py`: it reports duplicate entries, `==` typos,
-  unknown language prefixes and messages that are used but not defined.
+  unknown language prefixes, translations out of order and messages that are used but not
+  defined.
 
 A new game language (one the game itself can be installed in) also needs an entry in `GameLangs`
 and `GameLangLobbyDirs` of `setup_is6.iss`, its `LIQP_<name>` message and its files, see the
@@ -48,14 +52,20 @@ comment above `GameLangs`.
 
 ## Status
 
-Custom messages of setup 1.7.2 and later (97 in all, 14 of them only used by NeoEE setups):
+`python ci/check_messages.py --coverage` lists, for every game language, the custom messages it
+has no translation for (they are shown in English) and the `zh_TW` texts that are copies of the
+`zh_CN` ones. Its output is the current to-do list; the overview below is the state when this
+file was last updated.
+
+Custom messages to translate: 97 (14 of them only used by NeoEE setups; the Mute/Unmute button
+texts `SoundCtrlButtonCaptionSoundOn/Off` stay English on purpose and are not counted).
 
 | Language | Translated | Missing |
 |---|---|---|
 | English (default) | 97 | - |
-| German `de`, French `fr` | 95 | only `SoundCtrlButtonCaptionSoundOn/Off` (English on purpose) |
-| Spanish `es`, Italian `it`, Polish `pl`, Russian `ru`, Korean `ko`, Chinese Simplified `zh_CN`, Chinese Traditional `zh_TW` | 35 | the 60 messages added after 1.7.2 (list below) |
-| Brazilian Portuguese `pt_BR` | 13 | everything except the game language page (`LIQP_*`), see below |
+| German `de`, French `fr` | 97 | - |
+| Spanish `es`, Italian `it`, Polish `pl`, Russian `ru`, Korean `ko`, Chinese Simplified `zh_CN`, Chinese Traditional `zh_TW` | 35 | 62: the messages added after setup 1.7.2 |
+| Brazilian Portuguese `pt_BR` | 13 | 84: everything except the game language page (`LIQP_*`), see below |
 | Setup-only languages (`hy`, `bg`, `ca`, ...) | 0 | all; these languages only have Inno Setup's own texts |
 
 ## Help wanted
@@ -63,58 +73,28 @@ Custom messages of setup 1.7.2 and later (97 in all, 14 of them only used by Neo
 ### Brazilian Portuguese (pt_BR)
 
 `pt_BR` is a game language and a setup language, but only the game language page is translated.
-Missing are the 22 texts that the other game languages have:
-
-`LegalQuestion`, `PortableQuestion`, `GameUpdate`, `SetupUpdate`, `UserInstallMode`,
-`MIQP_Title`, `MIQP_Desc`, `MIQP_Content`, `MIQP_Recommended`, `MIQP_Recommended_EE`,
-`MIQP_Recommended_EE_AoC`, `MIQP_Custom`, `MIQP_Repair`, `MIQP_Update`, `MIQP_Telemetry`,
-`GPUIQP_Title`, `GPUIQP_Desc`, `GPUIQP_Content`, `GPUIQP_NVIDIA`, `GPUIQP_AMD`, `GPUIQP_Intel`,
-`GPUIQP_Default`
-
-plus the 60 messages added after 1.7.2 (next section) and the `[Messages]` entries
-`PasswordLabel3` and `IncorrectPassword`.
+Besides the messages added after 1.7.2 it misses the 22 texts that the other game languages have
+(`LegalQuestion`, `PortableQuestion`, `GameUpdate`, `SetupUpdate`, `UserInstallMode`, the `MIQP_*`
+texts of the installation mode page and the `GPUIQP_*` texts of the graphics card page) and the
+`[Messages]` entries `PasswordLabel3` and `IncorrectPassword`.
 
 ### Messages added after setup 1.7.2
 
-These exist in English, German and French only. They are missing in `es`, `it`, `pl`, `ru`, `ko`,
-`zh_CN`, `zh_TW` and `pt_BR`:
-
-- Installation types: `TypeFull`, `TypeCompact`, `TypeCustom`, `TypeRaw`
-- Tasks: `TaskCompatibility`, `TaskCompatibilityWindows`, `TaskFirewall`, `TaskAdminStart`,
-  `TaskCertInclude`, `TaskDirectPlay`, `TaskDxWebSetup`, `TaskNeoEECDKeys` (NeoEE)
-- Components: `CompAdditional`, `CompMovies`, `CompHD`, `CompByAuthor`, `CompDrexmod`,
-  `CompDrexmodV3`, `CompDrexmodV2`, `CompRms`, `CompDxWrapper`, `CompDxWrapperLevel`,
-  `CompTagLightest`, `CompTagMostCompatible`, `CompTagRecommended`, `CompTagExperimental`,
-  `CompTelemetry`, `CompDiscord`, `CompTools`, `CompCivs`, `CompCivsEcStandard`, `CompCivsEcFull`,
-  `CompLanguage`, `CompLanguageUpdate`
-- Graphics card page: `GPUIQP_Native`, `GPUIQP_Wrapper`
-- Status texts: `StatusCertificate`, `StatusDirectPlay`, `StatusFirewallRemove`,
-  `StatusFirewallOpen`, `StatusDxWebSetup`
-- Online localized files: `OnlineFilesUnreachable`, `DownloadIncomplete`, `DownloadFileMissing`,
-  `DownloadFileRejected`
-- Random map scripts: `RmsBackupKept`
-- NeoEE CD keys (NeoEE setups): `CDKeysStatusEE`, `CDKeysStatusEEAoC`, `CDKeysWine`,
-  `CDKeysToolMissing`, `CDKeysPathUnsupported`, `CDKeysErrorVM`, `CDKeysErrorGeneral`,
-  `CDKeysErrorNetwork`, `CDKeysErrorRegistry`, `CDKeysErrorSyntax`, `CDKeysErrorProtection`,
-  `CDKeysErrorUnknown`
-- Other message boxes: `WineNeoEEGuiDisabled` (NeoEE under Wine), `TestSetupWarning` (test builds
-  only, low priority)
+These exist in English, German and French only (`--coverage` lists them by name): installation
+types, task and component descriptions, the DirectX wrapper part of the graphics card page,
+status texts, the reports about online localized files and random map scripts, the NeoEE CD key
+messages (NeoEE setups only) and the Wine notice of NeoEE setups. `TestSetupWarning` is only shown
+by test builds and has low priority.
 
 ### Chinese Traditional (zh_TW)
 
 20 `zh_TW` entries are copies of the Simplified Chinese (`zh_CN`) text, written in simplified
-characters (e.g. 选择, 设置, 安装 instead of 選擇, 設置, 安裝):
-
-`LegalQuestion`, `PortableQuestion`, `GameUpdate`, `SetupUpdate`, `UserInstallMode`,
-`MIQP_Title`, `MIQP_Desc`, `MIQP_Content`, `MIQP_Recommended`, `MIQP_Recommended_EE`,
-`MIQP_Recommended_EE_AoC`, `MIQP_Custom`, `MIQP_Repair`, `GPUIQP_Title`, `GPUIQP_Desc`,
-`GPUIQP_Content`, `GPUIQP_Default`, `GPUIQP_NVIDIA`, `GPUIQP_AMD`, `GPUIQP_Intel`
-
-The brand names (`GPUIQP_NVIDIA`, `GPUIQP_AMD`, `GPUIQP_Intel`) and `GPUIQP_Default` (我不知道)
-are the same in both scripts and only need a check; the others need a Traditional Chinese
-translation. The same applies to the `[Messages]` entries `zh_TW.PasswordLabel3` and
-`zh_TW.IncorrectPassword`. Please do not convert the simplified text character by character:
-vocabulary differs between the two as well.
+characters (e.g. 选择, 设置, 安装 instead of 選擇, 設置, 安裝); `--coverage` lists them. The
+brand names (`GPUIQP_NVIDIA`, `GPUIQP_AMD`, `GPUIQP_Intel`) and `GPUIQP_Default` (我不知道) are the
+same in both scripts and only need a check; the others need a Traditional Chinese translation.
+The same applies to the `[Messages]` entries `zh_TW.PasswordLabel3` and `zh_TW.IncorrectPassword`.
+Please do not convert the simplified text character by character: vocabulary differs between the
+two as well.
 
 ## Review wanted
 

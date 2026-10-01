@@ -24,7 +24,10 @@ Refactoring and quality fixes (no new game content).
 - `ci/make_placeholder_assets.py`: creates placeholder assets for contributors and CI, and lists
   the assets a variant needs (`--list`).
 - `ci/check_messages.py` (also run by the workflow): finds duplicate messages, `==` typos, unknown
-  language prefixes and used but undefined messages in `messages.iss`.
+  language prefixes, used but undefined messages and translations out of the standard order
+  (English, then the languages alphabetically; `--sort` fixes it) in `messages.iss`. `--coverage`
+  lists the missing translations per language and the Traditional Chinese texts that are copies
+  of the Simplified Chinese ones; the workflow prints that report.
 - `.gitattributes` and `.editorconfig` (UTF-8 with BOM and CRLF for the own `.iss` files).
 - This changelog (moved out of the script header) and a "Building" section in the README.
 - SHA-256 list of the online localized files (`data\localized-text.sha256`, build switch
