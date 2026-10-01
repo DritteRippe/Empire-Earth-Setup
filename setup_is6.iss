@@ -360,6 +360,24 @@
   #define NeoEE_AppID ""
 #endif
 
+; Both AppIds are empty in the repository, so every build has to provide them (see AppId notes below).
+; Both are needed in every variant: each setup also checks the uninstall key of the other product.
+; Never build without them: an empty AppId turns "{app}\{#AppID}" into "{app}\" and lets EE and
+; NeoEE share one uninstall key.
+#define IsPlainGuid(str S) Len(S) == 36 && Copy(S, 9, 1) == "-" && Copy(S, 14, 1) == "-" && Copy(S, 19, 1) == "-" && Copy(S, 24, 1) == "-"
+#if EE_AppID == "" || NeoEE_AppID == ""
+  #error EE_AppID and NeoEE_AppID must be set: pass ISCC /DEE_AppID=<GUID> /DNeoEE_AppID=<GUID> or edit their defines (see AppId notes)
+#endif
+#if !IsPlainGuid(EE_AppID)
+  #pragma error "EE_AppID '" + EE_AppID + "' is not a GUID without braces (XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX)"
+#endif
+#if !IsPlainGuid(NeoEE_AppID)
+  #pragma error "NeoEE_AppID '" + NeoEE_AppID + "' is not a GUID without braces (XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX)"
+#endif
+#if EE_AppID == NeoEE_AppID
+  #error EE_AppID and NeoEE_AppID must differ, otherwise EE and NeoEE share one AppId and uninstall key
+#endif
+
 #if InstallType == "EE"
   #define AppID EE_AppID
   #define MyAppVersion "2.0.0.0"
