@@ -1096,36 +1096,41 @@ Filename: "{sys}\dism.exe"; Parameters: "/Online /Enable-Feature /FeatureName:""
 Filename: "{sys}\dism.exe"; Parameters: "/Online /Enable-Feature /FeatureName:""DirectPlay"" /all /NoRestart"; Flags: runhidden; StatusMsg: "Installing DirectPlay"; \
   MinVersion: {#Win8}; Tasks: directplay; Check: not Is64BitInstallMode and IsAdminInstallMode
 
-; FireWall Remover (Copy from [UninstallRun] to remove previous entry in case it was missconfigured)
-Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule program=""{app}\{#EEExe}"" name=all"; Flags: runhidden; \
-  StatusMsg: "Removing {#MyAppName} in Firewall"; Tasks: firewallexception; MinVersion: {#WinVista}; Components: game; Check: IsAdminInstallMode
-Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule program=""{app}\{#AoCExe}"" name=all"; Flags: runhidden; \
-  StatusMsg: "Removing {#MyAppName} : AoC in Firewall"; Tasks: firewallexception; MinVersion: {#WinVista}; Components: gameaoc; Check: IsAdminInstallMode
-
-; FireWall Register
+; Firewall (task firewallexception): the rules of an earlier installation are removed first, in case
+; they were misconfigured (the same entries as in [UninstallRun]), then the rules are added.
 ; Allow rules scoped to the game programs (Empire Earth.exe, EE-AOC.exe): TCP and UDP, in and out,
 ; all local ports, all network profiles. profile=any is the netsh default and written out on
 ; purpose: hosting LAN and online games needs incoming connections on networks Windows classifies
 ; as "Public" too, so the rules are deliberately not limited to private networks. The rules only
 ; apply while the game runs, like the ones the Windows Firewall prompt offers; the task
 ; firewallexception can be unchecked.
-Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""{#MyAppName} - TCP - Out"" program=""{app}\{#EEExe}"" protocol=TCP dir=out action=allow enable=yes profile=any localport=any"; \
-  Flags: runhidden; Tasks: firewallexception;StatusMsg: "Opening Empire Earth in Firewall"; MinVersion: {#WinVista}; Components: game; Check: IsAdminInstallMode
-Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""{#MyAppName} - TCP - In"" program=""{app}\{#EEExe}"" protocol=TCP dir=in action=allow enable=yes profile=any localport=any"; \
-  Flags: runhidden; Tasks: firewallexception; StatusMsg: "Opening Empire Earth in Firewall"; MinVersion: {#WinVista}; Components: game; Check: IsAdminInstallMode
-Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""{#MyAppName} - UDP - Out"" program=""{app}\{#EEExe}"" protocol=UDP dir=out action=allow enable=yes profile=any localport=any"; \
-  Flags: runhidden; Tasks: firewallexception; StatusMsg: "Opening Empire Earth in Firewall"; MinVersion: {#WinVista}; Components: game; Check: IsAdminInstallMode
-Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""{#MyAppName} - UDP - In"" program=""{app}\{#EEExe}"" protocol=UDP dir=in action=allow enable=yes profile=any localport=any"; \
-  Flags: runhidden; Tasks: firewallexception; StatusMsg: "Opening Empire Earth in Firewall"; MinVersion: {#WinVista}; Components: game; Check: IsAdminInstallMode
-
-Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""{#MyAppName} - AoC - TCP - Out"" program=""{app}\{#AoCExe}"" protocol=TCP dir=out action=allow enable=yes profile=any localport=any"; \
-  Flags: runhidden; Tasks: firewallexception; StatusMsg: "Opening Empire Earth : AoC in Firewall"; MinVersion: {#WinVista}; Components: gameaoc; Check: IsAdminInstallMode
-Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""{#MyAppName} - AoC - TCP - In"" program=""{app}\{#AoCExe}"" protocol=TCP dir=in action=allow enable=yes profile=any localport=any"; \
-  Flags: runhidden; Tasks: firewallexception; StatusMsg: "Opening Empire Earth : AoC in Firewall"; MinVersion: {#WinVista}; Components: gameaoc; Check: IsAdminInstallMode
-Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""{#MyAppName} - AoC - UDP - Out"" program=""{app}\{#AoCExe}"" protocol=UDP dir=out action=allow enable=yes profile=any localport=any"; \
-  Flags: runhidden; Tasks: firewallexception; StatusMsg: "Opening Empire Earth : AoC in Firewall"; MinVersion: {#WinVista}; Components: gameaoc; Check: IsAdminInstallMode
-Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""{#MyAppName} - AoC - UDP - In"" program=""{app}\{#AoCExe}"" protocol=UDP dir=in action=allow enable=yes profile=any localport=any"; \
-  Flags: runhidden; Tasks: firewallexception; StatusMsg: "Opening Empire Earth : AoC in Firewall"; MinVersion: {#WinVista}; Components: gameaoc; Check: IsAdminInstallMode
+#sub FirewallDeleteRules
+Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule program=""{app}\{#EEExe}"" name=all"; Flags: runhidden; \
+  StatusMsg: "Removing {#MyAppName} in Firewall"; Tasks: firewallexception; MinVersion: {#WinVista}; Components: game; Check: IsAdminInstallMode
+Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule program=""{app}\{#AoCExe}"" name=all"; Flags: runhidden; \
+  StatusMsg: "Removing {#MyAppName} : AoC in Firewall"; Tasks: firewallexception; MinVersion: {#WinVista}; Components: gameaoc; Check: IsAdminInstallMode
+#endsub
+; The four allow rules (TCP/UDP, out/in) of the program FwExe (below {app}, component FwComp),
+; named "<FwRuleName> - <protocol> - <direction>", with the status text FwStatus
+#define public FwExe ""
+#define public FwComp ""
+#define public FwRuleName ""
+#define public FwStatus ""
+#sub FirewallAllowRules
+Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""{#FwRuleName} - TCP - Out"" program=""{app}\{#FwExe}"" protocol=TCP dir=out action=allow enable=yes profile=any localport=any"; \
+  Flags: runhidden; Tasks: firewallexception; StatusMsg: "{#FwStatus}"; MinVersion: {#WinVista}; Components: {#FwComp}; Check: IsAdminInstallMode
+Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""{#FwRuleName} - TCP - In"" program=""{app}\{#FwExe}"" protocol=TCP dir=in action=allow enable=yes profile=any localport=any"; \
+  Flags: runhidden; Tasks: firewallexception; StatusMsg: "{#FwStatus}"; MinVersion: {#WinVista}; Components: {#FwComp}; Check: IsAdminInstallMode
+Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""{#FwRuleName} - UDP - Out"" program=""{app}\{#FwExe}"" protocol=UDP dir=out action=allow enable=yes profile=any localport=any"; \
+  Flags: runhidden; Tasks: firewallexception; StatusMsg: "{#FwStatus}"; MinVersion: {#WinVista}; Components: {#FwComp}; Check: IsAdminInstallMode
+Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""{#FwRuleName} - UDP - In"" program=""{app}\{#FwExe}"" protocol=UDP dir=in action=allow enable=yes profile=any localport=any"; \
+  Flags: runhidden; Tasks: firewallexception; StatusMsg: "{#FwStatus}"; MinVersion: {#WinVista}; Components: {#FwComp}; Check: IsAdminInstallMode
+#endsub
+#call FirewallDeleteRules
+#expr FwExe = EEExe, FwComp = "game", FwRuleName = MyAppName, FwStatus = "Opening Empire Earth in Firewall"
+#call FirewallAllowRules
+#expr FwExe = AoCExe, FwComp = "gameaoc", FwRuleName = MyAppName + " - AoC", FwStatus = "Opening Empire Earth : AoC in Firewall"
+#call FirewallAllowRules
 
 ; DX9/10/11 End-User Runtime Setup
 Filename: "{tmp}\directx\dxwebsetup.exe"; Parameters: "/Q"; Flags: runhidden; Tasks: dxwebsetup; \
@@ -1142,11 +1147,8 @@ Filename: "{tmp}\directx\dxwebsetup.exe"; Parameters: "/Q"; Flags: runhidden; Ta
 ;Filename: "{sys}\dism.exe"; Parameters: "/Online /Disable-Feature /FeatureName:""DirectPlay"" /NoRestart"; Flags: runhidden; \
 ;  StatusMsg: "Uninstalling DirectPlay"; MinVersion: 0,6.2; Tasks: directplay; Check: not Is64BitInstallMode and IsAdminInstallMode
 
-; FireWall
-Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule program=""{app}\{#EEExe}"" name=all"; Flags: runhidden; \
-  StatusMsg: "Removing {#MyAppName} in Firewall"; Tasks: firewallexception; MinVersion: {#WinVista}; Components: game; Check: IsAdminInstallMode
-Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule program=""{app}\{#AoCExe}"" name=all"; Flags: runhidden; \
-  StatusMsg: "Removing {#MyAppName} : AoC in Firewall"; Tasks: firewallexception; MinVersion: {#WinVista}; Components: gameaoc; Check: IsAdminInstallMode
+; Firewall: the delete rules of [Run]
+#call FirewallDeleteRules
 
 [Code]
 // All requests use HTTPS with validated certificates and never fall back to HTTP: the answers
