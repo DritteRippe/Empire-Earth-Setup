@@ -24,7 +24,8 @@ INNO_CUSTOM_MESSAGES = {
     "AssocingFileExtension", "AutoStartProgramGroupDescription", "AutoStartProgram",
     "AddonHostProgramNotFound",
 }
-OWN_SCRIPTS = ["setup_is6.iss", "utils.iss", "extention.iss", "pages.iss", "downloads.iss", "messages.iss"]
+OWN_SCRIPTS = ["setup_is6.iss", "utils.iss", "extention.iss", "pages.iss", "downloads.iss", "randommaps.iss",
+               "messages.iss"]
 
 
 def read_lines(path):

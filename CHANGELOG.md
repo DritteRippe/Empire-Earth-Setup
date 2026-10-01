@@ -108,6 +108,12 @@ Refactoring and quality fixes (no new game content).
   only once and silently dropped the second target.
 - NeoEE: where a NeoEE version of a localized file exists, only that one is downloaded. If its
   download failed, the EE version downloaded to the same place replaced the NeoEE file.
+- Random map scripts: installing, repairing or updating no longer deletes the whole
+  `Data\Random Map Scripts` folders, which also deleted maps players made or downloaded
+  themselves. Only the maps the previous setup installed are removed; the setup keeps a list of
+  them in its setup data folder. The first update of an installation made by setup 1.7.2 or older
+  (which has no such list) moves the old folder aside once, keeps there only the files this setup
+  does not install again (own maps, maps of older versions) and says where they are.
 
 ### Security
 - Online localized files: TLS certificates are validated (invalid certificates used to be

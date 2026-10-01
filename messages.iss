@@ -160,6 +160,12 @@ DownloadFileRejected=%1 (checksum does not match the one built into this setup, 
 de.DownloadFileRejected=%1 (Prüfsumme stimmt nicht mit der in dieses Setup eingebauten überein, verworfen)
 fr.DownloadFileRejected=%1 (la somme de contrôle ne correspond pas à celle intégrée à ce programme d'installation, rejeté)
 
+; Random Map Scripts of a setup up to v1.7.2 that this setup does not install again (randommaps.iss):
+; %1 = backup folder, %2 = Random Map Scripts folder
+RmsBackupKept=Random map scripts that this setup does not install (your own maps or maps of older versions) were moved to:%n%1%n%nTo play your own maps, copy them back to:%n%2
+de.RmsBackupKept=Zufallskarten-Skripte, die dieses Setup nicht installiert (eigene Karten oder Karten älterer Versionen), wurden verschoben nach:%n%1%n%nUm Ihre eigenen Karten zu spielen, kopieren Sie sie zurück nach:%n%2
+fr.RmsBackupKept=Les scripts de cartes aléatoires que ce programme d'installation n'installe pas (vos propres cartes ou des cartes d'anciennes versions) ont été déplacés vers :%n%1%n%nPour jouer avec vos propres cartes, copiez-les à nouveau dans :%n%2
+
 ; Tasks
 TaskAdminStart=Always run the game as administrator, for all users (not recommended, only if the game does not work otherwise)
 de.TaskAdminStart=Spiel immer als Administrator ausführen, für alle Benutzer (nicht empfohlen, nur falls das Spiel sonst nicht funktioniert)

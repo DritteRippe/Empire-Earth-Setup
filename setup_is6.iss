@@ -1044,6 +1044,7 @@ Root: "HKCU"; Subkey: "{#BaseRegAoC}"; ValueType: string; ValueName: "Installed 
 [InstallDelete]
 ; Supported Component modification : old GOG or Retail | dgVoodoo | dreXmod | Discord | Movies | Reborn | EEStats
 ; Other component are too hard to delete without maybe deleting user files (modding)
+; Random Map Scripts: only the files installed by the previous setup are removed, see randommaps.iss
 Type: files; Name: "{app}\Empire Earth\Empire Earth.exe"
 Type: files; Name: "{app}\Empire Earth\D3D8.dll"
 Type: files; Name: "{app}\Empire Earth\D3D9.dll"
@@ -1059,7 +1060,6 @@ Type: files; Name: "{app}\Empire Earth\Reborn.dll"
 Type: files; Name: "{app}\Empire Earth\EEStats.dll"
 Type: files; Name: "{app}\Empire Earth\EEStats.log"
 Type: filesandordirs; Name: "{app}\Empire Earth\Data\dxm"
-Type: filesandordirs; Name: "{app}\Empire Earth\Data\Random Map Scripts"
 Type: files; Name: "{app}\Empire Earth\dxmdata"
 Type: files; Name: "{app}\Empire Earth\discord_game_sdk.dll"
 Type: files; Name: "{app}\Empire Earth\EEDiscordRichPresence.dll"
@@ -1083,7 +1083,6 @@ Type: files; Name: "{app}\Empire Earth - The Art of Conquest\Reborn.dll"
 Type: files; Name: "{app}\Empire Earth - The Art of Conquest\EEStats.dll"
 Type: files; Name: "{app}\Empire Earth - The Art of Conquest\EEStats.log"
 Type: filesandordirs; Name: "{app}\Empire Earth - The Art of Conquest\Data\dxm"
-Type: filesandordirs; Name: "{app}\Empire Earth - The Art of Conquest\Data\Random Map Scripts"
 Type: files; Name: "{app}\Empire Earth - The Art of Conquest\dxmdata"
 Type: files; Name: "{app}\Empire Earth - The Art of Conquest\discord_game_sdk.dll"
 Type: files; Name: "{app}\Empire Earth - The Art of Conquest\EEDiscordRichPresence.dll"
@@ -1251,6 +1250,7 @@ var
 #include "extention.iss"
 #include "pages.iss"
 #include "downloads.iss"
+#include "randommaps.iss"
 
 function GetCompatibilityFlags(Param: String): String;
 begin
@@ -1870,9 +1870,12 @@ begin
   begin
     // Runs before [Files]: only downloads matching their SHA-256 are moved to {tmp}\verified
     VerifyDownloadedFiles();
+    // Before [Files]: removes the maps the previous setup installed, remembers the player's own
+    PrepareRandomMapScripts();
   end
   else if (CurStep = ssPostInstall) then
   begin
+    FinishRandomMapScripts();
     if (IsAdminInstallMode and not IsWine()) then
     begin
       RemoveLegacyRunAsAdmin(ExpandConstant('{app}\Empire Earth\Empire Earth.exe'));
