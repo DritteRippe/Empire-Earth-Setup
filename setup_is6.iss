@@ -1461,7 +1461,8 @@ begin
   else
     InstallUrlStats := InstallUrlStats + '&os_version=' + UrlEncode(GetWindowsVersionString()) + '&wine=0';
 
-  SendRequest(InstallUrlStats, True);
+  // Synchronous like every request (see HttpGet), the answer does not matter
+  GetHttpStatus(InstallUrlStats);
 end;
 
 #if CertInclude

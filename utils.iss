@@ -62,44 +62,67 @@ begin
 end;
 
 const
-  // WinHTTP timeouts in milliseconds of SendRequest and DownloadString (WinHttpRequest.SetTimeouts:
-  // name resolution, connect, send, receive)
+  // WinHTTP timeouts in milliseconds (WinHttpRequest.SetTimeouts): name resolution of
+  // GetHttpStatus and of DownloadString, then connect, send and receive of both
   RequestResolveTimeoutMs = 6000;
   DownloadResolveTimeoutMs = 8000;
   HttpTimeoutMs = 4000;
+  // Result of HttpGet when no HTTP answer arrived
+  HttpRequestFailed = -1;
 
-// Return HTTP code or -1 if error (-2 if Asynchronous). There is no fallback to HTTP.
-// The query is not logged: telemetry requests carry the anonymous user id there.
-function SendRequest(const URL: String; const Asynchronous: Boolean): Integer;
+// The one HTTP implementation of the setup: a GET request with WinHTTP that returns the HTTP
+// status code, or HttpRequestFailed if no answer arrived (offline, timeout, invalid TLS
+// certificate, ...). Response is the body if ReadBody is set, else ''. HideQuery logs the URL
+// without its query (telemetry requests carry the anonymous user id there).
+// The request is synchronous: Open(..., False) makes Send return only when the answer has arrived
+// or a timeout has expired, so the wizard does not react meanwhile, at worst for
+// ResolveTimeoutMs + 3 * HttpTimeoutMs. It is not made asynchronous on purpose: the request
+// object would have to outlive this function, and the setup statistics are sent when the setup
+// is about to exit, which would cancel the request.
+// There is no fallback to HTTP: the callers decide what to open or install from the answer, so
+// it must come over validated TLS.
+function HttpGet(const URL: String; const ResolveTimeoutMs: Integer; const ReadBody, HideQuery: Boolean; var Response: String): Integer;
 var
   WinHttpRequest: Variant;
   LogURL: String;
 begin
-  Result := -1;
+  Result := HttpRequestFailed;
+  Response := '';
   LogURL := URL;
-  if (Pos('?', LogURL) > 0) then
+  if HideQuery and (Pos('?', LogURL) > 0) then
     LogURL := Copy(LogURL, 1, Pos('?', LogURL)) + '...';
-
-  Log('Sending request: ' + LogURL);
+  Log('HTTP GET ' + LogURL);
 
   try
-    WinHttpRequest := CreateOleObject('WinHttp.WinHttpRequest.5.1'); // 5.0 for < Win2000 SP3 / WinXP SP1 ?
-    WinHttpRequest.SetTimeouts(RequestResolveTimeoutMs, HttpTimeoutMs, HttpTimeoutMs, HttpTimeoutMs);
+    WinHttpRequest := CreateOleObject('WinHttp.WinHttpRequest.5.1');
+    WinHttpRequest.SetTimeouts(ResolveTimeoutMs, HttpTimeoutMs, HttpTimeoutMs, HttpTimeoutMs);
     WinHttpRequest.Open('GET', URL, False);
     WinHttpRequest.Send;
-    if (Asynchronous) then
-    begin
-      Result := -2
-    end else begin
-      WinHttpRequest.WaitForResponse()
-      Result := WinHttpRequest.Status;
-    end;
-    Log('Status: ' + IntToStr(Result));
+    Result := WinHttpRequest.Status;
+    if ReadBody then
+      Response := WinHttpRequest.ResponseText;
+    Log('HTTP GET ' + LogURL + ': status ' + IntToStr(Result) + ', ' + IntToStr(Length(Response)) + ' characters read');
   except
-    Log('Failed request: ' + LogURL);
-    Log(GetExceptionMessage);
-    Result := -1;
+    Log('HTTP GET ' + LogURL + ' failed: ' + GetExceptionMessage);
+    Result := HttpRequestFailed;
+    Response := '';
   end;
+end;
+
+// HTTP status of URL, or HttpRequestFailed (reachability check of the file servers, setup
+// statistics): the answer is not read and the query is not logged. Synchronous, see HttpGet.
+function GetHttpStatus(const URL: String): Integer;
+var
+  Ignored: String;
+begin
+  Result := HttpGet(URL, RequestResolveTimeoutMs, False, True, Ignored);
+end;
+
+// HTTP status of URL, or HttpRequestFailed, and its answer in Response (update API).
+// Synchronous, see HttpGet.
+function DownloadString(const URL: String; var Response: String): Integer;
+begin
+  Result := HttpGet(URL, DownloadResolveTimeoutMs, True, False, Response);
 end;
 
 // Percent-encodes S for a URL query value (RFC 3986): everything except A-Z a-z 0-9 - _ . ~ is
@@ -139,32 +162,6 @@ begin
     else
       Result := Result + Format('%%%.2X%%%.2X%%%.2X%%%.2X', [$F0 or (C shr 18), $80 or ((C shr 12) and $3F), $80 or ((C shr 6) and $3F), $80 or (C and $3F)]);
     I := I + 1;
-  end;
-end;
-
-// Returns the HTTP status code, or -1 if the request failed. There is no fallback to HTTP: the
-// callers decide what to open or install from the answer, so it must come over validated TLS.
-function DownloadString(const URL: string; var Response: string): Integer;
-var
-  WinHttpRequest: Variant;
-begin
-  Result := -1;
-  Log('Downloading string: ' + URL);
-
-  try
-    Response := '';
-    WinHttpRequest := CreateOleObject('WinHttp.WinHttpRequest.5.1'); // 5.0 for < Win2000 SP3 / WinXP SP1 ?
-    WinHttpRequest.SetTimeouts(DownloadResolveTimeoutMs, HttpTimeoutMs, HttpTimeoutMs, HttpTimeoutMs);
-    WinHttpRequest.Open('GET', URL, False);
-    WinHttpRequest.Send;
-    WinHttpRequest.WaitForResponse(); 
-    Result := WinHttpRequest.Status;
-    Response := WinHttpRequest.ResponseText;
-    Log('Downloaded string: ' + URL + ' [Code: ' + IntToStr(Result) + ', Length: ' + IntToStr(Length(Response)) + ']');
-  except
-    Log('Failed to download: ' + URL);
-    Log(GetExceptionMessage);
-    Result := -1;
   end;
 end;
 

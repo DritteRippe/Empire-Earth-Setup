@@ -132,16 +132,17 @@ end;
 // Chooses the server the files are downloaded from (OnlineFilesURL and OnlineFilesMirrorURL,
 // setup_is6.iss): the main server, or the mirror if only the mirror answers (the other one stays
 // registered as IDP mirror). With realistic timeouts, an unreachable main server would otherwise
-// delay every single file. False if neither answers.
+// delay every single file. Any HTTP answer counts (GetHttpStatus, utils.iss). False if neither
+// answers.
 function SelectOnlineFilesServer: Boolean;
 begin
   Result := True;
-  if SendRequest(OnlineFilesURL, False) <> -1 then
+  if GetHttpStatus(OnlineFilesURL) <> HttpRequestFailed then
   begin
     OnlineFilesPrimaryURL := OnlineFilesURL;
     OnlineFilesSecondaryURL := OnlineFilesMirrorURL;
   end
-  else if SendRequest(OnlineFilesMirrorURL, False) <> -1 then
+  else if GetHttpStatus(OnlineFilesMirrorURL) <> HttpRequestFailed then
   begin
     Log('Main online files server unreachable, downloading from the mirror first');
     OnlineFilesPrimaryURL := OnlineFilesMirrorURL;
