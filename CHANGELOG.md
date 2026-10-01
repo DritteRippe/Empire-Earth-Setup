@@ -172,6 +172,11 @@ merged or cleaned up with the same effect (listed below).
   `AoCExe`, `RmsSubDir`), Windows versions of the version filters (`Win7`, `Win8`, ...), one base
   URL per web endpoint (`ApiURL`, `UpdateApiURL`, `TelemetryApiURL`, `OnlineFilesURL`, ...),
   timeouts, window size limits and the result codes of the NeoEE CD key tool.
+- The product-specific values of the EE and the NeoEE setup (AppIds, name, version, publisher,
+  URL, install folder name, registry keys, icons, sign tool, output file name) are in
+  `config_ee.iss` and `config_neoee.iss` instead of `#if InstallType` branches spread over the
+  script; `InstallType` includes one of them. The remaining branches select product content
+  (NeoEE files, tasks and code).
 - `RegisterOnlineFiles` registers EE and AoC from one file list; the download target of a file is
   derived from its server path.
 - `eestats.iss` holds the `EEStatsSetup.dll` imports and the functions the rest of the script

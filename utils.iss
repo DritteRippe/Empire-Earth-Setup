@@ -1,7 +1,7 @@
 ﻿[Code]
 // Base helpers of the [Code] part: string split, uninstall keys of EE and NeoEE, the HTTP requests
 // and URL checks. Included first, before every other [Code] part.
-// Requires: InstallType, EE_AppID, NeoEE_AppID (ISPP, setup_is6.iss).
+// Requires: AppID, OtherAppID (ISPP, product configuration config_*.iss).
 
 // Splits Text at every Separator (Pascal Script of Inno Setup 6.2 has no split function)
 function StrSplit(Text: String; Separator: String): TArrayOfString;
@@ -28,25 +28,13 @@ end;
 // Uninstall key (below HKA) of this product
 function GetUninstallRegPath(): String;
 begin
-#if InstallType == "EE"
-  Result := 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{{#EE_AppID}}_is1';
-#elif InstallType == "NeoEE"
-  Result := 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{{#NeoEE_AppID}}_is1';
-#else
-  #error "Unknown Install Type"
-#endif
+  Result := 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{{#AppID}}_is1';
 end;
 
 // Uninstall key (below HKA) of the other product: NeoEE in EE setups, EE in NeoEE setups
 function GetOtherProductUninstallRegPath(): String;
 begin
-#if InstallType == "EE"
-  Result := 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{{#NeoEE_AppID}}_is1';
-#elif InstallType == "NeoEE"
-  Result := 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{{#EE_AppID}}_is1';
-#else
-  #error "Unknown Install Type"
-#endif
+  Result := 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{{#OtherAppID}}_is1';
 end;
 
 function IsGameInstalled(): Boolean;

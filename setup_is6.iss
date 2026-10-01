@@ -149,16 +149,7 @@
   #endif
 #endif
 
-; Regedit
-#if InstallType == "EE"
-  #define BaseRegEE = "Software\SSSI\Empire Earth"
-  #define BaseRegAoC = "Software\Mad Doc Software\EE-AOC"
-#elif InstallType == "NeoEE"
-  #define BaseRegEE = "Software\Neo\Empire Earth"
-  #define BaseRegAoC = "Software\Neo\Art of Conquest"
-#else
-  #error Unsupported Install Type
-#endif
+; Regedit (the game settings keys BaseRegEE and BaseRegAoC are in the product configuration)
 #define BaseRegCompatibility = "Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers"
 
 ; Windows versions for the MinVersion and OnlyBelowVersion parameters. Inno Setup 6 ignores the
@@ -225,6 +216,11 @@
   #error EE_AppID and NeoEE_AppID must differ, otherwise EE and NeoEE share one AppId and uninstall key
 #endif
 
+; Product configuration: the values that differ between the EE and the NeoEE setup (AppId, name,
+; version, URL, registry keys, icons, sign tool, output file name), see config_ee.iss and
+; config_neoee.iss. InstallType is checked above, so exactly one of them is included.
+#include AddBackslash(SourcePath) + "config_" + LowerCase(InstallType) + ".iss"
+
 ; Hidden folder in {app} for the files the uninstaller needs (EEStatsSetup.dll) and the lists of
 ; randommaps.iss. It has a fixed name per product (InstallType is EE or NeoEE, checked above), so
 ; that no build setting can turn it into {app} itself, and EE and NeoEE installed into the same
@@ -260,26 +256,6 @@
 #dim GameLangLobbyDirs[GameLangCount] {"de", "en", "es", "fr", "it", "ko", "pl", "pt-BR", "ru", "zh", "zh"}
 #define LangIndex 0
 
-#if InstallType == "EE"
-  #define AppID EE_AppID
-  #define MyAppVersion "2.0.0.0"
-  #define MyAppName "Empire Earth"
-  #define MyAppPublisher "Empire Earth Community"
-  #define MyAppURL "https://empireearth.eu/"
-  #define MyInstallDirName "Empire Earth"
-  #define MySetupPassword "ee"
-#elif InstallType == "NeoEE"
-  #define AppID NeoEE_AppID
-  #define MyAppVersion "2.0.0.5"
-  #define MyAppName "NeoEE"
-  #define MyAppPublisher "Empire Earth Community & NeoEE"
-  #define MyAppURL "https://www.neoee.net/"
-  #define MyInstallDirName "Neo Empire Earth"
-  #define MySetupPassword "neo"
-#else
-  #error Unsupported Install Type
-#endif
-
 ; AppId: Tools > Generate GUID
 ; Be very careful with AppId, it's like the unique id of the setup, be sure to generate it with inno setup
 ; the first time you distribute your setup and to keep it forever for the setup !
@@ -288,18 +264,10 @@
 [Setup]
 ; SignTool: We need to use InnoSetup SignTool feature to sign install/uninstall etc...
 AppId={{{#AppID}}
-#if InstallType == "EE"
-  SetupIconFile=data\Empire Earth Base\Empire Earth\game.ico
-  WizardSmallImageFile=internal\media\WizardSmallImageFileEE.bmp
-  #if SignSetup
-    SignTool=NameInInnoSetupEE $f
-  #endif
-#elif InstallType == "NeoEE"
-  SetupIconFile=data\NeoEE Base\shared\neoee.ico
-  WizardSmallImageFile=internal\media\WizardSmallImageFileNeo.bmp
-  #if SignSetup
-    SignTool=NameInInnoSetupNeo $f
-  #endif
+SetupIconFile={#MySetupIconFile}
+WizardSmallImageFile={#MyWizardSmallImageFile}
+#if SignSetup
+  SignTool={#MySignTool} $f
 #endif
 SetupMutex={#InstallType}_Setup
 AppMutex=StainlessSteelStudiosPresentsEmpireEarth,MadDocSoftwarePresentsEmpireEarthExpansion
@@ -316,8 +284,8 @@ AppUpdatesURL={#MyAppURL}
 DefaultGroupName={#MyAppGroupName}
 AllowNoIcons=yes
 LicenseFile=data\Empire Earth Base\Empire Earth\EULA_DSML.txt
-#if InstallType == "NeoEE"
-  InfoBeforeFile=data\NeoEE Base\shared\neoee_rules.rtf
+#if MyInfoBeforeFile != ""
+  InfoBeforeFile={#MyInfoBeforeFile}
 #endif
 InfoAfterFile=data\Empire Earth Base\Empire Earth\help.rtf
 OutputDir=out
@@ -383,22 +351,14 @@ ArchitecturesInstallIn64BitMode=x64 arm64 ia64
   CreateUninstallRegKey=yes
   PrivilegesRequired=admin
   DefaultDirName={autopf32}\{#MyInstallDirName}
-  #if InstallType == "EE"
-    OutputBaseFilename={#InstallType}_Setup_v{#MySetupVersion}
-  #elif InstallType == "NeoEE"
-    OutputBaseFilename={#InstallType}_v{#MyAppVersion}_Setup_v{#MySetupVersion}
-  #endif
+  OutputBaseFilename={#InstallType}{#MyOutputVersionPart}_Setup_v{#MySetupVersion}
 #elif InstallMode == "Portable"
   UsePreviousAppDir=no
   Uninstallable=no
   CreateUninstallRegKey=no
   PrivilegesRequired=lowest
   DefaultDirName={src}\{#MyInstallDirName} Portable
-  #if InstallType == "EE"
-    OutputBaseFilename={#InstallType}_Portable_Setup_v{#MySetupVersion}
-  #elif InstallType == "NeoEE"
-    OutputBaseFilename={#InstallType}_Portable_v{#MyAppVersion}_Setup_v{#MySetupVersion}
-  #endif
+  OutputBaseFilename={#InstallType}_Portable{#MyOutputVersionPart}_Setup_v{#MySetupVersion}
 #else
   #error Unsupported Install Mode
 #endif
@@ -407,8 +367,10 @@ ArchitecturesInstallIn64BitMode=x64 arm64 ia64
 ; The own .iss files are parts of this script, not independent units: they use the defines above
 ; and each other, and Pascal Script only knows what is declared before it is used. So the order
 ; of the includes here and in [Code] matters. Every own file lists what it requires in its header.
-;   utils.iss       [Code] base helpers: uninstall keys, HTTP requests, URLs (needs InstallType,
-;                   EE_AppID, NeoEE_AppID; first, every other [Code] part may use it)
+;   config_ee.iss / config_neoee.iss  product configuration, included further up after the
+;                   AppId checks (needs EE_AppID, NeoEE_AppID)
+;   utils.iss       [Code] base helpers: uninstall keys, HTTP requests, URLs (needs AppID,
+;                   OtherAppID; first, every other [Code] part may use it)
 ;   messages.iss    [CustomMessages] and [Messages] (needs InstallType, MyAppVersion,
 ;                   MySetupVersion, MySetupPassword)
 ;   idp.iss, bass.iss  third-party: download plugin and setup music (needs BassLoopSound)
