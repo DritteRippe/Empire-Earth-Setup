@@ -874,8 +874,10 @@ Name: "{app}\{#SetupDataDir}"; Attribs: hidden
 
 [Registry]
 ; Compatibility
-;   WIN7RTM    DWM8And16BitMitigation    for Windows 8+
-;   WINXPSP3   DWM8And16BitMitigation    for Windows 7+
+;   WIN7RTM    DWM8And16BitMitigation    for Windows 8+ (MinVersion: 0.0,6.2)
+;   WINXPSP3   DWM8And16BitMitigation    for Windows Vista/7 (OnlyBelowVersion: 0.0,6.2)
+; Version filters: in "0.0,6.2" Inno Setup 6 ignores the part before the comma, so it means
+; Windows NT 6.2 (= Windows 8). A value without comma like "0.6.2" would mean version 0.6 build 2.
 ;   WIN98               -                for Windows >2000
 ; Help
 ;   HeapClearAllocation: Clear memory on program crash
@@ -903,12 +905,12 @@ Root: "HKCU"; Subkey: "Software\Microsoft\DirectX\UserGpuPreferences"; ValueType
 ; Admin + Windows compatibility
 ; Windows >=8
 Root: "HKLM"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\Empire Earth\Empire Earth.exe"; ValueData: "{code:GetCompatibilityFlags} WIN7RTM"; \
-  Flags: uninsdeletevalue; Check: IsAdminInstallMode; MinVersion: 0.0,10; Tasks: compatibility_windows; Components: game
+  Flags: uninsdeletevalue; Check: IsAdminInstallMode; MinVersion: 0.0,6.2; Tasks: compatibility_windows; Components: game
 Root: "HKLM"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\Empire Earth - The Art of Conquest\EE-AOC.exe"; ValueData: "{code:GetCompatibilityFlags} WIN7RTM"; \
-  Flags: uninsdeletevalue; Check: IsAdminInstallMode; MinVersion: 0.0,10; Tasks: compatibility_windows; Components: gameaoc
+  Flags: uninsdeletevalue; Check: IsAdminInstallMode; MinVersion: 0.0,6.2; Tasks: compatibility_windows; Components: gameaoc
 ; Windows >=Vista & <= 7
 Root: "HKLM"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\Empire Earth\Empire Earth.exe"; ValueData: "{code:GetCompatibilityFlags} WINXPSP3"; \
-  Flags: uninsdeletevalue; Check: IsAdminInstallMode; MinVersion: 0.0,6.0; OnlyBelowVersion: 0.6.2; Tasks: compatibility_windows; Components: game
+  Flags: uninsdeletevalue; Check: IsAdminInstallMode; MinVersion: 0.0,6.0; OnlyBelowVersion: 0.0,6.2; Tasks: compatibility_windows; Components: game
 Root: "HKLM"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\Empire Earth - The Art of Conquest\EE-AOC.exe"; ValueData: "{code:GetCompatibilityFlags} WINXPSP3"; \
   Flags: uninsdeletevalue; Check: IsAdminInstallMode; MinVersion: 0.0,6.0; OnlyBelowVersion: 0.0,6.2; Tasks: compatibility_windows; Components: gameaoc
 ; Windows >=2000 & <=XP
@@ -920,12 +922,12 @@ Root: "HKLM"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "
 ; Admin - Windows compatibility
 ; Windows >=8
 Root: "HKLM"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\Empire Earth\Empire Earth.exe"; ValueData: "{code:GetCompatibilityFlags}"; \
-  Flags: uninsdeletevalue; Check: IsAdminInstallMode; MinVersion: 0.0,10; Tasks: not compatibility_windows and compatibility; Components: game
+  Flags: uninsdeletevalue; Check: IsAdminInstallMode; MinVersion: 0.0,6.2; Tasks: not compatibility_windows and compatibility; Components: game
 Root: "HKLM"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\Empire Earth - The Art of Conquest\EE-AOC.exe"; ValueData: "{code:GetCompatibilityFlags}"; \
-  Flags: uninsdeletevalue; Check: IsAdminInstallMode; MinVersion: 0.0,10; Tasks: not compatibility_windows and compatibility; Components: gameaoc
+  Flags: uninsdeletevalue; Check: IsAdminInstallMode; MinVersion: 0.0,6.2; Tasks: not compatibility_windows and compatibility; Components: gameaoc
 ; Windows >=Vista & <= 7
 Root: "HKLM"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\Empire Earth\Empire Earth.exe"; ValueData: "{code:GetCompatibilityFlags}"; \
-  Flags: uninsdeletevalue; Check: IsAdminInstallMode; MinVersion: 0.0,6.0; OnlyBelowVersion: 0.6.2; Tasks: not compatibility_windows and compatibility; Components: game
+  Flags: uninsdeletevalue; Check: IsAdminInstallMode; MinVersion: 0.0,6.0; OnlyBelowVersion: 0.0,6.2; Tasks: not compatibility_windows and compatibility; Components: game
 Root: "HKLM"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\Empire Earth - The Art of Conquest\EE-AOC.exe"; ValueData: "{code:GetCompatibilityFlags}"; \
   Flags: uninsdeletevalue; Check: IsAdminInstallMode; MinVersion: 0.0,6.0; OnlyBelowVersion: 0.0,6.2; Tasks: not compatibility_windows and compatibility; Components: gameaoc
 ; Windows >=2000 & <=XP
@@ -947,12 +949,12 @@ Root: "HKLM"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "
 ; User + Windows compatibility
 ; Windows >=8
 Root: "HKCU"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\Empire Earth\Empire Earth.exe"; ValueData: "{code:GetCompatibilityFlags} WIN7RTM"; \
-  Flags: uninsdeletevalue; Check: not IsAdminInstallMode; MinVersion: 0.0,10; Tasks: compatibility_windows and compatibility; Components: game
+  Flags: uninsdeletevalue; Check: not IsAdminInstallMode; MinVersion: 0.0,6.2; Tasks: compatibility_windows and compatibility; Components: game
 Root: "HKCU"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\Empire Earth - The Art of Conquest\EE-AOC.exe"; ValueData: "{code:GetCompatibilityFlags} WIN7RTM"; \
-  Flags: uninsdeletevalue; Check: not IsAdminInstallMode; MinVersion: 0.0,10; Tasks: compatibility_windows and compatibility; Components: gameaoc
+  Flags: uninsdeletevalue; Check: not IsAdminInstallMode; MinVersion: 0.0,6.2; Tasks: compatibility_windows and compatibility; Components: gameaoc
 ; Windows >=Vista & <= 7
 Root: "HKCU"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\Empire Earth\Empire Earth.exe"; ValueData: "{code:GetCompatibilityFlags} WINXPSP3"; \
-  Flags: uninsdeletevalue; Check: not IsAdminInstallMode; MinVersion: 0.0,6.0; OnlyBelowVersion: 0.6.2; Tasks: compatibility_windows and compatibility; Components: game
+  Flags: uninsdeletevalue; Check: not IsAdminInstallMode; MinVersion: 0.0,6.0; OnlyBelowVersion: 0.0,6.2; Tasks: compatibility_windows and compatibility; Components: game
 Root: "HKCU"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\Empire Earth - The Art of Conquest\EE-AOC.exe"; ValueData: "{code:GetCompatibilityFlags} WINXPSP3"; \
   Flags: uninsdeletevalue; Check: not IsAdminInstallMode; MinVersion: 0.0,6.0; OnlyBelowVersion: 0.0,6.2; Tasks: compatibility_windows and compatibility; Components: gameaoc
 ; Windows >=2000 & <=XP
@@ -964,12 +966,12 @@ Root: "HKCU"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "
 ; User - Windows compatibility
 ; Windows >=8
 Root: "HKCU"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\Empire Earth\Empire Earth.exe"; ValueData: "{code:GetCompatibilityFlags}"; \
-  Flags: uninsdeletevalue; Check: not IsAdminInstallMode; MinVersion: 0.0,10; Tasks: not compatibility_windows and compatibility; Components: game
+  Flags: uninsdeletevalue; Check: not IsAdminInstallMode; MinVersion: 0.0,6.2; Tasks: not compatibility_windows and compatibility; Components: game
 Root: "HKCU"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\Empire Earth - The Art of Conquest\EE-AOC.exe"; ValueData: "{code:GetCompatibilityFlags}"; \
-  Flags: uninsdeletevalue; Check: not IsAdminInstallMode; MinVersion: 0.0,10; Tasks: not compatibility_windows and compatibility; Components: gameaoc
+  Flags: uninsdeletevalue; Check: not IsAdminInstallMode; MinVersion: 0.0,6.2; Tasks: not compatibility_windows and compatibility; Components: gameaoc
 ; Windows >=Vista & <= 7
 Root: "HKCU"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\Empire Earth\Empire Earth.exe"; ValueData: "{code:GetCompatibilityFlags}"; \
-  Flags: uninsdeletevalue; Check: not IsAdminInstallMode; MinVersion: 0.0,6.0; OnlyBelowVersion: 0.6.2; Tasks: not compatibility_windows and compatibility; Components: game
+  Flags: uninsdeletevalue; Check: not IsAdminInstallMode; MinVersion: 0.0,6.0; OnlyBelowVersion: 0.0,6.2; Tasks: not compatibility_windows and compatibility; Components: game
 Root: "HKCU"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\Empire Earth - The Art of Conquest\EE-AOC.exe"; ValueData: "{code:GetCompatibilityFlags}"; \
   Flags: uninsdeletevalue; Check: not IsAdminInstallMode; MinVersion: 0.0,6.0; OnlyBelowVersion: 0.0,6.2; Tasks: not compatibility_windows and compatibility; Components: gameaoc
 ; Windows >=2000 & <=XP

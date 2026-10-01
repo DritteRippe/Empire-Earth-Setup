@@ -76,6 +76,10 @@ Refactoring and quality fixes (no new game content).
 - NeoEE under Wine: the Wine configuration for AoC (`NeoEE.cfg`) is only installed with AoC.
 - Installing without AoC no longer creates AoC registry values (VSync, window size), which also
   stayed behind after uninstalling.
+- Compatibility options: Windows 8 and 8.1 get the compatibility entries of Windows 8+ (the
+  entries required Windows 10, so 8 and 8.1 got none), and Empire Earth gets the Windows 7
+  entries on Windows 7 (a wrong version filter, `0.6.2` instead of `0.0,6.2`, had only let them
+  apply to AoC).
 
 ### Security
 - Online localized files: TLS certificates are validated (invalid certificates used to be
