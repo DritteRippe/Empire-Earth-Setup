@@ -105,4 +105,4 @@ creates a small placeholder file for every missing asset (existing files are nev
 The own `.iss` files are UTF-8 **with BOM** and CRLF (see `.editorconfig` and `.gitattributes`): Inno Setup 6.2 reads files without BOM as ANSI and would break non-ASCII text. Release notes go into [CHANGELOG.md](CHANGELOG.md). After changing `messages.iss`, run `python ci/check_messages.py`: it reports duplicate messages, `==` typos, unknown language prefixes and messages that are used but not defined, which Inno Setup compiles without a warning.
 
 ## License
-Consider setup_is6.iss, utils.iss, pages.iss, messages.iss, extention.iss, downloads.iss, randommaps.iss, eestats.iss under **GPL-3.0 License**.
+Consider setup_is6.iss, utils.iss, pages.iss, messages.iss, extension.iss, downloads.iss, randommaps.iss, eestats.iss under **GPL-3.0 License**.

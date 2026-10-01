@@ -25,7 +25,7 @@ INNO_CUSTOM_MESSAGES = {
     "AssocingFileExtension", "AutoStartProgramGroupDescription", "AutoStartProgram",
     "AddonHostProgramNotFound",
 }
-OWN_SCRIPTS = ["setup_is6.iss", "utils.iss", "extention.iss", "pages.iss", "downloads.iss", "randommaps.iss",
+OWN_SCRIPTS = ["setup_is6.iss", "utils.iss", "extension.iss", "pages.iss", "downloads.iss", "randommaps.iss",
                "eestats.iss", "messages.iss"]
 
 

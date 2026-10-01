@@ -1,6 +1,6 @@
 ﻿[Code]
-// Inno Setup Extention Code
-// Because I needed more Wizard related functions
+// Wizard helpers that Inno Setup does not provide: command line switches, the tasks and
+// components of the previous installation, setup update detection and the Windows version.
 
 function WizardContainsParam(Param: String): Boolean;
 var

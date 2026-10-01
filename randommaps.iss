@@ -16,7 +16,7 @@
 // versions); the player is told where they are. Without list and old folder (new installation,
 // reinstallation after uninstalling) all files already in the folder count as the player's.
 // Uses: SetupDataDir, AppID, EEDir, AoCDir, RmsSubDir (setup_is6.iss), SilentInstall,
-// SuppressMsgBoxes (extention.iss).
+// SuppressMsgBoxes (extension.iss).
 
 type
   TRmsFolder = record

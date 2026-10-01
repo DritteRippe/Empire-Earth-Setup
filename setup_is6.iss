@@ -1137,7 +1137,7 @@ var
   IsInstalled: Boolean;
   ServersReacheable: Boolean;
 
-#include "extention.iss"
+#include "extension.iss"
 #include "pages.iss"
 #include "downloads.iss"
 #include "randommaps.iss"
