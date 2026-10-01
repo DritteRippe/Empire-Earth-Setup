@@ -1129,9 +1129,6 @@ const
     external 'GetSystemMetrics@user32.dll stdcall';
 
 var
-  LanguageInstallQuestionPage: TInputOptionWizardPage;
-  ManualInstallQuestionPage: TInputOptionWizardPage;
-  GPUInstallQuestionPage: TInputOptionWizardPage;
   Langs: TStringList;
   IsUpdate: Boolean;
   IsInstalled: Boolean;
@@ -1528,14 +1525,12 @@ end;
 function ShouldSkipPage(PageID: Integer): Boolean;
 begin
   Result := False;
-  // If components or taks page and recommanded install type -> don't show those page
-  if ((PageID = wpSelectComponents) or (PageID = wpSelectTasks)) and (ManualInstallQuestionPage.Values[3] = False) then
-  begin
+  // Components and tasks pages only with custom settings, the GPU page only with the
+  // recommended settings (and not under Wine)
+  if ((PageID = wpSelectComponents) or (PageID = wpSelectTasks)) and not ManualInstallQuestionPage.Values[MiqpCustom] then
+    Result := True
+  else if (PageID = GPUInstallQuestionPage.ID) and (not ManualInstallQuestionPage.Values[MiqpRecommended] or IsWine()) then
     Result := True;
-  end else if (PageID = GPUInstallQuestionPage.ID) and ((ManualInstallQuestionPage.Values[0] = False) or IsWine()) then
-  begin
-    Result := True;
-  end
 end;
 
 #if InstallType == "NeoEE"
@@ -1806,20 +1801,20 @@ var
 begin
   if (not SilentInstall and (CurPageID = ManualInstallQuestionPage.ID)) then
   begin
-    // Game Selection
-    if (ManualInstallQuestionPage.Values[0]) then
+    // Game selection
+    if (ManualInstallQuestionPage.Values[MiqpRecommended]) then
     begin
-      if (ManualInstallQuestionPage.Values[1]) then
+      if (ManualInstallQuestionPage.Values[MiqpRecommendedEE]) then
       begin
         WizardSelectComponents('game');
         WizardSelectComponents('!gameaoc');
-      end else if (ManualInstallQuestionPage.Values[2]) then
+      end else if (ManualInstallQuestionPage.Values[MiqpRecommendedEEAoC]) then
       begin
         WizardSelectComponents('game');
         WizardSelectComponents('gameaoc');
       end;
     end
-    else if (IsGameInstalled() and not ManualInstallQuestionPage.Values[0]) then
+    else if (IsGameInstalled()) then
     begin
       // For some reasons WizardSelectComponents (on top) will badly unselect the component
       // This make any component(/task?) unselected by code automatically re-selected on reinstall...
@@ -1829,61 +1824,15 @@ begin
         WizardSelectComponents('!gameaoc');
     end;
 
-    // Telelmetry Selection
-    if (IsGameInstalled()) then
-    begin
-      if (ManualInstallQuestionPage.Values[5]) then
-      begin
-        WizardSelectComponents('additional\telemetry');
-      end
-      else begin
-        WizardSelectComponents('!additional\telemetry');
-      end
-    end else if (not IsGameInstalled()) then
-    begin
-      if (ManualInstallQuestionPage.Values[4]) then
-      begin
-        WizardSelectComponents('additional\telemetry');
-      end
-      else begin
-        WizardSelectComponents('!additional\telemetry');
-      end
-    end
+    // Telemetry consent
+    if (ManualInstallQuestionPage.Values[MiqpTelemetry]) then
+      WizardSelectComponents('additional\telemetry')
+    else
+      WizardSelectComponents('!additional\telemetry');
   end;
 
   if (CurPageID = GPUInstallQuestionPage.ID) then
-  begin
-    if (GPUInstallQuestionPage.Values[0]) then          // NVIDIA
-    begin
-      Log('Using NVIDIA GPU settings');
-      WizardSelectComponents('additional\directx_wrapper\dx11_lvl11');
-    end
-    else if (GPUInstallQuestionPage.Values[1]) then     // AMD
-    begin
-      Log('Using AMD GPU settings');
-      if (IsWindows10OrNewer) then
-        WizardSelectComponents('additional\directx_wrapper\dx11_lvl11')
-      else
-        WizardSelectComponents('additional\directx_wrapper\dx11_lvl10_1');
-    end
-    else if (GPUInstallQuestionPage.Values[2]) then     // Intel Sh$t
-    begin
-      Log('Using Intel GPU settings');
-      // https://www.intel.com/content/www/us/en/support/articles/000005524/graphics.html
-      // We could eventually use lvl 11, but Intel HD Graphics 2000/3000 don't support it 
-      WizardSelectComponents('additional\directx_wrapper\dx11_lvl10_1');
-    end
-    else if (GPUInstallQuestionPage.Values[3]) then     // Idk
-    begin
-      Log('Using general GPU settings');
-      WizardSelectComponents('additional\directx_wrapper\dx9');
-    end
-    else if (GPUInstallQuestionPage.Values[4]) then     // Native
-    begin
-      Log('Using general Native');
-      WizardSelectComponents('!additional\directx_wrapper');
-    end;
-  end;
+    ApplyGpuOption();
 
   if (CurPageID = LanguageInstallQuestionPage.ID) then
   begin
@@ -1903,7 +1852,7 @@ begin
 #if InstallMode == "Regular"
     // Portable installations have no uninstall key (CreateUninstallRegKey=no): writing the value
     // there would create one that is never removed
-    if (ManualInstallQuestionPage.Values[0]) then
+    if (ManualInstallQuestionPage.Values[MiqpRecommended]) then
     begin
       // We need to force register the install type as custom
       // because we edited ourselves the components list

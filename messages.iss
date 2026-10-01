@@ -424,6 +424,9 @@ zh_CN.GPUIQP_Default=我不知道
 zh_TW.GPUIQP_Default=我不知道
 ko.GPUIQP_Default=몰라요 
 
+; Option without DirectX wrapper
+GPUIQP_Native=Native
+
 // Language install page
 LIQP_Title=Select the game language to install
 de.LIQP_Title=Wählen Sie die Sprache des Spiels aus, die Sie installieren möchten
