@@ -28,6 +28,13 @@ Refactoring and quality fixes (no new game content).
 ### Changed
 - The hidden setup data folder (holds `EEStatsSetup.dll` for the uninstaller) is now
   `{app}\_setupdata` instead of `{app}\<AppId>`; updates remove the old folder.
+- Running the game as administrator is opt-in: administrative installs no longer set
+  `RUNASADMIN` for the installing account by default, and updates remove that old per-user value
+  (only if it is exactly the old default). The unchecked task "Always run the game as
+  administrator, for all users" sets it for all users (HKLM) and now also works without the
+  compatibility tasks. With it, the setup no longer gives all users write access to `Data`,
+  `Users` and the config files, which an elevated game would read. Per-user values (GPU
+  preference, game defaults) still go to the account that ran the setup; the script documents why.
 
 ### Fixed
 - The build refuses empty, malformed or identical AppIds. An empty AppId used to compile, turned

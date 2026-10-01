@@ -150,6 +150,11 @@ DownloadVerificationFailed=%1 downloaded file(s) discarded because the checksum 
 de.DownloadVerificationFailed=%1 heruntergeladene Datei(en) verworfen, weil die Prüfsumme nicht mit der in dieses Setup eingebauten übereinstimmt:%2%n%nDas Setup verwendet stattdessen seine eigenen Dateien, daher sind einige Inhalte möglicherweise nicht übersetzt.
 fr.DownloadVerificationFailed=%1 fichier(s) téléchargé(s) rejeté(s), car leur somme de contrôle ne correspond pas à celle intégrée à ce programme d'installation :%2%n%nL'installation utilise ses propres fichiers à la place, certains contenus pourraient donc ne pas être traduits.
 
+; Tasks
+TaskAdminStart=Always run the game as administrator, for all users (not recommended, only if the game does not work otherwise)
+de.TaskAdminStart=Spiel immer als Administrator ausführen, für alle Benutzer (nicht empfohlen, nur falls das Spiel sonst nicht funktioniert)
+fr.TaskAdminStart=Toujours lancer le jeu en tant qu'administrateur, pour tous les utilisateurs (déconseillé, uniquement si le jeu ne fonctionne pas autrement)
+
 ; Sound Control
 ; Since our custom button isn't auto scaled to content
 ; better keep Mute / Unmute, tiny and everyone should understand 

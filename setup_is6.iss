@@ -394,7 +394,9 @@ Name: "dxwebsetup"; Description: "Install DirectX End-User Runtime"; MinVersion:
   Name: "certinclude"; Description: "Install Empire Earth Community Certificate (Check only if you trust us!)"; MinVersion: 0.0,6.0; Flags: unchecked; Check: not IsAdminInstallMode and not IsWine
 #endif
 
-Name: "everyoneadminstart"; Description: "Require administrator rights for all users to run the game"; MinVersion: 0.0,5.1; Flags: unchecked; Check: IsAdminInstallMode and not IsWine
+; Opt-in: the game (online lobby, maps and scenarios from other players) should not run elevated.
+; Selected, it sets RUNASADMIN for all users (HKLM) and skips the write permissions below.
+Name: "everyoneadminstart"; Description: "{cm:TaskAdminStart}"; MinVersion: 0.0,5.1; Flags: unchecked; Check: IsAdminInstallMode and not IsWine
 
 #if InstallMode != "Portable"
   Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
@@ -816,15 +818,21 @@ Source: "data\Add-on\DLLs\Discord\*"; DestDir: "{app}\Empire Earth - The Art of 
 ; -------------------
 ;  Allow config edit, move the files to the exact same dir but with good perm :>
 ; -------------------
-Source: "{app}\Empire Earth\*.cfg"; DestDir: "{app}\Empire Earth"; Permissions: authusers-modify; Flags: ignoreversion recursesubdirs createallsubdirs external; Components: game; Check: not IsWine and IsAdminInstallMode
-Source: "{app}\Empire Earth\*.config"; DestDir: "{app}\Empire Earth"; Permissions: authusers-modify; Flags: ignoreversion recursesubdirs createallsubdirs external; Components: game; Check: not IsWine and IsAdminInstallMode
-Source: "{app}\Empire Earth\*.conf"; DestDir: "{app}\Empire Earth"; Permissions: authusers-modify; Flags: ignoreversion recursesubdirs createallsubdirs external; Components: game; Check: not IsWine and IsAdminInstallMode
-Source: "{app}\Empire Earth\*.ini"; DestDir: "{app}\Empire Earth"; Permissions: authusers-modify; Flags: ignoreversion recursesubdirs createallsubdirs external; Components: game; Check: not IsWine and IsAdminInstallMode
+; The game runs unelevated and writes its configs (and Data, Users, see [Dirs]) inside {app}, so
+; all authenticated users get modify rights there. Trade-off: on a shared PC every user can change
+; these files for everyone, but only at the privilege level of the game itself (no admin rights).
+; With the opt-in task everyoneadminstart the game runs elevated, needs no write permissions and
+; must not read files that standard users can change: then nothing is granted. Never grant write
+; access to code (exe/dll). Permissions granted by an earlier installation are not revoked.
+Source: "{app}\Empire Earth\*.cfg"; DestDir: "{app}\Empire Earth"; Permissions: authusers-modify; Flags: ignoreversion recursesubdirs createallsubdirs external; Components: game; Tasks: not everyoneadminstart; Check: not IsWine and IsAdminInstallMode
+Source: "{app}\Empire Earth\*.config"; DestDir: "{app}\Empire Earth"; Permissions: authusers-modify; Flags: ignoreversion recursesubdirs createallsubdirs external; Components: game; Tasks: not everyoneadminstart; Check: not IsWine and IsAdminInstallMode
+Source: "{app}\Empire Earth\*.conf"; DestDir: "{app}\Empire Earth"; Permissions: authusers-modify; Flags: ignoreversion recursesubdirs createallsubdirs external; Components: game; Tasks: not everyoneadminstart; Check: not IsWine and IsAdminInstallMode
+Source: "{app}\Empire Earth\*.ini"; DestDir: "{app}\Empire Earth"; Permissions: authusers-modify; Flags: ignoreversion recursesubdirs createallsubdirs external; Components: game; Tasks: not everyoneadminstart; Check: not IsWine and IsAdminInstallMode
 ; ----------------
-Source: "{app}\Empire Earth - The Art of Conquest\*.cfg"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Permissions: authusers-modify; Flags: ignoreversion recursesubdirs createallsubdirs external; Components: gameaoc; Check: not IsWine and IsAdminInstallMode
-Source: "{app}\Empire Earth - The Art of Conquest\*.config"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Permissions: authusers-modify; Flags: ignoreversion recursesubdirs createallsubdirs external; Components: gameaoc; Check: not IsWine and IsAdminInstallMode
-Source: "{app}\Empire Earth - The Art of Conquest\*.conf"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Permissions: authusers-modify; Flags: ignoreversion recursesubdirs createallsubdirs external; Components: gameaoc; Check: not IsWine and IsAdminInstallMode
-Source: "{app}\Empire Earth - The Art of Conquest\*.ini"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Permissions: authusers-modify; Flags: ignoreversion recursesubdirs createallsubdirs external; Components: gameaoc; Check: not IsWine and IsAdminInstallMode
+Source: "{app}\Empire Earth - The Art of Conquest\*.cfg"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Permissions: authusers-modify; Flags: ignoreversion recursesubdirs createallsubdirs external; Components: gameaoc; Tasks: not everyoneadminstart; Check: not IsWine and IsAdminInstallMode
+Source: "{app}\Empire Earth - The Art of Conquest\*.config"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Permissions: authusers-modify; Flags: ignoreversion recursesubdirs createallsubdirs external; Components: gameaoc; Tasks: not everyoneadminstart; Check: not IsWine and IsAdminInstallMode
+Source: "{app}\Empire Earth - The Art of Conquest\*.conf"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Permissions: authusers-modify; Flags: ignoreversion recursesubdirs createallsubdirs external; Components: gameaoc; Tasks: not everyoneadminstart; Check: not IsWine and IsAdminInstallMode
+Source: "{app}\Empire Earth - The Art of Conquest\*.ini"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Permissions: authusers-modify; Flags: ignoreversion recursesubdirs createallsubdirs external; Components: gameaoc; Tasks: not everyoneadminstart; Check: not IsWine and IsAdminInstallMode
 
 ; ---------------------
 ;         Tools
@@ -833,13 +841,13 @@ Source: "data\Add-on\Tools\Diagnostic\*"; DestDir: "{app}\Tools\Diagnostic"; Fla
 
 [Dirs]
 ; ---------------------
-;  Allow Data/Civ edit
+;  Allow Data/Civ edit (see the permission notes in [Files])
 ; ---------------------
-Name: "{app}\Empire Earth\Data"; Permissions: authusers-modify; Components: game; Check: not IsWine and IsAdminInstallMode
-Name: "{app}\Empire Earth\Users"; Permissions: authusers-modify; Components: game; Check: not IsWine and IsAdminInstallMode
+Name: "{app}\Empire Earth\Data"; Permissions: authusers-modify; Components: game; Tasks: not everyoneadminstart; Check: not IsWine and IsAdminInstallMode
+Name: "{app}\Empire Earth\Users"; Permissions: authusers-modify; Components: game; Tasks: not everyoneadminstart; Check: not IsWine and IsAdminInstallMode
 ; ----------------
-Name: "{app}\Empire Earth - The Art of Conquest\Data"; Permissions: authusers-modify; Components: gameaoc; Check: not IsWine and IsAdminInstallMode
-Name: "{app}\Empire Earth - The Art of Conquest\Users"; Permissions: authusers-modify; Components: gameaoc; Check: not IsWine and IsAdminInstallMode
+Name: "{app}\Empire Earth - The Art of Conquest\Data"; Permissions: authusers-modify; Components: gameaoc; Tasks: not everyoneadminstart; Check: not IsWine and IsAdminInstallMode
+Name: "{app}\Empire Earth - The Art of Conquest\Users"; Permissions: authusers-modify; Components: gameaoc; Tasks: not everyoneadminstart; Check: not IsWine and IsAdminInstallMode
 
 ; Additional setup related data
 Name: "{app}\{#SetupDataDir}"; Attribs: hidden
@@ -859,6 +867,12 @@ Name: "{app}\{#SetupDataDir}"; Attribs: hidden
 ;   FontMigration: [Need investigation] Replaces a font with a better font, to avoid text truncation.
 ;   ForceInvalidateOnClose: Force program to close window in some cases
 ;   DISABLEDXMAXIMIZEDWINDOWEDMODE: (DirectX) Disable fullscreen optimization (maj is important...) (make game crash but sometime work)
+
+; HKCU in administrative install mode is the hive of the account that elevated the setup: usually
+; the installing user, but another admin account with over-the-shoulder elevation. So only per-user
+; preferences without a machine-wide equivalent go there (GPU preference, game defaults and the
+; "Installed From" values the game reads from HKCU); the compatibility flags, including the opt-in
+; RUNASADMIN, use HKLM in that mode.
 
 ; Windows 10+ GPU auto selection (apparently no HKLM... ty ms...)
 Root: "HKCU"; Subkey: "Software\Microsoft\DirectX\UserGpuPreferences"; ValueType: String; ValueName: "{app}\Empire Earth\Empire Earth.exe"; ValueData: "GpuPreference=2;"; \
@@ -900,11 +914,13 @@ Root: "HKLM"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "
 Root: "HKLM"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\Empire Earth - The Art of Conquest\EE-AOC.exe"; ValueData: "{code:GetCompatibilityFlags}"; \
   Flags: uninsdeletevalue; Check: IsAdminInstallMode; MinVersion: 0.0,5.0; OnlyBelowVersion: 0.0,6.0; Tasks: not compatibility_windows and compatibility; Components: gameaoc
 
-; Admin (Add admin flag for CU if LM don't have it)
-Root: "HKCU"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\Empire Earth\Empire Earth.exe"; ValueData: "~ RUNASADMIN"; \
-  Flags: uninsdeletevalue; Check: IsAdminInstallMode; MinVersion: 0.0,5.0; Tasks: not everyoneadminstart and compatibility; Components: game
-Root: "HKCU"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\Empire Earth - The Art of Conquest\EE-AOC.exe"; ValueData: "~ RUNASADMIN"; \
-  Flags: uninsdeletevalue; Check: IsAdminInstallMode; MinVersion: 0.0,5.0; Tasks: not everyoneadminstart and compatibility; Components: gameaoc
+; Admin, RUNASADMIN only (opt-in task everyoneadminstart without the compatibility tasks)
+; Setups up to v1.7.2 also set "~ RUNASADMIN" in HKCU for the installing account by default;
+; CurStepChanged removes that old value (RemoveLegacyRunAsAdmin).
+Root: "HKLM"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\Empire Earth\Empire Earth.exe"; ValueData: "{code:GetCompatibilityFlags}"; \
+  Flags: uninsdeletevalue; Check: IsAdminInstallMode; Tasks: everyoneadminstart and not compatibility_windows and not compatibility; Components: game
+Root: "HKLM"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\Empire Earth - The Art of Conquest\EE-AOC.exe"; ValueData: "{code:GetCompatibilityFlags}"; \
+  Flags: uninsdeletevalue; Check: IsAdminInstallMode; Tasks: everyoneadminstart and not compatibility_windows and not compatibility; Components: gameaoc
 
 ; ---------
 
@@ -1798,6 +1814,22 @@ begin
   #endif
 end;
 
+// Setups up to v1.7.2 set "~ RUNASADMIN" for the installing account (HKCU, administrative install
+// mode) by default. Running the game elevated is opt-in now (task everyoneadminstart, HKLM), so
+// that old default value is removed; any other value (e.g. set by the user) is left alone.
+procedure RemoveLegacyRunAsAdmin(const ExePath: String);
+var
+  Value: String;
+begin
+  if RegQueryStringValue(HKCU, '{#BaseRegCompatibility}', ExePath, Value) and (Value = '~ RUNASADMIN') then
+  begin
+    if RegDeleteValue(HKCU, '{#BaseRegCompatibility}', ExePath) then
+      Log('Removed the old per-user RUNASADMIN flag of ' + ExePath)
+    else
+      Log('Unable to remove the old per-user RUNASADMIN flag of ' + ExePath);
+  end;
+end;
+
 // Installation steps
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
@@ -1805,6 +1837,14 @@ begin
   begin
     // Runs before [Files]: only downloads matching their SHA-256 are moved to {tmp}\verified
     VerifyDownloadedFiles();
+  end
+  else if (CurStep = ssPostInstall) then
+  begin
+    if (IsAdminInstallMode and not IsWine()) then
+    begin
+      RemoveLegacyRunAsAdmin(ExpandConstant('{app}\Empire Earth\Empire Earth.exe'));
+      RemoveLegacyRunAsAdmin(ExpandConstant('{app}\Empire Earth - The Art of Conquest\EE-AOC.exe'));
+    end;
   end;
 end;
 
