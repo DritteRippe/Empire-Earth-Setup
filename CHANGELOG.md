@@ -37,6 +37,9 @@ Refactoring and quality fixes (no new game content).
   ANSI, so the uninstall cleanup of the pt_BR folder `Users\default\Civilizações` never matched.
 - Every online localized file is requested from the mirror at the same path as on the main server
   (some AoC mirror URLs pointed to wrong paths).
+- The uninstaller starts even if `EEStatsSetup.dll` is missing from the setup data folder (e.g.
+  removed by an anti-virus): it is only loaded on demand, which the uninstall no longer needs, so
+  the elevated uninstaller does not load code from the installation folder.
 
 ### Security
 - Online localized files: TLS certificates are validated (invalid certificates used to be

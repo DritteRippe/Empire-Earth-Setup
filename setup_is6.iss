@@ -1249,19 +1249,12 @@ const
     external 'generate_cdkeys@files:authtools.dll cdecl setuponly';
 #endif
 
-  // Yeah I know that's horrible x2 function just because we can add a a dll inside the uninstall setup
-  function EEStats_runInVM_U: BOOL;
-    external 'EEStats_runInVM@{app}\{#SetupDataDir}\EEStatsSetup.dll cdecl uninstallonly';
-  function EEStats_getUID_U: PAnsiChar;
-    external 'EEStats_getUID@{app}\{#SetupDataDir}\EEStatsSetup.dll cdecl uninstallonly';
+  // The uninstaller cannot use "files:" DLLs, it loads EEStatsSetup.dll from {app}\{#SetupDataDir}.
+  // delayload: the DLL is only loaded when the function is called (IsWine catches a failure), so a
+  // missing DLL cannot stop the uninstaller from starting. The current uninstall code never calls
+  // it, so the elevated uninstaller does not load code from the installation folder.
   function EEStats_isWine_U: BOOL;
-    external 'EEStats_isWine@{app}\{#SetupDataDir}\EEStatsSetup.dll cdecl uninstallonly';
-  function EEStats_getWineVersion_U: PAnsiChar;
-    external 'EEStats_getWineVersion@{app}\{#SetupDataDir}\EEStatsSetup.dll cdecl uninstallonly';
-  function EEStats_getProcessorArch_U: PAnsiChar;
-    external 'EEStats_getProcessorArch@{app}\{#SetupDataDir}\EEStatsSetup.dll cdecl uninstallonly';
-  function EEStats_getGpuVendorId_U: PAnsiChar;
-    external 'EEStats_getGpuVendorId@{app}\{#SetupDataDir}\EEStatsSetup.dll cdecl uninstallonly';
+    external 'EEStats_isWine@{app}\{#SetupDataDir}\EEStatsSetup.dll cdecl uninstallonly delayload';
 
     // GetSystemMetrics
   function GetSystemMetrics(nIndex: Integer): Integer;
@@ -1314,7 +1307,15 @@ begin
   if not IsUninstaller then
     Result := EEStats_IsWine()
   else
-    Result := EEStats_IsWine_U();
+  begin
+    try
+      Result := EEStats_IsWine_U();
+    except
+      // EEStatsSetup.dll missing or not loadable (e.g. removed by an anti-virus): assume Windows
+      Log('Unable to use EEStatsSetup.dll, assuming Windows: ' + GetExceptionMessage);
+      Result := False;
+    end;
+  end;
 end;
 
 function GetInstallWithoutDriveLetterBase(Param: String): String;
