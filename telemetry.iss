@@ -3,7 +3,7 @@
 // page. Only sent with consent, i.e. when the telemetry component of this product is selected in
 // this setup (check box of the installation mode page, or the component in the custom settings):
 // otherwise no request is made at all. The uninstaller never sends any.
-// Requires: TelemetryApiURL, GetSelectedLanguageFromComponents, CorrectLanguageCode
+// Requires: TelemetryApiURL, GetSelectedLanguageFromComponents, GetLanguageTag
 // (setup_is6.iss), AppID, MySetupVersion, MyAppVersion (ISPP, setup_is6.iss), UrlEncode,
 // GetHttpStatus, IsGameInstalled (utils.iss), WizardIsUpdate (extension.iss), IsWine,
 // GetWineVersion, GetProcessorArch, GetEEStatsUID, IsRunningInVM (eestats.iss).
@@ -33,7 +33,7 @@ begin
   Log('Sending setup stats over HTTPS!');
   InstallUrlStats := TelemetryApiURL
     + '?install_type=' + UrlEncode('{#AppID}')
-    + '&install_lang=' + UrlEncode(CorrectLanguageCode(GetSelectedLanguageFromComponents('')))
+    + '&install_lang=' + UrlEncode(GetLanguageTag(GetSelectedLanguageFromComponents()))
     + '&is_uninstall=0'
     + '&setup_version=' + UrlEncode('{#MySetupVersion}')
     + '&game_version=' + UrlEncode('{#MyAppVersion}')

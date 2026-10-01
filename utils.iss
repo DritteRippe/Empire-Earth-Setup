@@ -21,32 +21,34 @@ begin
   Result := Dest
 end;
 
-function GetUninstallRegPath(Reverse: Boolean): String;
+// Uninstall key (below HKA) of this product
+function GetUninstallRegPath(): String;
 begin
-  if not Reverse then
-  begin
 #if InstallType == "EE"
-    Result := 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{{#EE_AppID}}_is1';
-#elif InstallType == "NeoEE" 
-    Result := 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{{#NeoEE_AppID}}_is1';
+  Result := 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{{#EE_AppID}}_is1';
+#elif InstallType == "NeoEE"
+  Result := 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{{#NeoEE_AppID}}_is1';
 #else
   #error "Unknown Install Type"
 #endif
-  end else begin 
+end;
+
+// Uninstall key (below HKA) of the other product: NeoEE in EE setups, EE in NeoEE setups
+function GetOtherProductUninstallRegPath(): String;
+begin
 #if InstallType == "EE"
-    Result := 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{{#NeoEE_AppID}}_is1';
-#elif InstallType == "NeoEE" 
-    Result := 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{{#EE_AppID}}_is1';
+  Result := 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{{#NeoEE_AppID}}_is1';
+#elif InstallType == "NeoEE"
+  Result := 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{{#EE_AppID}}_is1';
 #else
   #error "Unknown Install Type"
 #endif
-  end;
 end;
 
 function IsAnotherGameInstalled(): Boolean;
 begin
   Result := False;
-  if RegValueExists(HKA, GetUninstallRegPath(True), 'UninstallString')
+  if RegValueExists(HKA, GetOtherProductUninstallRegPath(), 'UninstallString')
   then begin
     Result := True;
   end;
@@ -55,7 +57,7 @@ end;
 function IsGameInstalled(): Boolean;
 begin
   Result := False;
-  if RegValueExists(HKA, GetUninstallRegPath(False), 'UninstallString')
+  if RegValueExists(HKA, GetUninstallRegPath(), 'UninstallString')
   then begin
     Result := True;
   end;

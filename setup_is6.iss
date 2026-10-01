@@ -188,7 +188,7 @@
 ; Update MyAppVersion if the update is a game update
 ; Update MySetupVersion if the update is a setup update
 ; Update MySetupVersion if updating MyAppVersion only if the setup is really updated
-; When releasing a new MySetupVersion, it should be distribued for both EE & Neo
+; When releasing a new MySetupVersion, it should be distributed for both EE & Neo
 ; MySetupVersion is a good way to know the features of the setup, meaning that EE & Neo should share the same version !
 ; When releasing, turn the "Unreleased" section of CHANGELOG.md into the new MySetupVersion
 
@@ -235,7 +235,7 @@
 ; described by the custom message LIQP_<name> (messages.iss); a name that is also in [Languages]
 ; is preselected when the setup itself runs in that language. The files of a language are in
 ; data\localized-text\ and, for NeoEE, data\localized-text\Mods\NeoEE\:
-;   Game\<name with "-" instead of "_">\<EE|AoC>\Language.dll   (see CorrectLanguageCode)
+;   Game\<name with "-" instead of "_">\<EE|AoC>\Language.dll   (see GetLanguageTag)
 ;   Lobby\<its GameLangLobbyDirs entry>\<EE|AoC|shared>\*        (one lobby folder can serve
 ;                                                                  several languages, e.g. zh)
 ; The language entries of [Components] and [Files] and the list of RegisterLangs are generated
@@ -267,7 +267,7 @@
 #endif
 
 ; AppId: Tools > Generate GUID
-; Be very carefull to AppId, it's like the unique id of the setup, be sure to generate it with inno setup
+; Be very careful with AppId, it's like the unique id of the setup, be sure to generate it with inno setup
 ; the first time you distribute your setup and to keep it forever for the setup !
 ; So since it's a unique setup id, EE & NeoEE must have different AppId !
 
@@ -307,8 +307,8 @@ LicenseFile=data\Empire Earth Base\Empire Earth\EULA_DSML.txt
 #endif
 InfoAfterFile=data\Empire Earth Base\Empire Earth\help.rtf
 OutputDir=out
-; lzma2/max = 32mo of ram (noticed 42mo on W10 & XP)
-; Since EE need 64mo (including Windows), lzma2/max is the maximum compression
+; lzma2/max = 32 MB of RAM (noticed 42 MB on W10 & XP)
+; Since EE needs 64 MB (including Windows), lzma2/max is the maximum compression
 #if TestID == 0
   Compression=lzma2/max
 #else
@@ -353,7 +353,7 @@ ArchitecturesInstallIn64BitMode=x64 arm64 ia64
 
 ; If for any reason, Setup is reported to be a virus uncomment this to crypt files...
 ; The setup will display the password when asked to the user :)
-; Also the setup should work, remember that any ressources used befoare the password
+; Also the setup should work, remember that any resources used before the password
 ; validation need the 'noencryption' flag in Inno Setup !
 ; Encryption=yes
 ; Password={#MySetupPassword}
@@ -750,7 +750,7 @@ Source: "{tmp}\verified\EE\Data\Campaigns\EELearningCampaign.ssa"; DestDir: "{ap
 ; Not supported Source: "data\Add-on\DLLs\EEStats\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\telemetry and gameaoc; MinVersion: 0.0,6.1
 
 ; HD & Music & Tech & Building
-; Herit from EE natively
+; Inherited from EE natively
 
 ; -------------------
 ;  Allow config edit, move the files to the exact same dir but with good perm :>
@@ -1308,16 +1308,17 @@ begin
     Result := AskForUpdate(ExpandConstant('{cm:SetupUpdate}'), 'setup');
 end;
 
-function CorrectLanguageCode(Param: String): String;
+// Language tag of a game language: the component name with '-' instead of '_' (pt_BR -> pt-BR),
+// as the language folders of data\localized-text and of the file servers are named
+function GetLanguageTag(Lang: String): String;
 begin
-  if (Pos('_', Param) > 0) then
-  begin
-    Param[Pos('_', Param)] := '-';
-  end;
-  Result := Param;
+  if (Pos('_', Lang) > 0) then
+    Lang[Pos('_', Lang)] := '-';
+  Result := Lang;
 end;
 
-function GetSelectedLanguageFromComponents(Dummy: String): String;
+// Game language of the selected components ('en' if none), '' in the uninstaller
+function GetSelectedLanguageFromComponents(): String;
 var
   i: Integer;
 begin
@@ -1496,7 +1497,7 @@ begin
     // (EE <-> NeoEE) still uses it: same install mode (HKA), so same certificate store
     if not CertAddedBySetup then
       Log('Certificate not added by this setup, not removed')
-    else if UninstallKeyHasTask(GetUninstallRegPath(True), 'certinclude') then
+    else if UninstallKeyHasTask(GetOtherProductUninstallRegPath(), 'certinclude') then
       Log('Certificate still used by the other setup, not removed')
     else
       RemoveCertificate();
@@ -1700,7 +1701,7 @@ begin
     Exit;
   end;
 
-  LangCode := CorrectLanguageCode(GetSelectedLanguageFromComponents(''));
+  LangCode := GetLanguageTag(GetSelectedLanguageFromComponents());
   if (LangCode = 'en') then
   begin
     Log('English language selected, no need to download online files.');
@@ -1831,9 +1832,9 @@ begin
   if (not ManualInstallQuestionPage.Values[MiqpRecommended]) then
     Exit;
   Log('Forcing custom install type, because we used the manual install question page.');
-  if not RegKeyExists(HKA, GetUninstallRegPath(False)) then
+  if not RegKeyExists(HKA, GetUninstallRegPath()) then
     Log('Uninstall key not found, install type not changed')
-  else if not RegWriteStringValue(HKA, GetUninstallRegPath(False), 'Inno Setup: Setup Type', 'custom') then
+  else if not RegWriteStringValue(HKA, GetUninstallRegPath(), 'Inno Setup: Setup Type', 'custom') then
     Log('Unable to write the install type to the uninstall key');
 end;
 #endif
@@ -1871,7 +1872,7 @@ function InitializeUninstall(): Boolean;
 begin
   RegisterLangs()
 #if CertInclude
-  CertAddedBySetup := UninstallKeyHasTask(GetUninstallRegPath(False), 'certinclude');
+  CertAddedBySetup := UninstallKeyHasTask(GetUninstallRegPath(), 'certinclude');
 #endif
   Result := True;
 end;

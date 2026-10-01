@@ -1,4 +1,11 @@
 ﻿[CustomMessages]
+; Message names: the prefix names the custom wizard page (pages.iss) that shows the text
+;   LIQP_    Language Install Question Page: the game language
+;   MIQP_    Manual Install Question Page: recommended or custom settings, repair/update, telemetry
+;   GPUIQP_  GPU Install Question Page: graphics card brand and DirectX wrapper
+; The other messages are named after their use. The entry without language prefix is the English
+; text, which every language without its own entry shows.
+
 ; Translation Note
 ; chinese, russian and korean have been translated with a translator and are therefore
 ; probably of poor quality. If you can check them and suggest improvements that's perfect!
@@ -259,38 +266,38 @@ zh_CN.MIQP_Content=选择你是喜欢使用默认设置，还是使用你从安�
 zh_TW.MIQP_Content=选择你是喜欢使用默认设置，还是使用你从安装程序提供的设置中手动选择的更高级设置。
 ko.MIQP_Content=기본 설정을 사용할지 또는 설치 관리자에서 제공하는 설정 중에서 수동으로 선택하는 고급 설정을 사용할지 선택합니다.
 
-MIQP_Recommanded=Recommanded settings
-fr.MIQP_Recommanded=Paramètres recommandés
-de.MIQP_Recommanded=Empfohlene Einstellungen
-it.MIQP_Recommanded=Impostazioni raccomandate
-es.MIQP_Recommanded=Opciones recomendadas
-ru.MIQP_Recommanded=Рекомендуемые настройки
-pl.MIQP_Recommanded=Zalecane ustawienia
-zh_CN.MIQP_Recommanded=建议的设置
-zh_TW.MIQP_Recommanded=建议的设置
-ko.MIQP_Recommanded=명령된 설정
+MIQP_Recommended=Recommended settings
+fr.MIQP_Recommended=Paramètres recommandés
+de.MIQP_Recommended=Empfohlene Einstellungen
+it.MIQP_Recommended=Impostazioni raccomandate
+es.MIQP_Recommended=Opciones recomendadas
+ru.MIQP_Recommended=Рекомендуемые настройки
+pl.MIQP_Recommended=Zalecane ustawienia
+zh_CN.MIQP_Recommended=建议的设置
+zh_TW.MIQP_Recommended=建议的设置
+ko.MIQP_Recommended=명령된 설정
 
-MIQP_Recommanded_EE=Install Empire Earth
-fr.MIQP_Recommanded_EE=Installer Empire Earth
-de.MIQP_Recommanded_EE=Installiere Empire Earth
-it.MIQP_Recommanded_EE=Installare Empire Earth
-es.MIQP_Recommanded_EE=Instalar Empire Earth
-ru.MIQP_Recommanded_EE=Установите Empire Earth
-pl.MIQP_Recommanded_EE=Zainstaluj Empire Earth
-zh_CN.MIQP_Recommanded_EE=安装 Empire Earth
-zh_TW.MIQP_Recommanded_EE=安装 Empire Earth
-ko.MIQP_Recommanded_EE=Empire Earth 설치
+MIQP_Recommended_EE=Install Empire Earth
+fr.MIQP_Recommended_EE=Installer Empire Earth
+de.MIQP_Recommended_EE=Installiere Empire Earth
+it.MIQP_Recommended_EE=Installare Empire Earth
+es.MIQP_Recommended_EE=Instalar Empire Earth
+ru.MIQP_Recommended_EE=Установите Empire Earth
+pl.MIQP_Recommended_EE=Zainstaluj Empire Earth
+zh_CN.MIQP_Recommended_EE=安装 Empire Earth
+zh_TW.MIQP_Recommended_EE=安装 Empire Earth
+ko.MIQP_Recommended_EE=Empire Earth 설치
 
-MIQP_Recommanded_EE_AoC=Install Empire Earth and The Art of Conquest Expansion
-fr.MIQP_Recommanded_EE_AoC=Installer Empire Earth et l'extension The Art of Conquest
-de.MIQP_Recommanded_EE_AoC=Installiere Empire Earth und Die Kunst der Eroberungen - Erweiterung
-it.MIQP_Recommanded_EE_AoC=Installare Empire Earth e The Art of Conquest Expansion
-es.MIQP_Recommanded_EE_AoC=Instalar Empire Earth y la expansión The Art of Conquest
-ru.MIQP_Recommanded_EE_AoC=Установите Empire Earth и расширение The Art of Conquest
-pl.MIQP_Recommanded_EE_AoC=Zainstaluj Empire Earth wraz z dodatkiem The Art of Conquest
-zh_CN.MIQP_Recommanded_EE_AoC=安装 Empire Earth 和 The Art of Conquest 扩展版
-zh_TW.MIQP_Recommanded_EE_AoC=安装 Empire Earth 和 The Art of Conquest 扩展版
-ko.MIQP_Recommanded_EE_AoC=Empire Earth 와 The Art of Conquest 확장 설치
+MIQP_Recommended_EE_AoC=Install Empire Earth and The Art of Conquest Expansion
+fr.MIQP_Recommended_EE_AoC=Installer Empire Earth et l'extension The Art of Conquest
+de.MIQP_Recommended_EE_AoC=Installiere Empire Earth und Die Kunst der Eroberungen - Erweiterung
+it.MIQP_Recommended_EE_AoC=Installare Empire Earth e The Art of Conquest Expansion
+es.MIQP_Recommended_EE_AoC=Instalar Empire Earth y la expansión The Art of Conquest
+ru.MIQP_Recommended_EE_AoC=Установите Empire Earth и расширение The Art of Conquest
+pl.MIQP_Recommended_EE_AoC=Zainstaluj Empire Earth wraz z dodatkiem The Art of Conquest
+zh_CN.MIQP_Recommended_EE_AoC=安装 Empire Earth 和 The Art of Conquest 扩展版
+zh_TW.MIQP_Recommended_EE_AoC=安装 Empire Earth 和 The Art of Conquest 扩展版
+ko.MIQP_Recommended_EE_AoC=Empire Earth 와 The Art of Conquest 확장 설치
 
 MIQP_Custom=Custom install settings
 fr.MIQP_Custom=Paramètres d'installation personnalisés
@@ -596,7 +603,7 @@ zh_CN.LIQP_ko=韩语 (한국어)
 zh_TW.LIQP_ko=韓語 (한국어)
 
 [Messages]
-; Remplacing InnoSetup Password Label when using password for encryption
+; Replaces the Inno Setup password label when the setup is encrypted (see Encryption in [Setup])
 PasswordLabel3=Please write '{#MySetupPassword}' (case-sensitive), then click Next to continue.
 IncorrectPassword=The password you entered is not correct. Please enter '{#MySetupPassword}' (case-sensitive).
 fr.PasswordLabel3=Veuillez saisir '{#MySetupPassword}' (attention à la distinction entre majuscules et minuscules) puis cliquez sur Suivant pour continuer.

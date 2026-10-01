@@ -83,7 +83,7 @@ var
   i: Integer;
   Components: String;
 begin
-  if (not RegQueryStringValue(HKA, GetUninstallRegPath(False), 'Inno Setup: Selected Components', Components)
+  if (not RegQueryStringValue(HKA, GetUninstallRegPath(), 'Inno Setup: Selected Components', Components)
       or (Components = '')) then
   begin
     Result := 'en';
@@ -105,7 +105,7 @@ end;
 procedure SetupLanguagePage;
 var
   i: Integer;
-  SuccessufllySelected: Boolean;
+  LanguageSelected: Boolean;
 begin
   // Language page. No sub caption: the former one explained "*"/"**" quality markers that no
   // language name carries. Add it back together with the markers if they are introduced.
@@ -116,27 +116,27 @@ begin
 
   // Register all langs to the page
   // Auto select the language in the list from the one used by the OS
-  SuccessufllySelected := False;
+  LanguageSelected := False;
   for i := 0 to Langs.Count - 1 do
   begin
     LanguageInstallQuestionPage.AddEx({ '&' + } ExpandConstant('{cm:LIQP_' + Langs[i] + '}'), 0, True);
     if (Langs[i] = ActiveLanguage) then
     begin
       LanguageInstallQuestionPage.Values[i] := True;
-      SuccessufllySelected := True;
+      LanguageSelected := True;
       // Break; not break, because we want to register all langs to the page
     end;
   end;
 
   // If the language is not found, select english
-  if (not SuccessufllySelected) then
+  if (not LanguageSelected) then
   begin
     for i := 0 to Langs.Count - 1 do
     begin
       if (Langs[i] = 'en') then
       begin
         LanguageInstallQuestionPage.Values[i] := True;
-        SuccessufllySelected := True;
+        LanguageSelected := True;
         Break;
       end;
     end;
@@ -150,14 +150,14 @@ begin
       if (Langs[i] = GetSelectedLanguageFromRegistry()) then
       begin
         LanguageInstallQuestionPage.Values[i] := True;
-        SuccessufllySelected := True;
+        LanguageSelected := True;
         Break;
       end;
     end;
   end;
 
   // Last resort, select the first language in the list
-  if (not SuccessufllySelected) then
+  if (not LanguageSelected) then
     LanguageInstallQuestionPage.Values[0] := True;
 
 end;
@@ -171,9 +171,9 @@ begin
       ExpandConstant('{cm:MIQP_Desc}'), ExpandConstant('{cm:MIQP_Content}'), True, False);
 
   // Recommended settings with the choice of the games, or custom settings (all pages)
-  MiqpRecommended := ManualInstallQuestionPage.AddEx('&' + ExpandConstant('{cm:MIQP_Recommanded}'), 1, True);
-  MiqpRecommendedEE := ManualInstallQuestionPage.AddEx('&' + ExpandConstant('{cm:MIQP_Recommanded_EE}'), 1, True);
-  MiqpRecommendedEEAoC := ManualInstallQuestionPage.AddEx('&' + ExpandConstant('{cm:MIQP_Recommanded_EE_AoC}'), 1, True);
+  MiqpRecommended := ManualInstallQuestionPage.AddEx('&' + ExpandConstant('{cm:MIQP_Recommended}'), 1, True);
+  MiqpRecommendedEE := ManualInstallQuestionPage.AddEx('&' + ExpandConstant('{cm:MIQP_Recommended_EE}'), 1, True);
+  MiqpRecommendedEEAoC := ManualInstallQuestionPage.AddEx('&' + ExpandConstant('{cm:MIQP_Recommended_EE_AoC}'), 1, True);
   MiqpCustom := ManualInstallQuestionPage.AddEx('&' + ExpandConstant('{cm:MIQP_Custom}'), 0, True);
   ManualInstallQuestionPage.Values[MiqpRecommended] := True;
   ManualInstallQuestionPage.Values[MiqpRecommendedEE] := True;

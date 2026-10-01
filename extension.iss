@@ -53,27 +53,27 @@ end;
 // Task selected in the last installation of this product
 function WizardIsTaskInstalled(Task: String): Boolean;
 begin
-  Result := UninstallKeyListContains(GetUninstallRegPath(False), 'Inno Setup: Selected Tasks', Task);
+  Result := UninstallKeyListContains(GetUninstallRegPath(), 'Inno Setup: Selected Tasks', Task);
 end;
 
 // Task selected in the last installation of this product or of the other one (EE <-> NeoEE)
 function WizardIsTaskInstalledMultiSetup(Task: String): Boolean;
 begin
   Result := WizardIsTaskInstalled(Task) or
-    UninstallKeyListContains(GetUninstallRegPath(True), 'Inno Setup: Selected Tasks', Task);
+    UninstallKeyListContains(GetOtherProductUninstallRegPath(), 'Inno Setup: Selected Tasks', Task);
 end;
 
 // Component selected in the last installation of this product
-function WizardIsComponentInstalled(Compo: String): Boolean;
+function WizardIsComponentInstalled(Component: String): Boolean;
 begin
-  Result := UninstallKeyListContains(GetUninstallRegPath(False), 'Inno Setup: Selected Components', Compo);
+  Result := UninstallKeyListContains(GetUninstallRegPath(), 'Inno Setup: Selected Components', Component);
 end;
 
 // Component selected in the last installation of this product or of the other one (EE <-> NeoEE)
-function WizardIsComponentInstalledMultiSetup(Compo: String): Boolean;
+function WizardIsComponentInstalledMultiSetup(Component: String): Boolean;
 begin
-  Result := WizardIsComponentInstalled(Compo) or
-    UninstallKeyListContains(GetUninstallRegPath(True), 'Inno Setup: Selected Components', Compo);
+  Result := WizardIsComponentInstalled(Component) or
+    UninstallKeyListContains(GetOtherProductUninstallRegPath(), 'Inno Setup: Selected Components', Component);
 end;
 
 // Very dirty, because sadly the setup don't store it's own version
@@ -88,7 +88,7 @@ var
   LocalVersionName: String;
 begin
   Result := False;
-  if RegQueryStringValue(HKA, GetUninstallRegPath(False), 'DisplayName', Tmp) then
+  if RegQueryStringValue(HKA, GetUninstallRegPath(), 'DisplayName', Tmp) then
   begin
     LocalVersionName := ExpandConstant('{#SetupSetting("AppVerName")}');
     if CompareText(Tmp, LocalVersionName) <> 0 then
