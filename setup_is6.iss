@@ -203,7 +203,12 @@
 ; Both are needed in every variant: each setup also checks the uninstall key of the other product.
 ; Never build without them: an empty AppId turns "{app}\{#AppID}" into "{app}\" and lets EE and
 ; NeoEE share one uninstall key.
-#define IsPlainGuid(str S) Len(S) == 36 && Copy(S, 9, 1) == "-" && Copy(S, 14, 1) == "-" && Copy(S, 19, 1) == "-" && Copy(S, 24, 1) == "-"
+; A plain GUID is 32 hex digits with dashes at positions 9, 14, 19 and 24: removing every hex digit
+; must leave exactly the four dashes. This also keeps "\", "/", "." and ":" out of the AppId, which
+; [InstallDelete] uses in a path that it deletes recursively.
+#define GuidStripDigits(str S) StringChange(StringChange(StringChange(StringChange(StringChange(StringChange(StringChange(StringChange(StringChange(StringChange(S, "0", ""), "1", ""), "2", ""), "3", ""), "4", ""), "5", ""), "6", ""), "7", ""), "8", ""), "9", "")
+#define GuidStripHex(str S) StringChange(StringChange(StringChange(StringChange(StringChange(StringChange(GuidStripDigits(LowerCase(S)), "a", ""), "b", ""), "c", ""), "d", ""), "e", ""), "f", "")
+#define IsPlainGuid(str S) Len(S) == 36 && Copy(S, 9, 1) == "-" && Copy(S, 14, 1) == "-" && Copy(S, 19, 1) == "-" && Copy(S, 24, 1) == "-" && GuidStripHex(S) == "----"
 #if EE_AppID == "" || NeoEE_AppID == ""
   #error EE_AppID and NeoEE_AppID must be set: pass ISCC /DEE_AppID=<GUID> /DNeoEE_AppID=<GUID> or edit their defines (see AppId notes)
 #endif
@@ -217,10 +222,12 @@
   #error EE_AppID and NeoEE_AppID must differ, otherwise EE and NeoEE share one AppId and uninstall key
 #endif
 
-; Hidden folder in {app} for the files the uninstaller needs (EEStatsSetup.dll). It has a fixed name
-; so that no build setting can turn it into {app} itself. Setups up to v1.7.2 named it after the
-; AppId ("{app}\<AppId>"); [InstallDelete] removes that old folder.
-#define SetupDataDir "_setupdata"
+; Hidden folder in {app} for the files the uninstaller needs (EEStatsSetup.dll) and the lists of
+; randommaps.iss. It has a fixed name per product (InstallType is EE or NeoEE, checked above), so
+; that no build setting can turn it into {app} itself, and EE and NeoEE installed into the same
+; folder do not share it (uninstalling one would delete the files of the other). Setups up to
+; v1.7.2 named it after the AppId ("{app}\<AppId>"); [InstallDelete] removes that old folder.
+#define SetupDataDir "_setupdata_" + InstallType
 
 ; Game folders below {app} (Empire Earth and its add-on The Art of Conquest), the game programs
 ; relative to {app}, and the random map folder inside a game folder. The sections and the [Code]
@@ -988,7 +995,8 @@ Type: files; Name: "{app}\{#AoCDir}\Data\Scenarios\ScenDefault.scn"
 Type: files; Name: "{app}\{#AoCDir}\OOS *.log"
 Type: filesandordirs; Name: "{app}\{#AoCDir}\Data\Movies\"
 ; ----------------
-; Setup data folder of setups up to v1.7.2 (now {#SetupDataDir}). Safe: AppID is checked to be a GUID
+; Setup data folder of setups up to v1.7.2 (now {#SetupDataDir}). Safe: AppID is checked to be a
+; plain GUID (IsPlainGuid: hex digits and dashes only)
 Type: filesandordirs; Name: "{app}\{#AppID}"
 
 [UninstallDelete]

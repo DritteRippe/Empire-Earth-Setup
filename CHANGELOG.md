@@ -44,7 +44,9 @@ Refactoring and quality fixes (no new game content).
 
 ### Changed
 - The hidden setup data folder (holds `EEStatsSetup.dll` for the uninstaller) is now
-  `{app}\_setupdata` instead of `{app}\<AppId>`; updates remove the old folder.
+  `{app}\_setupdata_EE` or `{app}\_setupdata_NeoEE` instead of `{app}\<AppId>`: a fixed name, but
+  still one per product, so EE and NeoEE installed into the same folder do not delete each
+  other's files on uninstall. Updates remove the old folder.
 - Running the game as administrator is opt-in: administrative installs no longer set
   `RUNASADMIN` for the installing account by default, and updates remove that old per-user value
   (only if it is exactly the old default). The unchecked task "Always run the game as
@@ -69,9 +71,10 @@ Refactoring and quality fixes (no new game content).
 
 ### Fixed
 - English installation mode page: "Recommended settings" instead of "Recommanded settings".
-- The build refuses empty, malformed or identical AppIds. An empty AppId used to compile, turned
-  the setup data folder into the install folder itself (hidden, and deleted completely on
-  uninstall) and let EE and NeoEE share one uninstall key.
+- The build refuses empty, malformed or identical AppIds (an AppId must be 32 hex digits with
+  four dashes). An empty AppId used to compile, turned the setup data folder into the install
+  folder itself (hidden, and deleted completely on uninstall) and let EE and NeoEE share one
+  uninstall key.
 - `setup_is6.iss` has its UTF-8 BOM again (lost in 1.6.0). Without it Inno Setup read the file as
   ANSI, so the uninstall cleanup of the pt_BR folder `Users\default\Civilizações` never matched.
 - Every online localized file is requested from the mirror at the same path as on the main server
