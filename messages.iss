@@ -227,7 +227,7 @@ de.MIQP_Desc=Möchten Sie die Standardeinstellungen oder Ihre eigenen Installati
 it.MIQP_Desc=Vuoi usare le impostazioni di default o le tue impostazioni di installazione?
 es.MIQP_Desc=¿Quiere usar la instalación predeterminada o personalizada?
 ru.MIQP_Desc=Вы хотите использовать настройки по умолчанию или собственные настройки установки?
-pl.MIQP_Desc==Czy chcesz użyć domyślnych opcji instalacji, czy wybrać własne?
+pl.MIQP_Desc=Czy chcesz użyć domyślnych opcji instalacji, czy wybrać własne?
 zh_CN.MIQP_Desc=你想使用默认的还是你自己的安装设置？
 zh_TW.MIQP_Desc=你想使用默认的还是你自己的安装设置？
 ko.MIQP_Desc=기본 또는 자체 설치 설정을 사용하시겠습니까?
@@ -309,7 +309,7 @@ zh_CN.MIQP_Update=更新当前安装
 zh_TW.MIQP_Update=更新目前安裝
 ko.MIQP_Update=현재 설치 업데이트
 
-MIQP_Telemetry=Allow telemetry to improve the game compatibility and follow it''s evolution.
+MIQP_Telemetry=Allow telemetry to improve the game compatibility and follow its evolution.
 fr.MIQP_Telemetry=Autorisez la télémétrie pour améliorer la compatibilité du jeu et suivre son évolution.
 de.MIQP_Telemetry=Ermöglichen Sie Telemetrie, um die Kompatibilität des Spiels zu verbessern und seine Entwicklung zu verfolgen.
 it.MIQP_Telemetry=Consenti alla telemetria di migliorare la compatibilità del gioco e seguirne l'evoluzione.
@@ -355,7 +355,7 @@ es.GPUIQP_Content=Seleccione la marca de la tarjeta de video principal de este c
 %nSi ésta no es su primera instalación y la anterior no funcionó, puede intentar los otros modos incluso si no coinciden con la marca de su tarjeta de video o intentar una instalación manual para obtener acceso a todas las opciones de instalación.
 ru.GPUIQP_Content=Выберите марку основной видеокарты для этого компьютера. Таким образом, программа установки попытается применить настройки совместимости для нее. \
 %nЕсли это не первая установка и предыдущая не сработала, вы можете попробовать другие режимы, даже если они не соответствуют марке вашей видеокарты, или выполнить ручную установку, чтобы получить доступ ко всем настройкам установки.
-pl.GPUIQP_Content==Wybierz producenta Twojej głównej karty graficznej zainstalowanej w komputerze. Na tym etapie, instalator spróbuje zastosować dla niej opcje kompatybilności. \
+pl.GPUIQP_Content=Wybierz producenta Twojej głównej karty graficznej zainstalowanej w komputerze. Na tym etapie, instalator spróbuje zastosować dla niej opcje kompatybilności. \
 %nJeśli nie jest to Twoja pierwsza próba instalacji, a poprzednie nie powiodły się - możesz spróbować innych trybów, nawet jeśli nie są bezpośrednio przeznaczone dla modelu Twojej karty graficznej. Możesz również przeprowadzić ręczny tryb instalacji, dający możliwość wyboru wszystkich zaawansowanych ustawień samodzielnie.
 zh_CN.GPUIQP_Content=选择这台电脑的主显卡的品牌。这样，安装程序将尝试为其应用兼容性设置。 \
 %n如果这不是你的第一次安装，而且之前的安装没有成功，你可以尝试其他模式，即使它们与你的显卡品牌不匹配，或者执行手动安装以获得所有安装设置。
@@ -381,7 +381,7 @@ de.GPUIQP_AMD=AMD
 it.GPUIQP_AMD=AMD
 es.GPUIQP_AMD=AMD
 ru.GPUIQP_AMD=AMD
-pl.MIQP_Content=AMD
+pl.GPUIQP_AMD=AMD
 zh_CN.GPUIQP_AMD=AMD
 zh_TW.GPUIQP_AMD=AMD
 ko.GPUIQP_AMD=AMD
@@ -443,29 +443,6 @@ zh_CN.LIQP_Desc=选择要安装的语言。游戏在安装后没有任何更改�
 因此，如果您想更改语言，您将不得不重新安装游戏。
 zh_TW.LIQP_Desc=選擇要安裝的語言。遊戲在安裝後沒有任何更改語言的選項。 \
 因此，如果您想更改語言，您將不得不重新安裝遊戲。
-
-LIQP_Content=Languages with "*" may have a poor quality translation. \
-%nLanguages with "**" may not be fully translated and have a poor quality translation.
-de.LIQP_Content=Sprachen mit "*" können eine schlechte Übersetzung haben. \
-%nSprachen mit "**" sind möglicherweise nicht vollständig übersetzt und haben eine schlechte Übersetzung.
-es.LIQP_Content=Los idiomas con "*" pueden tener una mala traducción. \
-%nLos idiomas con "**" pueden no estar completamente traducidos y tener una mala traducción.
-fr.LIQP_Content=Les langues avec "*" peuvent avoir une traduction de mauvaise qualité. \
-%nLes langues avec "**" peuvent ne pas être entièrement traduites et avoir une traduction de mauvaise qualité.
-it.LIQP_Content=Le lingue con "*" possono avere una traduzione di scarsa qualità. \
-%nLe lingue con "**" potrebbero non essere completamente tradotte e avere una traduzione di scarsa qualità.
-ko.LIQP_Content="*"가 있는 언어는 번역이 불량할 수 있습니다. \
-%n"**"가 있는 언어는 완전히 번역되지 않았거나 번역이 불량할 수 있습니다.
-pl.LIQP_Content=Języki z "*" mogą mieć słabą jakość tłumaczenia. \
-%nJęzyki z "**" mogą nie być w pełni przetłumaczone i mieć słabą jakość tłumaczenia.
-pt_BR.LIQP_Content=Idiomas com "*" podem ter uma tradução de má qualidade. \
-%nIdiomas com "**" podem não estar totalmente traduzidos e ter uma tradução de má qualidade.
-ru.LIQP_Content=Языки с "*" могут иметь плохое качество перевода. \
-%nЯзыки с "**" могут не быть полностью переведены и иметь плохое качество перевода.
-zh_CN.LIQP_Content=带有“*”的语言可能有翻译质量较差。 \
-%n带有“**”的语言可能没有完全翻译并且翻译质量较差。
-zh_TW.LIQP_Content=帶有“*”的語言可能有翻譯質量較差。 \
-%n帶有“**”的語言可能沒有完全翻譯並且翻譯質量較差。
 
 LIQP_en=English
 de.LIQP_en=Englisch (English)

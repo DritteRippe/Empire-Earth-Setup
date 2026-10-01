@@ -36,7 +36,7 @@ Since the script is licensed under the GNU GPL v3 you have every right to modify
 - Windows (or Wine) with [Inno Setup](https://jrsoftware.org/isinfo.php) **6.2.x**. Releases are built with 6.2.2; newer versions are untested.
 - The game data and setup media. They are not part of this repository (see [Assets](#assets)).
 - The AppId GUIDs of both setups (see [AppIds](#appids)).
-- Python 3, only for placeholder builds (`ci/make_placeholder_assets.py`).
+- Python 3, only for placeholder builds and the message check (`ci/make_placeholder_assets.py`, `ci/check_messages.py`).
 
 ### Assets
 The script packs files from these folders, which are listed in `.gitignore`:
@@ -99,10 +99,10 @@ powershell -ExecutionPolicy Bypass -File ci\build.ps1 -Placeholders
 creates a small placeholder file for every missing asset (existing files are never overwritten) and uses dummy AppIds. Such a build only proves that the script compiles for all variants: **never distribute it**, and remove the placeholder files before building with the real data.
 
 ### Continuous integration
-`.github/workflows/build.yml` runs the placeholder build with Inno Setup 6.2.2 on `windows-latest` for every push and pull request and uploads the preprocessed script of every variant as an artifact.
+`.github/workflows/build.yml` checks the messages (`python ci/check_messages.py`), runs the placeholder build with Inno Setup 6.2.2 on `windows-latest` for every push and pull request and uploads the preprocessed script of every variant as an artifact.
 
 ### Conventions
-The own `.iss` files are UTF-8 **with BOM** and CRLF (see `.editorconfig` and `.gitattributes`): Inno Setup 6.2 reads files without BOM as ANSI and would break non-ASCII text. Release notes go into [CHANGELOG.md](CHANGELOG.md).
+The own `.iss` files are UTF-8 **with BOM** and CRLF (see `.editorconfig` and `.gitattributes`): Inno Setup 6.2 reads files without BOM as ANSI and would break non-ASCII text. Release notes go into [CHANGELOG.md](CHANGELOG.md). After changing `messages.iss`, run `python ci/check_messages.py`: it reports duplicate messages, `==` typos, unknown language prefixes and messages that are used but not defined, which Inno Setup compiles without a warning.
 
 ## License
 Consider setup_is6.iss, utils.iss, pages.iss, messages.iss, extention.iss, downloads.iss under **GPL-3.0 License**.

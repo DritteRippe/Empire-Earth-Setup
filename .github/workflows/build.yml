@@ -24,6 +24,11 @@ jobs:
         shell: pwsh
         run: choco install innosetup --version=6.2.2 --allow-downgrade --no-progress -y
 
+      # Mistakes in messages.iss (duplicate keys, '==' typos, ...) compile without a warning
+      - name: Check messages
+        shell: pwsh
+        run: python ci/check_messages.py
+
       - name: Build
         shell: pwsh
         run: ./ci/build.ps1 -Placeholders -RequireVersion 6.2.2 -KeepPreprocessed out/preprocessed

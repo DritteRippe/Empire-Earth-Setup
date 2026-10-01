@@ -22,6 +22,8 @@ Refactoring and quality fixes (no new game content).
   assets; GitHub Actions workflow compiling every push and pull request with Inno Setup 6.2.2.
 - `ci/make_placeholder_assets.py`: creates placeholder assets for contributors and CI, and lists
   the assets a variant needs (`--list`).
+- `ci/check_messages.py` (also run by the workflow): finds duplicate messages, `==` typos, unknown
+  language prefixes and used but undefined messages in `messages.iss`.
 - `.gitattributes` and `.editorconfig` (UTF-8 with BOM and CRLF for the own `.iss` files).
 - This changelog (moved out of the script header) and a "Building" section in the README.
 - SHA-256 list of the online localized files (`data\localized-text.sha256`, build switch
@@ -89,6 +91,10 @@ Refactoring and quality fixes (no new game content).
   type) when installed with the recommended settings.
 - Tasks and components of the previous installation are matched exactly (release note 1.0.3.0
   announced it, but each list item was still searched as a substring).
+- Polish texts: the description of the installation mode page is no longer replaced by "AMD"
+  (the AMD option of the GPU page was saved under the wrong name), and two texts no longer start
+  with "=". English telemetry option: "its" instead of "it''s".
+- The game language page no longer explains "*"/"**" quality markers that no language carries.
 
 ### Security
 - Online localized files: TLS certificates are validated (invalid certificates used to be

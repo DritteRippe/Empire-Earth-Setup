@@ -31,11 +31,12 @@ var
   i: Integer;
   SuccessufllySelected: Boolean;
 begin
-  // Language page
+  // Language page. No sub caption: the former one explained "*"/"**" quality markers that no
+  // language name carries. Add it back together with the markers if they are introduced.
   Log('Create language page');
   LanguageInstallQuestionPage := CreateInputOptionPage(wpSelectDir,
     ExpandConstant('{cm:LIQP_Title}'), ExpandConstant('{cm:LIQP_Desc}'),
-    ExpandConstant('{cm:LIQP_Content}'), True, True);
+    '', True, True);
 
   // Register all langs to the page
   // Auto select the language in the list from the one used by the OS
