@@ -857,63 +857,57 @@ Root: "HKCU"; Subkey: "Software\Microsoft\DirectX\UserGpuPreferences"; ValueType
 Root: "HKCU"; Subkey: "Software\Microsoft\DirectX\UserGpuPreferences"; ValueType: String; ValueName: "{app}\{#AoCExe}"; ValueData: "GpuPreference=2;"; \
   Flags: uninsdeletevalue; MinVersion: {#Win10}; Tasks: compatibility_windows; Components:  gameaoc
 
-; Admin + Windows compatibility
-; Windows >=8
-Root: "HKLM"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\{#EEExe}"; ValueData: "{code:GetCompatibilityFlags} WIN7RTM"; \
-  Flags: uninsdeletevalue; Check: IsAdminInstallMode; MinVersion: {#Win8}; Tasks: compatibility_windows; Components: game
-Root: "HKLM"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\{#AoCExe}"; ValueData: "{code:GetCompatibilityFlags} WIN7RTM"; \
-  Flags: uninsdeletevalue; Check: IsAdminInstallMode; MinVersion: {#Win8}; Tasks: compatibility_windows; Components: gameaoc
-; Windows >=Vista & <= 7
-Root: "HKLM"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\{#EEExe}"; ValueData: "{code:GetCompatibilityFlags} WINXPSP3"; \
-  Flags: uninsdeletevalue; Check: IsAdminInstallMode; MinVersion: {#WinVista}; OnlyBelowVersion: {#Win8}; Tasks: compatibility_windows; Components: game
-Root: "HKLM"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\{#AoCExe}"; ValueData: "{code:GetCompatibilityFlags} WINXPSP3"; \
-  Flags: uninsdeletevalue; Check: IsAdminInstallMode; MinVersion: {#WinVista}; OnlyBelowVersion: {#Win8}; Tasks: compatibility_windows; Components: gameaoc
+; Compatibility values (AppCompatFlags\Layers) of both game programs. GetCompatibilityFlags gives
+; "~" plus RUNASADMIN (task everyoneadminstart) and the flags of the task compatibility; the task
+; compatibility_windows adds a Windows compatibility mode: WIN7RTM on Windows 8 and later, WINXPSP3
+; on Vista/7. CompatibilityValues writes the value of EE and of AoC for the current parameters:
+;   CompatRoot, CompatCheck  registry root and the Check of the install mode
+;   CompatTasks              Tasks condition
+;   CompatVersions           version filter parameters, "" or "MinVersion: ...; [OnlyBelowVersion: ...; ]"
+;   CompatLayer              "" or " <Windows compatibility mode>"
+; CompatibilityValuesByWindows writes them for Windows 8 and later and for Vista/7, with the
+; Windows compatibility mode of each if CompatWindowsMode is 1.
+#define public CompatRoot ""
+#define public CompatCheck ""
+#define public CompatTasks ""
+#define public CompatVersions ""
+#define public CompatLayer ""
+#define public CompatWindowsMode 0
+#sub CompatibilityValues
+Root: "{#CompatRoot}"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\{#EEExe}"; ValueData: "{code:GetCompatibilityFlags}{#CompatLayer}"; \
+  Flags: uninsdeletevalue; Check: {#CompatCheck}; {#CompatVersions}Tasks: {#CompatTasks}; Components: game
+Root: "{#CompatRoot}"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\{#AoCExe}"; ValueData: "{code:GetCompatibilityFlags}{#CompatLayer}"; \
+  Flags: uninsdeletevalue; Check: {#CompatCheck}; {#CompatVersions}Tasks: {#CompatTasks}; Components: gameaoc
+#endsub
+#sub CompatibilityValuesByWindows
+  #expr CompatVersions = "MinVersion: " + Win8 + "; ", CompatLayer = (CompatWindowsMode ? " WIN7RTM" : "")
+  #call CompatibilityValues
+  #expr CompatVersions = "MinVersion: " + WinVista + "; OnlyBelowVersion: " + Win8 + "; ", CompatLayer = (CompatWindowsMode ? " WINXPSP3" : "")
+  #call CompatibilityValues
+#endsub
 
-; Admin - Windows compatibility
-; Windows >=8
-Root: "HKLM"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\{#EEExe}"; ValueData: "{code:GetCompatibilityFlags}"; \
-  Flags: uninsdeletevalue; Check: IsAdminInstallMode; MinVersion: {#Win8}; Tasks: not compatibility_windows and compatibility; Components: game
-Root: "HKLM"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\{#AoCExe}"; ValueData: "{code:GetCompatibilityFlags}"; \
-  Flags: uninsdeletevalue; Check: IsAdminInstallMode; MinVersion: {#Win8}; Tasks: not compatibility_windows and compatibility; Components: gameaoc
-; Windows >=Vista & <= 7
-Root: "HKLM"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\{#EEExe}"; ValueData: "{code:GetCompatibilityFlags}"; \
-  Flags: uninsdeletevalue; Check: IsAdminInstallMode; MinVersion: {#WinVista}; OnlyBelowVersion: {#Win8}; Tasks: not compatibility_windows and compatibility; Components: game
-Root: "HKLM"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\{#AoCExe}"; ValueData: "{code:GetCompatibilityFlags}"; \
-  Flags: uninsdeletevalue; Check: IsAdminInstallMode; MinVersion: {#WinVista}; OnlyBelowVersion: {#Win8}; Tasks: not compatibility_windows and compatibility; Components: gameaoc
-
-; Admin, RUNASADMIN only (opt-in task everyoneadminstart without the compatibility tasks)
+; Administrative install mode: for all users (HKLM)
+#expr CompatRoot = "HKLM", CompatCheck = "IsAdminInstallMode"
+; Windows compatibility mode (here also without the task compatibility, unlike in HKCU below)
+#expr CompatTasks = "compatibility_windows", CompatWindowsMode = 1
+#call CompatibilityValuesByWindows
+; Compatibility flags without Windows compatibility mode
+#expr CompatTasks = "not compatibility_windows and compatibility", CompatWindowsMode = 0
+#call CompatibilityValuesByWindows
+; RUNASADMIN only (opt-in task everyoneadminstart without the compatibility tasks), any Windows.
 ; Setups up to v1.7.2 also set "~ RUNASADMIN" in HKCU for the installing account by default;
 ; CurStepChanged removes that old value (RemoveLegacyRunAsAdmin).
-Root: "HKLM"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\{#EEExe}"; ValueData: "{code:GetCompatibilityFlags}"; \
-  Flags: uninsdeletevalue; Check: IsAdminInstallMode; Tasks: everyoneadminstart and not compatibility_windows and not compatibility; Components: game
-Root: "HKLM"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\{#AoCExe}"; ValueData: "{code:GetCompatibilityFlags}"; \
-  Flags: uninsdeletevalue; Check: IsAdminInstallMode; Tasks: everyoneadminstart and not compatibility_windows and not compatibility; Components: gameaoc
+#expr CompatTasks = "everyoneadminstart and not compatibility_windows and not compatibility", CompatVersions = "", CompatLayer = ""
+#call CompatibilityValues
 
-; ---------
-
-; User + Windows compatibility
-; Windows >=8
-Root: "HKCU"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\{#EEExe}"; ValueData: "{code:GetCompatibilityFlags} WIN7RTM"; \
-  Flags: uninsdeletevalue; Check: not IsAdminInstallMode; MinVersion: {#Win8}; Tasks: compatibility_windows and compatibility; Components: game
-Root: "HKCU"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\{#AoCExe}"; ValueData: "{code:GetCompatibilityFlags} WIN7RTM"; \
-  Flags: uninsdeletevalue; Check: not IsAdminInstallMode; MinVersion: {#Win8}; Tasks: compatibility_windows and compatibility; Components: gameaoc
-; Windows >=Vista & <= 7
-Root: "HKCU"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\{#EEExe}"; ValueData: "{code:GetCompatibilityFlags} WINXPSP3"; \
-  Flags: uninsdeletevalue; Check: not IsAdminInstallMode; MinVersion: {#WinVista}; OnlyBelowVersion: {#Win8}; Tasks: compatibility_windows and compatibility; Components: game
-Root: "HKCU"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\{#AoCExe}"; ValueData: "{code:GetCompatibilityFlags} WINXPSP3"; \
-  Flags: uninsdeletevalue; Check: not IsAdminInstallMode; MinVersion: {#WinVista}; OnlyBelowVersion: {#Win8}; Tasks: compatibility_windows and compatibility; Components: gameaoc
-
-; User - Windows compatibility
-; Windows >=8
-Root: "HKCU"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\{#EEExe}"; ValueData: "{code:GetCompatibilityFlags}"; \
-  Flags: uninsdeletevalue; Check: not IsAdminInstallMode; MinVersion: {#Win8}; Tasks: not compatibility_windows and compatibility; Components: game
-Root: "HKCU"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\{#AoCExe}"; ValueData: "{code:GetCompatibilityFlags}"; \
-  Flags: uninsdeletevalue; Check: not IsAdminInstallMode; MinVersion: {#Win8}; Tasks: not compatibility_windows and compatibility; Components: gameaoc
-; Windows >=Vista & <= 7
-Root: "HKCU"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\{#EEExe}"; ValueData: "{code:GetCompatibilityFlags}"; \
-  Flags: uninsdeletevalue; Check: not IsAdminInstallMode; MinVersion: {#WinVista}; OnlyBelowVersion: {#Win8}; Tasks: not compatibility_windows and compatibility; Components: game
-Root: "HKCU"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\{#AoCExe}"; ValueData: "{code:GetCompatibilityFlags}"; \
-  Flags: uninsdeletevalue; Check: not IsAdminInstallMode; MinVersion: {#WinVista}; OnlyBelowVersion: {#Win8}; Tasks: not compatibility_windows and compatibility; Components: gameaoc
+; Non-administrative install mode: for the current user (HKCU); everyoneadminstart is admin only
+#expr CompatRoot = "HKCU", CompatCheck = "not IsAdminInstallMode"
+; Windows compatibility mode (needs both tasks here)
+#expr CompatTasks = "compatibility_windows and compatibility", CompatWindowsMode = 1
+#call CompatibilityValuesByWindows
+; Compatibility flags without Windows compatibility mode
+#expr CompatTasks = "not compatibility_windows and compatibility", CompatWindowsMode = 0
+#call CompatibilityValuesByWindows
 
 ; Game Settings
 Root: "HKCU"; Subkey: "{#BaseRegEE}"; Flags: uninsdeletekey; Components: game
