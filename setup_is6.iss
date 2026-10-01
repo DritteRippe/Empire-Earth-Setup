@@ -613,10 +613,10 @@ Source: "data\Add-on\DLLs\dreXmod\3_privacy\*"; DestDir: "{app}\Empire Earth"; F
 ; RMS
 #if InstallType == "EE"
   ; Omega
-  Source: "data\Add-on\RMS\Omega\EE\*"; DestDir: "{app}\Empire Earth - The Art of Conquest\Data\Random Map Scripts"; \
+  Source: "data\Add-on\RMS\Omega\EE\*"; DestDir: "{app}\Empire Earth\Data\Random Map Scripts"; \
     Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\rms\omega and game
-  Source: "data\Add-on\RMS\NeoExtra\*"; DestDir: "{app}\Empire Earth - The Art of Conquest\Data\Random Map Scripts"; \
-    Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\rms\neoextra and gameaoc
+  Source: "data\Add-on\RMS\NeoExtra\*"; DestDir: "{app}\Empire Earth\Data\Random Map Scripts"; \
+    Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\rms\neoextra and game
 #endif
 
 ; dgVoodoo  Bin
@@ -693,7 +693,7 @@ Source: "data\Add-on\Movies\AoC\*"; DestDir: "{app}\Empire Earth - The Art of Co
     Flags: deleteafterinstall ignoreversion recursesubdirs createallsubdirs; Components: gameaoc
   ; NeoEE - Wine Fix (GDI)
   Source: "data\NeoEE - Wine\NeoEE.cfg"; DestDir: "{app}\Empire Earth - The Art of Conquest"; \
-    Flags: ignoreversion recursesubdirs createallsubdirs; Components: game; Check: IsWine
+    Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc; Check: IsWine
 #endif
 
 ; EE Lang Game Based Content
@@ -769,21 +769,24 @@ Source: "data\localized-text\Lobby\zh\shared\*"; DestDir: "{app}\Empire Earth - 
   Source: "data\localized-text\Mods\NeoEE\Lobby\zh\shared\*"; DestDir: "{app}\Empire Earth - The Art of Conquest"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and (language\zh_CN or language\zh_TW)
 #endif
 
+; skipifsourcedoesntexist: {tmp}\verified\AoC is empty when nothing was downloaded for AoC (English,
+; download not selected or failed), which Setup would otherwise report as a missing source file
 Source: "{tmp}\verified\AoC\*"; DestDir: "{app}\Empire Earth - The Art of Conquest"; \
-  Flags: ignoreversion recursesubdirs createallsubdirs external; Components: gameaoc and language\update
-Source: "{tmp}\verified\EE\Data\Campaigns\EELearningCampaign.ssa"; DestDir: "{app}\Empire Earth\Data\Campaigns"; \
+  Flags: ignoreversion recursesubdirs createallsubdirs external skipifsourcedoesntexist; Components: gameaoc and language\update
+; AoC uses the learning campaign of EE (see RegisterOnlineFiles)
+Source: "{tmp}\verified\EE\Data\Campaigns\EELearningCampaign.ssa"; DestDir: "{app}\Empire Earth - The Art of Conquest\Data\Campaigns"; \
   Flags: ignoreversion recursesubdirs createallsubdirs external skipifsourcedoesntexist; Components: gameaoc and language\update
 
   ; DreXmod 2 (+privacy patched dll, because nothing allow to disable it in config)
 Source: "data\Add-on\DLLs\dreXmod\2\*"; DestDir: "{app}\Empire Earth - The Art of Conquest"; \
   Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\drexmod\v2 and gameaoc;
-Source: "data\Add-on\DLLs\dreXmod\2_privacy\*"; DestDir: "{app}\Empire Earth"; \
+Source: "data\Add-on\DLLs\dreXmod\2_privacy\*"; DestDir: "{app}\Empire Earth - The Art of Conquest"; \
   Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\drexmod\v2 and gameaoc and not additional\telemetry;
 
 ; DreXmod 3 (+privacy config)
 Source: "data\Add-on\DLLs\dreXmod\3\*"; DestDir: "{app}\Empire Earth - The Art of Conquest"; \
   Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\drexmod\v3 and gameaoc;
-Source: "data\Add-on\DLLs\dreXmod\3_privacy\*"; DestDir: "{app}\Empire Earth"; \
+Source: "data\Add-on\DLLs\dreXmod\3_privacy\*"; DestDir: "{app}\Empire Earth - The Art of Conquest"; \
   Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\drexmod\v3 and gameaoc and not additional\telemetry;
 
 ; RMS

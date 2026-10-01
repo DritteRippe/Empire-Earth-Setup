@@ -67,6 +67,13 @@ Refactoring and quality fixes (no new game content).
   folders with a comma or characters outside the system code page are reported instead of being
   passed garbled to the CD key tool. The messages are localizable (English, German, French) and
   "Sythax" is spelled correctly. The arguments sent to the tool are unchanged.
+- Art of Conquest: with telemetry declined, AoC gets the privacy versions of dreXmod v2/v3 (they
+  were copied into the Empire Earth folder, so AoC kept the versions with tracking), and the
+  downloaded localized learning campaign goes into the AoC folder instead of the EE folder.
+- EE setup: the Omega and NeoEE Extra random maps for Empire Earth are installed into the Empire
+  Earth folder. They went into the AoC folder (mixing EE and AoC maps there), NeoEE Extra only when
+  AoC was selected.
+- NeoEE under Wine: the Wine configuration for AoC (`NeoEE.cfg`) is only installed with AoC.
 
 ### Security
 - Online localized files: TLS certificates are validated (invalid certificates used to be
