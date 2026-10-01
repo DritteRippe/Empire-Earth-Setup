@@ -1138,10 +1138,21 @@ Filename: "{tmp}\directx\dxwebsetup.exe"; Parameters: "/Q"; Flags: runhidden; Ta
 // All requests use HTTPS with validated certificates and never fall back to HTTP: the answers
 // decide what the (elevated) setup opens or installs.
 const
-  SetupURL = 'https://empireearth.eu/download';
-  UpdateApiURL = 'https://api.empireearth.eu/setup/?product={#AppID}';
+  // Hosts: the EE community website and the mirror of its file server
   DomainMain = 'empireearth.eu';
   DomainMirror = 'ee.zocker-160.de';
+  // One base URL per endpoint; the code only appends paths and parameters
+  SetupURL = 'https://' + DomainMain + '/download';                      // download page of the setup
+  ApiURL = 'https://api.' + DomainMain;                                  // web API of the website
+  UpdateApiURL = ApiURL + '/setup/?product={#AppID}';                    // update check (QueryUpdateApi)
+  TelemetryApiURL = ApiURL + '/eestats/setup/';                          // setup statistics (SendSetupTelemetry)
+  OnlineFilesURL = 'https://files.' + DomainMain + '/localized';         // localized files (downloads.iss)
+  OnlineFilesMirrorURL = 'https://storage.' + DomainMirror + '/localized';
+  GogStoreURL = 'https://www.gog.com/game/empire_earth_gold_edition';    // legal question
+  // Besides DomainMain, the hosts a download URL of the update API may point to (IsAllowedUpdateUrl)
+  DomainNeoEE = 'neoee.net';
+  GitHubHost = 'github.com';
+  GitHubProjectPath = '/EE-modders/';
 
   function EEStats_runInVM: BOOL;
     external 'EEStats_runInVM@files:EEStatsSetup.dll cdecl setuponly';
@@ -1303,11 +1314,11 @@ begin
   Result := False;
   if not SplitHttpsUrl(Url, Host, Path) then
     Exit;
-  if IsDomainOrSubdomain(Host, 'empireearth.eu') or IsDomainOrSubdomain(Host, 'neoee.net') then
+  if IsDomainOrSubdomain(Host, DomainMain) or IsDomainOrSubdomain(Host, DomainNeoEE) then
     Result := True
-  else if Host = 'github.com' then
+  else if Host = GitHubHost then
     // Anyone can publish on github.com: only the EE-modders organization, no dot segments/escapes
-    Result := (CompareText(Copy(Path, 1, 12), '/EE-modders/') = 0) and (Pos('..', Path) = 0) and (Pos('%', Path) = 0);
+    Result := (CompareText(Copy(Path, 1, Length(GitHubProjectPath)), GitHubProjectPath) = 0) and (Pos('..', Path) = 0) and (Pos('%', Path) = 0);
 end;
 
 // Opens the download of the latest setup, or the fixed download page if the API gives no
@@ -1329,28 +1340,36 @@ begin
     Log('Unable to open ' + Url + ': ' + SysErrorMessage(ErrorCode));
 end;
 
-// Asks whether to download the update; True (= exit setup) if the user wants it
-function AskForUpdate(const UpdateMessage, LatestVersionParams: String): Boolean;
+// True if the update API reports Version of TypeName (game or setup) as outdated
+function IsUpdateAvailable(const TypeName, Version: String): Boolean;
+var
+  Answer: String;
+begin
+  Result := QueryUpdateApi('&type=' + TypeName + '&version=' + Version, Answer) and (Answer = 'false');
+end;
+
+// Asks whether to download the update of TypeName (game or setup), UpdateMessage with [LAST]
+// replaced by the latest version; True (= exit setup) if the user wants it
+function AskForUpdate(const UpdateMessage, TypeName: String): Boolean;
 var
   Msg: String;
 begin
   Msg := UpdateMessage;
-  StringChangeEx(Msg, '[LAST]', GetLatestVersionText(LatestVersionParams), True);
+  StringChangeEx(Msg, '[LAST]', GetLatestVersionText('&type=' + TypeName), True);
   Result := MsgBox(Msg, mbConfirmation, MB_YESNO) = IDYES;
   if Result then
     OpenUpdateDownloadPage();
 end;
 
-// Return True when update dialog return yes (= exit setup & open web page)
+// Return True when update dialog return yes (= exit setup & open web page). The game is checked
+// first; the setup only if the game is up to date.
 function CheckUpdate: Boolean;
-var
-  Answer: String;
 begin
   Result := False;
-  if QueryUpdateApi('&type=game&version={#MyAppVersion}', Answer) and (Answer = 'false') then
-    Result := AskForUpdate(ExpandConstant('{cm:GameUpdate}'), '&type=game')
-  else if QueryUpdateApi('&type=setup&version={#MySetupVersion}', Answer) and (Answer = 'false') then
-    Result := AskForUpdate(ExpandConstant('{cm:SetupUpdate}'), '&type=setup');
+  if IsUpdateAvailable('game', '{#MyAppVersion}') then
+    Result := AskForUpdate(ExpandConstant('{cm:GameUpdate}'), 'game')
+  else if IsUpdateAvailable('setup', '{#MySetupVersion}') then
+    Result := AskForUpdate(ExpandConstant('{cm:SetupUpdate}'), 'setup');
 end;
 
 function CorrectLanguageCode(Param: String): String;
@@ -1426,7 +1445,7 @@ begin
     // Legal Question
     if MsgBox(ExpandConstant('{cm:LegalQuestion}'), mbConfirmation, MB_YESNO) = IDNO then
     begin
-      ShellExecAsOriginalUser('open', 'https://www.gog.com/game/empire_earth_gold_edition', '', '', SW_SHOWNORMAL, ewNoWait, ErrorCode);
+      ShellExecAsOriginalUser('open', GogStoreURL, '', '', SW_SHOWNORMAL, ewNoWait, ErrorCode);
       Exit;
     end;
   end;
@@ -1478,7 +1497,7 @@ begin
   end;
 
   Log('Sending setup stats over HTTPS!');
-  InstallUrlStats := 'https://api.' + DomainMain + '/eestats/setup/'
+  InstallUrlStats := TelemetryApiURL
     + '?install_type=' + UrlEncode('{#AppID}')
     + '&install_lang=' + UrlEncode(CorrectLanguageCode(GetSelectedLanguageFromComponents('')))
     + '&is_uninstall=0'

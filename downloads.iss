@@ -129,19 +129,10 @@ begin
   Result := GetArrayLength(DownloadPins) > 0;
 end;
 
-function OnlineFilesURL: String;
-begin
-  Result := 'https://files.' + DomainMain + '/localized';
-end;
-
-function OnlineFilesMirrorURL: String;
-begin
-  Result := 'https://storage.' + DomainMirror + '/localized';
-end;
-
-// Chooses the server the files are downloaded from: the main server, or the mirror if only the
-// mirror answers (the other one stays registered as IDP mirror). With realistic timeouts, an
-// unreachable main server would otherwise delay every single file. False if neither answers.
+// Chooses the server the files are downloaded from (OnlineFilesURL and OnlineFilesMirrorURL,
+// setup_is6.iss): the main server, or the mirror if only the mirror answers (the other one stays
+// registered as IDP mirror). With realistic timeouts, an unreachable main server would otherwise
+// delay every single file. False if neither answers.
 function SelectOnlineFilesServer: Boolean;
 begin
   Result := True;
