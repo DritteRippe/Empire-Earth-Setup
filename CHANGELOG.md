@@ -49,6 +49,11 @@ Refactoring and quality fixes (no new game content).
   certificate file with that thumbprint, and the uninstaller removes it only if this product added
   it and the other product (EE/NeoEE) does not use it, with consistent `certutil` arguments.
 
+### Removed
+- Entries for Windows XP and older: the WIN98 compatibility mode and the pre-Vista `netsh
+  firewall` rules (23 entries). Setups made with Inno Setup 6 do not start on these systems, so
+  the entries never ran.
+
 ### Fixed
 - The build refuses empty, malformed or identical AppIds. An empty AppId used to compile, turned
   the setup data folder into the install folder itself (hidden, and deleted completely on
