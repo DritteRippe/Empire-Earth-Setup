@@ -15,8 +15,8 @@
 // one, and only the files it does not install again stay in the backup (own maps, maps of older
 // versions); the player is told where they are. Without list and old folder (new installation,
 // reinstallation after uninstalling) all files already in the folder count as the player's.
-// Uses: SetupDataDir, AppID, EEDir, AoCDir, RmsSubDir (setup_is6.iss), SilentInstall,
-// SuppressMsgBoxes (extension.iss).
+// Requires: SetupDataDir, AppID, EEDir, AoCDir, RmsSubDir (ISPP, setup_is6.iss), SilentInstall,
+// SuppressMsgBoxes (extension.iss), the message RmsBackupKept (messages.iss).
 
 type
   TRmsFolder = record

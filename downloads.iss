@@ -16,6 +16,10 @@
 // Inno Setup 6.3), so the list is created before compiling: ci\build.ps1 writes it from
 // data\localized-text, see README.md "Online localized files". Without the list the setup compiles
 // with a warning and never downloads anything.
+//
+// Requires: OnlineFilesURL, OnlineFilesMirrorURL (setup_is6.iss), EEDir, AoCDir (ISPP),
+// GetHttpStatus (utils.iss), SilentInstall, SuppressMsgBoxes (extension.iss), the IDP functions
+// (idp.iss), the Download* messages (messages.iss).
 
 // DownloadHashFile: the hash list, relative to setup_is6.iss unless absolute (ISCC /DDownloadHashFile=...)
 #ifndef DownloadHashFile

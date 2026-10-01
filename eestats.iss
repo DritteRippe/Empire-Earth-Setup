@@ -7,7 +7,7 @@
 // {app}\{#SetupDataDir} (uninstallonly): Inno Setup has no import that works in both, so a function
 // both of them need is imported twice and its function here chooses the import by IsUninstaller.
 // That is only IsWine; the other functions are setup only (the uninstaller cannot call them).
-// Uses: SetupDataDir (setup_is6.iss).
+// Requires: SetupDataDir (ISPP, setup_is6.iss).
 
   function EEStats_runInVM: BOOL;
     external 'EEStats_runInVM@files:EEStatsSetup.dll cdecl setuponly';

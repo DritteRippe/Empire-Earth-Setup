@@ -1,6 +1,7 @@
 ﻿[Code]
 // Wizard helpers that Inno Setup does not provide: command line switches, the tasks and
 // components of the previous installation, setup update detection and the Windows version.
+// Requires: StrSplit, GetUninstallRegPath (utils.iss), AppVerName ([Setup]).
 
 function WizardContainsParam(Param: String): Boolean;
 var

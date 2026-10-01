@@ -1,4 +1,8 @@
 ﻿[Code]
+// Base helpers of the [Code] part: string split, uninstall keys of EE and NeoEE, the HTTP requests
+// and URL checks. Included first, before every other [Code] part.
+// Requires: InstallType, EE_AppID, NeoEE_AppID (ISPP, setup_is6.iss).
+
 // Splits Text at every Separator (Pascal Script of Inno Setup 6.2 has no split function)
 function StrSplit(Text: String; Separator: String): TArrayOfString;
 var

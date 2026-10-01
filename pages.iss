@@ -2,6 +2,10 @@
 // The custom wizard pages: game language, installation mode and graphics card. The code refers
 // to their options by the indexes stored below, never by literal numbers: options are only
 // added under conditions (repair/update), so the index of the ones after them changes.
+// Requires: Langs (setup_is6.iss), GetUninstallRegPath, IsGameInstalled (utils.iss),
+// WizardIsComponentInstalled, WizardIsUpdate, IsWindows10OrNewer (extension.iss), GetGpuVendorId
+// (eestats.iss), the LIQP_, MIQP_ and GPUIQP_ messages (messages.iss).
+// Used by: InitializeWizard, ShouldSkipPage and NextButtonClick (setup_is6.iss).
 
 var
   LanguageInstallQuestionPage: TInputOptionWizardPage;

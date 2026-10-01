@@ -5,6 +5,7 @@
 ;   GPUIQP_  GPU Install Question Page: graphics card brand and DirectX wrapper
 ; The other messages are named after their use. The entry without language prefix is the English
 ; text, which every language without its own entry shows.
+; Requires: InstallType, MyAppVersion, MySetupVersion, MySetupPassword (ISPP, setup_is6.iss).
 
 ; Translation Note
 ; chinese, russian and korean have been translated with a translator and are therefore

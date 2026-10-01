@@ -394,6 +394,16 @@ ArchitecturesInstallIn64BitMode=x64 arm64 ia64
 #endif
 
 ; Includes
+; The own .iss files are parts of this script, not independent units: they use the defines above
+; and each other, and Pascal Script only knows what is declared before it is used. So the order
+; of the includes here and in [Code] matters. Every own file lists what it requires in its header.
+;   utils.iss       [Code] base helpers: uninstall keys, HTTP requests, URLs (needs InstallType,
+;                   EE_AppID, NeoEE_AppID; first, every other [Code] part may use it)
+;   messages.iss    [CustomMessages] and [Messages] (needs InstallType, MyAppVersion,
+;                   MySetupVersion, MySetupPassword)
+;   idp.iss, bass.iss  third-party: download plugin and setup music (needs BassLoopSound)
+; The other own files are included in [Code], see there. Defines that included files use must be
+; defined above the first #sub ([Components]), see the ISPP note there.
 #include "utils.iss"
 #include "messages.iss"
 #include "internal\lib\idp\idp.iss"
@@ -1097,7 +1107,14 @@ const
   GitHubHost = 'github.com';
   GitHubProjectPath = '/EE-modders/';
 
-// EEStatsSetup.dll (IsWine, GetWineVersion, GetGpuVendorId and the statistics values)
+// Own [Code] files, in this order (each header lists what it requires):
+//   eestats.iss     EEStatsSetup.dll: IsWine, GetWineVersion, GetGpuVendorId, statistics values
+//   extension.iss   command line switches, previous installation, Windows version (needs utils.iss)
+//   pages.iss       the custom wizard pages (needs Langs below, extension.iss, eestats.iss)
+//   downloads.iss   online localized files (needs the URL constants above, utils.iss,
+//                   extension.iss, idp.iss)
+//   randommaps.iss  random map scripts of the previous setup (needs extension.iss)
+//   telemetry.iss   setup statistics, included further down after the language functions it uses
 #include "eestats.iss"
 
 #if InstallType == "NeoEE"
@@ -1112,6 +1129,7 @@ function GetSystemMetrics(nIndex: Integer): Integer;
     external 'GetSystemMetrics@user32.dll stdcall';
 
 var
+  // The game languages (GameLangs), filled by RegisterLangs; used by pages.iss
   Langs: TStringList;
 
 #include "extension.iss"
