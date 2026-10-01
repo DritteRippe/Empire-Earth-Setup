@@ -108,13 +108,10 @@ begin
 
   
   ManualInstallQuestionPage.AddEx('&' + ExpandConstant('{cm:MIQP_Telemetry}'), 0, False);
-  if (WizardIsComponentInstalledMultiSetup('additional\telemetry')) then
-  begin
-    if (IsGameInstalled()) then 
-      ManualInstallQuestionPage.Values[5] :=  WizardIsComponentInstalledMultiSetup('additional\telemetry')
-    else
-      ManualInstallQuestionPage.Values[4] := WizardIsComponentInstalledMultiSetup('additional\telemetry');
-  end;
+  // Pre-checked only if this product was installed with telemetry: the consent given for the
+  // other product (EE <-> NeoEE) does not count for this one
+  if (IsGameInstalled() and WizardIsComponentInstalled('additional\telemetry')) then
+    ManualInstallQuestionPage.Values[5] := True;
 end;
 
 procedure SetupGPUInstallPage;

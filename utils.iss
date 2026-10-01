@@ -61,22 +61,19 @@ begin
   end;
 end;
 
-// Return HTTP code or -1 if error
-function SendRequest(const URL: String; const HttpFallback: Boolean; const Asynchronous: Boolean): Integer;
+// Return HTTP code or -1 if error (-2 if Asynchronous). There is no fallback to HTTP.
+// The query is not logged: telemetry requests carry the anonymous user id there.
+function SendRequest(const URL: String; const Asynchronous: Boolean): Integer;
 var
   WinHttpRequest: Variant;
-  Https: Boolean;
+  LogURL: String;
 begin
   Result := -1;
-  Https := False;
+  LogURL := URL;
+  if (Pos('?', LogURL) > 0) then
+    LogURL := Copy(LogURL, 1, Pos('?', LogURL)) + '...';
 
-  if (Pos('https://',  URL) <> 0) then
-    Https := True;
-
-  // if (Https and not IsWindowsXPOrNewer()) // Force HTTP usage for < XP
-  //  StringChangeEx(URL, 'https', 'http', True)
-
-  Log('Sending request: ' + URL + ' (HTTPS: ' + IntToStr(Integer(Https)) + ')');
+  Log('Sending request: ' + LogURL);
 
   try
     WinHttpRequest := CreateOleObject('WinHttp.WinHttpRequest.5.1'); // 5.0 for < Win2000 SP3 / WinXP SP1 ?
@@ -92,15 +89,49 @@ begin
     end;
     Log('Status: ' + IntToStr(Result));
   except
-    Log('Failed request: ' + URL);
+    Log('Failed request: ' + LogURL);
     Log(GetExceptionMessage);
     Result := -1;
-    if (Https and HttpFallback) then
+  end;
+end;
+
+// Percent-encodes S for a URL query value (RFC 3986): everything except A-Z a-z 0-9 - _ . ~ is
+// sent as %XX of its UTF-8 bytes
+function UrlEncode(const S: String): String;
+var
+  I, C, Next: Integer;
+begin
+  Result := '';
+  I := 1;
+  while I <= Length(S) do
+  begin
+    C := Ord(S[I]);
+    if (C >= $D800) and (C <= $DFFF) then
     begin
-      Log('URL was using HTTPS, trying HTTP as fallback...');
-      StringChangeEx(URL, 'https', 'http', True);
-      Result := SendRequest(URL, False, Asynchronous);
+      // UTF-16 surrogate pair -> code point, a lone surrogate becomes U+FFFD
+      Next := 0;
+      if (C <= $DBFF) and (I < Length(S)) then
+        Next := Ord(S[I + 1]);
+      if (Next >= $DC00) and (Next <= $DFFF) then
+      begin
+        C := $10000 + ((C - $D800) shl 10) + (Next - $DC00);
+        I := I + 1;
+      end else
+        C := $FFFD;
     end;
+
+    if ((C >= Ord('A')) and (C <= Ord('Z'))) or ((C >= Ord('a')) and (C <= Ord('z'))) or
+       ((C >= Ord('0')) and (C <= Ord('9'))) or (C = Ord('-')) or (C = Ord('_')) or (C = Ord('.')) or (C = Ord('~')) then
+      Result := Result + Chr(C)
+    else if C < $80 then
+      Result := Result + Format('%%%.2X', [C])
+    else if C < $800 then
+      Result := Result + Format('%%%.2X%%%.2X', [$C0 or (C shr 6), $80 or (C and $3F)])
+    else if C < $10000 then
+      Result := Result + Format('%%%.2X%%%.2X%%%.2X', [$E0 or (C shr 12), $80 or ((C shr 6) and $3F), $80 or (C and $3F)])
+    else
+      Result := Result + Format('%%%.2X%%%.2X%%%.2X%%%.2X', [$F0 or (C shr 18), $80 or ((C shr 12) and $3F), $80 or ((C shr 6) and $3F), $80 or (C and $3F)]);
+    I := I + 1;
   end;
 end;
 

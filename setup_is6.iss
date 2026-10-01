@@ -1555,67 +1555,43 @@ begin
   Result :=  True;
 end;
 
+// Setup statistics. Only sent with consent, i.e. when the telemetry component of this product is
+// selected in this setup: otherwise no request is made at all. The uninstaller never sends any.
 procedure SendSetupTelemetry();
 var
   InstallUrlStats: String;
 begin
+  if (IsUninstaller or not WizardIsComponentSelected('additional\telemetry')) then
+  begin
+    Log('Setup stats not sent (no consent)');
+    Exit;
+  end;
+
   Log('Sending setup stats over HTTPS!');
-  InstallUrlStats := ExpandConstant('api.' + DomainMain + '/eestats/setup/'
-    + '?install_type={#AppID}'
-    + '&install_lang=' + CorrectLanguageCode(GetSelectedLanguageFromComponents(''))
-    + '&is_uninstall=' + IntToStr(Integer(IsUninstaller))
-    + '&setup_version={#MySetupVersion}'
-    + '&game_version={#MyAppVersion}');
-
-  if (not IsUninstaller) then
-  begin
-    InstallUrlStats := (InstallUrlStats + '&components=' + WizardSelectedComponents(false) + '&tasks=' + WizardSelectedTasks(false))
-    InstallUrlStats := InstallUrlStats + '&arch=' + EEStats_getProcessorArch()
-  end else begin
-    InstallUrlStats := InstallUrlStats + '&arch=' + EEStats_getProcessorArch_U()
-  end;
-
-  // Allow telemetry ?
-  // Well we can send UID (We could also do it if not allowed since it's already anonymized
-  // but it's a good way for us to know how many % ppl accept or refuse :>)
-  if ((not IsUninstaller and WizardIsComponentSelected('additional\telemetry')) or (IsUninstaller and WizardIsComponentInstalledMultiSetup('additional\telemetry'))) then
-  begin
-    if (IsUninstaller) then
-      InstallUrlStats := (InstallUrlStats + '&user_uid=' + EEStats_getUID_U())
-    else
-      InstallUrlStats := (InstallUrlStats + '&user_uid=' + EEStats_getUID());
-  end else begin
-    InstallUrlStats := (InstallUrlStats + '&user_uid=REFUSED')
-  end;
+  InstallUrlStats := 'https://api.' + DomainMain + '/eestats/setup/'
+    + '?install_type=' + UrlEncode('{#AppID}')
+    + '&install_lang=' + UrlEncode(CorrectLanguageCode(GetSelectedLanguageFromComponents('')))
+    + '&is_uninstall=0'
+    + '&setup_version=' + UrlEncode('{#MySetupVersion}')
+    + '&game_version=' + UrlEncode('{#MyAppVersion}')
+    + '&components=' + UrlEncode(WizardSelectedComponents(False))
+    + '&tasks=' + UrlEncode(WizardSelectedTasks(False))
+    + '&arch=' + UrlEncode(String(EEStats_getProcessorArch()))
+    + '&user_uid=' + UrlEncode(String(EEStats_getUID()));
 
   if (IsInstalled) then
-  begin
-    InstallUrlStats := (InstallUrlStats + '&already_installed=1');
-    InstallUrlStats := (InstallUrlStats + '&install_update=' + IntToStr(Integer(IsUpdate)))
-  end else begin
-      InstallUrlStats := (InstallUrlStats + '&already_installed=0')
-      InstallUrlStats := (InstallUrlStats + '&install_update=0')
-  end;
-
-  if (IsUninstaller) then
-    InstallUrlStats := (InstallUrlStats + '&os_virtual_machine=' + IntToStr(Integer(EEStats_runInVM_U())))
+    InstallUrlStats := InstallUrlStats + '&already_installed=1&install_update=' + IntToStr(Integer(IsUpdate))
   else
-    InstallUrlStats := (InstallUrlStats + '&os_virtual_machine=' + IntToStr(Integer(EEStats_runInVM())));
+    InstallUrlStats := InstallUrlStats + '&already_installed=0&install_update=0';
 
+  InstallUrlStats := InstallUrlStats + '&os_virtual_machine=' + IntToStr(Integer(EEStats_runInVM()));
 
   if (IsWine()) then
-  begin
-    InstallUrlStats := (InstallUrlStats + '&wine=1')
-    if (IsUninstaller) then
-      InstallUrlStats := InstallUrlStats + '&os_version=' + EEStats_getWineVersion_U()
-    else
-      InstallUrlStats := InstallUrlStats + '&os_version=' + EEStats_getWineVersion();
-  end else begin
-    InstallUrlStats := InstallUrlStats + '&os_version=' + GetWindowsVersionString()
-    InstallUrlStats := (InstallUrlStats + '&wine=0')
-  end;
+    InstallUrlStats := InstallUrlStats + '&wine=1&os_version=' + UrlEncode(String(EEStats_getWineVersion()))
+  else
+    InstallUrlStats := InstallUrlStats + '&os_version=' + UrlEncode(GetWindowsVersionString()) + '&wine=0';
 
-  SendRequest('https://' + InstallUrlStats, True, True);
+  SendRequest(InstallUrlStats, True);
 end;
 
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
@@ -1623,7 +1599,6 @@ var
   ErrorCode: Integer;
 begin
   if (CurUninstallStep = usUninstall) then begin
-    SendSetupTelemetry();
     UnloadDLL(ExpandConstant('{app}\{#SetupDataDir}\EEStatsSetup.dll'));
   end else if (CurUninstallStep = usPostUninstall) then
   begin
@@ -1768,7 +1743,7 @@ begin
     Exit;
   end;
 
-  if ((SendRequest(OnlineFilesURL, False, False) = -1) and (SendRequest(OnlineFilesMirrorURL, False, False) = -1)) then
+  if ((SendRequest(OnlineFilesURL, False) = -1) and (SendRequest(OnlineFilesMirrorURL, False) = -1)) then
   begin
     Log('Unable to reach the online files server! The setup will only use local files...');
     if (not SilentInstall and not SuppressMsgBoxes) then

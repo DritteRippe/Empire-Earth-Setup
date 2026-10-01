@@ -54,6 +54,12 @@ Refactoring and quality fixes (no new game content).
   opens. Links open in the browser of the original user instead of with the setup's admin
   rights, and the update question is shown as a question instead of an error. Systems without
   TLS 1.2 support skip the update check.
+- Setup statistics are only sent when the telemetry component of this product is selected. A
+  refusal used to send the same request with components, tasks, VM detection and OS version (only
+  the user id was left out); now no request is made at all, and the uninstaller never sends one.
+  The consent box is no longer pre-checked because of the consent given for the other product
+  (EE/NeoEE). The request uses HTTPS only (no HTTP fallback), all values are URL-encoded, and the
+  log no longer contains the query with the anonymous user id.
 
 ## 1.7.2 - 2023-12-04
 
