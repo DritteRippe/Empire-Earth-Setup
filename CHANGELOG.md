@@ -48,6 +48,12 @@ Refactoring and quality fixes (no new game content).
   Very old Windows 7 installations without updated root certificates can no longer download
   these files and continue with the files included in the setup; they should install the
   Windows updates or use the full/offline setup.
+- Update check: HTTPS only (it used to retry over plain HTTP after any error) and only HTTP 200
+  answers count. The download link sent by the server is only opened if it is an https URL of
+  empireearth.eu, neoee.net or github.com/EE-modders, otherwise https://empireearth.eu/download
+  opens. Links open in the browser of the original user instead of with the setup's admin
+  rights, and the update question is shown as a question instead of an error. Systems without
+  TLS 1.2 support skip the update check.
 
 ## 1.7.2 - 2023-12-04
 

@@ -104,18 +104,14 @@ begin
   end;
 end;
 
-function DownloadString(const URL: string; var Response: string; const HttpFallback: Boolean): Integer;
+// Returns the HTTP status code, or -1 if the request failed. There is no fallback to HTTP: the
+// callers decide what to open or install from the answer, so it must come over validated TLS.
+function DownloadString(const URL: string; var Response: string): Integer;
 var
   WinHttpRequest: Variant;
-  Https: Boolean;
 begin
-  Result := -1; 
-  Https := False;
-
-  if (Pos('https://',  URL) <> 0) then
-    Https := True;
-  
-  Log('Downloading string: ' + URL + ' (HTTPS: ' + IntToStr(Integer(Https)) + ')');
+  Result := -1;
+  Log('Downloading string: ' + URL);
 
   try
     Response := '';
@@ -131,11 +127,43 @@ begin
     Log('Failed to download: ' + URL);
     Log(GetExceptionMessage);
     Result := -1;
-    if (Https and HttpFallback) then
-    begin
-      Log('URL was using HTTPS, trying HTTP as fallback...');
-      StringChangeEx(URL, 'https', 'http', True);
-      Result := DownloadString(URL, Response, False);
-    end;
   end;
+end;
+
+// Splits an absolute https URL into its host (lowercase) and the rest ('/' if empty). False for
+// anything else and for URLs a check of the host could be fooled with: user info ('@'), ports,
+// backslashes, spaces, control and non-ASCII characters.
+function SplitHttpsUrl(const Url: String; var Host, Path: String): Boolean;
+var
+  I, P: Integer;
+begin
+  Result := False;
+  Host := '';
+  Path := '';
+  if CompareText(Copy(Url, 1, 8), 'https://') <> 0 then
+    Exit;
+  for I := 1 to Length(Url) do
+    if (Ord(Url[I]) <= 32) or (Ord(Url[I]) >= 127) or (Url[I] = '\') then
+      Exit;
+
+  Host := Copy(Url, 9, Length(Url));
+  P := 0;
+  for I := Length(Host) downto 1 do
+    if (Host[I] = '/') or (Host[I] = '?') or (Host[I] = '#') then
+      P := I;
+  if P > 0 then
+  begin
+    Path := Copy(Host, P, Length(Host));
+    Host := Copy(Host, 1, P - 1);
+  end else
+    Path := '/';
+  Host := LowerCase(Host);
+  Result := (Host <> '') and (Pos('@', Host) = 0) and (Pos(':', Host) = 0);
+end;
+
+// True if Host is Domain itself or one of its subdomains (both lowercase)
+function IsDomainOrSubdomain(const Host, Domain: String): Boolean;
+begin
+  Result := (Host = Domain) or ((Length(Host) > Length(Domain) + 1) and
+    (Copy(Host, Length(Host) - Length(Domain), Length(Domain) + 1) = '.' + Domain));
 end;

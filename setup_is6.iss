@@ -1223,10 +1223,11 @@ Filename: "{sys}\netsh.exe"; Parameters: "firewall delete allowedprogram ""{app}
   StatusMsg: "Removing {#MyAppName} : AoC in Firewall"; Tasks: firewallexception; MinVersion: 0,5.0; OnlyBelowVersion: 0,6.0; Components: gameaoc; Check: IsAdminInstallMode
 
 [Code]
-// Since the setup need to work from 98 to 11 trying to use ssl would be a disaster
-// So we will use HTTP only, GameVersionURL and SetupVersionURL URLs need to accept HTTP
+// All requests use HTTPS with validated certificates and never fall back to HTTP: the answers
+// decide what the (elevated) setup opens or installs.
 const
-  SetupURL = 'http://empireearth.eu/download';
+  SetupURL = 'https://empireearth.eu/download';
+  UpdateApiURL = 'https://api.empireearth.eu/setup/?product={#AppID}';
   DomainMain = 'empireearth.eu';
   DomainMirror = 'ee.zocker-160.de';
 
@@ -1345,51 +1346,95 @@ begin
   Result := IntToStr(Tmp); 
 end;
 
+// Update API of the community website, answers with HTTP 200 and
+//   &type=<game|setup>&version=<v>  'false' if <v> is outdated
+//   &type=<game|setup>               the latest version
+//   (no parameter)                   the download URL of the latest setup
+// True only for HTTP 200; Response is the trimmed answer ('' otherwise)
+function QueryUpdateApi(const Params: String; var Response: String): Boolean;
+begin
+  Result := DownloadString(UpdateApiURL + Params, Response) = 200;
+  if Result then
+    Response := Trim(Response)
+  else
+    Response := '';
+end;
+
+// Latest version for the update question, '?' if the answer does not look like a version
+function GetLatestVersionText(const Params: String): String;
+var
+  I: Integer;
+begin
+  if not QueryUpdateApi(Params, Result) or (Result = '') or (Length(Result) > 32) then
+  begin
+    Result := '?';
+    Exit;
+  end;
+  for I := 1 to Length(Result) do
+    if Pos(Result[I], '0123456789.-_ abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ') = 0 then
+    begin
+      Result := '?';
+      Exit;
+    end;
+end;
+
+// The download URL comes from the update API: only https URLs on the project's own hosts may be
+// opened (EE community website, NeoEE website, EE-modders on GitHub)
+function IsAllowedUpdateUrl(const Url: String): Boolean;
+var
+  Host, Path: String;
+begin
+  Result := False;
+  if not SplitHttpsUrl(Url, Host, Path) then
+    Exit;
+  if IsDomainOrSubdomain(Host, 'empireearth.eu') or IsDomainOrSubdomain(Host, 'neoee.net') then
+    Result := True
+  else if Host = 'github.com' then
+    // Anyone can publish on github.com: only the EE-modders organization, no dot segments/escapes
+    Result := (CompareText(Copy(Path, 1, 12), '/EE-modders/') = 0) and (Pos('..', Path) = 0) and (Pos('%', Path) = 0);
+end;
+
+// Opens the download of the latest setup, or the fixed download page if the API gives no
+// acceptable URL. The browser runs as the original user, not with the setup's admin rights.
+procedure OpenUpdateDownloadPage;
+var
+  Url: String;
+  ErrorCode: Integer;
+begin
+  if not QueryUpdateApi('', Url) then
+    Url := SetupURL
+  else if not IsAllowedUpdateUrl(Url) then
+  begin
+    Log('Update URL rejected (not an https URL of the project): ' + Url);
+    Url := SetupURL;
+  end;
+  Log('Opening ' + Url);
+  if not ShellExecAsOriginalUser('open', Url, '', '', SW_SHOWNORMAL, ewNoWait, ErrorCode) then
+    Log('Unable to open ' + Url + ': ' + SysErrorMessage(ErrorCode));
+end;
+
+// Asks whether to download the update; True (= exit setup) if the user wants it
+function AskForUpdate(const UpdateMessage, LatestVersionParams: String): Boolean;
+var
+  Msg: String;
+begin
+  Msg := UpdateMessage;
+  StringChangeEx(Msg, '[LAST]', GetLatestVersionText(LatestVersionParams), True);
+  Result := MsgBox(Msg, mbConfirmation, MB_YESNO) = IDYES;
+  if Result then
+    OpenUpdateDownloadPage();
+end;
+
 // Return True when update dialog return yes (= exit setup & open web page)
 function CheckUpdate: Boolean;
 var
-  LatestVersion: String;
-  UpdateMsg: String;
-  ErrorCode : Integer;
+  Answer: String;
 begin
   Result := False;
-  if (DownloadString('https://api.empireearth.eu/setup/?product={#AppID}&type=game&version={#MyAppVersion}', LatestVersion, True) <> -1)
-    and (CompareStr(LatestVersion, 'false') = 0) then
-  begin
-    UpdateMsg := ExpandConstant('{cm:GameUpdate}');
-    if (DownloadString('https://api.empireearth.eu/setup/?product={#AppID}&type=game', LatestVersion, True) <> -1) and (LatestVersion <> '') then
-      StringChangeEx(UpdateMsg, '[LAST]', LatestVersion, True)
-    else
-      StringChangeEx(UpdateMsg, '[LAST]', '?', True);
-    if MsgBox(UpdateMsg, mbError, MB_YESNO) = IDYES then
-    begin
-      DownloadString('https://api.empireearth.eu/setup/?product={#AppID}', LatestVersion, True);
-      if (LatestVersion <> '') then
-        ShellExec('', LatestVersion, '', '', SW_SHOW, ewNoWait, ErrorCode) // Direct File
-      else
-        ShellExec('', SetupURL, '', '', SW_SHOW, ewNoWait, ErrorCode); // Fallback
-      Result := True;
-      Exit;
-    end;
-  end else if (DownloadString('https://api.empireearth.eu/setup/?product={#AppID}&type=setup&version={#MySetupVersion}', LatestVersion, True) <> -1)
-    and (CompareStr(LatestVersion, 'false') = 0) then
-  begin
-    UpdateMsg := ExpandConstant('{cm:SetupUpdate}');
-    if (DownloadString('https://api.empireearth.eu/setup/?product={#AppID}&type=setup', LatestVersion, True) <> -1) and (LatestVersion <> '') then
-      StringChangeEx(UpdateMsg, '[LAST]', LatestVersion, True)
-    else
-      StringChangeEx(UpdateMsg, '[LAST]', '?', True);
-    if MsgBox(UpdateMsg, mbError, MB_YESNO) = IDYES then
-    begin
-      DownloadString('https://api.empireearth.eu/setup/?product={#AppID}', LatestVersion, True);
-      if (LatestVersion <> '') then
-        ShellExec('', LatestVersion, '', '', SW_SHOW, ewNoWait, ErrorCode) // Direct File
-      else
-        ShellExec('', SetupURL, '', '', SW_SHOW, ewNoWait, ErrorCode); // Fallback
-      Result := True;
-      Exit;
-    end;
-  end;
+  if QueryUpdateApi('&type=game&version={#MyAppVersion}', Answer) and (Answer = 'false') then
+    Result := AskForUpdate(ExpandConstant('{cm:GameUpdate}'), '&type=game')
+  else if QueryUpdateApi('&type=setup&version={#MySetupVersion}', Answer) and (Answer = 'false') then
+    Result := AskForUpdate(ExpandConstant('{cm:SetupUpdate}'), '&type=setup');
 end;
 
 function CorrectLanguageCode(Param: String): String;
@@ -1471,7 +1516,7 @@ begin
     // Legal Question
     if MsgBox(ExpandConstant('{cm:LegalQuestion}'), mbConfirmation, MB_YESNO) = IDNO then
     begin
-      ShellExec('', 'https://www.gog.com/game/empire_earth_gold_edition', '', '', SW_SHOW, ewNoWait, ErrorCode);
+      ShellExecAsOriginalUser('open', 'https://www.gog.com/game/empire_earth_gold_edition', '', '', SW_SHOWNORMAL, ewNoWait, ErrorCode);
       Exit;
     end;
   end;
