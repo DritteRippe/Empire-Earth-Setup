@@ -219,6 +219,21 @@
 #define AoCExe AoCDir + "\EE-AOC.exe"
 #define RmsSubDir "Data\Random Map Scripts"
 
+; Game languages, in the order of the language page. Each one is the component language\<name>,
+; described by the custom message LIQP_<name> (messages.iss); a name that is also in [Languages]
+; is preselected when the setup itself runs in that language. The files of a language are in
+; data\localized-text\ and, for NeoEE, data\localized-text\Mods\NeoEE\:
+;   Game\<name with "-" instead of "_">\<EE|AoC>\Language.dll   (see CorrectLanguageCode)
+;   Lobby\<its GameLangLobbyDirs entry>\<EE|AoC|shared>\*        (one lobby folder can serve
+;                                                                  several languages, e.g. zh)
+; The language entries of [Components] and [Files] and the list of RegisterLangs are generated
+; from these lists. To add a language: add it to both lists, raise GameLangCount, add its
+; LIQP_<name> message and its files.
+#define GameLangCount 11
+#dim GameLangs[GameLangCount] {"de", "en", "es", "fr", "it", "ko", "pl", "pt_BR", "ru", "zh_CN", "zh_TW"}
+#dim GameLangLobbyDirs[GameLangCount] {"de", "en", "es", "fr", "it", "ko", "pl", "pt-BR", "ru", "zh", "zh"}
+#define LangIndex 0
+
 #if InstallType == "EE"
   #define AppID EE_AppID
   #define MyAppVersion "2.0.0.0"
@@ -480,18 +495,68 @@ Name: "additional\civs\ec"; Description: "eC Standard Civilizations (25)"; Types
 Name: "additional\civs\ec_full"; Description: "eC Full Civilizations (71)"; Types: full
 
 Name: "language"; Description: "Game Language"; Types: full compact custom raw; Flags: disablenouninstallwarning fixed;
-Name: "language\de"; Description: "{cm:LIQP_de}"; Flags: exclusive;
-Name: "language\en"; Description: "{cm:LIQP_en}"; Flags: exclusive;
-Name: "language\es"; Description: "{cm:LIQP_es}"; Flags: exclusive;
-Name: "language\fr"; Description: "{cm:LIQP_fr}"; Flags: exclusive;
-Name: "language\it"; Description: "{cm:LIQP_it}"; Flags: exclusive;
-Name: "language\ko"; Description: "{cm:LIQP_ko}"; Flags: exclusive;
-Name: "language\pl"; Description: "{cm:LIQP_pl}"; Flags: exclusive;
-Name: "language\pt_BR"; Description: "{cm:LIQP_pt_BR}"; Flags: exclusive;
-Name: "language\ru"; Description: "{cm:LIQP_ru}"; Flags: exclusive;
-Name: "language\zh_CN"; Description: "{cm:LIQP_zh_CN}"; Flags: exclusive;
-Name: "language\zh_TW"; Description: "{cm:LIQP_zh_TW}"; Flags: exclusive;
+; One exclusive component per game language (GameLangs).
+; Note: this is the first #for of the script. After a #sub has run (#for or #call), ISPP 6.2 makes
+; the plain #defines that follow in the same file invisible inside subs and in files included
+; later. So #defines that included files use must stay above this point, and the variables of
+; the subs below are declared with "#define public".
+#sub GameLangComponent
+  #if TypeOf2(GameLangs[LangIndex]) != TYPE_STRING || GameLangs[LangIndex] == "" || TypeOf2(GameLangLobbyDirs[LangIndex]) != TYPE_STRING || GameLangLobbyDirs[LangIndex] == ""
+    #pragma error "Game language " + Str(LangIndex + 1) + " of " + Str(GameLangCount) + " is missing in GameLangs or GameLangLobbyDirs"
+  #endif
+Name: "language\{#GameLangs[LangIndex]}"; Description: "{cm:LIQP_{#GameLangs[LangIndex]}}"; Flags: exclusive;
+#endsub
+#for {LangIndex = 0; LangIndex < GameLangCount; LangIndex++} GameLangComponent
 Name: "language\update"; Description: "Download localized voices and campaigns"; Types: full compact custom raw; Flags: disablenouninstallwarning;
+
+; Localized text of one game in [Files]: for every game language (GameLangs) its Language.dll,
+; then the lobby files of the game, then the lobby files shared by EE and AoC, each with the
+; component of its language. Set the parameters with #expr, then #call LocalizedTextFiles:
+;   LocTextBase  folder below data\localized-text\: "" or "Mods\NeoEE\" (NeoEE versions)
+;   LocTextGame  EE or AoC: subfolder of the language folders
+;   LocTextDir   game folder below {app}
+;   LocTextComp  component of the game (game or gameaoc)
+; (public: see the note at GameLangComponent)
+#define public LocTextBase ""
+#define public LocTextGame ""
+#define public LocTextDir ""
+#define public LocTextComp ""
+#define public LocTextLobbySub ""
+#define public LobbyLangIndex 0
+#define public LobbyLangCond ""
+#define public LobbyLangCount 0
+#define public LobbyLangFirst 0
+#sub LocalizedLanguageDll
+Source: "data\localized-text\{#LocTextBase}Game\{#StringChange(GameLangs[LangIndex], "_", "-")}\{#LocTextGame}\Language.dll"; DestDir: "{app}\{#LocTextDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: {#LocTextComp} and language\{#GameLangs[LangIndex]}
+#endsub
+; Adds the language LobbyLangIndex to LobbyLangCond if it uses the lobby folder of LangIndex
+#sub CollectLobbyLang
+  #if GameLangLobbyDirs[LobbyLangIndex] == GameLangLobbyDirs[LangIndex]
+    #if LobbyLangIndex < LangIndex
+      #expr LobbyLangFirst = 0
+    #endif
+    #expr LobbyLangCond = LobbyLangCond + (LobbyLangCount > 0 ? " or " : "") + "language\" + GameLangs[LobbyLangIndex]
+    #expr LobbyLangCount++
+  #endif
+#endsub
+; One entry per lobby folder (at its first language), for all languages that use it
+#sub LocalizedLobbyFiles
+  #expr LobbyLangCond = "", LobbyLangCount = 0, LobbyLangFirst = 1
+  #for {LobbyLangIndex = 0; LobbyLangIndex < GameLangCount; LobbyLangIndex++} CollectLobbyLang
+  #if LobbyLangFirst
+    #if LobbyLangCount > 1
+      #expr LobbyLangCond = "(" + LobbyLangCond + ")"
+    #endif
+Source: "data\localized-text\{#LocTextBase}Lobby\{#GameLangLobbyDirs[LangIndex]}\{#LocTextLobbySub}\*"; DestDir: "{app}\{#LocTextDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: {#LocTextComp} and {#LobbyLangCond}
+  #endif
+#endsub
+#sub LocalizedTextFiles
+  #for {LangIndex = 0; LangIndex < GameLangCount; LangIndex++} LocalizedLanguageDll
+  #expr LocTextLobbySub = LocTextGame
+  #for {LangIndex = 0; LangIndex < GameLangCount; LangIndex++} LocalizedLobbyFiles
+  #expr LocTextLobbySub = "shared"
+  #for {LangIndex = 0; LangIndex < GameLangCount; LangIndex++} LocalizedLobbyFiles
+#endsub
 
 [Files]
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
@@ -534,78 +599,13 @@ Source: "data\Add-on\Movies\EE\*"; DestDir: "{app}\{#EEDir}\Data\Movies"; Flags:
   Source: "data\NeoEE - Wine\NeoEE.cfg"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game; Check: IsWine
 #endif
 
-; EE Lang Game Based Content
-Source: "data\localized-text\Game\de\EE\Language.dll"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\de
-Source: "data\localized-text\Game\en\EE\Language.dll"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\en
-Source: "data\localized-text\Game\es\EE\Language.dll"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\es
-Source: "data\localized-text\Game\fr\EE\Language.dll"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\fr
-Source: "data\localized-text\Game\it\EE\Language.dll"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\it
-Source: "data\localized-text\Game\ko\EE\Language.dll"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\ko
-Source: "data\localized-text\Game\pl\EE\Language.dll"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\pl
-Source: "data\localized-text\Game\pt-BR\EE\Language.dll"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\pt_BR
-Source: "data\localized-text\Game\ru\EE\Language.dll"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\ru
-Source: "data\localized-text\Game\zh-CN\EE\Language.dll"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\zh_CN
-Source: "data\localized-text\Game\zh-TW\EE\Language.dll"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\zh_TW
-
-; EE Lang Lobby Based Content
-Source: "data\localized-text\Lobby\de\EE\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\de
-Source: "data\localized-text\Lobby\en\EE\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\en
-Source: "data\localized-text\Lobby\es\EE\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\es
-Source: "data\localized-text\Lobby\fr\EE\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\fr
-Source: "data\localized-text\Lobby\it\EE\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\it
-Source: "data\localized-text\Lobby\ko\EE\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\ko
-Source: "data\localized-text\Lobby\pl\EE\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\pl
-Source: "data\localized-text\Lobby\pt-BR\EE\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\pt_BR
-Source: "data\localized-text\Lobby\ru\EE\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\ru
-Source: "data\localized-text\Lobby\zh\EE\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and (language\zh_CN or language\zh_TW)
-
-Source: "data\localized-text\Lobby\de\shared\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\de
-Source: "data\localized-text\Lobby\en\shared\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\en
-Source: "data\localized-text\Lobby\es\shared\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\es
-Source: "data\localized-text\Lobby\fr\shared\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\fr
-Source: "data\localized-text\Lobby\it\shared\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\it
-Source: "data\localized-text\Lobby\ko\shared\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\ko
-Source: "data\localized-text\Lobby\pl\shared\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\pl
-Source: "data\localized-text\Lobby\pt-BR\shared\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\pt_BR
-Source: "data\localized-text\Lobby\ru\shared\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\ru
-Source: "data\localized-text\Lobby\zh\shared\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and (language\zh_CN or language\zh_TW)
-
-
+; EE localized text (Language.dll, lobby files) of the selected game language
+#expr LocTextBase = "", LocTextGame = "EE", LocTextDir = EEDir, LocTextComp = "game"
+#call LocalizedTextFiles
 #if InstallType == "NeoEE"
-  ; NeoEE Lang Lobby Based Content
-  Source: "data\localized-text\Mods\NeoEE\Game\de\EE\Language.dll"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\de
-  Source: "data\localized-text\Mods\NeoEE\Game\en\EE\Language.dll"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\en
-  Source: "data\localized-text\Mods\NeoEE\Game\es\EE\Language.dll"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\es
-  Source: "data\localized-text\Mods\NeoEE\Game\fr\EE\Language.dll"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\fr
-  Source: "data\localized-text\Mods\NeoEE\Game\it\EE\Language.dll"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\it
-  Source: "data\localized-text\Mods\NeoEE\Game\ko\EE\Language.dll"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\ko
-  Source: "data\localized-text\Mods\NeoEE\Game\pl\EE\Language.dll"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\pl
-  Source: "data\localized-text\Mods\NeoEE\Game\pt-BR\EE\Language.dll"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\pt_BR
-  Source: "data\localized-text\Mods\NeoEE\Game\ru\EE\Language.dll"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\ru
-  Source: "data\localized-text\Mods\NeoEE\Game\zh-CN\EE\Language.dll"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\zh_CN
-  Source: "data\localized-text\Mods\NeoEE\Game\zh-TW\EE\Language.dll"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\zh_TW
-
-  Source: "data\localized-text\Mods\NeoEE\Lobby\de\EE\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\de
-  Source: "data\localized-text\Mods\NeoEE\Lobby\en\EE\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\en
-  Source: "data\localized-text\Mods\NeoEE\Lobby\es\EE\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\es
-  Source: "data\localized-text\Mods\NeoEE\Lobby\fr\EE\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\fr
-  Source: "data\localized-text\Mods\NeoEE\Lobby\it\EE\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\it
-  Source: "data\localized-text\Mods\NeoEE\Lobby\ko\EE\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\ko
-  Source: "data\localized-text\Mods\NeoEE\Lobby\pl\EE\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\pl
-  Source: "data\localized-text\Mods\NeoEE\Lobby\pt-BR\EE\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\pt_BR
-  Source: "data\localized-text\Mods\NeoEE\Lobby\ru\EE\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\ru
-  Source: "data\localized-text\Mods\NeoEE\Lobby\zh\EE\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and (language\zh_CN or language\zh_TW)
-
-  Source: "data\localized-text\Mods\NeoEE\Lobby\de\shared\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\de
-  Source: "data\localized-text\Mods\NeoEE\Lobby\en\shared\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\en
-  Source: "data\localized-text\Mods\NeoEE\Lobby\es\shared\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\es
-  Source: "data\localized-text\Mods\NeoEE\Lobby\fr\shared\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\fr
-  Source: "data\localized-text\Mods\NeoEE\Lobby\it\shared\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\it
-  Source: "data\localized-text\Mods\NeoEE\Lobby\ko\shared\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\ko
-  Source: "data\localized-text\Mods\NeoEE\Lobby\pl\shared\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\pl
-  Source: "data\localized-text\Mods\NeoEE\Lobby\pt-BR\shared\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\pt_BR
-  Source: "data\localized-text\Mods\NeoEE\Lobby\ru\shared\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and language\ru
-  Source: "data\localized-text\Mods\NeoEE\Lobby\zh\shared\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game and (language\zh_CN or language\zh_TW)
+  ; NeoEE versions, installed over the ones above
+  #expr LocTextBase = "Mods\NeoEE\"
+  #call LocalizedTextFiles
 #endif
 
 ; EE Online Lang Any Based Content (only downloads that passed the SHA-256 check, see downloads.iss)
@@ -705,77 +705,13 @@ Source: "data\Add-on\Movies\AoC\*"; DestDir: "{app}\{#AoCDir}\Data\Movies"; \
     Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc; Check: IsWine
 #endif
 
-; EE Lang Game Based Content
-Source: "data\localized-text\Game\de\AoC\Language.dll"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\de
-Source: "data\localized-text\Game\en\AoC\Language.dll"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\en
-Source: "data\localized-text\Game\es\AoC\Language.dll"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\es
-Source: "data\localized-text\Game\fr\AoC\Language.dll"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\fr
-Source: "data\localized-text\Game\it\AoC\Language.dll"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\it
-Source: "data\localized-text\Game\ko\AoC\Language.dll"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\ko
-Source: "data\localized-text\Game\pl\AoC\Language.dll"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\pl
-Source: "data\localized-text\Game\pt-BR\AoC\Language.dll"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\pt_BR
-Source: "data\localized-text\Game\ru\AoC\Language.dll"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\ru
-Source: "data\localized-text\Game\zh-CN\AoC\Language.dll"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\zh_CN
-Source: "data\localized-text\Game\zh-TW\AoC\Language.dll"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\zh_TW
-
-; EE Lang Lobby Based Content
-Source: "data\localized-text\Lobby\de\AoC\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\de
-Source: "data\localized-text\Lobby\en\AoC\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\en
-Source: "data\localized-text\Lobby\es\AoC\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\es
-Source: "data\localized-text\Lobby\fr\AoC\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\fr
-Source: "data\localized-text\Lobby\it\AoC\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\it
-Source: "data\localized-text\Lobby\ko\AoC\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\ko
-Source: "data\localized-text\Lobby\pl\AoC\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\pl
-Source: "data\localized-text\Lobby\pt-BR\AoC\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\pt_BR
-Source: "data\localized-text\Lobby\ru\AoC\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\ru
-Source: "data\localized-text\Lobby\zh\AoC\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and (language\zh_CN or language\zh_TW)
-
-Source: "data\localized-text\Lobby\de\shared\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\de
-Source: "data\localized-text\Lobby\en\shared\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\en
-Source: "data\localized-text\Lobby\es\shared\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\es
-Source: "data\localized-text\Lobby\fr\shared\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\fr
-Source: "data\localized-text\Lobby\it\shared\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\it
-Source: "data\localized-text\Lobby\ko\shared\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\ko
-Source: "data\localized-text\Lobby\pl\shared\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\pl
-Source: "data\localized-text\Lobby\pt-BR\shared\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\pt_BR
-Source: "data\localized-text\Lobby\ru\shared\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\ru
-Source: "data\localized-text\Lobby\zh\shared\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and (language\zh_CN or language\zh_TW)
-
+; AoC localized text (Language.dll, lobby files) of the selected game language
+#expr LocTextBase = "", LocTextGame = "AoC", LocTextDir = AoCDir, LocTextComp = "gameaoc"
+#call LocalizedTextFiles
 #if InstallType == "NeoEE"
-  ; NeoEE Lang Lobby Based Content
-  Source: "data\localized-text\Mods\NeoEE\Game\de\AoC\Language.dll"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\de
-  Source: "data\localized-text\Mods\NeoEE\Game\en\AoC\Language.dll"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\en
-  Source: "data\localized-text\Mods\NeoEE\Game\es\AoC\Language.dll"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\es
-  Source: "data\localized-text\Mods\NeoEE\Game\fr\AoC\Language.dll"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\fr
-  Source: "data\localized-text\Mods\NeoEE\Game\it\AoC\Language.dll"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\it
-  Source: "data\localized-text\Mods\NeoEE\Game\ko\AoC\Language.dll"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\ko
-  Source: "data\localized-text\Mods\NeoEE\Game\pl\AoC\Language.dll"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\pl
-  Source: "data\localized-text\Mods\NeoEE\Game\pt-BR\AoC\Language.dll"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\pt_BR
-  Source: "data\localized-text\Mods\NeoEE\Game\ru\AoC\Language.dll"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\ru
-  Source: "data\localized-text\Mods\NeoEE\Game\zh-CN\AoC\Language.dll"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\zh_CN
-  Source: "data\localized-text\Mods\NeoEE\Game\zh-TW\AoC\Language.dll"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\zh_TW
-
-  Source: "data\localized-text\Mods\NeoEE\Lobby\de\AoC\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\de
-  Source: "data\localized-text\Mods\NeoEE\Lobby\en\AoC\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\en
-  Source: "data\localized-text\Mods\NeoEE\Lobby\es\AoC\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\es
-  Source: "data\localized-text\Mods\NeoEE\Lobby\fr\AoC\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\fr
-  Source: "data\localized-text\Mods\NeoEE\Lobby\it\AoC\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\it
-  Source: "data\localized-text\Mods\NeoEE\Lobby\ko\AoC\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\ko
-  Source: "data\localized-text\Mods\NeoEE\Lobby\pl\AoC\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\pl
-  Source: "data\localized-text\Mods\NeoEE\Lobby\pt-BR\AoC\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\pt_BR
-  Source: "data\localized-text\Mods\NeoEE\Lobby\ru\AoC\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\ru
-  Source: "data\localized-text\Mods\NeoEE\Lobby\zh\AoC\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and (language\zh_CN or language\zh_TW)
-
-  Source: "data\localized-text\Mods\NeoEE\Lobby\de\shared\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\de
-  Source: "data\localized-text\Mods\NeoEE\Lobby\en\shared\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\en
-  Source: "data\localized-text\Mods\NeoEE\Lobby\es\shared\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\es
-  Source: "data\localized-text\Mods\NeoEE\Lobby\fr\shared\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\fr
-  Source: "data\localized-text\Mods\NeoEE\Lobby\it\shared\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\it
-  Source: "data\localized-text\Mods\NeoEE\Lobby\ko\shared\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\ko
-  Source: "data\localized-text\Mods\NeoEE\Lobby\pl\shared\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\pl
-  Source: "data\localized-text\Mods\NeoEE\Lobby\pt-BR\shared\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\pt_BR
-  Source: "data\localized-text\Mods\NeoEE\Lobby\ru\shared\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and language\ru
-  Source: "data\localized-text\Mods\NeoEE\Lobby\zh\shared\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc and (language\zh_CN or language\zh_TW)
+  ; NeoEE versions, installed over the ones above
+  #expr LocTextBase = "Mods\NeoEE\"
+  #call LocalizedTextFiles
 #endif
 
 ; skipifsourcedoesntexist: {tmp}\verified\AoC is empty when nothing was downloaded for AoC (English,
@@ -1458,17 +1394,11 @@ end;
 procedure RegisterLangs();
 begin
   Langs := TStringList.Create;
-  Langs.Add('de');
-  Langs.Add('en');
-  Langs.Add('es');
-  Langs.Add('fr');
-  Langs.Add('it');
-  Langs.Add('ko');
-  Langs.Add('pl');
-  Langs.Add('pt_BR');
-  Langs.Add('ru');
-  Langs.Add('zh_CN');
-  Langs.Add('zh_TW');
+  // The game languages of [Components] (GameLangs), in the same order
+#sub AddGameLang
+  Langs.Add('{#GameLangs[LangIndex]}');
+#endsub
+#for {LangIndex = 0; LangIndex < GameLangCount; LangIndex++} AddGameLang
   Log('Registered languages: ' + Langs.CommaText);
 end;
 

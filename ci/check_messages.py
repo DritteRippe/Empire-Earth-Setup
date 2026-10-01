@@ -11,7 +11,8 @@ Errors (exit code 1):
   - a language prefix that is not in [Languages] of setup_is6.iss,
   - a custom message with translations but without the default (English) entry,
   - a custom message used in the own scripts ({cm:Name}, CustomMessage('Name')) that is not
-    defined. Names built at run time (e.g. 'LIQP_' + Langs[i]) cannot be checked.
+    defined. Names built at run time (e.g. 'LIQP_' + Langs[i]) cannot be checked, except for the
+    language names LIQP_<name>: one for every game language in GameLangs of setup_is6.iss.
 """
 import re
 import sys
@@ -102,6 +103,16 @@ def main():
     for name in sorted(custom):
         if ("CustomMessages", name, "") not in defined:
             errors.append(f"messages.iss: custom message {name} has translations but no default entry")
+
+    # Game languages: the language page and [Components] (generated) use LIQP_<name>
+    game_langs = re.search(r'^#dim\s+GameLangs\s*\[[^\]]*\]\s*\{([^}]*)\}',
+                           (root / "setup_is6.iss").read_text(encoding="utf-8-sig"), re.M)
+    if not game_langs:
+        errors.append("setup_is6.iss: no '#dim GameLangs[...] {...}' list found")
+    else:
+        for lang in re.findall(r'"([^"]+)"', game_langs.group(1)):
+            if "LIQP_" + lang not in custom:
+                errors.append(f"setup_is6.iss: game language {lang} has no custom message LIQP_{lang}")
 
     for script in OWN_SCRIPTS:
         text = (root / script).read_text(encoding="utf-8-sig")
