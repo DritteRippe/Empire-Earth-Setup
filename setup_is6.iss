@@ -443,7 +443,7 @@ Name: "compatibility_windows"; Description: "{cm:TaskCompatibilityWindows}"; Min
 Name: "firewallexception"; Description: "{cm:TaskFirewall}"; MinVersion: {#Win2000}; Check: IsAdminInstallMode and not IsWine
 ; DirectPlay: Windows feature used by old DirectX games, the GOG setup enables it too (see [Run])
 Name: "directplay"; Description: "{cm:TaskDirectPlay}"; MinVersion: {#Win8}; Check: IsAdminInstallMode
-Name: "dxwebsetup"; Description: "{cm:TaskDxWebSetup}"; MinVersion: {#Win2000}; Check: IsAdminInstallMode and not IsWine; Components: additional\directx_wrapper\dx9 or not additional\directx_wrapper 
+Name: "dxwebsetup"; Description: "{cm:TaskDxWebSetup}"; MinVersion: {#Win2000}; Check: IsAdminInstallMode and not IsWine; Components: additional\directx_wrapper\dx9 or not additional\directx_wrapper
 #if InstallType == "NeoEE"
   ; Since 1.0.1.0 NeoEE CDKeys support HKLM & HKCU
   Name: "neoee_cdkeys"; Description: "{cm:TaskNeoEECDKeys}"; MinVersion: {#Win2000};
@@ -596,8 +596,8 @@ Source: "data\Add-on\RMS\NeoExtra\*"; DestDir: "{app}\{#AddOnDir}\{#RmsSubDir}";
   #endif
 ; dgVoodoo binaries (DirectX 11/12 wrapper) or DDraw.dll (GOG for dx9, DDrawCompat for dx7)
 Source: "data\Add-on\DirectX_Wrapper\dgVoodoo_bin\*"; DestDir: "{app}\{#AddOnDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper and {#AddOnComp} and not additional\directx_wrapper\dx9 and not additional\directx_wrapper\dx7
-Source: "data\\Add-on\DirectX_Wrapper\GOG\DDraw.dll"; DestDir: "{app}\{#AddOnDir}"; DestName: "DDraw.dll"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper\dx9 and {#AddOnComp}
-Source: "data\\Add-on\DirectX_Wrapper\DDrawCompat\DDraw.dll"; DestDir: "{app}\{#AddOnDir}"; DestName: "DDraw.dll"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper\dx7 and {#AddOnComp}
+Source: "data\Add-on\DirectX_Wrapper\GOG\DDraw.dll"; DestDir: "{app}\{#AddOnDir}"; DestName: "DDraw.dll"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper\dx9 and {#AddOnComp}
+Source: "data\Add-on\DirectX_Wrapper\DDrawCompat\DDraw.dll"; DestDir: "{app}\{#AddOnDir}"; DestName: "DDraw.dll"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper\dx7 and {#AddOnComp}
 ; dgVoodoo configuration of the selected API level
 Source: "data\Add-on\DirectX_Wrapper\dgVoodoo_conf\dgVoodoo_DX11_LVL10.conf"; DestDir: "{app}\{#AddOnDir}"; DestName: "dgVoodoo.conf"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper\dx11_lvl10 and {#AddOnComp}
 Source: "data\Add-on\DirectX_Wrapper\dgVoodoo_conf\dgVoodoo_DX11_LVL10_1.conf"; DestDir: "{app}\{#AddOnDir}"; DestName: "dgVoodoo.conf"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper\dx11_lvl10_1 and {#AddOnComp}
@@ -990,7 +990,6 @@ Type: files; Name: "{app}\{#EEDir}\Reborn.ini"
 Type: files; Name: "{app}\{#EEDir}\EEStats.log"
 Type: filesandordirs; Name: "{app}\{#EEDir}\Data\dxm"
 Type: files; Name: "{app}\{#EEDir}\_won*"
-Type: files; Name: "{app}\{#EEDir}\upnp_info.txt"
 Type: filesandordirs; Name: "{app}\{#EEDir}\_wonHTTPCache"
 Type: files; Name: "{app}\{#EEDir}\Data\Scenarios\ScenDefault.scn"
 Type: files; Name: "{app}\{#EEDir}\OOS *.log"
@@ -1004,7 +1003,6 @@ Type: files; Name: "{app}\{#AoCDir}\Reborn.ini"
 Type: files; Name: "{app}\{#AoCDir}\EEStats.log"
 Type: filesandordirs; Name: "{app}\{#AoCDir}\Data\dxm"
 Type: files; Name: "{app}\{#AoCDir}\_won*"
-Type: files; Name: "{app}\{#AoCDir}\upnp_info.txt"
 Type: filesandordirs; Name: "{app}\{#AoCDir}\_wonHTTPCache"
 Type: files; Name: "{app}\{#AoCDir}\Data\Scenarios\ScenDefault.scn"
 Type: files; Name: "{app}\{#AoCDir}\OOS *.log"
@@ -1123,7 +1121,7 @@ var
 
 function GetCompatibilityFlags(Param: String): String;
 begin
-  Result :=  '~'
+  Result := '~';
 
   if WizardIsTaskSelected('everyoneadminstart') then
   begin
@@ -1152,7 +1150,7 @@ end;
 
 function GetInstallWithoutDriveLetterBase(Param: String): String;
 begin
-    Result := UpperCase(GetInstallWithoutDriveLetter(Param));
+  Result := UpperCase(GetInstallWithoutDriveLetter(Param));
 end;
 
 const
@@ -1169,24 +1167,24 @@ function GetScreenResolutionHeight(Param: String): String;
 var
   Tmp: Integer;
 begin
-  Tmp := GetSystemMetrics(SM_CYSCREEN)
+  Tmp := GetSystemMetrics(SM_CYSCREEN);
   if Tmp < MinGameWindowHeight then
     Tmp := MinGameWindowHeight;
   if Tmp > MaxGameWindowHeight then
     Tmp := MaxGameWindowHeight;
-  Result := IntToStr(Tmp); 
+  Result := IntToStr(Tmp);
 end;
 
 function GetScreenResolutionWidth(Param: String): String;
 var
   Tmp: Integer;
 begin
-  Tmp := GetSystemMetrics(SM_CXSCREEN)
+  Tmp := GetSystemMetrics(SM_CXSCREEN);
   if Tmp < MinGameWindowWidth then
     Tmp := MinGameWindowWidth;
   if Tmp > MaxGameWindowWidth then
     Tmp := MaxGameWindowWidth;
-  Result := IntToStr(Tmp); 
+  Result := IntToStr(Tmp);
 end;
 
 // Update API of the community website, answers with HTTP 200 and

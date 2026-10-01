@@ -164,7 +164,7 @@ end;
 
 procedure SetupManualCustomInstallPage;
 begin
-// Manual or custom install page
+  // Manual or custom install page
   Log('Create install manual/custom page');
   ManualInstallQuestionPage :=
     CreateInputOptionPage(LanguageInstallQuestionPage.ID, ExpandConstant('{cm:MIQP_Title}'),

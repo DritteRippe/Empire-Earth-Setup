@@ -63,7 +63,7 @@ ko.PortableQuestion=현재 설치 프로그램의 휴대용 버전을 실행 중
 %n휴대용 모드의 설치는 단순히 게임 파일의 복사본이기 때문에 제거 할 수 없습니다. \
 %n당신이 무엇을하고 있는지 모르는 경우 설치 프로그램의 일반 버전을 사용하시기 바랍니다. \
 %n%n설치를 계속하시겠습니까?
- 
+
 ; Game Update
 GameUpdate=The game included in this setup is not up to date ({#MyAppVersion} => [LAST]), please update or YOU MAY NOT BE ABLE TO PLAY WITH OTHER PLAYERS. \
 %n%nWould you like to download the latest version?
@@ -85,7 +85,7 @@ zh_TW.GameUpdate=这个设置中包含的游戏不是最新的（{#MyAppVersion}
 %n%n你想下载最新的版本吗？
 ko.GameUpdate=이 설정에 포함된 게임은 최신 상태({#MyAppVersion} => [LAST]) 최신 게임이 아니며, 업데이트해 주거나 다른 플레이어와 플레이할 수 없을 수도 있습니다. \
 %n%n최신 버전을 다운로드하시겠습니까?
- 
+
 ; Setup Update
 SetupUpdate=The setup is not up to date ({#MySetupVersion} => [LAST]), it is strongly recommended to use the latest version to benefit from the latest fixes and compatibility improvements. \
 %n%nWould you like to download the latest version?
@@ -107,7 +107,7 @@ zh_TW.SetupUpdate=安装程序不是最新的（{#MySetupVersion} => [LAST]）�
 %n%n你想下载最新的版本吗？
 ko.SetupUpdate=설치 프로그램은 최신 ({#MySetupVersion} => [LAST]) 최신 버전의 혜택을 누리는 것이 좋습니다. \
 %n%n최신 버전을 다운로드하시겠습니까?
- 
+
 UserInstallMode=You are using the user mode installation, which means that you will not need administrator rights for the installation. \
 %nPlease note that this mode is not able to register the game with the computer's firewall, which may prevent you from hosting games (but you should still be able to join games). \
 %nIf you have administrator rights on the machine, prefer the administrator mode.
@@ -341,12 +341,12 @@ fr.CDKeysErrorUnknown=Erreur inconnue lors de l'installation des clés CD !%nCod
 
 ; Sound Control
 ; Since our custom button isn't auto scaled to content
-; better keep Mute / Unmute, tiny and everyone should understand 
-SoundCtrlButtonCaptionSoundOn=Unmute 
+; better keep Mute / Unmute, tiny and everyone should understand
+SoundCtrlButtonCaptionSoundOn=Unmute
 SoundCtrlButtonCaptionSoundOff=Mute
 
-// Setup Custom Page
-// Manual / Custom install page
+; Setup Custom Page
+; Manual / Custom install page
 MIQP_Title=Select the desired installation mode
 fr.MIQP_Title=Sélectionnez le mode d'installation souhaité
 de.MIQP_Title=Wählen Sie den gewünschten Installationsmodus
@@ -457,7 +457,7 @@ zh_CN.MIQP_Telemetry=允许遥测来提高游戏兼容性并遵循其演变。
 zh_TW.MIQP_Telemetry=允許遙測來提高遊戲相容性並遵循其演變。
 ko.MIQP_Telemetry=원격 분석을 허용하여 게임 호환성을 개선하고 진화를 따릅니다.
 
-// GPU vendor install page
+; GPU vendor install page
 GPUIQP_Title=Select your graphics card (GPU) brand
 fr.GPUIQP_Title=Sélectionnez la marque de votre carte graphique (GPU)
 de.GPUIQP_Title=Wählen Sie Ihren Grafikkartenhersteller aus
@@ -543,7 +543,7 @@ ru.GPUIQP_Default=Я не знаю.
 pl.GPUIQP_Default=Nie wiem
 zh_CN.GPUIQP_Default=我不知道
 zh_TW.GPUIQP_Default=我不知道
-ko.GPUIQP_Default=몰라요 
+ko.GPUIQP_Default=몰라요
 
 ; GPU option without DirectX wrapper
 GPUIQP_Native=Native
@@ -554,7 +554,7 @@ GPUIQP_Wrapper=DirectX Wrapper %1
 de.GPUIQP_Wrapper=DirectX-Wrapper %1
 fr.GPUIQP_Wrapper=wrapper DirectX %1
 
-// Language install page
+; Language install page
 LIQP_Title=Select the game language to install
 de.LIQP_Title=Wählen Sie die Sprache des Spiels aus, die Sie installieren möchten
 es.LIQP_Title=Selecciona el idioma del juego que deseas instalar
@@ -728,7 +728,7 @@ PasswordLabel3=Please write '{#MySetupPassword}' (case-sensitive), then click Ne
 IncorrectPassword=The password you entered is not correct. Please enter '{#MySetupPassword}' (case-sensitive).
 fr.PasswordLabel3=Veuillez saisir '{#MySetupPassword}' (attention à la distinction entre majuscules et minuscules) puis cliquez sur Suivant pour continuer.
 fr.IncorrectPassword=Le mot de passe saisi n'est pas valide. Merci de saisir '{#MySetupPassword}'.
-de.PasswordLabel3=Bitte geben Sie '{#MySetupPassword}' ein, und klicken Sie danach auf Weiter. Achten Sie auf korrekte Groß- und Kleinschreibung. 
+de.PasswordLabel3=Bitte geben Sie '{#MySetupPassword}' ein, und klicken Sie danach auf Weiter. Achten Sie auf korrekte Groß- und Kleinschreibung.
 de.IncorrectPassword=Das eingegebene Passwort ist nicht korrekt. Bitte geben Sie '{#MySetupPassword}' noch einmal ein.
 it.PasswordLabel3=Inserire '{#MySetupPassword}', poi premere Avanti per continuare. Le password sono sensibili alle maiuscole/minuscole.
 it.IncorrectPassword=La password inserita non è corretta, riprovare. Inserisci '{#MySetupPassword}'.

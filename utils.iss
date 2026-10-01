@@ -3,7 +3,7 @@
 function StrSplit(Text: String; Separator: String): TArrayOfString;
 var
   i, p: Integer;
-  Dest: TArrayOfString; 
+  Dest: TArrayOfString;
 begin
   i := 0;
   repeat
@@ -18,7 +18,7 @@ begin
       Text := '';
     end;
   until Length(Text)=0;
-  Result := Dest
+  Result := Dest;
 end;
 
 // Uninstall key (below HKA) of this product
