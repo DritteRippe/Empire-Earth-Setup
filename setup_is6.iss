@@ -1970,6 +1970,8 @@ end;
 
 procedure DeinitializeSetup;
 begin
+  // Puts a random map folder moved aside back if the installation did not complete
+  RestoreRandomMapScripts();
   if (not SilentInstall and not IsWine) then
   begin
     bassFree;

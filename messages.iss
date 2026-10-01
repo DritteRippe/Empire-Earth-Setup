@@ -163,6 +163,9 @@ fr.DownloadFileRejected=%1 (la somme de contrôle ne correspond pas à celle int
 RmsBackupKept=Random map scripts that this setup does not install (your own maps or maps of older versions) were moved to:%n%1%n%nTo play your own maps, copy them back to:%n%2
 de.RmsBackupKept=Zufallskarten-Skripte, die dieses Setup nicht installiert (eigene Karten oder Karten älterer Versionen), wurden verschoben nach:%n%1%n%nUm Ihre eigenen Karten zu spielen, kopieren Sie sie zurück nach:%n%2
 fr.RmsBackupKept=Les scripts de cartes aléatoires que ce programme d'installation n'installe pas (vos propres cartes ou des cartes d'anciennes versions) ont été déplacés vers :%n%1%n%nPour jouer avec vos propres cartes, copiez-les à nouveau dans :%n%2
+RmsBackupNotRestored=The installation was not completed. Your random map scripts had been moved to:%n%1%n%nThey could not be moved back. To play your own maps, copy them back to:%n%2
+de.RmsBackupNotRestored=Die Installation wurde nicht abgeschlossen. Ihre Zufallskarten-Skripte waren verschoben worden nach:%n%1%n%nSie konnten nicht zurückverschoben werden. Um Ihre eigenen Karten zu spielen, kopieren Sie sie zurück nach:%n%2
+fr.RmsBackupNotRestored=L'installation n'a pas été terminée. Vos scripts de cartes aléatoires avaient été déplacés vers :%n%1%n%nIls n'ont pas pu être remis en place. Pour jouer avec vos propres cartes, copiez-les à nouveau dans :%n%2
 
 ; Tasks
 TaskAdminStart=Always run the game as administrator, for all users (not recommended, only if the game does not work otherwise)
