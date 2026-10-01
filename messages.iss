@@ -154,6 +154,9 @@ fr.DownloadVerificationFailed=%1 fichier(s) téléchargé(s) rejeté(s), car leu
 TaskAdminStart=Always run the game as administrator, for all users (not recommended, only if the game does not work otherwise)
 de.TaskAdminStart=Spiel immer als Administrator ausführen, für alle Benutzer (nicht empfohlen, nur falls das Spiel sonst nicht funktioniert)
 fr.TaskAdminStart=Toujours lancer le jeu en tant qu'administrateur, pour tous les utilisateurs (déconseillé, uniquement si le jeu ne fonctionne pas autrement)
+TaskFirewall=Allow the game through the Windows Firewall (incoming connections on all network types, needed to host games)
+de.TaskFirewall=Spiel in der Windows-Firewall zulassen (eingehende Verbindungen in allen Netzwerktypen, nötig zum Hosten von Spielen)
+fr.TaskFirewall=Autoriser le jeu dans le pare-feu Windows (connexions entrantes sur tous les types de réseau, nécessaire pour héberger des parties)
 
 ; Sound Control
 ; Since our custom button isn't auto scaled to content

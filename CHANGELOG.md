@@ -35,6 +35,9 @@ Refactoring and quality fixes (no new game content).
   compatibility tasks. With it, the setup no longer gives all users write access to `Data`,
   `Users` and the config files, which an elevated game would read. Per-user values (GPU
   preference, game defaults) still go to the account that ran the setup; the script documents why.
+- Firewall rules: unchanged in effect (program rules for the game, all ports), but `profile=any`
+  is now written out and documented: hosting needs incoming connections on "Public" networks too.
+  The task describes what it allows.
 
 ### Fixed
 - The build refuses empty, malformed or identical AppIds. An empty AppId used to compile, turned
