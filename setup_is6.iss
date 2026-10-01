@@ -90,7 +90,10 @@
 ; Note: Signing the setup allows you to avoid the warning messages of Windows (saying that it would be
 ;       a virus...). A code signing certificate has to be bought.
 ;       A signed setup also offers to install the joint certificate on the computer (CertInclude,
-;       opt-in task certinclude, unchecked by default). If you want to use
+;       opt-in task certinclude, unchecked by default). It is added to the trusted publishers only,
+;       never to the trusted root certification authorities: a root CA could issue certificates
+;       for any website or program. So it only helps with a certificate that chains to a trusted
+;       root (e.g. one bought from a public CA). If you want to use
 ;       the community certificate, contact me on discord, I will sign your setup after a verification.
 #ifndef SignSetup
   #define SignSetup false
@@ -467,8 +470,8 @@ Name: "dxwebsetup"; Description: "{cm:TaskDxWebSetup}"; MinVersion: {#Win2000}; 
 #endif
 
 #if CertInclude
-  ; Opt-in, also for administrators: adds the community certificate to the trusted root
-  ; certification authorities (all users in administrative install mode, else the current user)
+  ; Opt-in, also for administrators: adds the community certificate to the trusted publishers
+  ; (all users in administrative install mode, else the current user), never to the root CAs
   Name: "certinclude"; Description: "{cm:TaskCertInclude}"; MinVersion: {#WinVista}; Flags: unchecked; Check: not IsWine
 #endif
 
@@ -1033,11 +1036,12 @@ Type: filesandordirs; Name: "{app}\Tools\Diagnostic\log.txt"
 Type: filesandordirs; Name: "{app}\{#SetupDataDir}"
 
 [Run]
-; Add Cert in Windows Trusted Root CA Store (only if the extracted file has the expected thumbprint)
+; Add Cert in Windows Trusted Publishers Store (only if the extracted file has the expected
+; thumbprint). Setups up to v1.7.2 used the Trusted Root CA store, see RemoveLegacyRootCertificate.
 #if CertInclude
-  Filename: "{sys}\certutil.exe"; Parameters: "-addstore root ""{tmp}\{#CertFileName}"""; Flags: runhidden; Tasks: certinclude; \
+  Filename: "{sys}\certutil.exe"; Parameters: "-addstore trustedpublisher ""{tmp}\{#CertFileName}"""; Flags: runhidden; Tasks: certinclude; \
     StatusMsg: "{cm:StatusCertificate}"; MinVersion: {#WinVista}; Components: game; Check: IsAdminInstallMode and IsCertificateFileGenuine
-  Filename: "{sys}\certutil.exe"; Parameters: "-user -addstore root ""{tmp}\{#CertFileName}"""; Flags: runhidden; Tasks: certinclude; \
+  Filename: "{sys}\certutil.exe"; Parameters: "-user -addstore trustedpublisher ""{tmp}\{#CertFileName}"""; Flags: runhidden; Tasks: certinclude; \
     StatusMsg: "{cm:StatusCertificate}"; MinVersion: {#WinVista}; Components: game; Check: not IsAdminInstallMode and IsCertificateFileGenuine
 #endif
 
@@ -1457,6 +1461,8 @@ end;
 var
   // Read in InitializeUninstall: the uninstall key is already gone at usPostUninstall
   CertAddedBySetup: Boolean;
+  // Read at ssInstall, before the installation rewrites the uninstall key
+  CertAddedByPreviousSetup: Boolean;
 
 // [Run] Check: the extracted certificate still has the thumbprint checked at compile time, which
 // is also the one RemoveCertificate removes
@@ -1477,13 +1483,14 @@ begin
   Result := UninstallKeyListContains(UninstallKey, 'Inno Setup: Selected Tasks', Task);
 end;
 
-// Removes the certificate from the store [Run] added it to (machine or current user)
-procedure RemoveCertificate;
+// Removes the certificate from the certificate store Store (trustedpublisher or root) of the
+// machine or the current user, like [Run] added it
+procedure RemoveCertificate(const Store: String);
 var
   Params: String;
   ResultCode: Integer;
 begin
-  Params := '-delstore root ' + AddQuotes('{#CertThumbprint}');
+  Params := '-delstore ' + Store + ' ' + AddQuotes('{#CertThumbprint}');
   if not IsAdminInstallMode then
     Params := '-user ' + Params;
   Log('Removing certificate from store: certutil ' + Params);
@@ -1491,6 +1498,30 @@ begin
     Log('Unable to run certutil: ' + SysErrorMessage(ResultCode))
   else if ResultCode <> 0 then
     Log('certutil failed with exit code ' + IntToStr(ResultCode));
+end;
+
+// Is the certificate still used by the other product (EE <-> NeoEE)? Same install mode (HKA), so
+// same certificate store
+function IsCertificateUsedByOtherProduct: Boolean;
+begin
+  Result := UninstallKeyHasTask(GetOtherProductUninstallRegPath(), 'certinclude');
+  if Result then
+    Log('Certificate still used by the other setup, not removed');
+end;
+
+// ssInstall: did the installation this one replaces add the certificate?
+procedure RecordPreviousCertificate;
+begin
+  CertAddedByPreviousSetup := UninstallKeyHasTask(GetUninstallRegPath(), 'certinclude');
+end;
+
+// ssPostInstall: setups up to v1.7.2 added the certificate to the trusted root certification
+// authorities. This setup only uses the trusted publishers (task certinclude), so the root entry
+// of the previous installation is removed, unless the other product still uses the certificate.
+procedure RemoveLegacyRootCertificate;
+begin
+  if CertAddedByPreviousSetup and not IsCertificateUsedByOtherProduct() then
+    RemoveCertificate('root');
 end;
 #endif
 
@@ -1502,13 +1533,14 @@ begin
   begin
 #if CertInclude
     // Only remove the certificate if this product added it, and keep it while the other product
-    // (EE <-> NeoEE) still uses it: same install mode (HKA), so same certificate store
+    // (EE <-> NeoEE) still uses it. Also from the root store, where setups up to v1.7.2 added it.
     if not CertAddedBySetup then
       Log('Certificate not added by this setup, not removed')
-    else if UninstallKeyHasTask(GetOtherProductUninstallRegPath(), 'certinclude') then
-      Log('Certificate still used by the other setup, not removed')
-    else
-      RemoveCertificate();
+    else if not IsCertificateUsedByOtherProduct() then
+    begin
+      RemoveCertificate('trustedpublisher');
+      RemoveCertificate('root');
+    end;
 #endif
   end;
 end;
@@ -1775,10 +1807,16 @@ begin
     VerifyDownloadedFiles();
     // Before [Files]: removes the maps the previous setup installed, remembers the player's own
     PrepareRandomMapScripts();
+#if CertInclude
+    RecordPreviousCertificate();
+#endif
   end
   else if (CurStep = ssPostInstall) then
   begin
     FinishRandomMapScripts();
+#if CertInclude
+    RemoveLegacyRootCertificate();
+#endif
     if (IsAdminInstallMode and not IsWine()) then
     begin
       RemoveLegacyRunAsAdmin(ExpandConstant('{app}\{#EEExe}'));

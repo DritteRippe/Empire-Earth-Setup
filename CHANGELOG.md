@@ -57,10 +57,13 @@ Refactoring and quality fixes (no new game content).
 - Firewall rules: unchanged in effect (program rules for the game, all ports), but `profile=any`
   is now written out and documented: hosting needs incoming connections on "Public" networks too.
   The task describes what it allows.
-- Signed builds only (`SignSetup`): installing the community certificate as trusted root
-  certification authority is opt-in for administrators too (it was preselected). The build stops
-  unless `CertHashSHA1` is the thumbprint of the DER certificate file; the setup only adds a
-  certificate file with that thumbprint, and the uninstaller removes it only if this product added
+- Signed builds only (`SignSetup`): the community certificate is no longer installed as a trusted
+  root certification authority (a root CA can issue certificates for any website or program), but
+  only added to the trusted publishers, and only if the user checks the task (it was preselected
+  for administrators). This only helps with a certificate that chains to a trusted root, e.g. one
+  bought from a public CA. Updates and the uninstaller remove the root entry earlier setups made.
+  The build stops unless `CertHashSHA1` is the thumbprint of the DER certificate file; the setup
+  only adds a certificate file with that thumbprint, and it is removed only if this product added
   it and the other product (EE/NeoEE) does not use it, with consistent `certutil` arguments.
 - The Wine notice of NeoEE setups is worded as a proper sentence (same content).
 
