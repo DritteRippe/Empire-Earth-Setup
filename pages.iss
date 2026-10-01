@@ -24,7 +24,7 @@ type
   TGpuOption = record
     LogName: String;     // name in the log
     LabelKey: String;    // custom message of the option
-    Wrapper: String;     // DirectX wrapper shown after the label, '' if none
+    Wrapper: String;     // DirectX version and API level of the wrapper (GPUIQP_Wrapper), '' if none
     Components: String;  // what the option selects, in WizardSelectComponents syntax
     VendorId: String;    // preselected for graphics cards of this vendor, '' if none
   end;
@@ -53,18 +53,18 @@ end;
 procedure RegisterGpuOptions;
 begin
   SetArrayLength(GpuOptions, 0);
-  AddGpuOption('NVIDIA', 'GPUIQP_NVIDIA', 'DirectX Wrapper 11 API 11', 'additional\directx_wrapper\dx11_lvl11', GpuVendorNVIDIA);
+  AddGpuOption('NVIDIA', 'GPUIQP_NVIDIA', '11 API 11', 'additional\directx_wrapper\dx11_lvl11', GpuVendorNVIDIA);
   // AMD: feature level 11 only from Windows 10 on
   if IsWindows10OrNewer then
-    AddGpuOption('AMD', 'GPUIQP_AMD', 'DirectX Wrapper 11 API 11', 'additional\directx_wrapper\dx11_lvl11', GpuVendorAMD)
+    AddGpuOption('AMD', 'GPUIQP_AMD', '11 API 11', 'additional\directx_wrapper\dx11_lvl11', GpuVendorAMD)
   else
-    AddGpuOption('AMD', 'GPUIQP_AMD', 'DirectX Wrapper 11 API 10.1', 'additional\directx_wrapper\dx11_lvl10_1', GpuVendorAMD);
+    AddGpuOption('AMD', 'GPUIQP_AMD', '11 API 10.1', 'additional\directx_wrapper\dx11_lvl10_1', GpuVendorAMD);
   // Intel: feature level 10.1, Intel HD Graphics 2000/3000 do not support level 11
   // (https://www.intel.com/content/www/us/en/support/articles/000005524/graphics.html)
-  AddGpuOption('Intel', 'GPUIQP_Intel', 'DirectX Wrapper 11 API 10.1', 'additional\directx_wrapper\dx11_lvl10_1', GpuVendorIntel);
+  AddGpuOption('Intel', 'GPUIQP_Intel', '11 API 10.1', 'additional\directx_wrapper\dx11_lvl10_1', GpuVendorIntel);
   // "I don't know": DirectX 9, the most compatible wrapper; also for unknown vendors
   GpuUnknownVendorOption := GetArrayLength(GpuOptions);
-  AddGpuOption('general', 'GPUIQP_Default', 'DirectX Wrapper 9', 'additional\directx_wrapper\dx9', '');
+  AddGpuOption('general', 'GPUIQP_Default', '9', 'additional\directx_wrapper\dx9', '');
   // No DirectX wrapper
   AddGpuOption('native', 'GPUIQP_Native', '', '!additional\directx_wrapper', '');
 end;
@@ -73,7 +73,7 @@ function GetGpuOptionCaption(const Option: TGpuOption): String;
 begin
   Result := '&' + CustomMessage(Option.LabelKey);
   if Option.Wrapper <> '' then
-    Result := Result + ' (' + Option.Wrapper + ')';
+    Result := Result + ' (' + FmtMessage(CustomMessage('GPUIQP_Wrapper'), [Option.Wrapper]) + ')';
 end;
 
 // Read Selected Components to try to find the language: 'en' if no components are recorded,

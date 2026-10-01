@@ -231,6 +231,10 @@
 #define AoCExe AoCDir + "\EE-AOC.exe"
 #define RmsSubDir "Data\Random Map Scripts"
 
+; dgVoodoo version of the DirectX 11/12 wrappers (data\Add-on\DirectX_Wrapper\dgVoodoo_bin), shown
+; in the component descriptions
+#define DgVoodooVersion "v2.82.1"
+
 ; Game languages, in the order of the language page. Each one is the component language\<name>,
 ; described by the custom message LIQP_<name> (messages.iss); a name that is also in [Languages]
 ; is preselected when the setup itself runs in that language. The files of a language are in
@@ -428,21 +432,21 @@ Name: "tr"; MessagesFile: "compiler:Languages\Turkish.isl"
 Name: "uk"; MessagesFile: "compiler:Languages\Ukrainian.isl"
 
 [Types]
-Name: "full"; Description: "Full game install";
-Name: "compact"; Description: "Compact game install";
-Name: "custom"; Description: "Custom game install"; Flags: iscustom
-Name: "raw"; Description: "Raw game install";
+Name: "full"; Description: "{cm:TypeFull}";
+Name: "compact"; Description: "{cm:TypeCompact}";
+Name: "custom"; Description: "{cm:TypeCustom}"; Flags: iscustom
+Name: "raw"; Description: "{cm:TypeRaw}";
 
 [Tasks]
-Name: "compatibility"; Description: "Enable compatibility flags"; MinVersion: {#WinXP}; Check: not IsWine
-Name: "compatibility_windows"; Description: "Enable earlier Windows compatibility mode"; MinVersion: {#WinXP}; Check: not IsWine
+Name: "compatibility"; Description: "{cm:TaskCompatibility}"; MinVersion: {#WinXP}; Check: not IsWine
+Name: "compatibility_windows"; Description: "{cm:TaskCompatibilityWindows}"; MinVersion: {#WinXP}; Check: not IsWine
 Name: "firewallexception"; Description: "{cm:TaskFirewall}"; MinVersion: {#Win2000}; Check: IsAdminInstallMode and not IsWine
 ; DirectPlay: Windows feature used by old DirectX games, the GOG setup enables it too (see [Run])
-Name: "directplay"; Description: "Install DirectPlay"; MinVersion: {#Win8}; Check: IsAdminInstallMode
-Name: "dxwebsetup"; Description: "Install DirectX End-User Runtime"; MinVersion: {#Win2000}; Check: IsAdminInstallMode and not IsWine; Components: additional\directx_wrapper\dx9 or not additional\directx_wrapper 
+Name: "directplay"; Description: "{cm:TaskDirectPlay}"; MinVersion: {#Win8}; Check: IsAdminInstallMode
+Name: "dxwebsetup"; Description: "{cm:TaskDxWebSetup}"; MinVersion: {#Win2000}; Check: IsAdminInstallMode and not IsWine; Components: additional\directx_wrapper\dx9 or not additional\directx_wrapper 
 #if InstallType == "NeoEE"
   ; Since 1.0.1.0 NeoEE CDKeys support HKLM & HKCU
-  Name: "neoee_cdkeys"; Description: "Register NeoEE CDKeys (Required to use the online lobby)"; MinVersion: {#Win2000};
+  Name: "neoee_cdkeys"; Description: "{cm:TaskNeoEECDKeys}"; MinVersion: {#Win2000};
 #endif
 
 #if CertInclude
@@ -461,51 +465,53 @@ Name: "everyoneadminstart"; Description: "{cm:TaskAdminStart}"; MinVersion: {#Wi
 #endif
 
 [Components]
+; The descriptions are custom messages (messages.iss), only names of games, mods and content packs
+; are not translated
 Name: "game"; Description: "{#MyAppName}"; Types: full compact custom raw; Flags: fixed
 ; ------------------
 Name: "gameaoc"; Description: "{#MyAppName} : The Art of Conquest"; Types: full
 ; ------------------
 
-Name: "additional"; Description: "Additional Recommended Content"
+Name: "additional"; Description: "{cm:CompAdditional}"
 
-Name: "additional\movies"; Description: "Install intro videos"; Flags: disablenouninstallwarning;
+Name: "additional\movies"; Description: "{cm:CompMovies}"; Flags: disablenouninstallwarning;
 
-Name: "additional\hd"; Description: "HD/HQ Content"; Flags: disablenouninstallwarning; Types: full
-Name: "additional\hd\terrain"; Description: "HD Terrain v1.0 (by Sleeper & Yukon)"; Types: full
-Name: "additional\hd\music"; Description: "HQ Musics WIP (by Fortuking)"; Types: full
-Name: "additional\hd\buildings"; Description: "HD Buildings Icons v3.0 (by Fortuking)"; Types: full;
-Name: "additional\hd\tech"; Description: "HD Tech Icons v3.0.1 (by Fortuking)"; Types: full;
-Name: "additional\hd\effects"; Description: "HD Effects WIP (by Fortuking)"; Types: full;
+Name: "additional\hd"; Description: "{cm:CompHD}"; Flags: disablenouninstallwarning; Types: full
+Name: "additional\hd\terrain"; Description: "{cm:CompByAuthor,HD Terrain v1.0,Sleeper & Yukon}"; Types: full
+Name: "additional\hd\music"; Description: "{cm:CompByAuthor,HQ Musics WIP,Fortuking}"; Types: full
+Name: "additional\hd\buildings"; Description: "{cm:CompByAuthor,HD Buildings Icons v3.0,Fortuking}"; Types: full;
+Name: "additional\hd\tech"; Description: "{cm:CompByAuthor,HD Tech Icons v3.0.1,Fortuking}"; Types: full;
+Name: "additional\hd\effects"; Description: "{cm:CompByAuthor,HD Effects WIP,Fortuking}"; Types: full;
 
-Name: "additional\drexmod"; Description: "dreXmod to enhance/add features (by Yukon)"
+Name: "additional\drexmod"; Description: "{cm:CompDrexmod}"
 ; v3 is preselected (full and compact installation), v2 can be chosen instead
-Name: "additional\drexmod\v3"; Description: "dreXmod v3 for better Camera/HUD/Lobby/Ranking/AntiCheat"; Flags: exclusive disablenouninstallwarning; Types: full compact; MinVersion: {#WinXP}
-Name: "additional\drexmod\v2"; Description: "dreXmod v2 for better Camera/HUD/Lobby"; Flags: exclusive disablenouninstallwarning; MinVersion: {#WinXP}
+Name: "additional\drexmod\v3"; Description: "{cm:CompDrexmodV3}"; Flags: exclusive disablenouninstallwarning; Types: full compact; MinVersion: {#WinXP}
+Name: "additional\drexmod\v2"; Description: "{cm:CompDrexmodV2}"; Flags: exclusive disablenouninstallwarning; MinVersion: {#WinXP}
 
 #if InstallType == "EE"
-  Name: "additional\rms"; Description: "Random Map Scripts";
+  Name: "additional\rms"; Description: "{cm:CompRms}";
   Name: "additional\rms\omega"; Description: "Omega Pack";
   Name: "additional\rms\neoextra"; Description: "NeoEE Extra";
 #endif
 
-Name: "additional\directx_wrapper"; Description: "DirectX Wrapper"; Flags: disablenouninstallwarning; MinVersion: {#Win7}
-Name: "additional\directx_wrapper\dx7"; Description: "DirectX 7 [Lightest]"; Flags: exclusive disablenouninstallwarning; MinVersion: {#Win7}
-Name: "additional\directx_wrapper\dx9"; Description: "DirectX 9 [Most Compatible]"; Flags: exclusive disablenouninstallwarning; MinVersion: {#Win7}
-Name: "additional\directx_wrapper\dx11_lvl10"; Description: "DirectX 11 API lvl 10 v2.82.1"; Flags: exclusive disablenouninstallwarning; MinVersion: {#Win7}
-Name: "additional\directx_wrapper\dx11_lvl10_1"; Description: "DirectX 11 API lvl 10.1 v2.82.1"; Flags: exclusive disablenouninstallwarning; MinVersion: {#Win7}
-Name: "additional\directx_wrapper\dx11_lvl11"; Description: "DirectX 11 API lvl 11 v2.82.1 [Generally Recommended]"; Flags: exclusive disablenouninstallwarning; MinVersion: {#Win7}
-Name: "additional\directx_wrapper\dx12_lvl11"; Description: "DirectX 12 API lvl 11 v2.82.1 [Experimental]"; Flags: exclusive disablenouninstallwarning; MinVersion: {#Win10};
-Name: "additional\directx_wrapper\dx12_lvl12"; Description: "DirectX 12 API lvl 12 v2.82.1 [Experimental]"; Flags: exclusive disablenouninstallwarning; MinVersion: {#Win10};
+Name: "additional\directx_wrapper"; Description: "{cm:CompDxWrapper}"; Flags: disablenouninstallwarning; MinVersion: {#Win7}
+Name: "additional\directx_wrapper\dx7"; Description: "DirectX 7 [{cm:CompTagLightest}]"; Flags: exclusive disablenouninstallwarning; MinVersion: {#Win7}
+Name: "additional\directx_wrapper\dx9"; Description: "DirectX 9 [{cm:CompTagMostCompatible}]"; Flags: exclusive disablenouninstallwarning; MinVersion: {#Win7}
+Name: "additional\directx_wrapper\dx11_lvl10"; Description: "{cm:CompDxWrapperLevel,11,10,{#DgVoodooVersion}}"; Flags: exclusive disablenouninstallwarning; MinVersion: {#Win7}
+Name: "additional\directx_wrapper\dx11_lvl10_1"; Description: "{cm:CompDxWrapperLevel,11,10.1,{#DgVoodooVersion}}"; Flags: exclusive disablenouninstallwarning; MinVersion: {#Win7}
+Name: "additional\directx_wrapper\dx11_lvl11"; Description: "{cm:CompDxWrapperLevel,11,11,{#DgVoodooVersion}} [{cm:CompTagRecommended}]"; Flags: exclusive disablenouninstallwarning; MinVersion: {#Win7}
+Name: "additional\directx_wrapper\dx12_lvl11"; Description: "{cm:CompDxWrapperLevel,12,11,{#DgVoodooVersion}} [{cm:CompTagExperimental}]"; Flags: exclusive disablenouninstallwarning; MinVersion: {#Win10};
+Name: "additional\directx_wrapper\dx12_lvl12"; Description: "{cm:CompDxWrapperLevel,12,12,{#DgVoodooVersion}} [{cm:CompTagExperimental}]"; Flags: exclusive disablenouninstallwarning; MinVersion: {#Win10};
 
-Name: "additional\telemetry"; Description: "Telemetry (Compatibility and Stats)"; Flags: disablenouninstallwarning; MinVersion: {#Win7}
-Name: "additional\discord"; Description: "Discord Presence"; Flags: disablenouninstallwarning; Types: full compact; MinVersion: {#Win7}; Check: not IsWine
-Name: "additional\tools"; Description: "Tools";
+Name: "additional\telemetry"; Description: "{cm:CompTelemetry}"; Flags: disablenouninstallwarning; MinVersion: {#Win7}
+Name: "additional\discord"; Description: "{cm:CompDiscord}"; Flags: disablenouninstallwarning; Types: full compact; MinVersion: {#Win7}; Check: not IsWine
+Name: "additional\tools"; Description: "{cm:CompTools}";
 Name: "additional\tools\diagnostic"; Description: "Empire Earth Diagnostic"; Flags: disablenouninstallwarning; Types: full compact; MinVersion: {#Win7}; Check: not IsWine
-Name: "additional\civs"; Description: "Civilizations"
-Name: "additional\civs\ec"; Description: "eC Standard Civilizations (25)"; Types: full compact
-Name: "additional\civs\ec_full"; Description: "eC Full Civilizations (71)"; Types: full
+Name: "additional\civs"; Description: "{cm:CompCivs}"
+Name: "additional\civs\ec"; Description: "{cm:CompCivsEcStandard}"; Types: full compact
+Name: "additional\civs\ec_full"; Description: "{cm:CompCivsEcFull}"; Types: full
 
-Name: "language"; Description: "Game Language"; Types: full compact custom raw; Flags: disablenouninstallwarning fixed;
+Name: "language"; Description: "{cm:CompLanguage}"; Types: full compact custom raw; Flags: disablenouninstallwarning fixed;
 ; One exclusive component per game language (GameLangs).
 ; Note: this is the first #for of the script. After a #sub has run (#for or #call), ISPP 6.2 makes
 ; the plain #defines that follow in the same file invisible inside subs and in files included
@@ -518,7 +524,7 @@ Name: "language"; Description: "Game Language"; Types: full compact custom raw; 
 Name: "language\{#GameLangs[LangIndex]}"; Description: "{cm:LIQP_{#GameLangs[LangIndex]}}"; Flags: exclusive;
 #endsub
 #for {LangIndex = 0; LangIndex < GameLangCount; LangIndex++} GameLangComponent
-Name: "language\update"; Description: "Download localized voices and campaigns"; Types: full compact custom raw; Flags: disablenouninstallwarning;
+Name: "language\update"; Description: "{cm:CompLanguageUpdate}"; Types: full compact custom raw; Flags: disablenouninstallwarning;
 
 ; Localized text of one game in [Files]: for every game language (GameLangs) its Language.dll,
 ; then the lobby files of the game, then the lobby files shared by EE and AoC, each with the
@@ -1013,15 +1019,15 @@ Type: filesandordirs; Name: "{app}\{#SetupDataDir}"
 ; Add Cert in Windows Trusted Root CA Store (only if the extracted file has the expected thumbprint)
 #if CertInclude
   Filename: "{sys}\certutil.exe"; Parameters: "-addstore root ""{tmp}\{#CertFileName}"""; Flags: runhidden; Tasks: certinclude; \
-    StatusMsg: "Adding Empire Earth Community Certificate Authority (issued by EnergyCube)"; MinVersion: {#WinVista}; Components: game; Check: IsAdminInstallMode and IsCertificateFileGenuine
+    StatusMsg: "{cm:StatusCertificate}"; MinVersion: {#WinVista}; Components: game; Check: IsAdminInstallMode and IsCertificateFileGenuine
   Filename: "{sys}\certutil.exe"; Parameters: "-user -addstore root ""{tmp}\{#CertFileName}"""; Flags: runhidden; Tasks: certinclude; \
-    StatusMsg: "Adding Empire Earth Community Certificate Authority (issued by EnergyCube)"; MinVersion: {#WinVista}; Components: game; Check: not IsAdminInstallMode and IsCertificateFileGenuine
+    StatusMsg: "{cm:StatusCertificate}"; MinVersion: {#WinVista}; Components: game; Check: not IsAdminInstallMode and IsCertificateFileGenuine
 #endif
 
 ; Enable DirectPlay (task directplay, administrators, Windows 8 and later) with DISM. Not tested on
 ; 32-bit Windows. One entry: there used to be two with the same command that differed only in
 ; Check: Is64BitInstallMode / not Is64BitInstallMode, so exactly one of them always ran.
-Filename: "{sys}\dism.exe"; Parameters: "/Online /Enable-Feature /FeatureName:""DirectPlay"" /all /NoRestart"; Flags: runhidden; StatusMsg: "Installing DirectPlay"; \
+Filename: "{sys}\dism.exe"; Parameters: "/Online /Enable-Feature /FeatureName:""DirectPlay"" /all /NoRestart"; Flags: runhidden; StatusMsg: "{cm:StatusDirectPlay}"; \
   MinVersion: {#Win8}; Tasks: directplay; Check: IsAdminInstallMode
 
 ; Firewall (task firewallexception): the rules of an earlier installation are removed first, in case
@@ -1034,9 +1040,9 @@ Filename: "{sys}\dism.exe"; Parameters: "/Online /Enable-Feature /FeatureName:""
 ; firewallexception can be unchecked.
 #sub FirewallDeleteRules
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule program=""{app}\{#EEExe}"" name=all"; Flags: runhidden; \
-  StatusMsg: "Removing {#MyAppName} in Firewall"; Tasks: firewallexception; MinVersion: {#WinVista}; Components: game; Check: IsAdminInstallMode
+  StatusMsg: "{cm:StatusFirewallRemove,{#MyAppName}}"; Tasks: firewallexception; MinVersion: {#WinVista}; Components: game; Check: IsAdminInstallMode
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule program=""{app}\{#AoCExe}"" name=all"; Flags: runhidden; \
-  StatusMsg: "Removing {#MyAppName} : AoC in Firewall"; Tasks: firewallexception; MinVersion: {#WinVista}; Components: gameaoc; Check: IsAdminInstallMode
+  StatusMsg: "{cm:StatusFirewallRemove,{#MyAppName} : AoC}"; Tasks: firewallexception; MinVersion: {#WinVista}; Components: gameaoc; Check: IsAdminInstallMode
 #endsub
 ; The four allow rules (TCP/UDP, out/in) of the program FwExe (below {app}, component FwComp),
 ; named "<FwRuleName> - <protocol> - <direction>", with the status text FwStatus
@@ -1055,14 +1061,14 @@ Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""{
   Flags: runhidden; Tasks: firewallexception; StatusMsg: "{#FwStatus}"; MinVersion: {#WinVista}; Components: {#FwComp}; Check: IsAdminInstallMode
 #endsub
 #call FirewallDeleteRules
-#expr FwExe = EEExe, FwComp = "game", FwRuleName = MyAppName, FwStatus = "Opening Empire Earth in Firewall"
+#expr FwExe = EEExe, FwComp = "game", FwRuleName = MyAppName, FwStatus = "{cm:StatusFirewallOpen,Empire Earth}"
 #call FirewallAllowRules
-#expr FwExe = AoCExe, FwComp = "gameaoc", FwRuleName = MyAppName + " - AoC", FwStatus = "Opening Empire Earth : AoC in Firewall"
+#expr FwExe = AoCExe, FwComp = "gameaoc", FwRuleName = MyAppName + " - AoC", FwStatus = "{cm:StatusFirewallOpen,Empire Earth : AoC}"
 #call FirewallAllowRules
 
 ; DX9/10/11 End-User Runtime Setup
 Filename: "{tmp}\directx\dxwebsetup.exe"; Parameters: "/Q"; Flags: runhidden; Tasks: dxwebsetup; \
-    StatusMsg: "Installing legacy DirectX End-User Runtime..."; MinVersion: {#Win2000}; Check: IsAdminInstallMode and not IsWine
+    StatusMsg: "{cm:StatusDxWebSetup}"; MinVersion: {#Win2000}; Check: IsAdminInstallMode and not IsWine
 
 ; NeoEE CD keys (task neoee_cdkeys) are registered by CurStepChanged(ssPostInstall), which runs after
 ; all [Run] entries
@@ -1362,7 +1368,7 @@ end;
 // Test builds only, shown even in silent mode
 procedure ShowTestSetupWarning;
 begin
-  MsgBox('THIS IS A TEST SETUP ID = {#TestID} [Setup v{#MySetupVersion} - Game v{#MyAppVersion}]' + #13#10 + 'PLEASE USE THIS INSTALLER ONLY FOR TESTING' + #13#10 + 'DO >>NOT<< SHARE IT!' , mbInformation, MB_OK);
+  MsgBox(FmtMessage(CustomMessage('TestSetupWarning'), ['{#TestID}', '{#MySetupVersion}', '{#MyAppVersion}']), mbInformation, MB_OK);
 end;
 #endif
 
@@ -1388,8 +1394,7 @@ end;
 procedure ShowWineNeoEEGuiNotice;
 begin
   if (IsWine() and not SilentInstall and not SuppressMsgBoxes) then
-    MsgBox('Wine Detected !' + #13#10 + 'NeoEE connection GUI which causes the game to crash because it uses GDI/GDI+!'
-            + #13#10 + 'To avoid crash the NeoEE connection GUI will be disabled, if you install it with Winetricks you can enable the GUI again in NeoEE.cfg.', mbInformation, MB_OK);
+    MsgBox(CustomMessage('WineNeoEEGuiDisabled'), mbInformation, MB_OK);
 end;
 #endif
 

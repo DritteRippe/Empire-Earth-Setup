@@ -171,8 +171,134 @@ fr.TaskFirewall=Autoriser le jeu dans le pare-feu Windows (connexions entrantes 
 TaskCertInclude=Trust the Empire Earth Community certificate (adds it to the trusted root certification authorities, only check this if you trust its publisher)
 de.TaskCertInclude=Dem Zertifikat der Empire Earth Community vertrauen (fügt es den vertrauenswürdigen Stammzertifizierungsstellen hinzu, nur auswählen, wenn Sie dem Herausgeber vertrauen)
 fr.TaskCertInclude=Faire confiance au certificat de la communauté Empire Earth (l'ajoute aux autorités de certification racines de confiance, à cocher uniquement si vous faites confiance à son éditeur)
+TaskCompatibility=Enable compatibility flags
+de.TaskCompatibility=Kompatibilitätseinstellungen aktivieren
+fr.TaskCompatibility=Activer les options de compatibilité
+TaskCompatibilityWindows=Enable earlier Windows compatibility mode
+de.TaskCompatibilityWindows=Kompatibilitätsmodus für ältere Windows-Versionen aktivieren
+fr.TaskCompatibilityWindows=Activer le mode de compatibilité avec une version antérieure de Windows
+TaskDirectPlay=Install DirectPlay
+de.TaskDirectPlay=DirectPlay installieren
+fr.TaskDirectPlay=Installer DirectPlay
+TaskDxWebSetup=Install DirectX End-User Runtime
+de.TaskDxWebSetup=DirectX-Endbenutzer-Runtime installieren
+fr.TaskDxWebSetup=Installer le runtime DirectX pour l'utilisateur final
+
+; Installation types ([Types])
+TypeFull=Full game install
+de.TypeFull=Vollständige Installation
+fr.TypeFull=Installation complète
+TypeCompact=Compact game install
+de.TypeCompact=Kompakte Installation
+fr.TypeCompact=Installation compacte
+TypeCustom=Custom game install
+de.TypeCustom=Benutzerdefinierte Installation
+fr.TypeCustom=Installation personnalisée
+TypeRaw=Raw game install
+de.TypeRaw=Nur das Spiel (ohne Zusätze)
+fr.TypeRaw=Jeu seul (sans ajouts)
+
+; Components ([Components]). Names of games, mods and content packs are not translated.
+; CompByAuthor: %1 = content pack with its version, %2 = its authors
+CompByAuthor=%1 (by %2)
+de.CompByAuthor=%1 (von %2)
+fr.CompByAuthor=%1 (par %2)
+CompAdditional=Additional Recommended Content
+de.CompAdditional=Empfohlene Zusatzinhalte
+fr.CompAdditional=Contenu supplémentaire recommandé
+CompMovies=Install intro videos
+de.CompMovies=Intro-Videos installieren
+fr.CompMovies=Installer les vidéos d'introduction
+CompHD=HD/HQ Content
+de.CompHD=HD/HQ-Inhalte
+fr.CompHD=Contenu HD/HQ
+CompDrexmod=dreXmod to enhance/add features (by Yukon)
+de.CompDrexmod=dreXmod zum Verbessern und Erweitern von Funktionen (von Yukon)
+fr.CompDrexmod=dreXmod pour améliorer/ajouter des fonctionnalités (par Yukon)
+CompDrexmodV3=dreXmod v3 for better Camera/HUD/Lobby/Ranking/AntiCheat
+de.CompDrexmodV3=dreXmod v3 für bessere Kamera/HUD/Lobby/Rangliste/Anti-Cheat
+fr.CompDrexmodV3=dreXmod v3 pour une meilleure caméra/interface/lobby/classement/anti-triche
+CompDrexmodV2=dreXmod v2 for better Camera/HUD/Lobby
+de.CompDrexmodV2=dreXmod v2 für bessere Kamera/HUD/Lobby
+fr.CompDrexmodV2=dreXmod v2 pour une meilleure caméra/interface/lobby
+CompRms=Random Map Scripts
+de.CompRms=Zufallskarten-Skripte
+fr.CompRms=Scripts de cartes aléatoires
+CompDxWrapper=DirectX Wrapper
+de.CompDxWrapper=DirectX-Wrapper
+fr.CompDxWrapper=Wrapper DirectX
+; CompDxWrapperLevel: %1 = DirectX version, %2 = API (feature) level, %3 = dgVoodoo version
+CompDxWrapperLevel=DirectX %1 API lvl %2 %3
+de.CompDxWrapperLevel=DirectX %1 API-Level %2 %3
+fr.CompDxWrapperLevel=DirectX %1 API niveau %2 %3
+; Shown in brackets after a DirectX wrapper
+CompTagLightest=Lightest
+de.CompTagLightest=Am ressourcenschonendsten
+fr.CompTagLightest=Le plus léger
+CompTagMostCompatible=Most Compatible
+de.CompTagMostCompatible=Am kompatibelsten
+fr.CompTagMostCompatible=Le plus compatible
+CompTagRecommended=Generally Recommended
+de.CompTagRecommended=Allgemein empfohlen
+fr.CompTagRecommended=Généralement recommandé
+CompTagExperimental=Experimental
+de.CompTagExperimental=Experimentell
+fr.CompTagExperimental=Expérimental
+CompTelemetry=Telemetry (Compatibility and Stats)
+de.CompTelemetry=Telemetrie (Kompatibilität und Statistiken)
+fr.CompTelemetry=Télémétrie (compatibilité et statistiques)
+CompDiscord=Discord Presence
+de.CompDiscord=Discord-Statusanzeige
+fr.CompDiscord=Présence Discord
+CompTools=Tools
+de.CompTools=Werkzeuge
+fr.CompTools=Outils
+CompCivs=Civilizations
+de.CompCivs=Zivilisationen
+fr.CompCivs=Civilisations
+CompCivsEcStandard=eC Standard Civilizations (25)
+de.CompCivsEcStandard=eC-Standardzivilisationen (25)
+fr.CompCivsEcStandard=Civilisations standard eC (25)
+CompCivsEcFull=eC Full Civilizations (71)
+de.CompCivsEcFull=Alle eC-Zivilisationen (71)
+fr.CompCivsEcFull=Toutes les civilisations eC (71)
+CompLanguage=Game Language
+de.CompLanguage=Spielsprache
+fr.CompLanguage=Langue du jeu
+CompLanguageUpdate=Download localized voices and campaigns
+de.CompLanguageUpdate=Lokalisierte Sprachausgabe und Kampagnen herunterladen
+fr.CompLanguageUpdate=Télécharger les voix et les campagnes traduites
+
+; Status texts while installing ([Run], [UninstallRun]); StatusFirewall*: %1 = game
+StatusCertificate=Adding Empire Earth Community Certificate Authority (issued by EnergyCube)
+de.StatusCertificate=Zertifizierungsstelle der Empire Earth Community wird hinzugefügt (ausgestellt von EnergyCube)
+fr.StatusCertificate=Ajout de l'autorité de certification de la communauté Empire Earth (émise par EnergyCube)
+StatusDirectPlay=Installing DirectPlay
+de.StatusDirectPlay=DirectPlay wird installiert
+fr.StatusDirectPlay=Installation de DirectPlay
+StatusFirewallRemove=Removing %1 in Firewall
+de.StatusFirewallRemove=%1 wird aus der Firewall entfernt
+fr.StatusFirewallRemove=Suppression des règles du pare-feu pour %1
+StatusFirewallOpen=Opening %1 in Firewall
+de.StatusFirewallOpen=%1 wird in der Firewall freigegeben
+fr.StatusFirewallOpen=Autorisation dans le pare-feu pour %1
+StatusDxWebSetup=Installing legacy DirectX End-User Runtime...
+de.StatusDxWebSetup=Ältere DirectX-Endbenutzer-Runtime wird installiert...
+fr.StatusDxWebSetup=Installation de l'ancien runtime DirectX pour l'utilisateur final...
+
+; Test builds only (TestID > 0): %1 = test id, %2 = setup version, %3 = game version
+TestSetupWarning=THIS IS A TEST SETUP ID = %1 [Setup v%2 - Game v%3]%nPLEASE USE THIS INSTALLER ONLY FOR TESTING%nDO >>NOT<< SHARE IT!
+de.TestSetupWarning=DIES IST EIN TEST-SETUP, ID = %1 [Setup v%2 - Spiel v%3]%nBITTE VERWENDEN SIE DIESES INSTALLATIONSPROGRAMM NUR ZUM TESTEN%nGEBEN SIE ES >>NICHT<< WEITER!
+fr.TestSetupWarning=CECI EST UN PROGRAMME D'INSTALLATION DE TEST, ID = %1 [Setup v%2 - Jeu v%3]%nUTILISEZ-LE UNIQUEMENT POUR DES TESTS%nNE LE PARTAGEZ >>PAS<< !
 
 #if InstallType == "NeoEE"
+TaskNeoEECDKeys=Register NeoEE CDKeys (Required to use the online lobby)
+de.TaskNeoEECDKeys=NeoEE-CD-Keys registrieren (für die Online-Lobby erforderlich)
+fr.TaskNeoEECDKeys=Enregistrer les clés CD NeoEE (nécessaire pour utiliser le lobby en ligne)
+; NeoEE setups under Wine (InitializeSetup)
+WineNeoEEGuiDisabled=Wine detected!%nThe NeoEE connection GUI makes the game crash under Wine because it uses GDI/GDI+, so it will be disabled.%nIf you install GDI+ with Winetricks, you can enable the GUI again in NeoEE.cfg.
+de.WineNeoEEGuiDisabled=Wine erkannt!%nDie NeoEE-Verbindungsoberfläche bringt das Spiel unter Wine zum Absturz, weil sie GDI/GDI+ verwendet, daher wird sie deaktiviert.%nWenn Sie GDI+ mit Winetricks installieren, können Sie die Oberfläche in NeoEE.cfg wieder aktivieren.
+fr.WineNeoEEGuiDisabled=Wine détecté !%nL'interface de connexion NeoEE fait planter le jeu sous Wine car elle utilise GDI/GDI+, elle sera donc désactivée.%nSi vous installez GDI+ avec Winetricks, vous pouvez la réactiver dans NeoEE.cfg.
 ; NeoEE CD keys (RegisterCDKeys); CDKeysPathUnsupported: %1 = installation folder,
 ; CDKeysErrorUnknown: %1 = exit code of authtools.dll
 CDKeysStatusEE=Registering the NeoEE CD key for Empire Earth...
@@ -419,8 +545,14 @@ zh_CN.GPUIQP_Default=我不知道
 zh_TW.GPUIQP_Default=我不知道
 ko.GPUIQP_Default=몰라요 
 
-; Option without DirectX wrapper
+; GPU option without DirectX wrapper
 GPUIQP_Native=Native
+de.GPUIQP_Native=Nativ
+fr.GPUIQP_Native=Natif
+; DirectX wrapper of a GPU option: %1 = DirectX version and API level, e.g. "11 API 10.1"
+GPUIQP_Wrapper=DirectX Wrapper %1
+de.GPUIQP_Wrapper=DirectX-Wrapper %1
+fr.GPUIQP_Wrapper=wrapper DirectX %1
 
 // Language install page
 LIQP_Title=Select the game language to install
