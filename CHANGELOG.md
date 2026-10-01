@@ -85,6 +85,8 @@ Refactoring and quality fixes (no new game content).
   entries required Windows 10, so 8 and 8.1 got none), and Empire Earth gets the Windows 7
   entries on Windows 7 (a wrong version filter, `0.6.2` instead of `0.0,6.2`, had only let them
   apply to AoC).
+- Portable setups no longer leave an uninstall entry in the registry (holding only the setup
+  type) when installed with the recommended settings.
 
 ### Security
 - Online localized files: TLS certificates are validated (invalid certificates used to be

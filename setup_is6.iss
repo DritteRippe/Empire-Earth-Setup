@@ -1973,13 +1973,20 @@ begin
   if (CurPageID = wpFinished) then
   begin
     SendSetupTelemetry();
-    if (not IsUninstaller and ManualInstallQuestionPage.Values[0]) then
+#if InstallMode == "Regular"
+    // Portable installations have no uninstall key (CreateUninstallRegKey=no): writing the value
+    // there would create one that is never removed
+    if (ManualInstallQuestionPage.Values[0]) then
     begin
       // We need to force register the install type as custom
       // because we edited ourselves the components list
       Log('Forcing custom install type, because we used the manual install question page.');
-      RegWriteStringValue(HKA, GetUninstallRegPath(False), 'Inno Setup: Setup Type', 'custom');
+      if not RegKeyExists(HKA, GetUninstallRegPath(False)) then
+        Log('Uninstall key not found, install type not changed')
+      else if not RegWriteStringValue(HKA, GetUninstallRegPath(False), 'Inno Setup: Setup Type', 'custom') then
+        Log('Unable to write the install type to the uninstall key');
     end;
+#endif
   end;
 
   // Register files after components page
