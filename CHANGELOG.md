@@ -128,9 +128,10 @@ Refactoring and quality fixes (no new game content).
   it). Timeouts are 15/30 s instead of 0.5 s, which made slow, mobile or VPN connections fail.
   The servers are no longer contacted for English or with the download deselected, and if only
   the mirror answers, the files are downloaded from it first. After the download the setup lists
-  every localized file that could not be downloaded or verified and installs its own version of
-  it; it used to continue silently with a partly translated game. The message about unreachable
-  servers is localized.
+  every selected localized file it did not install from the download (not downloaded, discarded
+  after the checksum check, or not downloaded because the setup knows no verified version of it)
+  and installs its own version of it; it used to continue silently with a partly translated game.
+  The list is a notice, not an error. The message about unreachable servers is localized.
 - AoC gets the downloaded localized lobby files it shares with Empire Earth: IDP downloads a URL
   only once and silently dropped the second target.
 - NeoEE: where a NeoEE version of a localized file exists, only that one is downloaded. If its
@@ -140,18 +141,22 @@ Refactoring and quality fixes (no new game content).
   themselves. Only the maps the previous setup installed are removed; the setup keeps a list of
   them in its setup data folder. The first update of an installation made by setup 1.7.2 or older
   (which has no such list) moves the old folder aside once, keeps there only the files this setup
-  does not install again (own maps, maps of older versions) and says where they are.
+  does not install again (own maps, maps of older versions) and says where they are. If that
+  installation is cancelled or fails, the old folder is moved back.
 
 ### Security
 - Online localized files: TLS certificates are validated (invalid certificates used to be
   ignored), and a downloaded file is only installed if its SHA-256 matches a hash compiled into
   the setup. Other files are deleted, logged and reported, and the setup installs its own files
   instead. The hashes come from `data\localized-text.sha256`, which `ci/build.ps1` writes from
-  `data\localized-text`; a setup built without it downloads nothing (see README, "Online
-  localized files"). The reachability check of the file servers no longer falls back to HTTP.
+  `data\localized-text`; a setup built without it does not offer the download (see README,
+  "Online localized files"). The reachability check of the file servers no longer falls back to HTTP.
   Very old Windows 7 installations without updated root certificates can no longer download
   these files and continue with the files included in the setup; they should install the
   Windows updates or use the full/offline setup.
+- Random map scripts: the elevated setup never follows junctions or symbolic links in the random
+  map folders, which all users can write to. A user could otherwise have made it delete files or
+  empty folders elsewhere, or loop through a link to a parent folder.
 - Update check: HTTPS only (it used to retry over plain HTTP after any error) and only HTTP 200
   answers count. The download link sent by the server is only opened if it is an https URL of
   empireearth.eu, neoee.net or github.com/EE-modders, otherwise https://empireearth.eu/download
