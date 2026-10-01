@@ -87,6 +87,8 @@ Refactoring and quality fixes (no new game content).
   apply to AoC).
 - Portable setups no longer leave an uninstall entry in the registry (holding only the setup
   type) when installed with the recommended settings.
+- Tasks and components of the previous installation are matched exactly (release note 1.0.3.0
+  announced it, but each list item was still searched as a substring).
 
 ### Security
 - Online localized files: TLS certificates are validated (invalid certificates used to be

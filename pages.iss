@@ -1,20 +1,23 @@
 ﻿[Code]
 
-// Read Selected Components to try to find the language
+// Read Selected Components to try to find the language: 'en' if no components are recorded,
+// '' if none of them is a language
 function GetSelectedLanguageFromRegistry(): String;
 var
   i: Integer;
+  Components: String;
 begin
-  RegQueryStringValue(HKA, GetUninstallRegPath(False), 'Inno Setup: Selected Components', Result);
-  if (Result = '') then
+  if (not RegQueryStringValue(HKA, GetUninstallRegPath(False), 'Inno Setup: Selected Components', Components)
+      or (Components = '')) then
   begin
     Result := 'en';
     Exit;
   end;
 
+  Result := '';
   for i := 0 to Langs.Count - 1 do
   begin
-    if (Pos('language\' + Langs[i], Result) > 0) then
+    if (WizardIsComponentInstalled('language\' + Langs[i])) then
     begin
       Result := Langs[i];
       Exit;

@@ -30,116 +30,50 @@ begin
   Result := (WizardContainsParam('/VERYSILENT') or WizardSilent);
 end;
 
-function WizardIsTaskInstalledMultiSetup(Task: String): Boolean;
+// Exact (not substring) match of Item in a comma separated list value of an uninstall key, like
+// "Inno Setup: Selected Tasks" or "Inno Setup: Selected Components"
+function UninstallKeyListContains(const UninstallKey, ValueName, Item: String): Boolean;
 var
   I: Integer;
-  Tmp: String;
-  ArrayTmp: TArrayOfString;
+  List: String;
+  Items: TArrayOfString;
 begin
   Result := False;
-  if RegQueryStringValue(HKA, GetUninstallRegPath(False), 'Inno Setup: Selected Tasks', Tmp) then
-  begin
-    ArrayTmp := StrSplit(Tmp, ',');
-    for I := 0 to high(ArrayTmp) do 
+  if not RegQueryStringValue(HKA, UninstallKey, ValueName, List) then
+    Exit;
+  Items := StrSplit(List, ',');
+  for I := 0 to GetArrayLength(Items) - 1 do
+    if CompareText(Trim(Items[I]), Item) = 0 then
     begin
-      if Pos(Task, ArrayTmp[I]) > 0 then
-      begin
-        Result := True;
-        Break;
-      end;
+      Result := True;
+      Exit;
     end;
-  end;
-  
-  if RegQueryStringValue(HKA, GetUninstallRegPath(True), 'Inno Setup: Selected Tasks', Tmp) then
-  begin
-    ArrayTmp := []; 
-    ArrayTmp := StrSplit(Tmp, ',');
-    for I := 0 to high(ArrayTmp) do 
-    begin
-      if Pos(Task, ArrayTmp[I]) > 0 then
-      begin
-        Result := True;
-        Break;
-      end;
-    end;
-  end;
 end;
 
+// Task selected in the last installation of this product
 function WizardIsTaskInstalled(Task: String): Boolean;
-var
-  I: Integer;
-  Tmp: String;
-  ArrayTmp: TArrayOfString;
 begin
-  Result := False;
-  if RegQueryStringValue(HKA, GetUninstallRegPath(False), 'Inno Setup: Selected Tasks', Tmp) then
-  begin
-    ArrayTmp := StrSplit(Tmp, ',');
-    for I := 0 to high(ArrayTmp) do 
-    begin
-      if Pos(Task, ArrayTmp[I]) > 0 then
-      begin
-        Result := True;
-        Break;
-      end;
-    end;
-  end;
+  Result := UninstallKeyListContains(GetUninstallRegPath(False), 'Inno Setup: Selected Tasks', Task);
 end;
 
-function WizardIsComponentInstalledMultiSetup(Compo: String): Boolean;
-var
-  I: Integer;
-  Tmp: String;
-  ArrayTmp: TArrayOfString;
+// Task selected in the last installation of this product or of the other one (EE <-> NeoEE)
+function WizardIsTaskInstalledMultiSetup(Task: String): Boolean;
 begin
-  Result := False;
-  if RegQueryStringValue(HKA, GetUninstallRegPath(False), 'Inno Setup: Selected Components', Tmp) then
-  begin
-    ArrayTmp := StrSplit(Tmp, ',');
-    for I := 0 to high(ArrayTmp) do 
-    begin
-      if Pos(Compo, ArrayTmp[I]) > 0 then
-      begin
-        Result := True;
-        Break;
-      end;
-    end;
-  end;
-  
-  if RegQueryStringValue(HKA, GetUninstallRegPath(True), 'Inno Setup: Selected Components', Tmp) then
-  begin
-    ArrayTmp := [];
-    ArrayTmp := StrSplit(Tmp, ',');
-    for I := 0 to high(ArrayTmp) do 
-    begin
-      if Pos(Compo, ArrayTmp[I]) > 0 then
-      begin
-        Result := True;
-        Break;
-      end;
-    end;
-  end;
+  Result := WizardIsTaskInstalled(Task) or
+    UninstallKeyListContains(GetUninstallRegPath(True), 'Inno Setup: Selected Tasks', Task);
 end;
 
+// Component selected in the last installation of this product
 function WizardIsComponentInstalled(Compo: String): Boolean;
-var
-  I: Integer;
-  Tmp: String;
-  ArrayTmp: TArrayOfString;
 begin
-  Result := False;
-  if RegQueryStringValue(HKA, GetUninstallRegPath(False), 'Inno Setup: Selected Components', Tmp) then
-  begin
-    ArrayTmp := StrSplit(Tmp, ',');
-    for I := 0 to high(ArrayTmp) do 
-    begin
-      if Pos(Compo, ArrayTmp[I]) > 0 then
-      begin
-        Result := True;
-        Break;
-      end;
-    end;
-  end;
+  Result := UninstallKeyListContains(GetUninstallRegPath(False), 'Inno Setup: Selected Components', Compo);
+end;
+
+// Component selected in the last installation of this product or of the other one (EE <-> NeoEE)
+function WizardIsComponentInstalledMultiSetup(Compo: String): Boolean;
+begin
+  Result := WizardIsComponentInstalled(Compo) or
+    UninstallKeyListContains(GetUninstallRegPath(True), 'Inno Setup: Selected Components', Compo);
 end;
 
 // Very dirty, because sadly the setup don't store it's own version

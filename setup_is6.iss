@@ -1594,11 +1594,8 @@ end;
 
 // Exact (not substring) search in the "Inno Setup: Selected Tasks" list of an uninstall key
 function UninstallKeyHasTask(const UninstallKey, Task: String): Boolean;
-var
-  Tasks: String;
 begin
-  Result := RegQueryStringValue(HKA, UninstallKey, 'Inno Setup: Selected Tasks', Tasks) and
-    (Pos(',' + LowerCase(Task) + ',', ',' + LowerCase(Tasks) + ',') > 0);
+  Result := UninstallKeyListContains(UninstallKey, 'Inno Setup: Selected Tasks', Task);
 end;
 
 // Removes the certificate from the store [Run] added it to (machine or current user)
