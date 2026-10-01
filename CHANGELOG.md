@@ -55,6 +55,13 @@ Refactoring and quality fixes (no new game content).
 - The uninstaller starts even if `EEStatsSetup.dll` is missing from the setup data folder (e.g.
   removed by an anti-virus): it is only loaded on demand, which the uninstall no longer needs, so
   the elevated uninstaller does not load code from the installation folder.
+- NeoEE CD keys: the setup registers them itself after all other installation steps instead of
+  through a dummy `cmd.exe /C` entry (which failed where cmd.exe is blocked, e.g. by AppLocker). A
+  missing `authtools.dll` no longer stops the setup from starting and is reported when the keys
+  are registered (the old file checks and the 0.5 s wait could not detect it). Installation
+  folders with a comma or characters outside the system code page are reported instead of being
+  passed garbled to the CD key tool. The messages are localizable (English, German, French) and
+  "Sythax" is spelled correctly. The arguments sent to the tool are unchanged.
 
 ### Security
 - Online localized files: TLS certificates are validated (invalid certificates used to be

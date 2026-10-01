@@ -1225,14 +1225,8 @@ Filename: "{sys}\netsh.exe"; Parameters: "firewall add allowedprogram program=""
 Filename: "{tmp}\directx\dxwebsetup.exe"; Parameters: "/Q"; Flags: runhidden; Tasks: dxwebsetup; \
     StatusMsg: "Installing legacy DirectX End-User Runtime..."; MinVersion: 0,5.0; Check: IsAdminInstallMode and not IsWine
 
-#if InstallType == "NeoEE"
-  // Fake NeoEE register to show the right message while Code will install keys :)
-  // /!\ This mean that this part should always be at the end of Run.
-  Filename: "{sys}\cmd.exe"; Parameters: "/C"; Flags: runhidden; \
-    StatusMsg: "Register Empire Earth NeoEE CDKey"; MinVersion: 0,5.0; Tasks: neoee_cdkeys; Components: game and not gameaoc; AfterInstall: RegisterCDKeys
-  Filename: "{sys}\cmd.exe"; Parameters: "/C"; Flags: runhidden; \
-    StatusMsg: "Register Empire Earth Neo EE & AoC CDKey"; MinVersion: 0,5.0; Tasks: neoee_cdkeys; Components: game and gameaoc; AfterInstall: RegisterCDKeys
-#endif
+; NeoEE CD keys (task neoee_cdkeys) are registered by CurStepChanged(ssPostInstall), which runs after
+; all [Run] entries
 
 [UninstallRun]
 ; Uninstall DirectPlay
@@ -1284,8 +1278,10 @@ const
     external 'EEStats_getGpuVendorId@files:EEStatsSetup.dll cdecl setuponly';
 
 #if InstallType == "NeoEE"
+  // Closed-source NeoEE tool, see RegisterCDKeys. delayload: the DLL is only loaded when the keys
+  // are registered, so a DLL removed by an anti-virus no longer stops the setup from starting.
   function generate_cdkeys(args: PAnsiChar; admin: BOOL): DWORD;
-    external 'generate_cdkeys@files:authtools.dll cdecl setuponly';
+    external 'generate_cdkeys@files:authtools.dll cdecl setuponly delayload';
 #endif
 
   // The uninstaller cannot use "files:" DLLs, it loads EEStatsSetup.dll from {app}\{#SetupDataDir}.
@@ -1711,76 +1707,91 @@ begin
 end;
 
 #if InstallType == "NeoEE"
+const
+  CDKeysAuthServer = 'neoee.net';
+  CDKeysAuthPort = '10003';
+
+// Arguments of generate_cdkeys, exactly in the format authtools.dll has always received:
+// '-eec=<EE folder>[, -aoc=<AoC folder>], -authserv=neoee.net, -port=10003'
+function GetCDKeysArgs(const EEDir, AoCDir: String): String;
+begin
+  Result := '-eec=' + EEDir;
+  if (AoCDir <> '') then
+    Result := Result + ', -aoc=' + AoCDir;
+  Result := Result + ', -authserv=' + CDKeysAuthServer + ', -port=' + CDKeysAuthPort;
+end;
+
+// authtools.dll is closed source and takes the folders in one comma separated ANSI string
+// (PAnsiChar). Its parser is unknown, so quoting cannot be added without changing what it
+// receives; folders it would get wrong are refused instead: a comma would split the argument,
+// and characters outside the ANSI code page would be replaced by '?'.
+function IsCDKeysPathSupported(const Dir: String): Boolean;
+begin
+  Result := (Pos(',', Dir) = 0) and (String(AnsiString(Dir)) = Dir);
+end;
+
+procedure ShowCDKeysError(const Msg: String);
+begin
+  Log('CD Keys: ' + Msg);
+  if (not SilentInstall and not SuppressMsgBoxes) then
+    MsgBox(Msg, mbError, MB_OK);
+end;
+
+// Registers the NeoEE CD keys with the NeoEE auth server (generate_cdkeys of authtools.dll):
+// HKLM in administrative install mode, HKCU otherwise
+// NeoEE CDKeys Regedit Hell
+// HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Sierra\CDKeys
+// HKEY_LOCAL_MACHINE\Software\Sierra\CDKeys
 procedure RegisterCDKeys();
 var
   AuthExitCode: Integer;
+  EEDir, AoCDir: String;
 begin
-    AuthExitCode := 0;
+  if (IsWine()) then
+  begin
+    ShowCDKeysError(CustomMessage('CDKeysWine'));
+    Exit;
+  end;
 
-    if (IsWine() and (not SilentInstall and not SuppressMsgBoxes)) then
-    begin
-        MsgBox('You are using Wine! Sadly CD Keys can''t be generated for security, we will probably implement that later.' + #13#10 +
-          'For the moment contact Reborn or NeoEE devs to get a key for your Wine installation', mbError, MB_OK)
-        exit;
-    end;
+  if (not WizardIsComponentSelected('game')) then
+    Exit;
+  EEDir := ExpandConstant('{app}\Empire Earth');
+  AoCDir := '';
+  if (WizardIsComponentSelected('gameaoc')) then
+    AoCDir := ExpandConstant('{app}\Empire Earth - The Art of Conquest');
 
-    if (not FileExists(ExpandConstant('{tmp}\authtools.dll'))) then
-    begin
-        Log('CD Keys generation failed! Unable to find authtools! Probably removed by the Anti-Virus! (Pre-generation error)')
-        if (not SilentInstall and not SuppressMsgBoxes) then
-          MsgBox('Your Anti-Virus deleted the file used to generate the NeoEE CD Keys, making your game unable to play on NeoEE.' + #13#10 +
-            'Please disable your Anti-Virus and install NeoEE again!! (Pre-generation error)', mbError, MB_OK);
-        Exit;
-    end;
+  if (not IsCDKeysPathSupported(EEDir) or not IsCDKeysPathSupported(AoCDir)) then
+  begin
+    ShowCDKeysError(FmtMessage(CustomMessage('CDKeysPathUnsupported'), [ExpandConstant('{app}')]));
+    Exit;
+  end;
 
-    // NeoEE CDKeys Regedit Hell
-    // HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Sierra\CDKeys
-    // HKEY_LOCAL_MACHINE\Software\Sierra\CDKeys
-    if (WizardIsComponentSelected('game') and not WizardIsComponentSelected('gameaoc') and not IsWine()) then
-    begin
-      Log('Register NeoEE CD Keys for EE');
-      //Exec(ExpandConstant('{tmp}\authtools.exe'), ExpandConstant('-eec={app}\Empire Earth, -authserv=neoee.net, -port=10003'), '',
-      //  SW_HIDE, ewWaitUntilTerminated, AuthExitCode);
-      AuthExitCode := generate_cdkeys(ExpandConstant('-eec={app}\Empire Earth, -authserv=neoee.net, -port=10003'), IsAdminInstallMode);
-    end
-    else if (WizardIsComponentSelected('game') and WizardIsComponentSelected('gameaoc') and not IsWine()) then
-    begin
-      Log('Register NeoEE CD Keys for EE and AoC');
-      //Exec(ExpandConstant('{tmp}\authtools.exe'), ExpandConstant('-eec={app}\Empire Earth, -aoc={app}\Empire Earth - The Art of Conquest, -authserv=neoee.net, -port=10003'), '',
-      //  SW_HIDE, ewWaitUntilTerminated, AuthExitCode);
-      AuthExitCode := generate_cdkeys(ExpandConstant('-eec={app}\Empire Earth, -aoc={app}\Empire Earth - The Art of Conquest, -authserv=neoee.net, -port=10003'), IsAdminInstallMode);
-    end;
+  if (AoCDir = '') then
+    Log('Register NeoEE CD Keys for EE')
+  else
+    Log('Register NeoEE CD Keys for EE and AoC');
 
-    Sleep(500);
+  try
+    AuthExitCode := generate_cdkeys(GetCDKeysArgs(EEDir, AoCDir), IsAdminInstallMode);
+  except
+    // authtools.dll is loaded here (delayload): missing or blocked, e.g. by an anti-virus
+    Log('Unable to call authtools.dll: ' + GetExceptionMessage);
+    ShowCDKeysError(CustomMessage('CDKeysToolMissing'));
+    Exit;
+  end;
 
-    if (not FileExists(ExpandConstant('{tmp}\authtools.dll'))) then
-    begin
-        Log('CD Keys generation failed! Unable to find authtools! Probably removed by the Anti-Virus! (Post-generation error)')
-        if (not SilentInstall and not SuppressMsgBoxes) then
-          MsgBox('Your Anti-Virus deleted the file used to generate the NeoEE CD Keys, making your game unable to play on NeoEE.' + #13#10 +
-            'Please disable your Anti-Virus and install NeoEE again!! (Post-generation error)', mbError, MB_OK);
-        Exit;
-    end;
-
-    Log('CD Keys generation result: ' + IntToStr(AuthExitCode));
-
-    if (not SilentInstall and not SuppressMsgBoxes) then
-    begin
-      if (AuthExitCode = 1) then
-        MsgBox('Unable to install CD Keys: Virtual Machine Detected' + #13#10 + 'Contact Reborn or NeoEE devs to get a key for your Virtual Machine.', mbError, MB_OK)
-      else if (AuthExitCode = 2) then
-        MsgBox('Unable to install CD Keys: General/Unknown Error', mbError, MB_OK)
-      else if (AuthExitCode = 3) then
-        MsgBox('Unable to install CD Keys: Network Error' + #13#10 + 'If you very recently installed NeoEE this error is normal.', mbError, MB_OK)
-      else if (AuthExitCode = 4) then
-        MsgBox('Unable to install CD Keys: Regedit Error', mbError, MB_OK)
-      else if (AuthExitCode = 5) then
-        MsgBox('Unable to install CD Keys: Sythax Error', mbError, MB_OK)
-      else if (AuthExitCode = 6) then
-        MsgBox('Unable to install CD Keys: Protection Error', mbError, MB_OK)
-      else if (AuthExitCode <> 0) then
-        MsgBox('Unknown error when installing CD Key!' + #13#10 + 'Code: ' + IntToStr(AuthExitCode), mbError, MB_OK);
-    end;
+  Log('CD Keys generation result: ' + IntToStr(AuthExitCode));
+  case AuthExitCode of
+    0: Log('CD Keys registered');
+    1: ShowCDKeysError(CustomMessage('CDKeysErrorVM'));
+    2: ShowCDKeysError(CustomMessage('CDKeysErrorGeneral'));
+    3: ShowCDKeysError(CustomMessage('CDKeysErrorNetwork'));
+    4: ShowCDKeysError(CustomMessage('CDKeysErrorRegistry'));
+    5: ShowCDKeysError(CustomMessage('CDKeysErrorSyntax'));
+    6: ShowCDKeysError(CustomMessage('CDKeysErrorProtection'));
+  else
+    ShowCDKeysError(FmtMessage(CustomMessage('CDKeysErrorUnknown'), [IntToStr(AuthExitCode)]));
+  end;
 end;
 #endif
 
@@ -1904,6 +1915,17 @@ begin
       RemoveLegacyRunAsAdmin(ExpandConstant('{app}\Empire Earth\Empire Earth.exe'));
       RemoveLegacyRunAsAdmin(ExpandConstant('{app}\Empire Earth - The Art of Conquest\EE-AOC.exe'));
     end;
+#if InstallType == "NeoEE"
+    // After all [Run] entries (it used to be the AfterInstall of a dummy "cmd.exe /C" entry)
+    if (WizardIsTaskSelected('neoee_cdkeys')) then
+    begin
+      if (WizardIsComponentSelected('gameaoc')) then
+        WizardForm.StatusLabel.Caption := CustomMessage('CDKeysStatusEEAoC')
+      else
+        WizardForm.StatusLabel.Caption := CustomMessage('CDKeysStatusEE');
+      RegisterCDKeys();
+    end;
+#endif
   end;
 end;
 

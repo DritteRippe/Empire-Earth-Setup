@@ -161,6 +161,47 @@ TaskCertInclude=Trust the Empire Earth Community certificate (adds it to the tru
 de.TaskCertInclude=Dem Zertifikat der Empire Earth Community vertrauen (fügt es den vertrauenswürdigen Stammzertifizierungsstellen hinzu, nur auswählen, wenn Sie dem Herausgeber vertrauen)
 fr.TaskCertInclude=Faire confiance au certificat de la communauté Empire Earth (l'ajoute aux autorités de certification racines de confiance, à cocher uniquement si vous faites confiance à son éditeur)
 
+#if InstallType == "NeoEE"
+; NeoEE CD keys (RegisterCDKeys); CDKeysPathUnsupported: %1 = installation folder,
+; CDKeysErrorUnknown: %1 = exit code of authtools.dll
+CDKeysStatusEE=Registering the NeoEE CD key for Empire Earth...
+de.CDKeysStatusEE=NeoEE-CD-Key für Empire Earth wird registriert...
+fr.CDKeysStatusEE=Enregistrement de la clé CD NeoEE pour Empire Earth...
+CDKeysStatusEEAoC=Registering the NeoEE CD keys for Empire Earth and The Art of Conquest...
+de.CDKeysStatusEEAoC=NeoEE-CD-Keys für Empire Earth und The Art of Conquest werden registriert...
+fr.CDKeysStatusEEAoC=Enregistrement des clés CD NeoEE pour Empire Earth et The Art of Conquest...
+CDKeysWine=You are using Wine: for security reasons the NeoEE CD keys cannot be generated there (this may be supported later).%nFor now, contact the Reborn or NeoEE developers to get a key for your Wine installation.
+de.CDKeysWine=Sie verwenden Wine: Aus Sicherheitsgründen können die NeoEE-CD-Keys dort nicht erzeugt werden (das wird eventuell später unterstützt).%nWenden Sie sich vorerst an die Reborn- oder NeoEE-Entwickler, um einen Key für Ihre Wine-Installation zu erhalten.
+fr.CDKeysWine=Vous utilisez Wine : pour des raisons de sécurité, les clés CD NeoEE ne peuvent pas y être générées (cela sera peut-être possible plus tard).%nPour le moment, contactez les développeurs de Reborn ou de NeoEE pour obtenir une clé pour votre installation Wine.
+CDKeysToolMissing=The file used to generate the NeoEE CD keys could not be loaded, it was probably removed by your anti-virus. Without the keys the game cannot be played on NeoEE.%nPlease disable your anti-virus and install NeoEE again.
+de.CDKeysToolMissing=Die Datei zum Erzeugen der NeoEE-CD-Keys konnte nicht geladen werden, wahrscheinlich wurde sie von Ihrem Antivirenprogramm entfernt. Ohne die Keys kann das Spiel nicht auf NeoEE gespielt werden.%nBitte deaktivieren Sie Ihr Antivirenprogramm und installieren Sie NeoEE erneut.
+fr.CDKeysToolMissing=Le fichier servant à générer les clés CD NeoEE n'a pas pu être chargé, il a probablement été supprimé par votre antivirus. Sans les clés, le jeu ne peut pas être utilisé sur NeoEE.%nVeuillez désactiver votre antivirus et réinstaller NeoEE.
+CDKeysPathUnsupported=The NeoEE CD keys cannot be registered for this installation folder:%n%1%nThe CD key tool does not support folders containing a comma or characters outside the system code page. Install NeoEE into another folder to use the online lobby.
+de.CDKeysPathUnsupported=Die NeoEE-CD-Keys können für diesen Installationsordner nicht registriert werden:%n%1%nDas CD-Key-Werkzeug unterstützt keine Ordner mit Komma oder mit Zeichen außerhalb der System-Codepage. Installieren Sie NeoEE in einen anderen Ordner, um die Online-Lobby zu nutzen.
+fr.CDKeysPathUnsupported=Les clés CD NeoEE ne peuvent pas être enregistrées pour ce dossier d'installation :%n%1%nL'outil des clés CD ne prend pas en charge les dossiers contenant une virgule ou des caractères hors de la page de code du système. Installez NeoEE dans un autre dossier pour utiliser le lobby en ligne.
+CDKeysErrorVM=Unable to install the CD keys: virtual machine detected.%nContact the Reborn or NeoEE developers to get a key for your virtual machine.
+de.CDKeysErrorVM=Die CD-Keys konnten nicht installiert werden: virtuelle Maschine erkannt.%nWenden Sie sich an die Reborn- oder NeoEE-Entwickler, um einen Key für Ihre virtuelle Maschine zu erhalten.
+fr.CDKeysErrorVM=Impossible d'installer les clés CD : machine virtuelle détectée.%nContactez les développeurs de Reborn ou de NeoEE pour obtenir une clé pour votre machine virtuelle.
+CDKeysErrorGeneral=Unable to install the CD keys: general/unknown error.
+de.CDKeysErrorGeneral=Die CD-Keys konnten nicht installiert werden: allgemeiner/unbekannter Fehler.
+fr.CDKeysErrorGeneral=Impossible d'installer les clés CD : erreur générale/inconnue.
+CDKeysErrorNetwork=Unable to install the CD keys: network error.%nIf you installed NeoEE very recently, this error is normal.
+de.CDKeysErrorNetwork=Die CD-Keys konnten nicht installiert werden: Netzwerkfehler.%nWenn Sie NeoEE erst vor Kurzem installiert haben, ist dieser Fehler normal.
+fr.CDKeysErrorNetwork=Impossible d'installer les clés CD : erreur réseau.%nSi vous avez installé NeoEE très récemment, cette erreur est normale.
+CDKeysErrorRegistry=Unable to install the CD keys: registry error.
+de.CDKeysErrorRegistry=Die CD-Keys konnten nicht installiert werden: Fehler in der Registrierung.
+fr.CDKeysErrorRegistry=Impossible d'installer les clés CD : erreur de registre.
+CDKeysErrorSyntax=Unable to install the CD keys: syntax error.
+de.CDKeysErrorSyntax=Die CD-Keys konnten nicht installiert werden: Syntaxfehler.
+fr.CDKeysErrorSyntax=Impossible d'installer les clés CD : erreur de syntaxe.
+CDKeysErrorProtection=Unable to install the CD keys: protection error.
+de.CDKeysErrorProtection=Die CD-Keys konnten nicht installiert werden: Schutzfehler.
+fr.CDKeysErrorProtection=Impossible d'installer les clés CD : erreur de protection.
+CDKeysErrorUnknown=Unknown error while installing the CD keys!%nCode: %1
+de.CDKeysErrorUnknown=Unbekannter Fehler beim Installieren der CD-Keys!%nCode: %1
+fr.CDKeysErrorUnknown=Erreur inconnue lors de l'installation des clés CD !%nCode : %1
+#endif
+
 ; Sound Control
 ; Since our custom button isn't auto scaled to content
 ; better keep Mute / Unmute, tiny and everyone should understand 
