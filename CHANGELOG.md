@@ -74,6 +74,8 @@ Refactoring and quality fixes (no new game content).
   Earth folder. They went into the AoC folder (mixing EE and AoC maps there), NeoEE Extra only when
   AoC was selected.
 - NeoEE under Wine: the Wine configuration for AoC (`NeoEE.cfg`) is only installed with AoC.
+- Installing without AoC no longer creates AoC registry values (VSync, window size), which also
+  stayed behind after uninstalling.
 
 ### Security
 - Online localized files: TLS certificates are validated (invalid certificates used to be
