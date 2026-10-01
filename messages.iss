@@ -157,6 +157,9 @@ fr.TaskAdminStart=Toujours lancer le jeu en tant qu'administrateur, pour tous le
 TaskFirewall=Allow the game through the Windows Firewall (incoming connections on all network types, needed to host games)
 de.TaskFirewall=Spiel in der Windows-Firewall zulassen (eingehende Verbindungen in allen Netzwerktypen, nötig zum Hosten von Spielen)
 fr.TaskFirewall=Autoriser le jeu dans le pare-feu Windows (connexions entrantes sur tous les types de réseau, nécessaire pour héberger des parties)
+TaskCertInclude=Trust the Empire Earth Community certificate (adds it to the trusted root certification authorities, only check this if you trust its publisher)
+de.TaskCertInclude=Dem Zertifikat der Empire Earth Community vertrauen (fügt es den vertrauenswürdigen Stammzertifizierungsstellen hinzu, nur auswählen, wenn Sie dem Herausgeber vertrauen)
+fr.TaskCertInclude=Faire confiance au certificat de la communauté Empire Earth (l'ajoute aux autorités de certification racines de confiance, à cocher uniquement si vous faites confiance à son éditeur)
 
 ; Sound Control
 ; Since our custom button isn't auto scaled to content

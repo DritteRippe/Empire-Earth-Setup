@@ -38,6 +38,11 @@ Refactoring and quality fixes (no new game content).
 - Firewall rules: unchanged in effect (program rules for the game, all ports), but `profile=any`
   is now written out and documented: hosting needs incoming connections on "Public" networks too.
   The task describes what it allows.
+- Signed builds only (`SignSetup`): installing the community certificate as trusted root
+  certification authority is opt-in for administrators too (it was preselected). The build stops
+  unless `CertHashSHA1` is the thumbprint of the DER certificate file; the setup only adds a
+  certificate file with that thumbprint, and the uninstaller removes it only if this product added
+  it and the other product (EE/NeoEE) does not use it, with consistent `certutil` arguments.
 
 ### Fixed
 - The build refuses empty, malformed or identical AppIds. An empty AppId used to compile, turned

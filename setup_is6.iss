@@ -61,8 +61,8 @@
 ;   InstallType   EE | NeoEE                                   (default: EE)
 ;   SignSetup     0 | 1 (or false | true), needs the SignTool  (default: 0)
 ;                 named in [Setup] to be configured (ISCC /S)
-;   CertFileName  certificate file in internal\misc            (only used when SignSetup = 1)
-;   CertHashSHA1  SHA1 hash of that certificate                (only used when SignSetup = 1)
+;   CertFileName  certificate file (DER) in internal\misc      (only used when SignSetup = 1)
+;   CertHashSHA1  SHA-1 thumbprint of that certificate         (only used when SignSetup = 1)
 ;   TestID        0 = release build, > 0 = test build          (default: 0)
 ;   EE_AppID      AppId GUID of the EE setup, without braces   (required, see AppId notes below)
 ;   NeoEE_AppID   AppId GUID of the NeoEE setup, w/o braces    (required, see AppId notes below)
@@ -89,8 +89,8 @@
 
 ; Note: Signing the setup allows you to avoid the warning messages of Windows (saying that it would be
 ;       a virus...). This certificate is not free because everyone knows that trust can be bought...
-;       However, when a user installs a signed version of the setup, by default he installs the joint
-;       certificate on his computer (if CertInclude = true + user confirmation). If you want to use
+;       A signed setup also offers to install the joint certificate on the computer (CertInclude,
+;       opt-in task certinclude, unchecked by default). If you want to use
 ;       the community certificate, contact me on discord, I will sign your setup after a verification.
 #ifndef SignSetup
   #define SignSetup false
@@ -128,6 +128,22 @@
   #endif
 #else
   #define CertInclude false
+#endif
+
+#if CertInclude
+  ; The thumbprint identifies the certificate before it is added (IsCertificateFileGenuine) and
+  ; when it is removed on uninstall, so it has to be the one of CertFileName. The certificate file
+  ; must be DER encoded: then its SHA-1 is the thumbprint. (The file only exists in the final
+  ; compile, the first pass of ci\build.ps1 -Placeholders skips that comparison.)
+  #define CertThumbprint LowerCase(StringChange(CertHashSHA1, " ", ""))
+  #if Len(CertThumbprint) != 40
+    #error CertHashSHA1 must be the SHA-1 thumbprint (40 hex digits) of the certificate when SignSetup is enabled
+  #endif
+  #if FileExists(AddBackslash(SourcePath) + "internal\misc\" + CertFileName)
+    #if GetSHA1OfFile(AddBackslash(SourcePath) + "internal\misc\" + CertFileName) != CertThumbprint
+      #pragma error "CertHashSHA1 is not the SHA-1 thumbprint of internal\misc\" + CertFileName + " (the certificate file must be DER encoded)"
+    #endif
+  #endif
 #endif
 
 ; Regedit
@@ -390,8 +406,9 @@ Name: "dxwebsetup"; Description: "Install DirectX End-User Runtime"; MinVersion:
 #endif
 
 #if CertInclude
-  Name: "certinclude"; Description: "Install Empire Earth Community Certificate (Uncheck if you don't trust us!)"; MinVersion: 0.0,6.0; Check: IsAdminInstallMode and not IsWine
-  Name: "certinclude"; Description: "Install Empire Earth Community Certificate (Check only if you trust us!)"; MinVersion: 0.0,6.0; Flags: unchecked; Check: not IsAdminInstallMode and not IsWine
+  ; Opt-in, also for administrators: adds the community certificate to the trusted root
+  ; certification authorities (all users in administrative install mode, else the current user)
+  Name: "certinclude"; Description: "{cm:TaskCertInclude}"; MinVersion: 0.0,6.0; Flags: unchecked; Check: not IsWine
 #endif
 
 ; Opt-in: the game (online lobby, maps and scenarios from other players) should not run elevated.
@@ -1131,12 +1148,12 @@ Type: filesandordirs; Name: "{app}\Tools\Diagnostic\log.txt"
 Type: filesandordirs; Name: "{app}\{#SetupDataDir}"
 
 [Run]
-; Add Cert in Windows Trusted Root CA Store
-#if SignSetup
+; Add Cert in Windows Trusted Root CA Store (only if the extracted file has the expected thumbprint)
+#if CertInclude
   Filename: "{sys}\certutil.exe"; Parameters: "-addstore root ""{tmp}\{#CertFileName}"""; Flags: runhidden; Tasks: certinclude; \
-    StatusMsg: "Adding Empire Earth Community Certificate Authority (issued by EnergyCube)"; MinVersion: 0,6.0; Components: game; Check: IsAdminInstallMode
+    StatusMsg: "Adding Empire Earth Community Certificate Authority (issued by EnergyCube)"; MinVersion: 0,6.0; Components: game; Check: IsAdminInstallMode and IsCertificateFileGenuine
   Filename: "{sys}\certutil.exe"; Parameters: "-user -addstore root ""{tmp}\{#CertFileName}"""; Flags: runhidden; Tasks: certinclude; \
-    StatusMsg: "Adding Empire Earth Community Certificate Authority (issued by EnergyCube)"; MinVersion: 0,6.0; Components: game; Check: not IsAdminInstallMode
+    StatusMsg: "Adding Empire Earth Community Certificate Authority (issued by EnergyCube)"; MinVersion: 0,6.0; Components: game; Check: not IsAdminInstallMode and IsCertificateFileGenuine
 #endif
 
 ; Install DirectPlay (Never tested on x86) ({sys}\dism.exe should work)
@@ -1617,29 +1634,65 @@ begin
   SendRequest(InstallUrlStats, True);
 end;
 
-procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+#if CertInclude
 var
-  ErrorCode: Integer;
+  // Read in InitializeUninstall: the uninstall key is already gone at usPostUninstall
+  CertAddedBySetup: Boolean;
+
+// [Run] Check: the extracted certificate still has the thumbprint checked at compile time, which
+// is also the one RemoveCertificate removes
+function IsCertificateFileGenuine: Boolean;
+begin
+  try
+    Result := LowerCase(GetSHA1OfFile(ExpandConstant('{tmp}\{#CertFileName}'))) = '{#CertThumbprint}';
+  except
+    Result := False;
+  end;
+  if not Result then
+    Log('Certificate file does not have the thumbprint {#CertThumbprint}, not added');
+end;
+
+// Exact (not substring) search in the "Inno Setup: Selected Tasks" list of an uninstall key
+function UninstallKeyHasTask(const UninstallKey, Task: String): Boolean;
+var
+  Tasks: String;
+begin
+  Result := RegQueryStringValue(HKA, UninstallKey, 'Inno Setup: Selected Tasks', Tasks) and
+    (Pos(',' + LowerCase(Task) + ',', ',' + LowerCase(Tasks) + ',') > 0);
+end;
+
+// Removes the certificate from the store [Run] added it to (machine or current user)
+procedure RemoveCertificate;
+var
+  Params: String;
+  ResultCode: Integer;
+begin
+  Params := '-delstore root ' + AddQuotes('{#CertThumbprint}');
+  if not IsAdminInstallMode then
+    Params := '-user ' + Params;
+  Log('Removing certificate from store: certutil ' + Params);
+  if not Exec(ExpandConstant('{sys}\certutil.exe'), Params, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+    Log('Unable to run certutil: ' + SysErrorMessage(ResultCode))
+  else if ResultCode <> 0 then
+    Log('certutil failed with exit code ' + IntToStr(ResultCode));
+end;
+#endif
+
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 begin
   if (CurUninstallStep = usUninstall) then begin
     UnloadDLL(ExpandConstant('{app}\{#SetupDataDir}\EEStatsSetup.dll'));
   end else if (CurUninstallStep = usPostUninstall) then
   begin
 #if CertInclude
-    // We do 2 checks, because we want to delete the right certificate (user or admin) but also ensure that
-    // the given certificate isn't still used by another install mode (EE/Neo)
-    if (not WizardIsTaskInstalledMultiSetup('certinclude')) then
-    begin
-      Log('Removing certificate from store ({#CertHashSHA1})');
-      if IsAdminInstallMode and not WizardIsTaskInstalledMultiSetup('certinclude') then
-      begin
-        Exec(ExpandConstant('{sys}\certutil.exe'), '-delstore root ""{#CertHashSHA1}"""', '', SW_HIDE, ewWaitUntilTerminated, ErrorCode);
-      end
-      else if not IsAdminInstallMode and not WizardIsTaskInstalledMultiSetup('certinclude') then
-      begin
-        Exec(ExpandConstant('{sys}\certutil.exe'), '-user -delstore root ""{#CertHashSHA1}""', '', SW_HIDE, ewWaitUntilTerminated, ErrorCode);
-      end;
-    end;
+    // Only remove the certificate if this product added it, and keep it while the other product
+    // (EE <-> NeoEE) still uses it: same install mode (HKA), so same certificate store
+    if not CertAddedBySetup then
+      Log('Certificate not added by this setup, not removed')
+    else if UninstallKeyHasTask(GetUninstallRegPath(True), 'certinclude') then
+      Log('Certificate still used by the other setup, not removed')
+    else
+      RemoveCertificate();
 #endif
   end;
 end;
@@ -1974,6 +2027,9 @@ end;
 function InitializeUninstall(): Boolean;
 begin
   RegisterLangs()
+#if CertInclude
+  CertAddedBySetup := UninstallKeyHasTask(GetUninstallRegPath(False), 'certinclude');
+#endif
   Result := True;
 end;
 

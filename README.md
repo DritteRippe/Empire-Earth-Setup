@@ -62,7 +62,7 @@ Every switch has a default in the settings block of `setup_is6.iss` and can be o
 | `InstallMode` | `Regular`, `Portable` | `Regular` |
 | `EE_AppID`, `NeoEE_AppID` | AppId GUIDs without braces | empty (required) |
 | `SignSetup` | `0`, `1` | `0` |
-| `CertFileName`, `CertHashSHA1` | certificate in `internal\misc` and its SHA1 (signed builds only) | `cert_name.crt`, empty |
+| `CertFileName`, `CertHashSHA1` | certificate (DER) in `internal\misc` and its SHA-1 thumbprint, checked against the file (signed builds only) | `cert_name.crt`, empty |
 | `TestID` | `0` = release, `> 0` = test build (fast compression, warning on start) | `0` |
 | `DownloadHashFile` | SHA-256 list of the online localized files (see [Online localized files](#online-localized-files)) | `data\localized-text.sha256` |
 
