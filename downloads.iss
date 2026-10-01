@@ -9,13 +9,16 @@
 //    A mismatching file is deleted. Every registered file that does not arrive there (download
 //    failed or skipped, checksum mismatch) is logged and reported; for it the setup installs the
 //    file it contains itself.
+//  - A selected file without a known hash is not downloaded at all, it is reported too
+//    (NoteUnverifiableOnlineFile), so the player knows that it stays as the setup installs it.
+//  - A build without any hash hides the download component (Check: HasDownloadPins).
 //
 // The hashes come from a list in sha256sum format ("<SHA-256 in hex>  <path>", one file per line,
 // paths relative to the "localized" folder of the file servers, which has the same layout as
 // data\localized-text). ISPP 6.2 can only compute MD5 and SHA-1 (GetSHA256OfFile is missing until
 // Inno Setup 6.3), so the list is created before compiling: ci\build.ps1 writes it from
 // data\localized-text, see README.md "Online localized files". Without the list the setup compiles
-// with a warning and never downloads anything.
+// with a warning and does not offer the download (component language\update).
 //
 // Requires: OnlineFilesURL, OnlineFilesMirrorURL (setup_is6.iss), EEDir, AoCDir (ISPP),
 // GetHttpStatus (utils.iss), SilentInstall, SuppressMsgBoxes (extension.iss), the IDP functions
@@ -85,6 +88,9 @@ type
 var
   DownloadPins: array of TDownloadPin;
   OnlineFiles: array of TOnlineFile;
+  // Download targets (relative to {tmp}) of selected files that are not downloaded because no
+  // SHA-256 is known for them
+  UnverifiableOnlineFiles: array of String;
   // Server tried first and mirror, see SelectOnlineFilesServer
   OnlineFilesPrimaryURL, OnlineFilesSecondaryURL: String;
 
@@ -111,7 +117,7 @@ begin
   Log('Online files: ' + IntToStr(GetArrayLength(DownloadPins)) + ' SHA-256 hashes known');
 end;
 #if DownloadPinCount == 0
-  #pragma warning "No SHA-256 hashes in " + DownloadHashPath + ": this setup will never download localized files (see README.md, Online localized files)"
+  #pragma warning "No SHA-256 hashes in " + DownloadHashPath + ": this setup will not offer the download of localized files (see README.md, Online localized files)"
 #endif
 
 // SHA-256 known for a server path (exact match), '' if none
@@ -128,9 +134,11 @@ begin
     end;
 end;
 
+// Also the Check of the component language\update, so it is known at compile time (component
+// checks may run before InitializeWizard, where RegisterDownloadPins runs)
 function HasDownloadPins: Boolean;
 begin
-  Result := GetArrayLength(DownloadPins) > 0;
+  Result := {#DownloadPinCount} > 0;
 end;
 
 // Chooses the server the files are downloaded from (OnlineFilesURL and OnlineFilesMirrorURL,
@@ -160,11 +168,13 @@ procedure ClearOnlineFiles;
 begin
   idpClearFiles();
   SetArrayLength(OnlineFiles, 0);
+  SetArrayLength(UnverifiableOnlineFiles, 0);
 end;
 
 // Registers the download of <server>/RelPath to {tmp}\RelDest, but only if its SHA-256 is known
 // and no other file is registered for RelDest yet. The caller registers only what is selected
-// (IDP would download a file if any one of its components is selected). Call
+// (IDP would download a file if any one of its components is selected) and calls
+// NoteUnverifiableOnlineFile if it finds no file to register for RelDest. Call
 // SelectOnlineFilesServer first. True if the file is registered.
 function AddOnlineFile(const RelPath, RelDest: String): Boolean;
 var
@@ -210,6 +220,23 @@ begin
   OnlineFiles[N].SHA256 := Hash;
   OnlineFiles[N].CopyOf := CopyOf;
   Result := True;
+end;
+
+// No file with a known SHA-256 could be registered for the selected download target RelDest:
+// remembered for the report of VerifyDownloadedFiles (once, and not if a file is registered for it)
+procedure NoteUnverifiableOnlineFile(const RelDest: String);
+var
+  I, N: Integer;
+begin
+  for I := 0 to GetArrayLength(OnlineFiles) - 1 do
+    if CompareText(OnlineFiles[I].RelDest, RelDest) = 0 then
+      Exit;
+  N := GetArrayLength(UnverifiableOnlineFiles);
+  for I := 0 to N - 1 do
+    if CompareText(UnverifiableOnlineFiles[I], RelDest) = 0 then
+      Exit;
+  SetArrayLength(UnverifiableOnlineFiles, N + 1);
+  UnverifiableOnlineFiles[N] := RelDest;
 end;
 
 // RelDest as the player sees it: the game folder instead of EE/AoC
@@ -265,15 +292,15 @@ end;
 
 // Checks every downloaded file against its SHA-256 and moves the matching ones to
 // {tmp}\verified\<RelDest>, copies files needed in both game folders, then reports every
-// registered file that is not there, so the player knows which localized content stays as the
-// setup installs it itself (some of it in English). Must run before [Files] is processed
-// (ssInstall).
+// registered file that is not there and every selected file that was not downloaded because no
+// SHA-256 is known for it, so the player knows which localized content stays as the setup
+// installs it itself (some of it in English). Nothing harmful was installed in any of these cases,
+// so the report is a notice. Must run before [Files] is processed (ssInstall).
 procedure VerifyDownloadedFiles;
 var
   I, Missing: Integer;
   Problem: array of String;
   Target, Report: String;
-  Rejected: Boolean;
 begin
   // [Files] installs from these folders, so they have to exist even if nothing was downloaded
   ForceDirectories(ExpandConstant('{tmp}\verified\EE'));
@@ -282,7 +309,6 @@ begin
   SetArrayLength(Problem, GetArrayLength(OnlineFiles));
   Missing := 0;
   Report := '';
-  Rejected := False;
   for I := 0 to GetArrayLength(OnlineFiles) - 1 do
   begin
     if OnlineFiles[I].CopyOf < 0 then
@@ -304,10 +330,14 @@ begin
     if Problem[I] <> '' then
     begin
       Missing := Missing + 1;
-      if Problem[I] = 'DownloadFileRejected' then
-        Rejected := True;
       Report := Report + #13#10 + '  ' + FmtMessage(CustomMessage(Problem[I]), [OnlineFileDisplayName(OnlineFiles[I].RelDest)]);
     end;
+  end;
+
+  for I := 0 to GetArrayLength(UnverifiableOnlineFiles) - 1 do
+  begin
+    Missing := Missing + 1;
+    Report := Report + #13#10 + '  ' + FmtMessage(CustomMessage('DownloadFileUnverifiable'), [OnlineFileDisplayName(UnverifiableOnlineFiles[I])]);
   end;
 
   if Missing = 0 then
@@ -317,12 +347,10 @@ begin
     Exit;
   end;
 
-  Log(IntToStr(Missing) + ' of ' + IntToStr(GetArrayLength(OnlineFiles)) + ' online files are missing, the setup installs its own files instead:' + Report);
-  if SilentInstall or SuppressMsgBoxes then
-    Exit;
-  // An error if a file did not match its checksum (damaged or tampered with), else a notice
-  if Rejected then
-    MsgBox(FmtMessage(CustomMessage('DownloadIncomplete'), [Report]), mbError, MB_OK)
-  else
+  Log(IntToStr(Missing) + ' of ' + IntToStr(GetArrayLength(OnlineFiles) + GetArrayLength(UnverifiableOnlineFiles)) + ' selected online files are missing, the setup installs its own files instead:' + Report);
+  // A checksum mismatch (a file updated on the server after this setup was built, or a damaged
+  // or tampered download) is reported like the other cases: the file was discarded, nothing of it
+  // is installed
+  if not SilentInstall and not SuppressMsgBoxes then
     MsgBox(FmtMessage(CustomMessage('DownloadIncomplete'), [Report]), mbInformation, MB_OK);
 end;

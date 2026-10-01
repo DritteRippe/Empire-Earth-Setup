@@ -154,9 +154,12 @@ fr.DownloadIncomplete=Certains fichiers traduits n'ont pas pu être installés d
 DownloadFileMissing=%1 (not downloaded)
 de.DownloadFileMissing=%1 (nicht heruntergeladen)
 fr.DownloadFileMissing=%1 (non téléchargé)
-DownloadFileRejected=%1 (checksum does not match the one built into this setup, discarded)
-de.DownloadFileRejected=%1 (Prüfsumme stimmt nicht mit der in dieses Setup eingebauten überein, verworfen)
-fr.DownloadFileRejected=%1 (la somme de contrôle ne correspond pas à celle intégrée à ce programme d'installation, rejeté)
+DownloadFileRejected=%1 (not the version this setup knows: updated on the server since or damaged, discarded)
+de.DownloadFileRejected=%1 (nicht die Version, die dieses Setup kennt: inzwischen auf dem Server aktualisiert oder beschädigt, verworfen)
+fr.DownloadFileRejected=%1 (pas la version connue de ce programme d'installation : mise à jour depuis sur le serveur ou endommagée, rejeté)
+DownloadFileUnverifiable=%1 (no verified version known to this setup, not downloaded)
+de.DownloadFileUnverifiable=%1 (diesem Setup ist keine geprüfte Version bekannt, nicht heruntergeladen)
+fr.DownloadFileUnverifiable=%1 (aucune version vérifiée connue de ce programme d'installation, non téléchargé)
 
 ; Random Map Scripts of a setup up to v1.7.2 that this setup does not install again (randommaps.iss):
 ; %1 = backup folder, %2 = Random Map Scripts folder

@@ -534,7 +534,8 @@ Name: "language"; Description: "{cm:CompLanguage}"; Types: full compact custom r
 Name: "language\{#GameLangs[LangIndex]}"; Description: "{cm:LIQP_{#GameLangs[LangIndex]}}"; Flags: exclusive;
 #endsub
 #for {LangIndex = 0; LangIndex < GameLangCount; LangIndex++} GameLangComponent
-Name: "language\update"; Description: "{cm:CompLanguageUpdate}"; Types: full compact custom raw; Flags: disablenouninstallwarning;
+; Only offered if the setup knows SHA-256 hashes of online files (downloads.iss)
+Name: "language\update"; Description: "{cm:CompLanguageUpdate}"; Types: full compact custom raw; Flags: disablenouninstallwarning; Check: HasDownloadPins
 
 ; Localized text of one game in [Files]: for every game language (GameLangs) its Language.dll,
 ; then the lobby files of the game, then the lobby files shared by EE and AoC, each with the
@@ -1624,16 +1625,27 @@ begin
   WizardSelectComponents('language\' + Lang);
 end;
 
-// Registers the file FilePath (with '/') of the server folder ServerDir (path below the "localized"
-// folder of the servers, ending with '/') for the game folder GameKey (EE or AoC): it is downloaded
-// to {tmp}\<GameKey>\<FilePath>. The server folders have the layout of the game folders.
-function AddGameOnlineFile(const ServerDir, GameKey, FilePath: String): Boolean;
-var
-  RelDest: String;
+// Download target of the file FilePath (with '/') for the game folder GameKey (EE or AoC):
+// <GameKey>\<FilePath> below {tmp}. The server folders have the layout of the game folders.
+function GameOnlineFileDest(const GameKey, FilePath: String): String;
 begin
-  RelDest := FilePath;
-  StringChangeEx(RelDest, '/', '\', True);
-  Result := AddOnlineFile(ServerDir + FilePath, GameKey + '\' + RelDest);
+  Result := FilePath;
+  StringChangeEx(Result, '/', '\', True);
+  Result := GameKey + '\' + Result;
+end;
+
+// Registers the file FilePath of the server folder ServerDir (path below the "localized" folder
+// of the servers, ending with '/') for the game folder GameKey, see AddOnlineFile
+function TryAddGameOnlineFile(const ServerDir, GameKey, FilePath: String): Boolean;
+begin
+  Result := AddOnlineFile(ServerDir + FilePath, GameOnlineFileDest(GameKey, FilePath));
+end;
+
+// TryAddGameOnlineFile, and if that registers nothing the file is reported as not verifiable
+procedure AddGameOnlineFile(const ServerDir, GameKey, FilePath: String);
+begin
+  if not TryAddGameOnlineFile(ServerDir, GameKey, FilePath) then
+    NoteUnverifiableOnlineFile(GameOnlineFileDest(GameKey, FilePath));
 end;
 
 // NeoEE setups install the NeoEE version of a localized file where there is one, like [Files]
@@ -1642,7 +1654,7 @@ end;
 procedure AddLocalizedGameOnlineFile(const ServerDir, NeoEEServerDir, GameKey, FilePath: String);
 begin
 #if InstallType == "NeoEE"
-  if AddGameOnlineFile(NeoEEServerDir, GameKey, FilePath) then
+  if TryAddGameOnlineFile(NeoEEServerDir, GameKey, FilePath) then
     Exit;
 #endif
   AddGameOnlineFile(ServerDir, GameKey, FilePath);
