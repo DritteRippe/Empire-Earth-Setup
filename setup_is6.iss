@@ -244,11 +244,36 @@
 #define MySetupVersion "1.7.2"
 #define MyAppGroupName "Empire Earth"
 
+; Build switches
+; Each switch below has a default here and can be overridden on the command line instead of
+; editing this file:  ISCC /D<Switch>=<Value> setup_is6.iss
+;   InstallMode   Regular | Portable                           (default: Regular)
+;   InstallType   EE | NeoEE                                   (default: EE)
+;   SignSetup     0 | 1 (or false | true), needs the SignTool  (default: 0)
+;                 named in [Setup] to be configured (ISCC /S)
+;   CertFileName  certificate file in internal\misc            (only used when SignSetup = 1)
+;   CertHashSHA1  SHA1 hash of that certificate                (only used when SignSetup = 1)
+;   TestID        0 = release build, > 0 = test build          (default: 0)
+;   EE_AppID      AppId GUID of the EE setup, without braces   (required, see AppId notes below)
+;   NeoEE_AppID   AppId GUID of the NeoEE setup, w/o braces    (required, see AppId notes below)
+; Example: ISCC /DInstallType=NeoEE /DInstallMode=Portable /DEE_AppID=<GUID> /DNeoEE_AppID=<GUID> setup_is6.iss
+; ci/build.ps1 builds all four InstallType x InstallMode variants, see README.md "Building".
+
 ; InstallMode : Regular / Portable
-#define InstallMode "Regular"
+#ifndef InstallMode
+  #define InstallMode "Regular"
+#endif
+#if InstallMode != "Regular" && InstallMode != "Portable"
+  #pragma error "Unsupported InstallMode '" + InstallMode + "' (use Regular or Portable)"
+#endif
 
 ; InstallType : EE / NeoEE
-#define InstallType "EE"
+#ifndef InstallType
+  #define InstallType "EE"
+#endif
+#if InstallType != "EE" && InstallType != "NeoEE"
+  #pragma error "Unsupported InstallType '" + InstallType + "' (use EE or NeoEE)"
+#endif
 
 ; Sign Setup/Uninstall
 
@@ -257,15 +282,40 @@
 ;       However, when a user installs a signed version of the setup, by default he installs the joint
 ;       certificate on his computer (if CertInclude = true + user confirmation). If you want to use
 ;       the community certificate, contact me on discord, I will sign your setup after a verification.
-#define SignSetup false
+#ifndef SignSetup
+  #define SignSetup false
+#endif
+; ISCC /D passes a string (where even "0" would count as true), a bare /DSignSetup passes no
+; value at all: normalize both to false/true
+#if TypeOf(SignSetup) == TYPE_NULL
+  #define SignSetup true
+#endif
+#if TypeOf(SignSetup) == TYPE_STRING
+  #define SignSetupArg LowerCase(SignSetup)
+  #undef SignSetup
+  #if SignSetupArg == "1" || SignSetupArg == "true"
+    #define SignSetup true
+  #endif
+  #if SignSetupArg == "0" || SignSetupArg == "false"
+    #define SignSetup false
+  #endif
+  #ifndef SignSetup
+    #pragma error "Unsupported SignSetup '" + SignSetupArg + "' (use 0 or 1)"
+  #endif
+  #undef SignSetupArg
+#endif
 
 #if SignSetup
   ; Install Cert
   #define CertInclude true
-  ; Cert File Name (Need to be in data)
-  #define CertFileName "cert_name.crt"
+  ; Cert File Name (needs to be in internal\misc)
+  #ifndef CertFileName
+    #define CertFileName "cert_name.crt"
+  #endif
   ; Cert Hash SHA1 (very important, needed to uninstall the cert)
-  #define CertHashSHA1 ""
+  #ifndef CertHashSHA1
+    #define CertHashSHA1 ""
+  #endif
 #else
   #define CertInclude false
 #endif
@@ -283,7 +333,16 @@
 #define BaseRegCompatibility = "Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers"
 
 ; TestID (0 if Release)
-#define TestID = 0
+#ifndef TestID
+  #define TestID = 0
+#endif
+; ISCC /D passes a string: convert it (invalid values become -1 and are rejected)
+#if TypeOf(TestID) != TYPE_INTEGER
+  #define TestID Int(TestID, -1)
+#endif
+#if TestID < 0
+  #error TestID must be a non-negative integer (0 = release build)
+#endif
 
 ; END SETUP SETTINGS
 
@@ -294,8 +353,12 @@
 ; When releasing a new MySetupVersion, it should be distribued for both EE & Neo
 ; MySetupVersion is a good way to know the features of the setup, meaning that EE & Neo should share the same version !
 
-#define EE_AppID ""
-#define NeoEE_AppID ""
+#ifndef EE_AppID
+  #define EE_AppID ""
+#endif
+#ifndef NeoEE_AppID
+  #define NeoEE_AppID ""
+#endif
 
 #if InstallType == "EE"
   #define AppID EE_AppID
