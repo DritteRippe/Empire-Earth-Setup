@@ -1,4 +1,4 @@
-[Code]
+﻿[Code]
 // Inno Setup Extention Code
 // Because I needed more Wizard related functions
 

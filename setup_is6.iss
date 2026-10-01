@@ -1,4 +1,4 @@
-; ---------------------------------------
+﻿; ---------------------------------------
 ;        By EnergyCube 2020-2023
 ;      Empire Earth Community Setup
 ;     GNU General Public License v3.0

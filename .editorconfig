@@ -1,0 +1,11 @@
+# https://editorconfig.org - see also .gitattributes for the line endings stored in git.
+root = true
+
+# Own Inno Setup scripts (top level only; third-party code under internal/ keeps its format).
+# UTF-8 *with* BOM is required: Inno Setup 6.2 reads BOM-less files with the ANSI code page,
+# which breaks non-ASCII text (translations, accented folder names, credits).
+[/*.iss]
+charset = utf-8-bom
+end_of_line = crlf
+indent_style = space
+indent_size = 2

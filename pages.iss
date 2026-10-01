@@ -1,4 +1,4 @@
-[Code]
+﻿[Code]
 
 // Read Selected Components to try to find the language
 function GetSelectedLanguageFromRegistry(): String;

@@ -1,4 +1,4 @@
-[Code]
+﻿[Code]
 // Yeah... Too much complex to be by default in IS Pascal I guess...
 function StrSplit(Text: String; Separator: String): TArrayOfString;
 var

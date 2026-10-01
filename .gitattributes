@@ -1,0 +1,29 @@
+# Line endings: the repository stores LF, the working tree gets the line ending listed here.
+* text=auto
+
+# Inno Setup scripts and message files (own and third-party under internal/): CRLF on checkout.
+# Encoding is not something git can enforce: the own top-level *.iss files must stay UTF-8
+# *with* BOM, because Inno Setup 6.2 reads BOM-less files with the ANSI code page (see .editorconfig).
+*.iss text eol=crlf
+*.isl text eol=crlf
+*.ps1 text eol=crlf
+*.sh  text eol=lf
+
+# Binary files: never touch line endings, never diff/merge as text.
+*.bmp  binary
+*.png  binary
+*.jpg  binary
+*.gif  binary
+*.ico  binary
+*.dll  binary
+*.exe  binary
+*.flac binary
+*.wav  binary
+*.ogg  binary
+*.mp3  binary
+*.avi  binary
+*.ssa  binary
+*.zip  binary
+*.7z   binary
+*.crt  binary
+*.cer  binary
