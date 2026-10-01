@@ -570,6 +570,42 @@ Source: "data\localized-text\{#LocTextBase}Lobby\{#GameLangLobbyDirs[LangIndex]}
   #for {LangIndex = 0; LangIndex < GameLangCount; LangIndex++} LocalizedLobbyFiles
 #endsub
 
+; Add-on files of one game (folder AddOnDir below {app}, component AddOnComp), in this order:
+; dreXmod, random maps (EE setups; Omega has a version per game in its subfolder AddOnOmega),
+; DirectX wrappers, civilizations, Discord presence. Set the parameters with #expr, then
+; #call GameAddOnFiles.
+#define public AddOnDir ""
+#define public AddOnComp ""
+#define public AddOnOmega ""
+#sub GameAddOnFiles
+; dreXmod 2 (+privacy patched dll, because nothing allows to disable it in config)
+Source: "data\Add-on\DLLs\dreXmod\2\*"; DestDir: "{app}\{#AddOnDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\drexmod\v2 and {#AddOnComp}
+Source: "data\Add-on\DLLs\dreXmod\2_privacy\*"; DestDir: "{app}\{#AddOnDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\drexmod\v2 and {#AddOnComp} and not additional\telemetry
+; dreXmod 3 (+privacy config)
+Source: "data\Add-on\DLLs\dreXmod\3\*"; DestDir: "{app}\{#AddOnDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\drexmod\v3 and {#AddOnComp}
+Source: "data\Add-on\DLLs\dreXmod\3_privacy\*"; DestDir: "{app}\{#AddOnDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\drexmod\v3 and {#AddOnComp} and not additional\telemetry
+  #if InstallType == "EE"
+; Random maps (NeoEE setups install them with the NeoEE base files)
+Source: "data\Add-on\RMS\Omega\{#AddOnOmega}\*"; DestDir: "{app}\{#AddOnDir}\{#RmsSubDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\rms\omega and {#AddOnComp}
+Source: "data\Add-on\RMS\NeoExtra\*"; DestDir: "{app}\{#AddOnDir}\{#RmsSubDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\rms\neoextra and {#AddOnComp}
+  #endif
+; dgVoodoo binaries (DirectX 11/12 wrapper) or DDraw.dll (GOG for dx9, DDrawCompat for dx7)
+Source: "data\Add-on\DirectX_Wrapper\dgVoodoo_bin\*"; DestDir: "{app}\{#AddOnDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper and {#AddOnComp} and not additional\directx_wrapper\dx9 and not additional\directx_wrapper\dx7
+Source: "data\\Add-on\DirectX_Wrapper\GOG\DDraw.dll"; DestDir: "{app}\{#AddOnDir}"; DestName: "DDraw.dll"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper\dx9 and {#AddOnComp}
+Source: "data\\Add-on\DirectX_Wrapper\DDrawCompat\DDraw.dll"; DestDir: "{app}\{#AddOnDir}"; DestName: "DDraw.dll"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper\dx7 and {#AddOnComp}
+; dgVoodoo configuration of the selected API level
+Source: "data\Add-on\DirectX_Wrapper\dgVoodoo_conf\dgVoodoo_DX11_LVL10.conf"; DestDir: "{app}\{#AddOnDir}"; DestName: "dgVoodoo.conf"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper\dx11_lvl10 and {#AddOnComp}
+Source: "data\Add-on\DirectX_Wrapper\dgVoodoo_conf\dgVoodoo_DX11_LVL10_1.conf"; DestDir: "{app}\{#AddOnDir}"; DestName: "dgVoodoo.conf"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper\dx11_lvl10_1 and {#AddOnComp}
+Source: "data\Add-on\DirectX_Wrapper\dgVoodoo_conf\dgVoodoo_DX11_LVL11.conf"; DestDir: "{app}\{#AddOnDir}"; DestName: "dgVoodoo.conf"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper\dx11_lvl11 and {#AddOnComp}
+Source: "data\Add-on\DirectX_Wrapper\dgVoodoo_conf\dgVoodoo_DX12_LVL11.conf"; DestDir: "{app}\{#AddOnDir}"; DestName: "dgVoodoo.conf"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper\dx12_lvl11 and {#AddOnComp}
+Source: "data\Add-on\DirectX_Wrapper\dgVoodoo_conf\dgVoodoo_DX12_LVL12.conf"; DestDir: "{app}\{#AddOnDir}"; DestName: "dgVoodoo.conf"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper\dx12_lvl12 and {#AddOnComp}
+; Civilizations
+Source: "data\Add-on\Civs\eC\*"; DestDir: "{app}\{#AddOnDir}\Users\default\Civilizations"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\civs\ec and {#AddOnComp}
+Source: "data\Add-on\Civs\eC_full\*"; DestDir: "{app}\{#AddOnDir}\Users\default\Civilizations"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\civs\ec_full and {#AddOnComp}
+; Discord presence
+Source: "data\Add-on\DLLs\Discord\*"; DestDir: "{app}\{#AddOnDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\discord and {#AddOnComp}
+#endsub
+
 [Files]
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 ; For future ? signonce/sign
@@ -623,40 +659,9 @@ Source: "data\Add-on\Movies\EE\*"; DestDir: "{app}\{#EEDir}\Data\Movies"; Flags:
 ; EE Online Lang Any Based Content (only downloads that passed the SHA-256 check, see downloads.iss)
 Source: "{tmp}\verified\EE\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs external skipifsourcedoesntexist; Components: game and language\update;
 
-; DreXmod 2 (+privacy patched dll, because nothing allow to disable it in config)
-Source: "data\Add-on\DLLs\dreXmod\2\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\drexmod\v2 and game;
-Source: "data\Add-on\DLLs\dreXmod\2_privacy\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\drexmod\v2 and game and not additional\telemetry;
-
-; DreXmod 3 (+privacy config)
-Source: "data\Add-on\DLLs\dreXmod\3\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\drexmod\v3 and game;
-Source: "data\Add-on\DLLs\dreXmod\3_privacy\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\drexmod\v3 and game and not additional\telemetry;
-
-; RMS
-#if InstallType == "EE"
-  ; Omega
-  Source: "data\Add-on\RMS\Omega\EE\*"; DestDir: "{app}\{#EEDir}\{#RmsSubDir}"; \
-    Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\rms\omega and game
-  Source: "data\Add-on\RMS\NeoExtra\*"; DestDir: "{app}\{#EEDir}\{#RmsSubDir}"; \
-    Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\rms\neoextra and game
-#endif
-
-; dgVoodoo  Bin
-Source: "data\Add-on\DirectX_Wrapper\dgVoodoo_bin\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper and game and not additional\directx_wrapper\dx9 and not additional\directx_wrapper\dx7
-Source: "data\\Add-on\DirectX_Wrapper\GOG\DDraw.dll"; DestDir: "{app}\{#EEDir}"; DestName: "DDraw.dll"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper\dx9 and game;
-Source: "data\\Add-on\DirectX_Wrapper\DDrawCompat\DDraw.dll"; DestDir: "{app}\{#EEDir}"; DestName: "DDraw.dll"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper\dx7 and game;
-; dgVoodoo Conf
-Source: "data\Add-on\DirectX_Wrapper\dgVoodoo_conf\dgVoodoo_DX11_LVL10.conf"; DestDir: "{app}\{#EEDir}"; DestName: "dgVoodoo.conf"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper\dx11_lvl10 and game;
-Source: "data\Add-on\DirectX_Wrapper\dgVoodoo_conf\dgVoodoo_DX11_LVL10_1.conf"; DestDir: "{app}\{#EEDir}"; DestName: "dgVoodoo.conf"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper\dx11_lvl10_1 and game;
-Source: "data\Add-on\DirectX_Wrapper\dgVoodoo_conf\dgVoodoo_DX11_LVL11.conf"; DestDir: "{app}\{#EEDir}"; DestName: "dgVoodoo.conf"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper\dx11_lvl11 and game;
-Source: "data\Add-on\DirectX_Wrapper\dgVoodoo_conf\dgVoodoo_DX12_LVL11.conf"; DestDir: "{app}\{#EEDir}"; DestName: "dgVoodoo.conf"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper\dx12_lvl11 and game;
-Source: "data\Add-on\DirectX_Wrapper\dgVoodoo_conf\dgVoodoo_DX12_LVL12.conf"; DestDir: "{app}\{#EEDir}"; DestName: "dgVoodoo.conf"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper\dx12_lvl12 and game;
-
-; Civs
-Source: "data\Add-on\Civs\eC\*"; DestDir: "{app}\{#EEDir}\Users\default\Civilizations"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\civs\ec and game
-Source: "data\Add-on\Civs\eC_full\*"; DestDir: "{app}\{#EEDir}\Users\default\Civilizations"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\civs\ec_full and game
-
-; Discord
-Source: "data\Add-on\DLLs\Discord\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\discord and game
+; Add-on files (see GameAddOnFiles)
+#expr AddOnDir = EEDir, AddOnComp = "game", AddOnOmega = "EE"
+#call GameAddOnFiles
 
 ; Reborn.dll
 ; Source: "data\Add-on\DLLs\Reborn\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\reborn and game
@@ -734,54 +739,9 @@ Source: "{tmp}\verified\AoC\*"; DestDir: "{app}\{#AoCDir}"; \
 Source: "{tmp}\verified\EE\Data\Campaigns\EELearningCampaign.ssa"; DestDir: "{app}\{#AoCDir}\Data\Campaigns"; \
   Flags: ignoreversion recursesubdirs createallsubdirs external skipifsourcedoesntexist; Components: gameaoc and language\update
 
-  ; DreXmod 2 (+privacy patched dll, because nothing allow to disable it in config)
-Source: "data\Add-on\DLLs\dreXmod\2\*"; DestDir: "{app}\{#AoCDir}"; \
-  Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\drexmod\v2 and gameaoc;
-Source: "data\Add-on\DLLs\dreXmod\2_privacy\*"; DestDir: "{app}\{#AoCDir}"; \
-  Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\drexmod\v2 and gameaoc and not additional\telemetry;
-
-; DreXmod 3 (+privacy config)
-Source: "data\Add-on\DLLs\dreXmod\3\*"; DestDir: "{app}\{#AoCDir}"; \
-  Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\drexmod\v3 and gameaoc;
-Source: "data\Add-on\DLLs\dreXmod\3_privacy\*"; DestDir: "{app}\{#AoCDir}"; \
-  Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\drexmod\v3 and gameaoc and not additional\telemetry;
-
-; RMS
-#if InstallType == "EE"
-  ; Omega
-  Source: "data\Add-on\RMS\Omega\AoC\*"; DestDir: "{app}\{#AoCDir}\{#RmsSubDir}"; \
-    Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\rms\omega and gameaoc
-  Source: "data\Add-on\RMS\NeoExtra\*"; DestDir: "{app}\{#AoCDir}\{#RmsSubDir}"; \
-    Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\rms\neoextra and gameaoc
-#endif
-
-; dgVoodoo  Bin
-Source: "data\Add-on\DirectX_Wrapper\dgVoodoo_bin\*"; DestDir: "{app}\{#AoCDir}"; \
-  Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper and gameaoc and not additional\directx_wrapper\dx9 and not additional\directx_wrapper\dx7
-Source: "data\\Add-on\DirectX_Wrapper\GOG\DDraw.dll"; DestDir: "{app}\{#AoCDir}"; DestName: "DDraw.dll"; \
-  Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper\dx9 and gameaoc;
-Source: "data\\Add-on\DirectX_Wrapper\DDrawCompat\DDraw.dll"; DestDir: "{app}\{#AoCDir}"; DestName: "DDraw.dll"; \
-  Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper\dx7 and gameaoc;
-; dgVoodoo Conf
-Source: "data\Add-on\DirectX_Wrapper\dgVoodoo_conf\dgVoodoo_DX11_LVL10.conf"; DestDir: "{app}\{#AoCDir}"; DestName: "dgVoodoo.conf"; \
-  Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper\dx11_lvl10 and gameaoc;
-Source: "data\Add-on\DirectX_Wrapper\dgVoodoo_conf\dgVoodoo_DX11_LVL10_1.conf"; DestDir: "{app}\{#AoCDir}"; DestName: "dgVoodoo.conf"; \
-  Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper\dx11_lvl10_1 and gameaoc;
-Source: "data\Add-on\DirectX_Wrapper\dgVoodoo_conf\dgVoodoo_DX11_LVL11.conf"; DestDir: "{app}\{#AoCDir}"; DestName: "dgVoodoo.conf"; \
-  Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper\dx11_lvl11 and gameaoc;
-Source: "data\Add-on\DirectX_Wrapper\dgVoodoo_conf\dgVoodoo_DX12_LVL11.conf"; DestDir: "{app}\{#AoCDir}"; DestName: "dgVoodoo.conf"; \
-  Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper\dx12_lvl11 and gameaoc;
-Source: "data\Add-on\DirectX_Wrapper\dgVoodoo_conf\dgVoodoo_DX12_LVL12.conf"; DestDir: "{app}\{#AoCDir}"; DestName: "dgVoodoo.conf"; \
-  Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper\dx12_lvl12 and gameaoc;
-
-; Civs
-Source: "data\Add-on\Civs\eC\*"; DestDir: "{app}\{#AoCDir}\Users\default\Civilizations"; \
-  Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\civs\ec and gameaoc
-Source: "data\Add-on\Civs\eC_full\*"; DestDir: "{app}\{#AoCDir}\Users\default\Civilizations"; \
-  Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\civs\ec_full and gameaoc
-
-; Discord
-Source: "data\Add-on\DLLs\Discord\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\discord and gameaoc
+; Add-on files (see GameAddOnFiles)
+#expr AddOnDir = AoCDir, AddOnComp = "gameaoc", AddOnOmega = "AoC"
+#call GameAddOnFiles
 
 ; Reborn.dll
 ; Not supported Source: "data\Add-on\DLLs\Reborn\*"; DestDir: "{app}\{#AoCDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\reborn and gameaoc
