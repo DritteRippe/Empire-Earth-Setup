@@ -138,6 +138,28 @@ Refactoring and quality fixes (no new game content).
   (EE/NeoEE). The request uses HTTPS only (no HTTP fallback), all values are URL-encoded, and the
   log no longer contains the query with the anonymous user id.
 
+### Internal
+Refactoring without any change to what the setups install or do: the preprocessed scripts of all
+four variants keep the same entries in the same order in every section.
+- The game languages are listed once (`GameLangs`, `GameLangLobbyDirs` in `setup_is6.iss`). The
+  language components, the localized-text `[Files]` entries (124 hand-written lines before) and
+  the language list of the code are generated from it with ISPP; adding a language means adding
+  it there, plus its `LIQP_<name>` message and its files. `ci/check_messages.py` checks that every
+  listed language has its message.
+- Repeated blocks are written once as ISPP subs and used for EE and AoC: add-on files
+  (`GameAddOnFiles`), game settings (`GameSettings`), compatibility values (`CompatibilityValues`)
+  and the firewall rules, whose delete entries `[Run]` and `[UninstallRun]` now share.
+- Named constants instead of literals: game folders and programs (`EEDir`, `AoCDir`, `EEExe`,
+  `AoCExe`, `RmsSubDir`), Windows versions of the version filters (`Win7`, `Win8`, ...), one base
+  URL per web endpoint (`ApiURL`, `UpdateApiURL`, `TelemetryApiURL`, `OnlineFilesURL`, ...),
+  timeouts, window size limits and the result codes of the NeoEE CD key tool.
+- `RegisterOnlineFiles` registers EE and AoC from one file list; the download target of a file is
+  derived from its server path.
+- `eestats.iss` holds the `EEStatsSetup.dll` imports and the functions the rest of the script
+  uses instead of them (`IsWine`, `GetWineVersion`, `GetGpuVendorId`, ...).
+- ISPP 6.2 pitfall, documented in the script: after a `#sub` has run, later plain `#define`s of
+  the same file are invisible inside subs and in files included afterwards.
+
 ## 1.7.2 - 2023-12-04
 
 Updated dreXmod config
