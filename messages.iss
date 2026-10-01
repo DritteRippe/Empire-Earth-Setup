@@ -4,12 +4,14 @@
 ;   MIQP_    Manual Install Question Page: recommended or custom settings, repair/update, telemetry
 ;   GPUIQP_  GPU Install Question Page: graphics card brand and DirectX wrapper
 ; The other messages are named after their use. The entry without language prefix is the English
-; text, which every language without its own entry shows.
+; text, which every language without its own entry shows. How to translate, and which texts
+; still need translators: TRANSLATING.md.
 ; Requires: InstallType, MyAppVersion, MySetupVersion, MySetupPassword (ISPP, setup_is6.iss).
 
 ; Translation Note
 ; chinese, russian and korean have been translated with a translator and are therefore
 ; probably of poor quality. If you can check them and suggest improvements that's perfect!
+; Messages added after setup 1.7.2 are only English, German and French (see TRANSLATING.md).
 
 ; Legal
 LegalQuestion=Do you have the original game and its expansion (or Gold Edition) on CD with valid keys or did you purchase the game digitally?
