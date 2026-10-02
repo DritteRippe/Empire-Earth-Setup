@@ -1085,6 +1085,8 @@ function GetSystemMetrics(nIndex: Integer): Integer;
 var
   // The game languages (GameLangs), filled by RegisterLangs; used by pages.iss
   Langs: TStringList;
+  // Lobby folder of each of them (GameLangLobbyDirs), same order
+  LobbyDirs: TStringList;
 
 #include "extension.iss"
 #include "pages.iss"
@@ -1262,12 +1264,27 @@ end;
 procedure RegisterLangs();
 begin
   Langs := TStringList.Create;
-  // The game languages of [Components] (GameLangs), in the same order
+  LobbyDirs := TStringList.Create;
+  // The game languages of [Components] (GameLangs) and their lobby folders, in the same order
 #sub AddGameLang
   Langs.Add('{#GameLangs[LangIndex]}');
+  LobbyDirs.Add('{#GameLangLobbyDirs[LangIndex]}');
 #endsub
 #for {LangIndex = 0; LangIndex < GameLangCount; LangIndex++} AddGameLang
   Log('Registered languages: ' + Langs.CommaText);
+end;
+
+// Lobby folder of the game language Lang (GameLangLobbyDirs: zh for zh_CN and zh_TW), Lang itself
+// as language tag if it is not a game language
+function GetLobbyDir(const Lang: String): String;
+var
+  I: Integer;
+begin
+  I := Langs.IndexOf(Lang);
+  if I >= 0 then
+    Result := LobbyDirs[I]
+  else
+    Result := GetLanguageTag(Lang);
 end;
 
 // Update check (not in silent mode): True if the user wants to download the update, the setup
@@ -1583,62 +1600,68 @@ begin
 end;
 
 // Registers the file FilePath of the server folder ServerDir (path below the "localized" folder
-// of the servers, ending with '/') for the game folder GameKey, see AddOnlineFile
-function TryAddGameOnlineFile(const ServerDir, GameKey, FilePath: String): Boolean;
+// of the servers, ending with '/') for the game folder GameKey, see AddOnlineFile. PinDir is the
+// folder of data\localized-text whose SHA-256 list entry applies (see RegisterGameOnlineFiles).
+function TryAddGameOnlineFile(const ServerDir, PinDir, GameKey, FilePath: String): Boolean;
 begin
-  Result := AddOnlineFile(ServerDir + FilePath, GameOnlineFileDest(GameKey, FilePath));
+  Result := AddOnlineFile(ServerDir + FilePath, PinDir + FilePath, GameOnlineFileDest(GameKey, FilePath));
 end;
 
 // TryAddGameOnlineFile, and if that registers nothing the file is reported as not verifiable
-procedure AddGameOnlineFile(const ServerDir, GameKey, FilePath: String);
+procedure AddGameOnlineFile(const ServerDir, PinDir, GameKey, FilePath: String);
 begin
-  if not TryAddGameOnlineFile(ServerDir, GameKey, FilePath) then
+  if not TryAddGameOnlineFile(ServerDir, PinDir, GameKey, FilePath) then
     NoteUnverifiableOnlineFile(GameOnlineFileDest(GameKey, FilePath));
 end;
 
 // NeoEE setups install the NeoEE version of a localized file where there is one, like [Files]
 // does with the local files (the NeoEE entries come last and overwrite the EE ones); otherwise,
 // and in EE setups, the EE version
-procedure AddLocalizedGameOnlineFile(const ServerDir, NeoEEServerDir, GameKey, FilePath: String);
+procedure AddLocalizedGameOnlineFile(const ServerDir, PinDir, GameKey, FilePath: String);
 begin
 #if InstallType == "NeoEE"
-  if TryAddGameOnlineFile(NeoEEServerDir, GameKey, FilePath) then
+  if TryAddGameOnlineFile('Mods/NeoEE/' + ServerDir, 'Mods/NeoEE/' + PinDir, GameKey, FilePath) then
     Exit;
 #endif
-  AddGameOnlineFile(ServerDir, GameKey, FilePath);
+  AddGameOnlineFile(ServerDir, PinDir, GameKey, FilePath);
 end;
 
-// Registers the localized files of one game for the language folder LangCode: GameKey (EE or
-// AoC) is the game subfolder of the language folders, Campaigns are its campaign files and
-// WithMovie adds the intro movie. The lobby resources are shared by EE and AoC on the servers
-// (downloaded once and copied, see AddOnlineFile).
-procedure RegisterGameOnlineFiles(const LangCode, GameKey: String; const Campaigns: array of String; WithMovie: Boolean);
+// Registers the localized files of one game for the language tag LangCode: GameKey (EE or AoC)
+// is the game subfolder of the language folders, Campaigns are its campaign files and WithMovie
+// adds the intro movie. The lobby resources are shared by EE and AoC on the servers (downloaded
+// once and copied, see AddOnlineFile).
+// The lobby files are requested from Lobby/<LangCode>/ as by the setups up to 1.7.2. Languages
+// that share a lobby folder (zh-CN and zh-TW: LobbyDir zh, GameLangLobbyDirs) have it once in
+// data\localized-text (Lobby\zh\), while the servers also have a copy per language tag (checked:
+// Lobby/zh-CN/ and Lobby/zh-TW/ hold the files of Lobby/zh/), so their SHA-256 list entries are
+// those of Lobby/<LobbyDir>/.
+procedure RegisterGameOnlineFiles(const LangCode, LobbyDir, GameKey: String; const Campaigns: array of String; WithMovie: Boolean);
 var
-  Game, Lobby, NeoLobby: String;
+  Game, Lobby, LobbyPin: String;
   I: Integer;
 begin
   Game := 'Game/' + LangCode + '/' + GameKey + '/';
   Lobby := 'Lobby/' + LangCode + '/';
-  NeoLobby := 'Mods/NeoEE/Lobby/' + LangCode + '/';
+  LobbyPin := 'Lobby/' + LobbyDir + '/';
 
-  AddLocalizedGameOnlineFile(Game, 'Mods/NeoEE/' + Game, GameKey, 'Language.dll');
-  AddGameOnlineFile(Game, GameKey, 'Data/data.ssa');
+  AddLocalizedGameOnlineFile(Game, Game, GameKey, 'Language.dll');
+  AddGameOnlineFile(Game, Game, GameKey, 'Data/data.ssa');
   for I := 0 to GetArrayLength(Campaigns) - 1 do
-    AddGameOnlineFile(Game, GameKey, 'Data/Campaigns/' + Campaigns[I]);
+    AddGameOnlineFile(Game, Game, GameKey, 'Data/Campaigns/' + Campaigns[I]);
   if WithMovie then
-    AddGameOnlineFile(Game, GameKey, 'Data/Movies/Empire Earth.bik');
-  AddGameOnlineFile(Lobby + 'shared/', GameKey, 'Data/WONLobby Resources/_WONStatus.cfg');
-  AddGameOnlineFile(Lobby + 'shared/', GameKey, 'Data/WONLobby Resources/_GameResource.cfg');
-  AddGameOnlineFile(Lobby + 'shared/', GameKey, 'Data/WONLobby Resources/_LobbyResource.cfg');
-  AddLocalizedGameOnlineFile(Lobby + GameKey + '/', NeoLobby + GameKey + '/', GameKey, 'WONLobby.cfg');
+    AddGameOnlineFile(Game, Game, GameKey, 'Data/Movies/Empire Earth.bik');
+  AddGameOnlineFile(Lobby + 'shared/', LobbyPin + 'shared/', GameKey, 'Data/WONLobby Resources/_WONStatus.cfg');
+  AddGameOnlineFile(Lobby + 'shared/', LobbyPin + 'shared/', GameKey, 'Data/WONLobby Resources/_GameResource.cfg');
+  AddGameOnlineFile(Lobby + 'shared/', LobbyPin + 'shared/', GameKey, 'Data/WONLobby Resources/_LobbyResource.cfg');
+  AddLocalizedGameOnlineFile(Lobby + GameKey + '/', LobbyPin + GameKey + '/', GameKey, 'WONLobby.cfg');
 #if InstallType == "NeoEE"
-  AddGameOnlineFile(NeoLobby + 'shared/', GameKey, 'Data/WONLobby Resources/_NeoEEResource.cfg');
+  AddGameOnlineFile('Mods/NeoEE/' + Lobby + 'shared/', 'Mods/NeoEE/' + LobbyPin + 'shared/', GameKey, 'Data/WONLobby Resources/_NeoEEResource.cfg');
 #endif
 end;
 
 procedure RegisterOnlineFiles();
 var
-  LangCode: String;
+  Lang, LangCode, LobbyDir: String;
 begin
   // Register Online Files (the game files are English, the online files replace them with the
   // localized ones if asked)
@@ -1661,7 +1684,9 @@ begin
     Exit;
   end;
 
-  LangCode := GetLanguageTag(GetSelectedLanguageFromComponents());
+  Lang := GetSelectedLanguageFromComponents();
+  LangCode := GetLanguageTag(Lang);
+  LobbyDir := GetLobbyDir(Lang);
   if (LangCode = 'en') then
   begin
     Log('English language selected, no need to download online files.');
@@ -1684,10 +1709,10 @@ begin
 
   Log('Adding file list to download');
   // Empire Earth (always installed), then AoC
-  RegisterGameOnlineFiles(LangCode, 'EE', ['EELearningCampaign.ssa', 'EETheBritish.ssa', 'EETheFuture.ssa',
+  RegisterGameOnlineFiles(LangCode, LobbyDir, 'EE', ['EELearningCampaign.ssa', 'EETheBritish.ssa', 'EETheFuture.ssa',
     'EETheGermans.ssa', 'EETheGreeks.ssa'], WizardIsComponentSelected('additional\movies'));
   if (WizardIsComponentSelected('gameaoc')) then
-    RegisterGameOnlineFiles(LangCode, 'AoC', ['AOCAsian.ssa', 'AOCPacific.ssa', 'AOCRoman.ssa'], False);
+    RegisterGameOnlineFiles(LangCode, LobbyDir, 'AoC', ['AOCAsian.ssa', 'AOCPacific.ssa', 'AOCRoman.ssa'], False);
 end;
 
 // Setups up to v1.7.2 set "~ RUNASADMIN" for the installing account (HKCU, administrative install

@@ -136,6 +136,10 @@ Refactoring and quality fixes (no new game content).
   only once and silently dropped the second target.
 - NeoEE: where a NeoEE version of a localized file exists, only that one is downloaded. If its
   download failed, the EE version downloaded to the same place replaced the NeoEE file.
+- Simplified and Traditional Chinese: the downloaded lobby files are checked against the hashes of
+  `Lobby\zh\` (and `Mods\NeoEE\Lobby\zh\`), the one lobby folder `data\localized-text` has for
+  both languages. The setup requests them from `Lobby/zh-CN/` and `Lobby/zh-TW/` on the servers,
+  for which the hash list has no entries, so they were never downloaded.
 - Random map scripts: installing, repairing or updating no longer deletes the whole
   `Data\Random Map Scripts` folders, which also deleted maps players made or downloaded
   themselves. Only the maps the previous setup installed are removed; the setup keeps a list of

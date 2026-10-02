@@ -14,8 +14,9 @@
 //  - A build without any hash hides the download component (Check: HasDownloadPins).
 //
 // The hashes come from a list in sha256sum format ("<SHA-256 in hex>  <path>", one file per line,
-// paths relative to the "localized" folder of the file servers, which has the same layout as
-// data\localized-text). ISPP 6.2 can only compute MD5 and SHA-1 (GetSHA256OfFile is missing until
+// paths relative to data\localized-text, whose layout the "localized" folder of the file servers
+// has too; the servers also have a lobby folder per language tag where data\localized-text has
+// one for several languages, see RegisterGameOnlineFiles). ISPP 6.2 can only compute MD5 and SHA-1 (GetSHA256OfFile is missing until
 // Inno Setup 6.3), so the list is created before compiling: ci\build.ps1 writes it from
 // data\localized-text, see README.md "Online localized files". Without the list the setup compiles
 // with a warning and does not offer the download (component language\update).
@@ -73,7 +74,7 @@
 
 type
   TDownloadPin = record
-    RelPath: String;  // path below the "localized" folder of the file servers
+    RelPath: String;  // path below data\localized-text
     SHA256: String;   // lowercase hex
   end;
 
@@ -171,21 +172,22 @@ begin
   SetArrayLength(UnverifiableOnlineFiles, 0);
 end;
 
-// Registers the download of <server>/RelPath to {tmp}\RelDest, but only if its SHA-256 is known
-// and no other file is registered for RelDest yet. The caller registers only what is selected
+// Registers the download of <server>/RelPath to {tmp}\RelDest, but only if the SHA-256 of
+// PinPath (the path of the file in the hash list, usually RelPath) is known and no other file is
+// registered for RelDest yet. The caller registers only what is selected
 // (IDP would download a file if any one of its components is selected) and calls
 // NoteUnverifiableOnlineFile if it finds no file to register for RelDest. Call
 // SelectOnlineFilesServer first. True if the file is registered.
-function AddOnlineFile(const RelPath, RelDest: String): Boolean;
+function AddOnlineFile(const RelPath, PinPath, RelDest: String): Boolean;
 var
   I, N, CopyOf: Integer;
   Hash, Url: String;
 begin
   Result := False;
-  Hash := GetDownloadPin(RelPath);
+  Hash := GetDownloadPin(PinPath);
   if Hash = '' then
   begin
-    Log('Online file skipped, no SHA-256 known for ' + RelPath);
+    Log('Online file skipped, no SHA-256 known for ' + PinPath);
     Exit;
   end;
 
