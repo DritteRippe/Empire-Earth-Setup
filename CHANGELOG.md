@@ -58,6 +58,13 @@ Refactoring and quality fixes (no new game content).
   launcher (install record, `install.ini`, integrity manifest `files.sha256`, per-user default game
   settings, defaults marker) and how the launcher sends the user back to the setup for a repair. The
   same file is in the launcher repository. The setup does not implement it yet.
+- `docs/ARCHITECTURE.md`: target architecture of setup v2 (module map, data flow of an
+  installation, error handling, logging, localization, testing strategy, plan of the work packages)
+  and architecture decision records in `docs/adr/`: keep Inno Setup and Pascal Script, stay on Inno
+  Setup 6.2.2, replace the download plug-in IDP by Inno Setup's built-in downloads, how the install
+  record and the integrity manifest are written, compatibility and DirectX wrapper defaults, strict
+  TLS and the file server certificate, warnings before the installation, checksums of the setups
+  and a check of the contract. Documentation only, the setup does not change yet.
 
 ### Changed
 - The hidden setup data folder (holds `EEStatsSetup.dll` for the uninstaller) is now
