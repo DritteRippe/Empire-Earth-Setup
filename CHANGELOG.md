@@ -123,6 +123,14 @@ Refactoring and quality fixes (no new game content).
   contract O4). Windows 7 cases run in a virtual machine only (snapshot `S-Win7-172-EE` for the
   update). A planned case may be split and its block renumbered while it has no protocol; ids of
   worked-out cases stay fixed.
+- SHA-256 files of the setups: `ci/build.ps1` writes `<setup>.exe.sha256` next to every setup it
+  built, after ISCC compiled and signed it, in `sha256sum` format (lowercase hash, two spaces, the
+  file name, one LF, UTF-8 without BOM), and prints the hash, so that it can be published next to
+  the download (broken downloads in the forum, t=5741, t=3763). The helper `Write-FileSha256`
+  (`ci/build_helpers.ps1`) is tested by `ci/tests/build_helpers.tests.ps1`: content, LF, no BOM,
+  overwriting, relative paths, `sha256sum -c` where it exists, and the file next to every setup of
+  the dry run. README: "Checksums of the setups" (publishing the hash, checking a download with
+  `Get-FileHash`) and a line in "Support".
 
 ### Changed
 - The hidden setup data folder (holds `EEStatsSetup.dll` for the uninstaller) is now

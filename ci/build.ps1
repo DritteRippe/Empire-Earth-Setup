@@ -14,6 +14,8 @@
     4. Compile every variant with ISCC /DInstallType /DInstallMode /DEE_AppID /DNeoEE_AppID
        [/DTestID] into its own output folder and check that the file name proves the variant took
        effect.
+    5. Write <setup>.exe.sha256 next to every setup that passed (sha256sum format, after ISCC has
+       signed it) and print its SHA-256, to publish next to the download.
   With -SignSetup the certificate internal\misc\<CertFileName> (DER or PEM) is first converted to
   a DER copy in the temporary build folder, checked against -CertHashSHA1 and passed to ISCC as
   /DCertDerFile, see README.md "Signed builds".
@@ -189,7 +191,8 @@ function Show-LogErrors([string]$LogFile) {
     ForEach-Object { Write-Host "    $_" }
 }
 
-# Write-DownloadHashes, ConvertTo-DerCertificateFile, ConvertTo-Thumbprint, Get-TestIdDefine
+# Write-DownloadHashes, ConvertTo-DerCertificateFile, ConvertTo-Thumbprint, Get-TestIdDefine,
+# Write-FileSha256
 . (Join-Path $PSScriptRoot 'build_helpers.ps1')
 
 $LocalizedFolder = Join-Path $Root 'data\localized-text'
@@ -310,6 +313,15 @@ try {
     }
     if ($ok) {
       Write-Host "PASS $variant -> $($exe[0])"
+      # SHA-256 file next to the setup, for the download page (README, "Checksums of the setups").
+      # ISCC has already signed the setup (SignTool), so this is the hash of the file players get.
+      try {
+        $checksum = Write-FileSha256 (Join-Path $variantOut $exe[0])
+        Write-Host "  SHA-256 $($checksum.Hash)  $($exe[0]) -> $([System.IO.Path]::GetFileName($checksum.Path))"
+      } catch {
+        Write-Host "FAIL $variant (no SHA-256 file: $($_.Exception.Message))"
+        $failed += $variant
+      }
     } else {
       Write-Host "FAIL $variant (ISCC exit code $code, output: $($exe -join ', '))"
       Show-LogErrors $log

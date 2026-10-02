@@ -25,6 +25,7 @@
 🔐 Digitally (self-)signed
 
 ## Support
+- **Check the download:** the SHA-256 of every released setup is published next to its download. Compare it with `Get-FileHash <setup>.exe -Algorithm SHA256` in PowerShell before you run the setup, see [Checksums of the setups](#checksums-of-the-setups).
 - **Help:** ask on [empireearth.eu](https://empireearth.eu) or the community Discord. Attach the setup log: start the setup with `/LOG="%USERPROFILE%\Desktop\EE-Setup.log"` (it contains folder names, but no CD keys).
 - **Localized files missing:** if the setup says that the servers of the localized files could not be reached or did not present a valid certificate (`OnlineFilesUnreachable`), or lists files it could not install from the download (`DownloadIncomplete`), the game is installed anyway, with the files included in the setup; some voices, campaigns or the intro movie may stay in English. Run the setup again later to add them. A certificate problem is a problem of the servers, not of your computer; the operators find what to check in [docs/SERVER-OPERATIONS.md](docs/SERVER-OPERATIONS.md).
 - **Windows 7 SP1:** the setup asks for TLS 1.2 itself. If the setup log still shows TLS or certificate errors for `api.empireearth.eu` or the file servers (lines `HTTP GET ... failed` or `Online file download failed`), install the Windows updates, in particular the updated root certificates and **KB3140245**, Microsoft's "[Update to enable TLS 1.1 and TLS 1.2 as default secure protocols in WinHTTP in Windows](https://support.microsoft.com/en-us/servicing/os/windows-server/2019/07/update-to-enable-tls-1-1-and-tls-1-2-as-default-secure-protocols-in-winhttp-in-windows)". Its article also describes the registry values (`DefaultSecureProtocols`, and the SChannel value `DisabledByDefault`) that Windows 7 needs for TLS 1.2. The setup never changes these system settings; applying them is your decision. Without them the game is still installed, with the files included in the setup.
@@ -103,7 +104,20 @@ The certificate `internal\misc\<CertFileName>` is identified by its SHA-1 thumbp
 powershell -ExecutionPolicy Bypass -File ci\build.ps1 -EEAppID <GUID> -NeoEEAppID <GUID>
 ```
 
-Useful options: `-Variants NeoEE/Regular`, `-OutputDir <dir>`, `-Iscc <path to ISCC.exe>`, `-KeepPreprocessed <dir>`, `-TestID <n>` (a test build, `/DTestID=<n>`, a whole number >= 0; for testing only, never distribute it, see [Testing on Windows](#testing-on-windows)), `-SignSetup` (see [Signed builds](#signed-builds)). Run `Get-Help ci\build.ps1 -Detailed` for all of them. The parts that do not need ISCC (hash list, certificate conversion, test build number) are in `ci\build_helpers.ps1`.
+Useful options: `-Variants NeoEE/Regular`, `-OutputDir <dir>`, `-Iscc <path to ISCC.exe>`, `-KeepPreprocessed <dir>`, `-TestID <n>` (a test build, `/DTestID=<n>`, a whole number >= 0; for testing only, never distribute it, see [Testing on Windows](#testing-on-windows)), `-SignSetup` (see [Signed builds](#signed-builds)). Run `Get-Help ci\build.ps1 -Detailed` for all of them. The parts that do not need ISCC (hash list, certificate conversion, test build number, checksum files) are in `ci\build_helpers.ps1`. Next to every setup it built, the script writes its SHA-256 file (see [Checksums of the setups](#checksums-of-the-setups)).
+
+### Checksums of the setups
+`ci\build.ps1` writes `<setup>.exe.sha256` next to every setup that passed, e.g. `out\EE_Regular\EE_Setup_v1.7.2.exe.sha256`, and prints the hash (`SHA-256 <hash>  EE_Setup_v1.7.2.exe -> EE_Setup_v1.7.2.exe.sha256`). The file has the format of `sha256sum`: the 64 lowercase hex digits of the SHA-256, two spaces, the file name of the setup (no folder) and one LF, UTF-8 without BOM. It is written after ISCC has compiled and, for signed builds, signed the setup, so it is the hash of the file the players download; an existing file is overwritten. The helper is `Write-FileSha256` in `ci\build_helpers.ps1` ([ADR 0008](docs/adr/0008-release-checksums-and-contract-check.md)).
+
+**Maintainers:** publish the hash of every released setup next to its download link (website, mirrors) and attach the `.sha256` files to the GitHub release. Do not rename a setup after the build: its name is part of the line (rename both and edit the line). Broken or repacked downloads were a recurring problem in the support forum (save-ee.com t=5741, t=3763).
+
+**Players** check a download in PowerShell, in the folder of the setup:
+
+```powershell
+Get-FileHash .\EE_Setup_v1.7.2.exe -Algorithm SHA256
+```
+
+and compare `Hash` with the published value (PowerShell prints it in uppercase; the letters do not matter). With the `.sha256` file in the same folder, `(Get-FileHash .\EE_Setup_v1.7.2.exe -Algorithm SHA256).Hash -eq (Get-Content .\EE_Setup_v1.7.2.exe.sha256).Split(' ')[0]` prints `True`, and on Linux, in Git Bash or WSL `sha256sum -c EE_Setup_v1.7.2.exe.sha256` prints `EE_Setup_v1.7.2.exe: OK`. A different hash means a damaged or modified file: delete it and download the setup again from [empireearth.eu](https://empireearth.eu/download).
 
 ### Online localized files
 The setups can download localized content (voices, campaigns, the localized intro movie, lobby texts) from `files.empireearth.eu`, with `storage.ee.zocker-160.de` as mirror. Downloads only happen with the component "Download localized voices and campaigns" and a game language other than English; AoC files only with AoC. Both servers are only used over HTTPS, and an invalid TLS certificate stops a download instead of being ignored. What the setup accepts (`downloads.iss`, `GetOnlineFileCheck` in `utils.iss`):
@@ -142,7 +156,7 @@ powershell -ExecutionPolicy Bypass -File ci\run_unit_tests.ps1
 
 On Linux with Wine: `ISCC='<Windows path of ISCC.exe>' sh ci/tests/run_unit_tests.sh`. Code that needs the wizard, the registry or the network is not covered; a helper that can be written without them belongs into `utils.iss` with a test.
 
-`ci\tests\build_helpers.tests.ps1` tests the helpers of the build script (`ci\build_helpers.ps1`: hash list, DER copy of PEM and DER certificates, test build number) with generated test certificates, and runs a copy of `ci\build.ps1` with a fake ISCC that records the switches it gets (e.g. `-TestID`); it needs neither Inno Setup nor the game data and also runs with PowerShell 7 on Linux.
+`ci\tests\build_helpers.tests.ps1` tests the helpers of the build script (`ci\build_helpers.ps1`: hash list, DER copy of PEM and DER certificates, test build number, the SHA-256 file of a setup: content, LF, no BOM, overwriting, and `sha256sum -c` where that program exists) with generated test certificates, and runs a copy of `ci\build.ps1` with a fake ISCC that records the switches it gets (e.g. `-TestID`) and checks the SHA-256 file next to every setup; it needs neither Inno Setup nor the game data and also runs with PowerShell 7 on Linux.
 
 ### Testing on Windows
 Installers are never run in CI. The manual tests on real Windows (a laptop and virtual machines) are described in German in [docs/TEST-PLAN.de.md](docs/TEST-PLAN.de.md): safety rules (placeholder builds only in a virtual machine or on a snapshot, only your own legally obtained game data, never delete `Software\Sierra\CDKeys`, never pass a test build on, where the setup log is), how to make a test build, the server pre-check `TP-00` and every test case with its id `TP-xy`, the build type, the starting state and the snapshot to use. Each work package of setup v2 adds the cases of its changes.

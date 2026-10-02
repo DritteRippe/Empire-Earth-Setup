@@ -1,8 +1,8 @@
 <#
 .SYNOPSIS
   Helper functions of ci\build.ps1 that do not need Inno Setup: the SHA-256 list of the online
-  localized files, the DER copy of the signing certificate and the ISCC switch of the test build
-  number.
+  localized files, the DER copy of the signing certificate, the ISCC switch of the test build
+  number and the SHA-256 file of every built setup.
 
 .DESCRIPTION
   Dot-sourced by ci\build.ps1 and by ci\tests\build_helpers.tests.ps1. Kept free of ISCC and of
@@ -121,4 +121,28 @@ function Get-TestIdDefine($TestID) {
     throw "TestID '$TestID' is not a whole number >= 0 (0 = release build, > 0 = test build)."
   }
   return "/DTestID=$number"
+}
+
+# Writes the SHA-256 of the file $Path to $Destination (default: "$Path.sha256") in sha256sum format:
+# "<64 lowercase hex digits><space><space><file name>" and one LF, UTF-8 without BOM. Only the file
+# name is written, not the folder, so "sha256sum -c <file>.sha256" works in the folder that holds
+# both files, wherever they were copied to. An existing file is overwritten. Returns the hash and
+# the path of the checksum file. ci\build.ps1 calls it for every setup it built (README, "Checksums
+# of the setups"); players compare the hash with Get-FileHash.
+function Write-FileSha256([string]$Path, [string]$Destination) {
+  if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+    throw "${Path}: file not found, no SHA-256 written."
+  }
+  # .NET resolves relative paths against the process folder, not the PowerShell location
+  $Path = (Resolve-Path -LiteralPath $Path).ProviderPath
+  if (-not $Destination) { $Destination = "$Path.sha256" }
+  $Destination = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Destination)
+  $hash =(Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
+  $name = [System.IO.Path]::GetFileName($Path)
+  # sha256sum escapes such names with a leading backslash; setup names never contain them
+  if ($name.IndexOfAny([char[]]"`r`n\") -ge 0) {
+    throw "${Path}: the file name cannot be written in sha256sum format (line break or backslash)."
+  }
+  [System.IO.File]::WriteAllText($Destination, "$hash  $name`n", [System.Text.UTF8Encoding]::new($false))
+  return [pscustomobject]@{ Hash = $hash; Path = $Destination }
 }

@@ -142,6 +142,73 @@ try {
     CheckThrows "Get-TestIdDefine refuses '$bad'" { Get-TestIdDefine $bad }
   }
 
+  # --- Write-FileSha256: sha256sum format, one LF, UTF-8 without BOM, overwrites
+  $setupDir = Join-Path $temp 'setups'
+  New-Item -ItemType Directory -Path $setupDir | Out-Null
+  $setup = Join-Path $setupDir 'EE_Setup_v1.7.2.exe'
+  [System.IO.File]::WriteAllBytes($setup, [System.Text.Encoding]::ASCII.GetBytes('abc'))
+  $abc = 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad'   # SHA-256 of "abc"
+  $result = Write-FileSha256 $setup
+  $checksumFile = "$setup.sha256"
+  Check 'Write-FileSha256 returns the hash' $result.Hash $abc
+  Check 'Write-FileSha256 default file name' $result.Path $checksumFile
+  $bytes = [System.IO.File]::ReadAllBytes($checksumFile)
+  $text = [System.Text.Encoding]::ASCII.GetString($bytes)
+  Check 'Write-FileSha256 content: hash, two spaces, file name only, LF' $text "$abc  EE_Setup_v1.7.2.exe`n"
+  Check 'Write-FileSha256 without BOM' ($bytes[0] -eq [byte][char]'b') $true
+  Check 'Write-FileSha256 has no CR' ([Array]::IndexOf($bytes, [byte]13)) -1
+  Check 'Write-FileSha256 ends with exactly one LF' (($bytes[-1] -eq 10) -and ($bytes[-2] -ne 10)) $true
+  Check 'Write-FileSha256 line is the sha256sum format' ($text -cmatch '^[0-9a-f]{64}  [^ /\\]+\n$') $true
+
+  # An existing file is replaced completely: longer, with BOM, CRLF and an old hash
+  $old = [System.Text.UTF8Encoding]::new($true).GetPreamble() + [System.Text.Encoding]::ASCII.GetBytes(('0' * 64) + "  old_name.exe`r`n" + ('x' * 200) + "`r`n")
+  [System.IO.File]::WriteAllBytes($checksumFile, $old)
+  [System.IO.File]::WriteAllBytes($setup, [System.Text.Encoding]::ASCII.GetBytes(''))
+  $result = Write-FileSha256 $setup
+  $empty = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'   # SHA-256 of ""
+  Check 'Write-FileSha256 overwrites: hash' $result.Hash $empty
+  Check 'Write-FileSha256 overwrites: content' ([System.IO.File]::ReadAllText($checksumFile)) "$empty  EE_Setup_v1.7.2.exe`n"
+  Check 'Write-FileSha256 overwrites: no BOM, no old bytes left' ([System.IO.File]::ReadAllBytes($checksumFile).Length) 86
+
+  # Other destination: still only the file name of the setup in the line
+  $other = Join-Path $temp 'other.sha256'
+  Write-FileSha256 $setup $other | Out-Null
+  Check 'Write-FileSha256 other destination' ([System.IO.File]::ReadAllText($other)) "$empty  EE_Setup_v1.7.2.exe`n"
+  # Relative paths are relative to the PowerShell location (not the folder of the process)
+  Push-Location -LiteralPath $setupDir
+  try {
+    Write-FileSha256 'EE_Setup_v1.7.2.exe' 'relative.sha256' | Out-Null
+  } finally {
+    Pop-Location
+  }
+  $relative = Join-Path $setupDir 'relative.sha256'
+  Check 'Write-FileSha256 relative paths: file in the PowerShell location' (Test-Path -LiteralPath $relative -PathType Leaf) $true
+  if (Test-Path -LiteralPath $relative -PathType Leaf) {
+    Check 'Write-FileSha256 relative paths: content' ([System.IO.File]::ReadAllText($relative)) "$empty  EE_Setup_v1.7.2.exe`n"
+    Remove-Item -LiteralPath $relative
+  }
+  CheckThrows 'Write-FileSha256 refuses a missing file' { Write-FileSha256 (Join-Path $temp 'missing.exe') }
+  Check 'Write-FileSha256 writes nothing for a missing file' (Test-Path -LiteralPath (Join-Path $temp 'missing.exe.sha256')) $false
+
+  # Cross-check with the real sha256sum where it exists (Linux, Git Bash), else skipped
+  $sha256sum = Get-Command 'sha256sum' -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+  if ($sha256sum) {
+    [System.IO.File]::WriteAllBytes($setup, [byte[]](0..255))
+    Write-FileSha256 $setup | Out-Null
+    Push-Location -LiteralPath $setupDir
+    try {
+      $output = & $sha256sum.Source -c 'EE_Setup_v1.7.2.exe.sha256' 2>&1
+      Check 'sha256sum -c accepts the file' "$LASTEXITCODE $output" '0 EE_Setup_v1.7.2.exe: OK'
+      [System.IO.File]::WriteAllBytes($setup, [byte[]](1..255))
+      $output = & $sha256sum.Source -c 'EE_Setup_v1.7.2.exe.sha256' 2>&1
+      Check 'sha256sum -c detects a changed setup' ($LASTEXITCODE -ne 0) $true
+    } finally {
+      Pop-Location
+    }
+  } else {
+    Write-Host 'SKIP sha256sum -c cross-check (no sha256sum on this system)'
+  }
+
   # --- ci\build.ps1 -TestID: dry run of a copy of the script with a fake ISCC. The fake records
   # its arguments, answers the version probe, writes the resolved script of pass 1 and an empty
   # setup in pass 2, so the script runs completely without Inno Setup and game data.
@@ -182,7 +249,7 @@ exit 0
     Variants = @('EE/Regular', 'NeoEE/Portable')
   }
 
-  & $build @common -TestID 1 3>$null 6>$null
+  $buildOutput = @(& $build @common -TestID 1 3>$null 6>&1 | ForEach-Object { "$_" })
   Check 'dry run -TestID 1: exit code' $LASTEXITCODE 0
   $lines = @(Get-Content -LiteralPath $calls)
   Check 'dry run -TestID 1: ISCC calls (version probe, 2 x pass 1, 2 x pass 2)' $lines.Count 5
@@ -190,6 +257,18 @@ exit 0
   Check 'dry run -TestID 1: /DTestID=1 in every compile' @($lines | Where-Object { " $_ " -like '* /DTestID=1 *' }).Count 4
   Check 'dry run -TestID 1: AppIds in every compile' @($lines | Where-Object { $_ -like '*/DEE_AppID=00000000-0000-0000-0000-0000000000EE /DNeoEE_AppID=00000000-0000-0000-0000-000000000AEE*' }).Count 4
   Check 'dry run -TestID 1: setups' @(Get-ChildItem -LiteralPath (Join-Path $repo 'out') -Recurse -Filter '*.exe').Count 2
+  # A SHA-256 file next to every setup that passed, and the hash in the output
+  foreach ($variantName in @('EE_Regular', 'NeoEE_Portable')) {
+    $leaf = "${variantName}_dry_run.exe"
+    $exeFile = Join-Path (Join-Path (Join-Path $repo 'out') $variantName) $leaf
+    $sumFile = "$exeFile.sha256"
+    Check "dry run: $leaf.sha256 written" (Test-Path -LiteralPath $sumFile -PathType Leaf) $true
+    if (Test-Path -LiteralPath $sumFile -PathType Leaf) {
+      Check "dry run: $leaf.sha256 content" ([System.IO.File]::ReadAllText($sumFile)) "$empty  $leaf`n"
+    }
+    Check "dry run: SHA-256 of $leaf printed" @($buildOutput | Where-Object { $_ -like "*SHA-256 $empty  $leaf -> $leaf.sha256*" }).Count 1
+  }
+  Check 'dry run: only setups and SHA-256 files in out' @(Get-ChildItem -LiteralPath (Join-Path $repo 'out') -Recurse -File | Where-Object { $_.Name -notlike '*.exe' -and $_.Name -notlike '*.exe.sha256' }).Count 0
 
   Remove-Item -LiteralPath $calls
   & $build @common 3>$null 6>$null
