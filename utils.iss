@@ -1,7 +1,8 @@
 ﻿[Code]
 // Base helpers of the [Code] part: the URL constants, string split, language tag, compatibility
-// flags, uninstall keys of EE and NeoEE, the HTTP requests, URL checks and the download policy of
-// the online localized files. Included first, before every other [Code] part.
+// flags, uninstall keys of EE and NeoEE, the HTTP requests, URL checks, the download policy of
+// the online localized files and the install state for the launcher (install mode, install.ini,
+// writing a state file). Included first, before every other [Code] part.
 // Requires: AppID, OtherAppID (ISPP, product configuration config_*.iss).
 // The functions without wizard access are tested by ci/tests/unit_tests.iss.
 
@@ -453,4 +454,143 @@ begin
     Result := DownloadActionTryMirror
   else
     Result := DownloadActionGiveUp;
+end;
+
+// Install state for the Empire Earth Launcher (installstate.iss): docs/CONTRACT.md 1.1 to 1.3,
+// docs/adr/0004-install-record-and-integrity-manifest.md
+
+// Install mode of the contract (1.1, 1.2): 'portable' in the portable variants, else 'admin' in
+// the administrative install mode (HKA is HKLM) and 'user' in the non-administrative one (HKA is
+// HKCU). GetContractInstallMode (installstate.iss) passes the variant and IsAdminInstallMode.
+function InstallModeName(const PortableVariant, AdminInstallMode: Boolean): String;
+begin
+  if PortableVariant then
+    Result := 'portable'
+  else if AdminInstallMode then
+    Result := 'admin'
+  else
+    Result := 'user';
+end;
+
+// True if every character of Text is ASCII (code 0 to 127). install.ini (and the manifest,
+// S-WP7) are written with SaveStringToFile, which converts the text to the ANSI code page: only
+// ASCII is the same in every code page and is valid UTF-8 without BOM, as contract 1.2 and 2.2
+// ask. Inno Setup 6.2.2 has no UTF8Encode, so a text that is not ASCII is not written at all
+// (ReplaceStateFile); its characters are never replaced (ADR 0004 point 5).
+function IsAsciiText(const Text: String): Boolean;
+var
+  I: Integer;
+begin
+  Result := True;
+  for I := 1 to Length(Text) do
+    if Ord(Text[I]) > 127 then
+    begin
+      Result := False;
+      Exit;
+    end;
+end;
+
+const
+  // Line end of install.ini (contract 1.2)
+  InstallIniLineEnd = #13#10;
+
+// Text of install.ini (contract 1.2): the section [Install] with its keys in the order of the
+// contract, ContractVersion, Product, AppId, InstallMode, GameVersion, SetupVersion, SetupBuild
+// (only if it is not empty), Components, Tasks, Written, every line with CRLF. The values are
+// taken as they are (AppId without braces, Components and Tasks as WizardSelectedComponents and
+// WizardSelectedTasks return them, Written as yyyy-mm-dd hh:nn:ss); ReplaceStateFile checks that
+// the complete text is ASCII before it writes it. The install root is not stored (it is the parent
+// of the setup data folder), so the text holds no path. S-WP7 appends [MissingAfterInstall].
+function BuildInstallIniText(const ContractVersion: Integer; const Product, AppId, InstallMode,
+  GameVersion, SetupVersion, SetupBuild, Components, Tasks, Written: String): String;
+begin
+  Result := '[Install]' + InstallIniLineEnd +
+    'ContractVersion=' + IntToStr(ContractVersion) + InstallIniLineEnd +
+    'Product=' + Product + InstallIniLineEnd +
+    'AppId=' + AppId + InstallIniLineEnd +
+    'InstallMode=' + InstallMode + InstallIniLineEnd +
+    'GameVersion=' + GameVersion + InstallIniLineEnd +
+    'SetupVersion=' + SetupVersion + InstallIniLineEnd;
+  if SetupBuild <> '' then
+    Result := Result + 'SetupBuild=' + SetupBuild + InstallIniLineEnd;
+  Result := Result +
+    'Components=' + Components + InstallIniLineEnd +
+    'Tasks=' + Tasks + InstallIniLineEnd +
+    'Written=' + Written + InstallIniLineEnd;
+end;
+
+// True if the value 'Empire Earth Community: ContractVersion' goes into the uninstall key at the
+// end of ssPostInstall (contract 1.3, 2.1 and 2.5, ADR 0004 point 9): only in a variant with an
+// uninstall key (HasUninstallKey: Regular, not Portable), only if ssInstall deleted the state
+// files of the previous run (StateDeleted), and only if this run wrote and renamed every state file
+// (StateWritten: install.ini; with S-WP7 also the manifest). Inno Setup recreates the uninstall key
+// on every run, so without the value the launcher reports the state Unknown instead of trusting
+// files of an earlier run, also of a setup up to 1.7.2 that ran later.
+function ShouldWriteContractVersionValue(const HasUninstallKey, StateDeleted, StateWritten: Boolean): Boolean;
+begin
+  Result := HasUninstallKey and StateDeleted and StateWritten;
+end;
+
+const
+  // Suffix of the temporary file that ReplaceStateFile writes first (install.ini.tmp)
+  StateFileTempSuffix = '.tmp';
+
+// Deletes the file FileName if it exists. True if it does not exist afterwards. Otherwise logs
+// that it could not be deleted (read-only, or held open by another program without
+// FILE_SHARE_DELETE, or no access) and returns False. A folder of that name does not count as the
+// file (FileExists); RenameFile in ReplaceStateFile then fails on it.
+function DeleteStateFile(const FileName: String): Boolean;
+var
+  FindRec: TFindRec;
+  Cause: String;
+begin
+  if FileExists(FileName) and not DeleteFile(FileName) then
+  begin
+    Cause := 'it is held open by another program or access is denied';
+    if FindFirst(FileName, FindRec) then
+    try
+      if (FindRec.Attributes and FILE_ATTRIBUTE_READONLY) <> 0 then
+        Cause := 'it is read-only';
+    finally
+      FindClose(FindRec);
+    end;
+    Log('Unable to delete ' + FileName + ': ' + Cause);
+  end;
+  Result := not FileExists(FileName);
+end;
+
+// Writes Text to FileName through the temporary file FileName + StateFileTempSuffix (contract 1.2
+// and 2.1, ADR 0004 point 4): the text must be ASCII (IsAsciiText); a temporary file left by an
+// aborted run is deleted; the text is written with SaveStringToFile (no BOM, the characters as
+// they are); FileName is deleted and must be gone, because RenameFile (MoveFile without
+// MOVEFILE_REPLACE_EXISTING) never overwrites; then the temporary file is renamed. True if FileName
+// holds Text now. On any failure the cause is logged, the temporary file is deleted and the result
+// is False; FileName is then either gone or still the old file, never a partly written one.
+function ReplaceStateFile(const FileName, Text: String): Boolean;
+var
+  TempName: String;
+begin
+  Result := False;
+  TempName := FileName + StateFileTempSuffix;
+  if not IsAsciiText(Text) then
+  begin
+    Log('Not writing ' + FileName + ': its text is not ASCII');
+    Exit;
+  end;
+  try
+    if not DeleteStateFile(TempName) then
+      Log('Not writing ' + FileName + ': the old temporary file is still there')
+    else if not SaveStringToFile(TempName, Text, False) then
+      Log('Not writing ' + FileName + ': unable to write ' + TempName)
+    else if not DeleteStateFile(FileName) then
+      Log('Not writing ' + FileName + ': the old file is still there')
+    else if not RenameFile(TempName, FileName) then
+      Log('Not writing ' + FileName + ': unable to rename ' + TempName)
+    else
+      Result := True;
+  except
+    Log('Not writing ' + FileName + ': ' + GetExceptionMessage);
+  end;
+  if not Result then
+    DeleteStateFile(TempName);
 end;

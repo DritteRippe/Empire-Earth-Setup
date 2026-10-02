@@ -1,10 +1,11 @@
 ﻿; Unit tests of the [Code] helpers without wizard access (utils.iss), including the download
-; policy of the online localized files.
+; policy of the online localized files and the install state for the launcher.
 ;
 ; A tiny setup that includes utils.iss, runs every test in InitializeSetup, writes the results to
 ; a text file and exits without installing anything (InitializeSetup returns False). It sends no
 ; request and needs no network: only functions that compute something are tested, plus one run-time
-; test that sets the TLS protocol option on a WinHttpRequest object without sending anything.
+; test that sets the TLS protocol option on a WinHttpRequest object without sending anything, and
+; one file-level test that writes state files in a folder of its own temporary folder ({tmp}).
 ;
 ; Build and run (ci/run_unit_tests.ps1 does both and checks the result):
 ;   ISCC ci\tests\unit_tests.iss
@@ -28,6 +29,11 @@ CreateAppDir=no
 #include "..\..\utils.iss"
 
 [Code]
+// For the file-level test of the state files: a read-only file (FILE_ATTRIBUTE_* are constants of
+// Inno Setup's Pascal Script)
+function SetFileAttributes(lpFileName: String; dwFileAttributes: Cardinal): BOOL;
+  external 'SetFileAttributesW@kernel32.dll stdcall';
+
 var
   Results: TStringList;
   Failures: Integer;
@@ -451,6 +457,212 @@ begin
   CheckBool('ApplyTlsProtocols run time, the option was attempted', Outcome <> '', True);
 end;
 
+procedure TestInstallModeName;
+begin
+  Check('InstallModeName Regular, administrative', InstallModeName(False, True), 'admin');
+  Check('InstallModeName Regular, non-administrative', InstallModeName(False, False), 'user');
+  Check('InstallModeName Portable', InstallModeName(True, False), 'portable');
+  Check('InstallModeName Portable started as administrator', InstallModeName(True, True), 'portable');
+end;
+
+procedure TestIsAsciiText;
+begin
+  CheckBool('IsAsciiText empty', IsAsciiText(''), True);
+  CheckBool('IsAsciiText letters, digits, punctuation', IsAsciiText('Components=game,language\pt_BR' + #13#10), True);
+  CheckBool('IsAsciiText control characters and DEL', IsAsciiText(#0 + #9 + #10 + #13 + #127), True);
+  // Chr(128) is U+0080, the first character after ASCII (a literal #128 would go through the ANSI
+  // code page of the compiler)
+  CheckBool('IsAsciiText U+0080 (Chr(128) = ' + IntToStr(Ord(Chr(128))) + ')', IsAsciiText('a' + Chr(128)), False);
+  CheckBool('IsAsciiText U+007F', IsAsciiText('a' + Chr(127)), True);
+  CheckBool('IsAsciiText e acute', IsAsciiText('Civilisations ' + #$E9), False);
+  CheckBool('IsAsciiText euro sign', IsAsciiText(#$20AC), False);
+  CheckBool('IsAsciiText Chinese character', IsAsciiText('Lobby ' + #$4E2D), False);
+  CheckBool('IsAsciiText surrogate pair', IsAsciiText(#$D83D#$DE00), False);
+  CheckBool('IsAsciiText non-ASCII at the start', IsAsciiText(#$FC + 'ber'), False);
+end;
+
+// install.ini of contract 1.2: keys in the order of the contract, SetupBuild only if set, CRLF
+procedure TestBuildInstallIniText;
+var
+  Text: String;
+  I, Crs, Lfs: Integer;
+begin
+  Check('BuildInstallIniText admin with SetupBuild (example of contract 1.2)',
+    BuildInstallIniText(1, 'NeoEE', '00000000-0000-0000-0000-000000000AEE', 'admin', '2.0.0.5', '2.0.0', 'a1b2c3d',
+      'game,gameaoc,additional,additional\directx_wrapper,additional\directx_wrapper\dx11_lvl11,language,language\de',
+      'compatibility,compatibility_windows,firewallexception,neoee_cdkeys', '2026-10-02 18:04:31'),
+    '[Install]' + #13#10 +
+    'ContractVersion=1' + #13#10 +
+    'Product=NeoEE' + #13#10 +
+    'AppId=00000000-0000-0000-0000-000000000AEE' + #13#10 +
+    'InstallMode=admin' + #13#10 +
+    'GameVersion=2.0.0.5' + #13#10 +
+    'SetupVersion=2.0.0' + #13#10 +
+    'SetupBuild=a1b2c3d' + #13#10 +
+    'Components=game,gameaoc,additional,additional\directx_wrapper,additional\directx_wrapper\dx11_lvl11,language,language\de' + #13#10 +
+    'Tasks=compatibility,compatibility_windows,firewallexception,neoee_cdkeys' + #13#10 +
+    'Written=2026-10-02 18:04:31' + #13#10);
+  Check('BuildInstallIniText user without SetupBuild',
+    BuildInstallIniText(1, 'EE', '00000000-0000-0000-0000-0000000000EE', 'user', '2.0.0.0', '1.7.2', '',
+      'game,language,language\fr', 'compatibility,compatibility_windows', '2026-01-31 09:05:00'),
+    '[Install]' + #13#10 + 'ContractVersion=1' + #13#10 + 'Product=EE' + #13#10 +
+    'AppId=00000000-0000-0000-0000-0000000000EE' + #13#10 + 'InstallMode=user' + #13#10 +
+    'GameVersion=2.0.0.0' + #13#10 + 'SetupVersion=1.7.2' + #13#10 +
+    'Components=game,language,language\fr' + #13#10 + 'Tasks=compatibility,compatibility_windows' + #13#10 +
+    'Written=2026-01-31 09:05:00' + #13#10);
+  Check('BuildInstallIniText portable with SetupBuild, no tasks',
+    BuildInstallIniText(2, 'EE', '00000000-0000-0000-0000-0000000000EE', 'portable', '2.0.0.0', '1.7.2', 'test1-ab12cd3',
+      'game,language,language\en', '', '2026-12-24 23:59:59'),
+    '[Install]' + #13#10 + 'ContractVersion=2' + #13#10 + 'Product=EE' + #13#10 +
+    'AppId=00000000-0000-0000-0000-0000000000EE' + #13#10 + 'InstallMode=portable' + #13#10 +
+    'GameVersion=2.0.0.0' + #13#10 + 'SetupVersion=1.7.2' + #13#10 + 'SetupBuild=test1-ab12cd3' + #13#10 +
+    'Components=game,language,language\en' + #13#10 + 'Tasks=' + #13#10 +
+    'Written=2026-12-24 23:59:59' + #13#10);
+  // Every LF is part of a CRLF, and the text ends with one: 10 lines with SetupBuild, 9 without
+  Text := BuildInstallIniText(1, 'EE', 'x', 'admin', '1', '2', 'b', 'c', 't', 'w');
+  Crs := 0;
+  Lfs := 0;
+  for I := 1 to Length(Text) do
+  begin
+    if Text[I] = #13 then
+    begin
+      Crs := Crs + 1;
+      CheckBool('BuildInstallIniText CR ' + IntToStr(Crs) + ' is followed by LF', (I < Length(Text)) and (Text[I + 1] = #10), True);
+    end;
+    if Text[I] = #10 then
+      Lfs := Lfs + 1;
+  end;
+  Check('BuildInstallIniText lines with SetupBuild (CR, LF)', IntToStr(Crs) + ', ' + IntToStr(Lfs), '11, 11');
+  Check('BuildInstallIniText ends with CRLF', Copy(Text, Length(Text) - 1, 2), #13#10);
+  Text := BuildInstallIniText(1, 'EE', 'x', 'admin', '1', '2', '', 'c', 't', 'w');
+  Check('BuildInstallIniText without SetupBuild has no SetupBuild key', IntToStr(Pos('SetupBuild', Text)), '0');
+  CheckBool('BuildInstallIniText is ASCII for ASCII values', IsAsciiText(Text), True);
+end;
+
+// The value 'Empire Earth Community: ContractVersion': only with an uninstall key, a deletion that
+// worked at ssInstall and every state file written (ADR 0004 point 9); all 8 combinations
+procedure TestShouldWriteContractVersionValue;
+var
+  I: Integer;
+  HasKey, Deleted, Written: Boolean;
+begin
+  for I := 0 to 7 do
+  begin
+    HasKey := (I and 1) <> 0;
+    Deleted := (I and 2) <> 0;
+    Written := (I and 4) <> 0;
+    CheckBool('ShouldWriteContractVersionValue uninstall key ' + IntToStr(Ord(HasKey)) + ', deleted ' + IntToStr(Ord(Deleted)) +
+      ', written ' + IntToStr(Ord(Written)), ShouldWriteContractVersionValue(HasKey, Deleted, Written), I = 7);
+  end;
+end;
+
+// Content of a file as text ('<missing>' if it cannot be read)
+function FileText(const FileName: String): String;
+var
+  Bytes: AnsiString;
+begin
+  if LoadStringFromFile(FileName, Bytes) then
+    Result := String(Bytes)
+  else
+    Result := '<missing>';
+end;
+
+// The bytes of a state file as contract 1.2 asks: no BOM, only ASCII, every LF after a CR, CRLF at
+// the end
+procedure CheckStateFileBytes(const Name, FileName: String);
+var
+  Bytes: AnsiString;
+  I: Integer;
+  Ascii, CrLf: Boolean;
+begin
+  if not LoadStringFromFile(FileName, Bytes) then
+  begin
+    CheckBool(Name + ': file readable', False, True);
+    Exit;
+  end;
+  CheckBool(Name + ': no UTF-8 BOM', Copy(Bytes, 1, 3) = #$EF#$BB#$BF, False);
+  Ascii := True;
+  CrLf := (Length(Bytes) >= 2) and (Copy(Bytes, Length(Bytes) - 1, 2) = #13#10);
+  for I := 1 to Length(Bytes) do
+  begin
+    if Ord(Bytes[I]) > 127 then
+      Ascii := False;
+    if (Bytes[I] = #10) and ((I = 1) or (Bytes[I - 1] <> #13)) then
+      CrLf := False;
+    if (Bytes[I] = #13) and ((I = Length(Bytes)) or (Bytes[I + 1] <> #10)) then
+      CrLf := False;
+  end;
+  CheckBool(Name + ': only ASCII bytes', Ascii, True);
+  CheckBool(Name + ': CRLF line ends only, CRLF at the end', CrLf, True);
+end;
+
+// File level, in a folder of {tmp}: RenameFile never overwrites (so ReplaceStateFile deletes the
+// target first), the bytes ReplaceStateFile writes, and what it leaves after a failure
+procedure TestStateFiles;
+var
+  Folder, Target, Temp, Text: String;
+begin
+  Folder := ExpandConstant('{tmp}\state_files');
+  if not ForceDirectories(Folder) then
+  begin
+    CheckBool('state files: test folder created', False, True);
+    Exit;
+  end;
+  Target := Folder + '\install.ini';
+  Temp := Target + StateFileTempSuffix;
+  Check('state files: temporary file name', ExtractFileName(Temp), 'install.ini.tmp');
+  Text := BuildInstallIniText(1, 'NeoEE', '00000000-0000-0000-0000-000000000AEE', 'admin', '2.0.0.5', '1.7.2',
+    'test1-ab12cd3', 'game,gameaoc,language,language\de', 'compatibility,compatibility_windows', '2026-10-02 18:04:31');
+
+  // RenameFile of Inno Setup 6.2.2 (MoveFile without MOVEFILE_REPLACE_EXISTING): over an existing
+  // file it fails and keeps both files; after deleting the target it works
+  SaveStringToFile(Target, 'old', False);
+  SaveStringToFile(Temp, 'new', False);
+  CheckBool('RenameFile over an existing file fails', RenameFile(Temp, Target), False);
+  Check('RenameFile over an existing file keeps the target', FileText(Target), 'old');
+  Check('RenameFile over an existing file keeps the source', FileText(Temp), 'new');
+  CheckBool('RenameFile works after the target was deleted',
+    DeleteFile(Target) and not FileExists(Target) and RenameFile(Temp, Target), True);
+  Check('RenameFile after deleting: the new content', FileText(Target), 'new');
+  CheckBool('RenameFile after deleting: no source left', FileExists(Temp), False);
+
+  // ReplaceStateFile over an existing file and a temporary file left by an aborted run
+  SaveStringToFile(Temp, 'left by an aborted run', False);
+  CheckBool('ReplaceStateFile over an existing file', ReplaceStateFile(Target, Text), True);
+  Check('ReplaceStateFile over an existing file: exactly the text', FileText(Target), Text);
+  CheckStateFileBytes('ReplaceStateFile over an existing file', Target);
+  CheckBool('ReplaceStateFile over an existing file: no temporary file left', FileExists(Temp), False);
+
+  // Without a target
+  CheckBool('ReplaceStateFile without a target: target deleted first', DeleteFile(Target), True);
+  CheckBool('ReplaceStateFile without a target', ReplaceStateFile(Target, Text), True);
+  Check('ReplaceStateFile without a target: exactly the text', FileText(Target), Text);
+  CheckStateFileBytes('ReplaceStateFile without a target', Target);
+
+  // Text that is not ASCII: nothing written, the old file stays, no temporary file
+  CheckBool('ReplaceStateFile refuses text that is not ASCII', ReplaceStateFile(Target, 'Path=C:\Jeux\' + #$E9 + #13#10), False);
+  Check('ReplaceStateFile refuses text that is not ASCII: old file kept', FileText(Target), Text);
+  CheckBool('ReplaceStateFile refuses text that is not ASCII: no temporary file', FileExists(Temp), False);
+
+  // A read-only target cannot be deleted: False, the old file stays, no temporary file left
+  CheckBool('read-only target set', SetFileAttributes(Target, FILE_ATTRIBUTE_READONLY), True);
+  CheckBool('DeleteStateFile of a read-only file', DeleteStateFile(Target), False);
+  CheckBool('ReplaceStateFile over a read-only file fails', ReplaceStateFile(Target, 'new' + #13#10), False);
+  Check('ReplaceStateFile over a read-only file: old file kept', FileText(Target), Text);
+  CheckBool('ReplaceStateFile over a read-only file: no temporary file left', FileExists(Temp), False);
+  SetFileAttributes(Target, FILE_ATTRIBUTE_NORMAL);
+  CheckBool('DeleteStateFile', DeleteStateFile(Target), True);
+  CheckBool('DeleteStateFile: file gone', FileExists(Target), False);
+  CheckBool('DeleteStateFile of a missing file', DeleteStateFile(Target), True);
+
+  // A folder with the name of the target: the rename fails, no temporary file left
+  CheckBool('folder with the name of the target created', CreateDir(Target), True);
+  CheckBool('ReplaceStateFile onto a folder fails', ReplaceStateFile(Target, Text), False);
+  CheckBool('ReplaceStateFile onto a folder: no temporary file left', FileExists(Temp), False);
+  RemoveDir(Target);
+  DelTree(Folder, True, True, True);
+end;
+
 function InitializeSetup: Boolean;
 var
   Lines: TArrayOfString;
@@ -480,6 +692,11 @@ begin
     TestNeedsExplicitTlsProtocols;
     TestApplyTlsProtocolsNotNeeded;
     TestApplyTlsProtocolsRunTime;
+    TestInstallModeName;
+    TestIsAsciiText;
+    TestBuildInstallIniText;
+    TestShouldWriteContractVersionValue;
+    TestStateFiles;
   except
     Failures := Failures + 1;
     Results.Add('FAIL exception: ' + GetExceptionMessage);
