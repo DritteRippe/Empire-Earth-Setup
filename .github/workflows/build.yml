@@ -49,10 +49,10 @@ jobs:
         shell: pwsh
         run: python ci/check_test_plan.py --self-test
 
-      # The tables of docs/CONTRACT.md (header, 2.4, 3.2, 3.7) must match the script, the source of
-      # truth, and every [Files] entry below {app} must have ignoreversion and none of
-      # onlyifdoesntexist, promptifolder, confirmoverwrite (contract 2.3); then the self-test of the
-      # check (modified copies that must fail).
+      # The tables of docs/CONTRACT.md (header, the publishers of 0, 2.4, 3.2, 3.3, 3.4, 3.7) must
+      # match the script, the source of truth, and every [Files] entry below {app} must have
+      # ignoreversion and none of onlyifdoesntexist, promptifolder, confirmoverwrite (contract 2.3);
+      # then the self-test of the check (modified copies that must fail).
       - name: Check the contract against the script
         shell: pwsh
         run: python ci/check_contract.py

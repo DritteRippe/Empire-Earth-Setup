@@ -10,6 +10,12 @@ is the setup script. This check reads only TABLES of the contract, never its pro
 
   contract                                     script
   header, row "Contract version"               #define ContractVersion (setup_is6.iss)
+  0 Products, row "Publisher in the uninstall  per product: MyAppPublisher of config_ee.iss and
+  key" (columns EE, NeoEE)                     config_neoee.iss, and the constants
+                                               CommunityPublisherEE and CommunityPublisherNeoEE
+                                               of utils.iss (the environment checks leave out the
+                                               uninstall entries of both community products by
+                                               them, ADR 0007)
   2.4, row "code" (column "Extensions")        CodeFileExtensions (utils.iss)
   3.2, Value | Type | Data | Class             the [Registry] values of the game settings keys
                                                (BaseRegEE, BaseRegAoC and their "Game Options"
@@ -68,7 +74,8 @@ installstate.iss). The entries are read as written (also those in #sub blocks, w
 continuations joined) in setup_is6.iss and in every file its #include "..." lines name.
 
 --self-test runs the check against modified temporary copies of the repository (one changed
-value per rule, e.g. Music Volume $2C -> $2D, a missing extension, a window limit 1920 -> 2560,
+value per rule, e.g. Music Volume $2C -> $2D, a missing extension, another publisher, a window
+limit 1920 -> 2560,
 GpuPreference=2; -> GpuPreference=1;, WIN7RTM -> WIN8RTM, a missing row compatibility_legacy, a
 [Files] entry without ignoreversion) that must fail with the expected message, and against copies
 that must pass.
@@ -734,6 +741,49 @@ def check_contract_version(root, contract_lines, errors):
         errors.append(f"{CONTRACT}:{contract_line} (header): contract version {contract_version}, "
                       f"but {MAIN_SCRIPT}:{no} has '#define ContractVersion {script_version}'")
     return script_version
+
+
+# ---------------------------------------------------------------------------------------------
+# Rule 0, Products: publishers of the community setups
+
+# Row of the table "Products" and, per product column, the constant of utils.iss
+PUBLISHER_ROW = "Publisher in the uninstall key"
+PUBLISHER_CONSTANTS = {"EE": "CommunityPublisherEE", "NeoEE": "CommunityPublisherNeoEE"}
+
+
+def check_publishers(root, contract_lines, errors):
+    """Contract 0, Products, row "Publisher in the uninstall key": per product the same text as
+    MyAppPublisher of config_<product>.iss (AppPublisher of the setup, the Publisher of its
+    uninstall key) and as the constant CommunityPublisher<product> of utils.iss, by which the
+    environment checks leave out the uninstall entries of both community products (ADR 0007).
+    Returns the number of products checked."""
+    header, rows = first_table(contract_section(contract_lines, "Products"), "0 (Products)")
+    require_columns(header, list(PUBLISHER_CONSTANTS), "0 (Products)")
+    found = [(no, row) for no, row in rows if plain(row[header[0]]) == PUBLISHER_ROW]
+    if len(found) != 1:
+        errors.append(f"{CONTRACT} (0, Products): expected one row '{PUBLISHER_ROW}', found {len(found)}")
+        return 0
+    no, row = found[0]
+    utils = logical_lines(read_text(root / UTILS_SCRIPT))
+    for product, constant in PUBLISHER_CONSTANTS.items():
+        expected = plain(row[product])
+        where = f"{CONTRACT}:{no} (0, Products) {product}"
+        config = f"config_{product.lower()}.iss"
+        defines = [(line, match.group(1)) for line, text in logical_lines(read_text(root / config))
+                   for match in [re.fullmatch(r'\s*#\s*define\s+MyAppPublisher\s+"([^"]*)"\s*', text)] if match]
+        if len(defines) != 1:
+            errors.append(f"{config}: expected exactly one '#define MyAppPublisher \"<text>\"', found {len(defines)}")
+        elif defines[0][1] != expected:
+            errors.append(f"{where}: publisher '{expected}' in the contract, '{defines[0][1]}' in "
+                          f"{config}:{defines[0][0]} (MyAppPublisher)")
+        constants = [(line, match.group(1)) for line, text in utils
+                     for match in [re.fullmatch(rf"\s*{constant}\s*=\s*'([^']*)'\s*;.*", text)] if match]
+        if len(constants) != 1:
+            errors.append(f"{UTILS_SCRIPT}: expected exactly one constant '{constant} = '<text>';', found {len(constants)}")
+        elif constants[0][1] != expected:
+            errors.append(f"{where}: publisher '{expected}' in the contract, '{constants[0][1]}' in "
+                          f"{UTILS_SCRIPT}:{constants[0][0]} ({constant})")
+    return len(PUBLISHER_CONSTANTS)
 
 
 # ---------------------------------------------------------------------------------------------
@@ -1577,6 +1627,8 @@ def check(root):
 
     version = rule("header", lambda: check_contract_version(root, contract_lines, errors))
     summary.append(f"contract version {version}")
+    count = rule("0", lambda: check_publishers(root, contract_lines, errors))
+    summary.append(f"0: {count} publishers")
     count = rule("2.4", lambda: check_code_extensions(root, contract_lines, errors))
     summary.append(f"2.4: {count} code extensions")
 
@@ -1742,6 +1794,21 @@ def self_test(source_root):
         ("contract version 1 -> 2 in the header", replace(contract, "| Contract version | **1** |",
                                                           "| Contract version | **2** |"),
          "contract version 2, but"),
+        # 0, Products: publishers
+        ("publisher of NeoEE changed in config_neoee.iss",
+         replace("config_neoee.iss", '#define MyAppPublisher "Empire Earth Community & NeoEE"',
+                 '#define MyAppPublisher "NeoEE Community"'),
+         "NeoEE: publisher 'Empire Earth Community & NeoEE' in the contract, 'NeoEE Community' in config_neoee.iss"),
+        ("publisher of EE changed in utils.iss",
+         replace(utils, "CommunityPublisherEE = 'Empire Earth Community';", "CommunityPublisherEE = 'Empire Earth community';"),
+         "EE: publisher 'Empire Earth Community' in the contract, 'Empire Earth community' in utils.iss"),
+        ("publisher of EE changed in the contract",
+         replace(contract, "| `Publisher` in the uninstall key | `Empire Earth Community` |",
+                 "| `Publisher` in the uninstall key | `EE Community` |"),
+         "EE: publisher 'EE Community' in the contract, 'Empire Earth Community' in config_ee.iss"),
+        ("CommunityPublisherNeoEE missing in utils.iss",
+         replace(utils, "  CommunityPublisherNeoEE = 'Empire Earth Community & NeoEE';\r\n", ""),
+         "expected exactly one constant 'CommunityPublisherNeoEE"),
         # 2.4
         ("extension m3d missing in CodeFileExtensions", replace(utils, "|flt|m3d|", "|flt|"),
          "lists m3d, which CodeFileExtensions"),
