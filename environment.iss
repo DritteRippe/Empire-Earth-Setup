@@ -10,10 +10,31 @@
 //  - InitializeSetup, after the install-mode question (ShowLowScreenResolutionNotice): a notice if
 //    the primary screen is lower than 768 pixels (R13; t=3863 p=26167: netbooks with 1024 x 600
 //    crash after the intro). The clamp of the window size stays.
+//  - Folder page, Next (CheckSelectedFolder, called by NextButtonClick(wpSelectDir)):
+//    1. Once per run (CheckForeignInstallations): foreign or old installations (R12; report 4.5,
+//       4.7, 4.8): the game settings keys of the retail game, GOG and old NeoEE installers in both
+//       views of HKLM (the community setups write them only in HKCU) with the folder of their
+//       "Installed From" values, the default folders of the retail CD, and the uninstall entries of
+//       HKLM (both views) that name Empire Earth or NeoEE and are not those of the community setups
+//       (IsForeignUninstallEntry). Everything found is logged and named in one notice,
+//       ForeignInstallFound, which advises against deleting registry keys by hand (K15).
+//    2. The chosen folder is, contains or lies in the folder of such an installation: question
+//       ForeignFolderQuestion, "Yes" (the default) stays on the folder page.
+//    3. The chosen folder holds the other community product (EE <-> NeoEE; contract O11): question
+//       SharedFolderQuestion, "Yes" (the default) stays on the folder page.
+//    Inno Setup skips the folder page on an update (DisableDirPage auto with UsePreviousAppDir):
+//    then nothing of this runs; the folder was checked at the first installation. A registry key or
+//    folder that cannot be read counts as nothing found (logged).
 //
+// Nothing here writes to the registry or the file system, and no key below Software\Sierra is read
+// (the NeoEE CD keys are there).
 // Requires: utils.iss (ClampGameWindowWidth/Height, MinGameWindowHeight, IsScreenTooLow,
-// FormatScreenMetrics), extension.iss (SilentInstall, SuppressMsgBoxes), the message
-// LowScreenResolution (messages.iss).
+// FormatScreenMetrics, NormalizeFolderPath, IsSameOrInside, IsSameFolder, IsDriveRootOrEmpty,
+// InstalledFromFolder, FormatHklmKeyName, IsForeignUninstallEntry, UninstallKeysPath,
+// FormatFindingList, FindingsShownMax, GetOtherProductUninstallRegPath, GetTickCount, TicksSince),
+// extension.iss (SilentInstall, SuppressMsgBoxes), the messages LowScreenResolution,
+// ForeignInstallFound, ForeignFolderQuestion and SharedFolderQuestion (messages.iss); ISPP:
+// InstallType, OtherAppID, EEDir, AoCDir (setup_is6.iss, config_*.iss).
 
 // Size of the primary screen and DPI of the screen. Inno Setup 6.2.2 declares itself
 // system-DPI-aware (manifest of Setup.e32), so both are physical values at the display scaling of
@@ -83,4 +104,283 @@ begin
   end;
   MsgBox(FmtMessage(CustomMessage('LowScreenResolution'), [IntToStr(Width), IntToStr(Height),
     IntToStr(ClampGameWindowWidth(Width)), IntToStr(ClampGameWindowHeight(Height))]), mbInformation, MB_OK);
+end;
+
+const
+  // Game settings keys in HKLM of the retail game, GOG, old patches (SSSI, Mad Doc Software) and old
+  // NeoEE installers (Neo; t=10577 p=46302). The community setups write them only in HKCU (contract
+  // 0, Products), so a key in HKLM belongs to another installation.
+  ForeignKeyEE = 'Software\SSSI\Empire Earth';
+  ForeignKeyAoC = 'Software\Mad Doc Software\EE-AOC';
+  ForeignKeyNeoEE = 'Software\Neo\Empire Earth';
+  ForeignKeyNeoAoC = 'Software\Neo\Art of Conquest';
+  // Default folder of the retail CD, below the system drive and below Program Files (32-bit)
+  // (t=5571 p=37625, t=5825 p=39087)
+  RetailFolder = 'Sierra\Empire Earth';
+  // The other community product (EE <-> NeoEE) for the question SharedFolderQuestion, and its
+  // setup data folder (contract 0, Products)
+  OtherProductName = '{#InstallType == "EE" ? "NeoEE" : "Empire Earth"}';
+  OtherSetupDataDir = '_setupdata_{#InstallType == "EE" ? "NeoEE" : "EE"}';
+
+var
+  // CheckForeignInstallations has run (once per run)
+  ForeignInstallationsChecked: Boolean;
+  // What it found (the lines of the notice) and the folders of those installations that exist
+  ForeignFindings: TStringList;
+  ForeignFolders: TStringList;
+
+// Adds Folder (normalized) to ForeignFolders if it exists, is not the root of a drive
+// (IsDriveRootOrEmpty) and is not there yet. True if it was added.
+function AddForeignFolder(const Folder: String): Boolean;
+var
+  I: Integer;
+begin
+  Result := False;
+  if IsDriveRootOrEmpty(Folder) or not DirExists(NormalizeFolderPath(Folder)) then
+    Exit;
+  for I := 0 to ForeignFolders.Count - 1 do
+    if IsSameFolder(ForeignFolders[I], Folder) then
+      Exit;
+  ForeignFolders.Add(NormalizeFolderPath(Folder));
+  Result := True;
+end;
+
+// One game settings key in one view of HKLM (RootKey HKLM32 or HKLM64): a finding if it exists,
+// named as regedit shows it, with the folder its "Installed From" values name unless that is the
+// root of a drive (also a folder for ForeignFolderQuestion if it exists)
+procedure CheckForeignRegistryKey(const RootKey: Integer; const SubKey: String; const View32: Boolean);
+var
+  Line, Volume, Directory, Folder: String;
+begin
+  if not RegKeyExists(RootKey, SubKey) then
+    Exit;
+  Line := FormatHklmKeyName(SubKey, View32, IsWin64);
+  if not RegQueryStringValue(RootKey, SubKey, 'Installed From Volume', Volume) then
+    Volume := '';
+  if not RegQueryStringValue(RootKey, SubKey, 'Installed From Directory', Directory) then
+    Directory := '';
+  Folder := InstalledFromFolder(Volume, Directory);
+  if not IsDriveRootOrEmpty(Folder) then
+  begin
+    Line := Line + ': ' + Folder;
+    AddForeignFolder(Folder);
+  end;
+  Log('Foreign or old installation: registry key ' + Line);
+  ForeignFindings.Add(Line);
+end;
+
+// The four game settings keys in one view of HKLM
+procedure CheckForeignRegistryKeys(const RootKey: Integer; const View32: Boolean);
+begin
+  CheckForeignRegistryKey(RootKey, ForeignKeyEE, View32);
+  CheckForeignRegistryKey(RootKey, ForeignKeyAoC, View32);
+  CheckForeignRegistryKey(RootKey, ForeignKeyNeoEE, View32);
+  CheckForeignRegistryKey(RootKey, ForeignKeyNeoAoC, View32);
+end;
+
+// A default folder of the retail CD: a finding if it exists (named once, also if a key above named
+// the same folder)
+procedure CheckRetailFolder(const Folder: String);
+begin
+  if not DirExists(Folder) then
+    Exit;
+  if AddForeignFolder(Folder) then
+  begin
+    Log('Foreign or old installation: folder ' + Folder);
+    ForeignFindings.Add(Folder);
+  end
+  else
+    Log('Foreign or old installation: folder ' + Folder + ' (already named by a registry key above)');
+end;
+
+// The uninstall entries of one view of HKLM: every entry IsForeignUninstallEntry reports is a
+// finding with its DisplayName and its InstallLocation (also a folder for ForeignFolderQuestion);
+// Count gets the number of entries read
+procedure CheckUninstallEntries(const RootKey: Integer; const ViewName: String; var Count: Integer);
+var
+  Names: TArrayOfString;
+  I: Integer;
+  SubKey, DisplayName, Publisher, Location, Line: String;
+begin
+  if not RegGetSubkeyNames(RootKey, UninstallKeysPath, Names) then
+  begin
+    Log('Unable to read the uninstall entries of ' + ViewName + ' (treated as none)');
+    Exit;
+  end;
+  Count := Count + GetArrayLength(Names);
+  for I := 0 to GetArrayLength(Names) - 1 do
+  begin
+    SubKey := UninstallKeysPath + '\' + Names[I];
+    if RegQueryStringValue(RootKey, SubKey, 'DisplayName', DisplayName) then
+    begin
+      if not RegQueryStringValue(RootKey, SubKey, 'Publisher', Publisher) then
+        Publisher := '';
+      if IsForeignUninstallEntry(Names[I], DisplayName, Publisher) then
+      begin
+        if not RegQueryStringValue(RootKey, SubKey, 'InstallLocation', Location) then
+          Location := '';
+        Line := DisplayName;
+        if not IsDriveRootOrEmpty(Location) then
+        begin
+          Line := Line + ': ' + NormalizeFolderPath(Location);
+          AddForeignFolder(Location);
+        end;
+        Log('Foreign or old installation: uninstall entry ' + ViewName + '\' + Names[I] + ', DisplayName "' + DisplayName +
+          '", Publisher "' + Publisher + '", InstallLocation "' + Location + '"');
+        ForeignFindings.Add(Line);
+      end;
+    end;
+  end;
+end;
+
+// Once per run, when the folder page is left the first time: looks for foreign or old installations
+// (see the header) and names what it found in the notice ForeignInstallFound. Only the log in silent
+// mode and with /SUPPRESSMSGBOXES. Nothing is changed or offered for deletion.
+procedure CheckForeignInstallations;
+var
+  Count: Integer;
+  Started: DWORD;
+begin
+  if ForeignInstallationsChecked then
+    Exit;
+  ForeignInstallationsChecked := True;
+  ForeignFindings := TStringList.Create;
+  ForeignFolders := TStringList.Create;
+  try
+    CheckForeignRegistryKeys(HKLM32, True);
+    if IsWin64 then
+      CheckForeignRegistryKeys(HKLM64, False);
+    CheckRetailFolder(ExpandConstant('{sd}\' + RetailFolder));
+    CheckRetailFolder(ExpandConstant('{commonpf32}\' + RetailFolder));
+    Count := 0;
+    Started := GetTickCount;
+    if IsWin64 then
+    begin
+      CheckUninstallEntries(HKLM64, FormatHklmKeyName(UninstallKeysPath, False, True), Count);
+      CheckUninstallEntries(HKLM32, FormatHklmKeyName(UninstallKeysPath, True, True), Count);
+    end
+    else
+      CheckUninstallEntries(HKLM32, FormatHklmKeyName(UninstallKeysPath, True, False), Count);
+    Log('Checked ' + IntToStr(Count) + ' uninstall entries of HKLM in ' + IntToStr(TicksSince(Started)) + ' ms');
+  except
+    Log('The check for foreign or old installations stopped: ' + GetExceptionMessage + ' (the rest counts as nothing found)');
+  end;
+  if ForeignFindings.Count = 0 then
+  begin
+    Log('No foreign or old installation of Empire Earth found');
+    Exit;
+  end;
+  Log(IntToStr(ForeignFindings.Count) + ' traces of foreign or old installations found, ' + IntToStr(ForeignFolders.Count) +
+    ' of their folders exist (notice ForeignInstallFound)');
+  if SilentInstall or SuppressMsgBoxes then
+    Log('Notice ForeignInstallFound not shown (silent installation or /SUPPRESSMSGBOXES)')
+  else
+    MsgBox(FmtMessage(CustomMessage('ForeignInstallFound'), [FormatFindingList(ForeignFindings, FindingsShownMax)]), mbInformation, MB_OK);
+end;
+
+// True if a game folder of this installation in the folder Dir ({app}\Empire Earth or {app}\Empire
+// Earth - The Art of Conquest) is, contains or lies in a folder of a foreign installation
+// (ForeignFolders); Found is that folder
+function IsFolderOfForeignInstallation(const Dir: String; var Found: String): Boolean;
+var
+  I: Integer;
+  EEFolder, AoCFolder: String;
+begin
+  Result := False;
+  Found := '';
+  EEFolder := AddBackslash(Dir) + '{#EEDir}';
+  AoCFolder := AddBackslash(Dir) + '{#AoCDir}';
+  for I := 0 to ForeignFolders.Count - 1 do
+    if IsSameOrInside(ForeignFolders[I], EEFolder) or IsSameOrInside(EEFolder, ForeignFolders[I]) or
+      IsSameOrInside(ForeignFolders[I], AoCFolder) or IsSameOrInside(AoCFolder, ForeignFolders[I]) then
+    begin
+      Found := ForeignFolders[I];
+      Result := True;
+      Exit;
+    end;
+end;
+
+// True if the uninstall key of the other community product in RootKey has Dir as its
+// 'Inno Setup: App Path'
+function OtherProductAppPathIs(const RootKey: Integer; const Dir: String): Boolean;
+var
+  AppPath: String;
+begin
+  Result := RegQueryStringValue(RootKey, GetOtherProductUninstallRegPath(), 'Inno Setup: App Path', AppPath);
+  if Result then
+    Result := IsSameFolder(AppPath, Dir);
+end;
+
+// True if the folder Dir holds the other community product (contract O11): its setup data folder
+// (OtherSetupDataDir, or <AppId> of a setup up to 1.7.2) exists there, or its uninstall key (HKLM in
+// both views, HKCU) has Dir as 'Inno Setup: App Path', which also finds installations of 1.7.2.
+// Reason says which.
+function IsOtherProductInFolder(const Dir: String; var Reason: String): Boolean;
+begin
+  Result := True;
+  Reason := AddBackslash(Dir) + OtherSetupDataDir + ' exists';
+  if DirExists(AddBackslash(Dir) + OtherSetupDataDir) then
+    Exit;
+  Reason := AddBackslash(Dir) + '{#OtherAppID} (setup data folder of a setup up to 1.7.2) exists';
+  if DirExists(AddBackslash(Dir) + '{#OtherAppID}') then
+    Exit;
+  Reason := 'the uninstall key of the other product names it as Inno Setup: App Path';
+  if OtherProductAppPathIs(HKLM32, Dir) or OtherProductAppPathIs(HKCU, Dir) then
+    Exit;
+  if IsWin64 then
+    if OtherProductAppPathIs(HKLM64, Dir) then
+      Exit;
+  Reason := '';
+  Result := False;
+end;
+
+// Asks Question (a message with Yes = choose another folder, the default) unless the installation
+// is silent or /SUPPRESSMSGBOXES is set (then only the log). True if the user wants another folder.
+function AskForAnotherFolder(const Name, Question: String): Boolean;
+begin
+  Result := False;
+  if SilentInstall or SuppressMsgBoxes then
+  begin
+    Log('Question ' + Name + ' not asked (silent installation or /SUPPRESSMSGBOXES), the installation continues');
+    Exit;
+  end;
+  Result := MsgBox(Question, mbConfirmation, MB_YESNO) = IDYES;
+  if Result then
+    Log(Name + ': Yes, the user chooses another folder')
+  else
+    Log(Name + ': No, the user installs into this folder anyway');
+end;
+
+// NextButtonClick(wpSelectDir): the checks of the folder page (see the header). True to continue,
+// False to stay on the folder page (only if the user answered a question with Yes). An exception
+// counts as nothing found and never keeps the wizard on the page.
+function CheckSelectedFolder: Boolean;
+var
+  Dir, Found, Reason: String;
+begin
+  Result := True;
+  Dir := WizardDirValue;
+  Log('Checking the chosen folder ' + Dir);
+  CheckForeignInstallations();
+  try
+    if IsFolderOfForeignInstallation(Dir, Found) then
+    begin
+      Log('The game folders in ' + Dir + ' would be, contain or lie in the folder of a foreign or old installation: ' + Found +
+        ' (question ForeignFolderQuestion)');
+      if AskForAnotherFolder('ForeignFolderQuestion', FmtMessage(CustomMessage('ForeignFolderQuestion'), [Found, Dir])) then
+      begin
+        Result := False;
+        Exit;
+      end;
+    end;
+    if IsOtherProductInFolder(Dir, Reason) then
+    begin
+      Log('The folder ' + Dir + ' already holds ' + OtherProductName + ': ' + Reason + ' (question SharedFolderQuestion)');
+      if AskForAnotherFolder('SharedFolderQuestion', FmtMessage(CustomMessage('SharedFolderQuestion'), [OtherProductName, Dir])) then
+        Result := False;
+    end;
+  except
+    Log('The check of the chosen folder stopped: ' + GetExceptionMessage + ' (counts as nothing found)');
+    Result := True;
+  end;
 end;

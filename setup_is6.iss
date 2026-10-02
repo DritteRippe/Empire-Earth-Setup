@@ -1198,7 +1198,8 @@ Filename: "{tmp}\directx\dxwebsetup.exe"; Parameters: "/Q"; Flags: runhidden; Ta
 //                   (needs utils.iss, extension.iss)
 //   randommaps.iss  random map scripts of the previous setup (needs extension.iss)
 //   environment.iss read-only checks before the installation: screen size, DPI and the notice for
-//                   a low screen (needs utils.iss, extension.iss)
+//                   a low screen; foreign or old installations, their folders and the folder of the
+//                   other product, when the folder page is left (needs utils.iss, extension.iss)
 //   installstate.iss  install.ini, the integrity manifest files.sha256 and the contract version in
 //                   the uninstall key for the launcher; RecordInstalledFile, the AfterInstall of
 //                   [Files] (needs utils.iss, extension.iss)
@@ -2028,9 +2029,11 @@ begin
 #endif
 end;
 
-// Dispatches to the handler of the page; no page blocks the Next button
+// Dispatches to the handler of the page. Only the folder page can keep the wizard: when the user
+// answers a question of CheckSelectedFolder (environment.iss) with Yes; in silent mode it never does.
 function NextButtonClick(CurPageID: Integer): Boolean;
 begin
+  Result := True;
   if (CurPageID = ManualInstallQuestionPage.ID) then
   begin
     if (not SilentInstall) then
@@ -2040,6 +2043,9 @@ begin
     ApplyGpuOption()
   else if (CurPageID = LanguageInstallQuestionPage.ID) then
     OnLanguagePageNext()
+  else if (CurPageID = wpSelectDir) then
+    // Read-only: foreign or old installations, their folders, the folder of the other product
+    Result := CheckSelectedFolder()
   else if (CurPageID = wpReady) then
   begin
     // The components are final now: register the localized files and download them on the
@@ -2049,7 +2055,6 @@ begin
   end
   else if (CurPageID = wpFinished) then
     OnFinishedPageNext();
-  Result := True;
 end;
 
 function InitializeUninstall(): Boolean;
