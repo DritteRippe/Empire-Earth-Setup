@@ -1,6 +1,8 @@
 # 0004. Install record, install.ini, integrity manifest and defaults marker
 
-- Status: Accepted (implemented by S-WP6 and S-WP7)
+- Status: Accepted, implemented in part: points 1, 2, 6, 9 and 10 for `install.ini` by S-WP6 (see
+  [Implementation](#implementation)); points 3 to 5, 7 and 8 and the manifest in points 6 and 9
+  follow with S-WP7
 - Date: 2026-10-02
 - Requirements: D5 (setup side of [CONTRACT.md](../CONTRACT.md) 1.1, 1.2, 2, 3.5), R1, R2, R11, R17
 - Revised: 2026-10-02, plan review before implementation (ASCII instead of `UTF8Encode`, which
@@ -8,7 +10,9 @@
   the uninstall key that shows a later run of an older setup; responsive hashing; "processed" files);
   second plan review (the uninstall key value only after both files were really replaced, because
   `RenameFile` does not overwrite; retries for files that are briefly locked; a sort of at most
-  n log n; throughput in the log)
+  n log n; throughput in the log); implementation of S-WP6 (point 2: every run writes the record
+  anew; point 6: a run whose deletion failed still writes the files if it can, only the value of
+  point 9 is left out; point 10: the characters of `SetupBuild` and the default of the build script)
 
 ## Context
 
@@ -26,8 +30,10 @@ is testable without running an installer.
    - record: `Root: HKA; Subkey: "Software\Empire Earth Community\Installations\{#InstallType}"`
      with `ContractVersion` (dword), `InstallPath` (`{app}`), `InstallMode`
      (`{code:GetContractInstallMode}`: `admin`/`user`), `AppId`, `GameVersion`, `SetupVersion`,
-     `SetupBuild` (point 10); `uninsdeletekey`, the parents `Installations` and `Empire Earth Community` with
-     `uninsdeletekeyifempty`; only in the Regular variants (`#if InstallMode == "Regular"`);
+     `SetupBuild` (point 10); `deletekey uninsdeletekey` on the product key, so that every run writes
+     the record anew and no value of an earlier run stays (e.g. the `SetupBuild` of a test build), the
+     parents `Installations` and `Empire Earth Community` with `uninsdeletekeyifempty`; only in the
+     Regular variants (`#if InstallMode == "Regular"`);
    - marker: `Root: HKCU; Subkey: "Software\Empire Earth Community\GameDefaults\{#InstallType}"`,
      dword `EE` (`Components: game`) and `AoC` (`Components: gameaoc`) = `ContractVersion`, **only in
      the Regular variants**; `uninsdeletekey` on the product key, `uninsdeletekeyifempty` on the
@@ -81,9 +87,10 @@ is testable without running an installer.
    paths and is checked the same way. A file-level unit test checks the bytes.
 6. **Deleting at `ssInstall`:** `install.ini`, `files.sha256` and their `.tmp` files are deleted
    before `[Files]` runs, so an aborted run leaves no manifest that claims a valid state. A failed
-   deletion (the file is held open, e.g. by a reader without `FILE_SHARE_DELETE`) is logged and
-   remembered: then neither file is rewritten as valid by this run and point 9 does not write its
-   value. Contract 4.2 asks the launcher not to read these files while a setup mutex exists and
+   deletion (the file is held open, e.g. by a reader without `FILE_SHARE_DELETE`, or it is
+   read-only) is logged with its cause and remembered: then point 9 does not write its value in this
+   run. The run still writes both files at the end if it can (they describe this run); a reader
+   that still holds a file open makes its replacement fail as well, and the old file stays. Contract 4.2 asks the launcher not to read these files while a setup mutex exists and
    to open them with `FILE_SHARE_READ | FILE_SHARE_DELETE` (contract revision 2, S-WP10).
 7. **Missing files notice (R11):** if `[MissingAfterInstall]` is not empty the setup logs every file
    and shows one localized notice (English, German, French): the files that disappeared during the
@@ -111,8 +118,12 @@ is testable without running an installer.
    uninstall key; there the case stays undetected (documented). The file times of installed files
    cannot replace this check: Inno Setup gives them the time stamps of the source files.
 10. **`SetupBuild`:** an optional value in `install.ini` and the record, from `/DSetupBuild=<text>`
-    (CI: short Git commit; test builds: `test<TestID>-<commit>`; default empty, then not written).
-    It tells test builds apart while `MySetupVersion` stays `1.7.2`. Compatible change (contract 5).
+    (`ci/build.ps1`: CI the short Git commit; test builds `test<TestID>-<commit>`; any other build
+    none; `-SetupBuild` overrides; default of the script empty, then not written). At most 64
+    characters `A-Z a-z 0-9 . _ -`, checked by ISPP and by the build script before ISCC runs: the
+    value goes into the registry, into the ASCII `install.ini` and onto the command line, and a brace
+    or a quote would become an Inno Setup constant or end a Pascal string. It tells test builds
+    apart while `MySetupVersion` stays `1.7.2`. Compatible change (contract 5).
 
 ## Evidence
 
@@ -152,6 +163,89 @@ Inno Setup 6.2.2 sources (`jrsoftware/issrc`, tag `is-6_2_2`):
   finds installations of other accounts through the uninstall keys or the folder (contract 1.4).
 - The setup writes the marker for the account that runs it, also in `admin` mode (over-the-shoulder
   elevation: the elevating account), exactly like the game settings it writes.
+
+## Implementation
+
+S-WP6, 2026-10-02: points 1, 2, 6, 9 and 10 for `install.ini`; the manifest (points 3 to 5, 7, 8 and
+`files.sha256` in points 6 and 9) follows with S-WP7. In this order: the pure helpers with their unit
+tests (`7bde676`), `SetupBuild` (`2474edb`), `install.ini` and the uninstall key value (`e389f34`),
+the install record and the defaults marker (`f35856a`), README and CHANGELOG (`d82e7e5`), the test
+cases TP-40 and TP-41 (`a9d9229`).
+
+- **Point 1:** `ContractVersion` is the value of the record, the marker, `install.ini` and the
+  uninstall key value; its comment in `setup_is6.iss` says so.
+- **Point 2:** `[Registry]` under `#if InstallMode == "Regular"`, after the game settings:
+  `Root: HKA; Subkey: "{#BaseRegCommunity}\Installations\{#InstallType}"` (`BaseRegCommunity` =
+  `Software\Empire Earth Community`) with `Flags: deletekey uninsdeletekey`, the values
+  `ContractVersion` (dword), `InstallPath` `{app}`, `InstallMode` `{code:GetContractInstallMode}`
+  (`InstallModeName` of `utils.iss`), `AppId` `{#AppID}`, `GameVersion`, `SetupVersion`, and
+  `SetupBuild` under `#if SetupBuild != ""`; the parents with `uninsdeletekeyifempty`. Marker:
+  `Root: HKCU; Subkey: "{#BaseRegCommunity}\GameDefaults\{#InstallType}"` with `uninsdeletekey`,
+  dword `EE` (`Components: game`) and `AoC` (`Components: gameaoc`), parents
+  `uninsdeletekeyifempty`. The scripts that ISCC preprocessed for the Portable variants contain
+  neither the word `Installations` nor `GameDefaults`.
+- **Point 6:** `installstate.iss`, `DeleteInstallState`, the first step of `ssInstall`:
+  `DeleteStateFile` (`utils.iss`) deletes `install.ini` and `install.ini.tmp`; a file that is still
+  there is logged with its cause (`it is read-only` from the attributes of `FindFirst`, else `it is
+  held open by another program or access is denied`) and remembered (`InstallStateDeleteFailed`).
+- **Points 4 and 9 for `install.ini`:** `WriteInstallState`, the last step of `ssPostInstall`, after
+  the NeoEE CD keys: `BuildInstallIniText` (the keys in the order of contract 1.2, `SetupBuild` only
+  if set, CRLF), `ReplaceStateFile` (`IsAsciiText`; delete an old `.tmp`; `SaveStringToFile` to the
+  `.tmp`; delete the target and require `FileExists` = False; `RenameFile`; delete the `.tmp` after
+  any failure; `try`/`except`), then `ShouldWriteContractVersionValue(not Portable,
+  not InstallStateDeleteFailed, IniWritten)` and only then, if the uninstall key exists,
+  `RegWriteDWordValue(HKA, GetUninstallRegPath(), 'Empire Earth Community: ContractVersion', 1)`.
+  Every branch writes one log line; nothing stops the installation and no message is shown, so
+  `messages.iss` is unchanged (R17: no new user-visible text). S-WP7 adds `files.sha256` to
+  `DeleteInstallState` and to the third argument.
+- **Point 10:** `#define SetupBuild ""` (an empty or bare `/DSetupBuild` is none), checked by ISPP
+  with a recursive `StripChars` macro. `ci/build.ps1 -SetupBuild`, else `Get-SetupBuild`
+  (`test<TestID>-<commit>`, the short commit when `GITHUB_ACTIONS` is `true`, else none;
+  `Get-GitShortCommit`), `Assert-SetupBuild` before ISCC runs. `ci/check_contract.py --preprocessed`
+  takes the value ISCC got from the record of the preprocessed script (the CI build passes the
+  commit). The first log line of every run names product, versions, install type and mode,
+  `SetupBuild`, `TestID` and contract version.
+- **Tests:** 73 new unit tests, 292 in all, pass under Wine: 40 of the pure helpers (the example of
+  contract 1.2, all three install modes, with and without `SetupBuild`, CRLF, `IsAsciiText` with
+  U+0080, Latin, Chinese and surrogate characters, all 8 combinations of
+  `ShouldWriteContractVersionValue`) and 33 at file level in `{tmp}`: `RenameFile` over an existing
+  file fails and keeps both files and works after the target was deleted (the evidence of point 4
+  at run time); `ReplaceStateFile` over an existing file and a leftover `.tmp`, without a target,
+  the bytes (no BOM, only ASCII, only CRLF), refused non-ASCII text, a read-only target and a folder
+  of that name leave the old state and no `.tmp`. `ci/tests/build_helpers.tests.ps1`: 40 new checks
+  (164), a mutation that does not pass the define fails 3 of them.
+- **Real-data comparison** (maintainers only, never committed: EE and NeoEE built with ISCC from the
+  reconstructed 1.7.2 data, official AppIds, unsigned, no `SetupBuild`; innoextract dumps compared
+  semantically) against the S-WP10 build (`b66a0af`): for EE and NeoEE alike only the compiled code
+  (EE 122096 -> 130862 bytes, NeoEE 126791 -> 135561 bytes) and 14 new registry entries (76 -> 90:
+  record key with three parents and six values, marker key with its parent and two values) differ;
+  messages, tasks, components, files, data, run entries, folders and the other registry entries are
+  identical. innoextract prints the root of the record as `HKCU`, because it masks the top bit of the
+  stored key; the raw header has `0x00000001` (`HKEY_AUTO`, i.e. `HKA`) for the record and
+  `0x80000001` (`HKEY_CURRENT_USER`) for the marker and the game settings.
+- **Run-time probe under Wine** (not in the repository): a small setup with `utils.iss` and
+  `installstate.iss` unchanged, the `[Registry]` block of record and marker cut out of
+  `setup_is6.iss` unchanged, `DeleteInstallState` first at `ssInstall` and `WriteInstallState` last
+  at `ssPostInstall`, and optional disturbances. Administrative mode: record in HKLM with
+  `InstallMode` `admin`, marker in HKCU, `install.ini` (242 or 243 bytes, 11 CRLF, no BOM, no
+  non-ASCII byte), the value `0x1` in the uninstall key. User mode: the same in HKCU; a second run
+  over the existing `install.ini` replaces it and writes the value; `install.ini` held open without
+  `FILE_SHARE_DELETE` during `ssInstall` (closed right after it): `Unable to delete ...: it is held
+  open by another program or access is denied`, `install.ini` written at the end, **no** value;
+  read-only `install.ini`: `it is read-only` at both steps, `Not writing ...: the old file is still
+  there`, the old file kept, no value; held open during `ssPostInstall`: the same, no `.tmp` left; an
+  undisturbed run writes the value again. The uninstaller removes record, marker, the parent keys
+  and the folder and keeps a value seeded below `HKCU\Software\Sierra\CDKeys`. Portable: `install.ini`
+  with `InstallMode=portable`, no record, no marker, no value, the log line `Portable setup: no
+  uninstall key ...`. An install root with non-ASCII characters (`C:\wp6probe_Jeux é ü`) still gives
+  an ASCII `install.ini` (it holds no path) and the value. Inno Setup 6.2.2 runs complete
+  installations and uninstallations in this Wine prefix when every Wine process of the probe uses
+  one X display (one Xvfb, also for `reg.exe`) and `WINEDEBUG=+err`; with a separate `xvfb-run` per
+  command the user-mode setups stopped before the installation with "System Error. Code: 120" (the
+  earlier probes ran their code in `InitializeSetup` for that reason).
+- **Not verified here:** the 64-bit registry view on real 64-bit Windows (the Wine prefix is 32-bit),
+  share modes and the read-only attribute on NTFS, over-the-shoulder elevation and a later run of
+  the official setup 1.7.2: TP-40 and TP-41.
 
 ## Alternatives considered
 

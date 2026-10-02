@@ -14,7 +14,7 @@ the setup is [ARCHITECTURE.md](../ARCHITECTURE.md).
 | [0001](0001-keep-inno-setup-and-pascal-script.md) | Keep Inno Setup 6 and Pascal Script, evolve the refactor branch | Accepted |
 | [0002](0002-stay-on-inno-setup-6.2.2.md) | Stay on Inno Setup 6.2.2 | Accepted |
 | [0003](0003-built-in-downloads-instead-of-idp.md) | Replace the Inno Download Plugin by Inno Setup's built-in downloads | Accepted, implemented |
-| [0004](0004-install-record-and-integrity-manifest.md) | How the setup writes the install record, `install.ini`, the integrity manifest and the defaults marker | Accepted |
+| [0004](0004-install-record-and-integrity-manifest.md) | How the setup writes the install record, `install.ini`, the integrity manifest and the defaults marker | Accepted, implemented in part (points 1, 2, 6, 9, 10 for `install.ini`; the manifest follows with S-WP7) |
 | [0005](0005-compatibility-and-wrapper-defaults.md) | No compatibility values on Windows Vista/7; keep the DirectX wrapper preselection | Accepted, implemented; point 1 amended by 0010 |
 | [0006](0006-strict-tls-and-server-certificates.md) | Strict TLS everywhere, TLS 1.2 on Windows 7, operator guide for the file server certificate | Accepted, implemented |
 | [0007](0007-environment-warnings.md) | Read-only warnings for low resolution, foreign installations and a shared EE/NeoEE folder | Accepted |
