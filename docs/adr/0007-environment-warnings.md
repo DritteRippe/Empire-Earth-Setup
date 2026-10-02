@@ -1,12 +1,17 @@
 # 0007. Read-only warnings for low resolution, foreign installations and a shared EE/NeoEE folder
 
-- Status: Accepted (implemented by S-WP8)
+- Status: Accepted, implemented by S-WP8 (see [Implementation](#implementation))
 - Date: 2026-10-02
 - Requirements: R12, R13, contract question O11
 - Revised: 2026-10-02, plan review before implementation (installing into the folder of a retail or
   GOG installation is asked like the shared folder; the shared-folder question names the firewall
   rules); second plan review (old NeoEE keys in HKLM and foreign uninstall entries are found too;
-  the notice advises against deleting registry keys by hand; screen size and DPI are logged)
+  the notice advises against deleting registry keys by hand; screen size and DPI are logged);
+  implementation of S-WP8 (the order of the checks; Empire Earth II and III are not reported; a
+  folder counts for point 4 only if it exists and is not the root of a drive, and the
+  `InstallLocation` of a foreign uninstall entry counts too; point 3 also finds the `<AppId>` setup
+  data folder of a setup up to 1.7.2; notices and questions are not shown with `/SUPPRESSMSGBOXES`
+  either; a height of 0 is unknown and gives no notice)
 
 ## Context
 
@@ -35,7 +40,8 @@ All checks are **read-only**: they never delete, move or change anything, and th
 silent installation (silent: log only).
 
 1. **Low resolution (R13):** if the height of the primary screen (`GetSystemMetrics(SM_CYSCREEN)`,
-   physical pixels, see ARCHITECTURE O4) is below 768, `InitializeSetup` shows a notice after the
+   physical pixels, see ARCHITECTURE O4) is below 768 (and above 0, which means unknown),
+   `InitializeSetup` shows a notice after the
    install-mode question: the menus of the game need 768 pixels, the window is set to 1024x768, the
    game may not fit or may crash after the intro; scaling in the graphics driver or a DirectX wrapper
    can help. The clamp of the window size (1024 to 1920 x 768 to 1080) stays. The predicate and the
@@ -44,7 +50,8 @@ silent installation (silent: log only).
    screen (`GetDeviceCaps(LOGPIXELSX)`) and the clamped window size, so that contract question O4
    and a support case can be decided from the setup log.
 2. **Foreign or old installations (R12):** when the user leaves the folder page, the setup looks
-   for, in this order:
+   for (the notice lists the findings in the order of these checks: keys with their "Installed
+   From" folder, the retail folders, the uninstall entries):
    - `Software\SSSI\Empire Earth` and `Software\Mad Doc Software\EE-AOC` in HKLM, 32- and 64-bit
      view (community setups write these keys only in HKCU, retail, GOG and old patches in HKLM;
      contract 1.4 source 4);
@@ -58,10 +65,12 @@ silent installation (silent: log only).
      `Empire Earth` or `NeoEE` (case-insensitive) is reported with `DisplayName` and
      `InstallLocation`, unless its key is `{<AppId>}_is1` of one of the two community products or
      its `Publisher` is one of the two community publishers (`MyAppPublisher` of `config_ee.iss`
-     and `config_neoee.iss`). This finds InstallShield/MSI entries of the retail version and old
-     NeoEE installers, which made later installers offer only "repair/remove" (report 4.7, 4.8,
-     forum report section 8 item 22). The match is a pure helper `IsForeignUninstallEntry`
-     (unit tests: community AppIds and publishers excluded, case, empty or missing values);
+     and `config_neoee.iss`), and unless `Empire Earth` is followed by ` II` (Empire Earth II and
+     III are other games with their own folders and keys). This finds InstallShield/MSI entries of
+     the retail version and old NeoEE installers, which made later installers offer only
+     "repair/remove" (report 4.7, 4.8, forum report section 8 item 22). The match is a pure helper
+     `IsForeignUninstallEntry` (unit tests: community AppIds and publishers excluded, case, empty or
+     missing values);
    - the folders `<system drive>\Sierra\Empire Earth` and `{commonpf32}\Sierra\Empire Earth` (default
      folder of the retail CD, t=5825 p=39087, t=5571 p=37625);
    - where available, the folder named by the "Installed From" values of these HKLM keys, shown in
@@ -72,11 +81,13 @@ silent installation (silent: log only).
    copy and does not change the other one, and then, without approving any manual cleanup: "Please
    do not delete registry keys by hand; `Software\Sierra\CDKeys` holds the NeoEE CD keys. The Empire
    Earth Launcher offers a cleanup with a backup." (deleting `Software\Sierra` by hand is what lost
-   the CD keys in t=10950 and t=11021). Nothing is offered for deletion. Community installations (uninstall keys with the community publishers) are
-   not reported.
+   the CD keys in t=10950 and t=11021). Nothing is offered for deletion. Community installations
+   (uninstall keys with the community AppIds or publishers) are not reported.
 3. **Shared folder (O11):** when the user leaves the folder page and the chosen folder already holds
-   the other product (`_setupdata_<other product>` exists, or the other product's uninstall key has
-   this folder as `Inno Setup: App Path`, which also finds 1.7.2 installations), a Yes/No question
+   the other product (`_setupdata_<other product>` exists, or `<AppId of the other product>`, the
+   setup data folder of setups up to 1.7.2, or the other product's uninstall key in HKLM (both
+   views) or HKCU has this folder as `Inno Setup: App Path`, which also finds 1.7.2 installations),
+   a Yes/No question
    (`SharedFolderQuestion`) explains the consequences (the integrity check of the other product,
    uninstalling one removes files **and the firewall rules** of the other) and recommends another
    folder; "Yes" (default) stays on the folder page, "No" continues.
@@ -84,12 +95,15 @@ silent installation (silent: log only).
    default "choose another folder") when `{app}\Empire Earth` or `{app}\Empire Earth - The Art of
    Conquest` is the same as or inside a folder found in point 2 (the folder of an HKLM
    "Installed From" value, `<system drive>\Sierra\Empire Earth`, `{commonpf32}\Sierra\Empire
-   Earth`), or the other way round. The comparison is a pure, unit-tested helper
+   Earth`, the `InstallLocation` of a foreign uninstall entry such as the GOG folder; only folders
+   that exist and are not the root of a drive), or the other way round. The comparison is a pure,
+   unit-tested helper
    `IsSameOrInside(Root, Candidate)` (case-insensitive, normalized separators and trailing
    backslash, `C:\Sierra2` is not inside `C:\Sierra`).
 5. The folder-page checks only run when the page is shown: an update in place keeps the previous
    folder (`UsePreviousAppDir`), whose state was checked at the first installation. In silent mode
-   the questions are not asked: the findings are logged and the installation continues.
+   and with `/SUPPRESSMSGBOXES` (like the other notices of the setup) the notices and questions are
+   not shown: the findings are logged and the installation continues.
 6. New texts in English, German and French; every finding is logged.
 
 ## Evidence
@@ -111,6 +125,79 @@ silent installation (silent: log only).
   is informative and appears once per run.
 - The exact keys and folders are listed in `environment.iss` and in the test plan (case "old
   installation present").
+
+## Implementation
+
+S-WP8, 2026-10-02, in this order: the pure helpers with their unit tests (`ad4fcee`), the check of
+the community publishers (`82974d4`), the screen in the log and the notice for a low screen
+(`15a7e3e`), the checks of the folder page (`1e1e8ee`), the test cases and this documentation.
+
+- **Point 1:** `environment.iss` (new, included after `randommaps.iss`) has the screen API that was in
+  `setup_is6.iss` (`GetSystemMetrics`, `SM_CXSCREEN`, `SM_CYSCREEN`) and the new external imports
+  `GetDC`, `GetDeviceCaps` (`LOGPIXELSX`) and `ReleaseDC`. `LogScreenMetrics` runs in `InitializeSetup`
+  on every run, before the update check, and logs `FormatScreenMetrics`: `Screen: <w> x <h> pixels
+  (primary screen, SM_CXSCREEN x SM_CYSCREEN), <dpi> DPI (LOGPIXELSX, <p> % scaling), game window
+  <w> x <h>`. `ShowLowScreenResolutionNotice` follows `ConfirmInstallMode`: `IsScreenTooLow` (below
+  768, 0 is unknown) gives the notice `LowScreenResolution` with the screen and the game window.
+  `ClampGameWindowWidth/Height` replace the inline clamp of `GetScreenResolutionWidth/Height`; a unit
+  test compares them with the old code for every size from -10 to 4000. The limits
+  `MinGameWindowWidth` ... `MaxGameWindowHeight` moved to `utils.iss`; `ci/check_contract.py` checks
+  table 3.3 against them there (its self-test cases now change `utils.iss`).
+- **Point 2:** `CheckForeignInstallations`, once per run on the first Next of the folder page: the
+  four keys in HKLM32 and, on 64-bit Windows, HKLM64 (named as regedit shows them,
+  `FormatHklmKeyName`, with the folder of their "Installed From" values, `InstalledFromFolder`,
+  unless it is a drive root), the two retail folders (named once if a key named the same folder),
+  and the uninstall entries of both views (`RegGetSubkeyNames`, `DisplayName`, `Publisher`,
+  `InstallLocation`; `Checked <n> uninstall entries of HKLM in <ms> ms` in the log).
+  `IsForeignUninstallEntry` excludes the keys `{<AppID>}_is1` and `{<OtherAppID>}_is1`, the
+  publishers `CommunityPublisherEE` and `CommunityPublisherNeoEE` of `utils.iss` and Empire Earth
+  II/III. The publishers exist three times (contract 0, `MyAppPublisher` of both configurations,
+  `utils.iss`); `ci/check_contract.py` rule "0" checks that they match. Every finding is logged; the
+  notice `ForeignInstallFound` lists at most twelve (`FormatFindingList`, then `... (+n)`). It holds
+  the wording of this decision; nothing is offered for deletion. No key below `Software\Sierra` is
+  read.
+- **Points 3 and 4:** `CheckSelectedFolder` (`NextButtonClick(wpSelectDir)` returns it; every other
+  page still continues): `IsFolderOfForeignInstallation` compares `{app}\Empire Earth` and the AoC
+  folder with every existing folder of point 2 in both directions (`IsSameOrInside`);
+  `IsOtherProductInFolder` looks for `_setupdata_<other product>`, `<OtherAppID>` and the
+  `Inno Setup: App Path` of the other product's uninstall key in HKLM32, HKCU and HKLM64
+  (`IsSameFolder`). `AskForAnotherFolder` asks with `MB_YESNO` (Yes is the default button) and logs
+  the answer; Yes keeps the wizard on the folder page, No continues. `ForeignFolderQuestion` comes
+  before `SharedFolderQuestion`.
+- **Point 5:** silent and `/SUPPRESSMSGBOXES`: `Notice ... not shown` / `Question ... not asked ...,
+  the installation continues` in the log, `CheckSelectedFolder` returns True. An exception in a
+  check is logged and counts as nothing found.
+- **Point 6:** `LowScreenResolution`, `ForeignInstallFound`, `ForeignFolderQuestion` and
+  `SharedFolderQuestion` in English, German and French (111 custom messages).
+- **Read-only:** `environment.iss` contains none of `RegWrite`, `RegDelete`, `DeleteFile`, `DelTree`,
+  `RenameFile`, `Exec`, `SaveString` (grep), and no `Sierra\CDKeys`.
+- **Tests:** 113 new unit tests, 543 in all (the screens 1024x600, 1366x768, 1920x1080, 2560x1440
+  and every limit with its neighbours, `C:\Sierra2` against `C:\Sierra`, community AppIds and
+  publishers, Empire Earth II/III, drive roots, UNC paths, umlauts); 4 new self-test cases of
+  `ci/check_contract.py` (64). Test plan block 6: TP-60 to TP-63.
+- **Wine probe** (analysis only, not in the repository): a small probe setup with `utils.iss`,
+  `extension.iss` and `environment.iss` unchanged and the four messages cut out of `messages.iss`,
+  in a new 64-bit and a new 32-bit Wine prefix, test keys and entries created with `reg add`
+  (removed again), no network. Results: the screen line at 1024x600, 1366x768 and 1920x1080 (96 DPI);
+  the low-screen notice in German and French, none when silent; with nothing installed `No foreign
+  or old installation`; in the 64-bit prefix both views are read (`Checked 5 uninstall entries`, 3 in
+  HKLM64 and 2 in HKLM32, `WOW6432Node` in the names of the 32-bit view), in the 32-bit prefix one;
+  a community entry with another AppId, an entry with the other product's AppId and `Empire Earth II`
+  are not reported, the GOG and the old NeoEE entry are; `C:\Sierra` and the GOG folder lead to
+  `ForeignFolderQuestion`, `C:\Sierra2` does not; the `App Path` of the other product's uninstall key
+  and its `_setupdata_NeoEE` folder lead to `SharedFolderQuestion`; silent runs install. Driven by key
+  presses and clicks in German: the notice once, the question, "Yes" (`NextButtonClick` False, still
+  on the folder page), Next again (the question, no second notice), "No", installation succeeded.
+- **Real-data comparison** (local only, nothing committed): EE and NeoEE built from the reconstructed
+  1.7.2 data at `1e1e8ee` against the S-WP7 builds at `4eafaed`: only the compiled code (EE 148571 ->
+  170389 bytes, NeoEE 153282 -> 175116 bytes) and the 12 new messages (4 messages in English, German,
+  French) differ; `[Files]`, `[Registry]`, `[Run]`, `[UninstallRun]`, `[InstallDelete]` and all
+  other sections and the data are identical.
+- **Open:** whether `authtools.dll` writes `HKLM\Software\Neo` when it registers the CD keys is unknown
+  (contract O8); TP-61 (e) checks it before a release. The launcher's cleanup (launcher
+  ARCHITECTURE 4.6, L-WP8) removes HKCU entries with a `.reg` backup and only lists HKLM entries
+  with advice; if that advice keeps telling players to remove HKLM keys with the Registry Editor,
+  the two texts should be aligned (export first, never `Software\Sierra` or one of its parents).
 
 ## Alternatives considered
 

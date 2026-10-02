@@ -298,6 +298,54 @@ Refactoring and quality fixes (no new game content).
   plays the antivirus program (notice, `[MissingAfterInstall]`, repair, silent), a file held open
   without sharing (no manifest, no value in the uninstall key), and the duration on the laptop
   (under 30 s, no "Not responding") and on an HDD or in the Windows 7 virtual machine.
+- Hints before the installation, read-only (`environment.iss`, ADR 0007; forum report 4.5, 4.7, 4.8,
+  4.17, section 8 items 6, 8, 9, 21):
+  - every run logs the primary screen, its DPI and the game window the setup writes:
+    `Screen: <w> x <h> pixels (primary screen, SM_CXSCREEN x SM_CYSCREEN), <dpi> DPI (LOGPIXELSX,
+    <p> % scaling), game window <w> x <h>` (contract O4: physical pixels at 150 % can now be
+    decided from the setup log);
+  - a screen lower than 768 pixels (netbooks with 1024 x 600 crash after the intro, t=3863 p=26167)
+    gets the notice `LowScreenResolution` after the install-mode question: the screen size, the
+    game window the setup sets (at least 1024 x 768, as before) and what can help (scaling of the
+    graphics driver, a DirectX wrapper);
+  - leaving the folder page the first time, the setup looks for traces of retail, GOG and old
+    NeoEE installations: the keys `Software\SSSI\Empire Earth`, `Software\Mad Doc Software\EE-AOC`,
+    `Software\Neo\Empire Earth` and `Software\Neo\Art of Conquest` in both registry views of HKLM
+    (the community setups write them only in HKCU; an old NeoEE key in HKLM was the cause in
+    t=10577 p=46302) with the folder of their "Installed From" values, the folders
+    `<system drive>\Sierra\Empire Earth` and `Program Files (x86)\Sierra\Empire Earth`, and the
+    uninstall entries of HKLM (both views) whose name contains Empire Earth or NeoEE, except those
+    of the two community setups (by AppId and publisher) and Empire Earth II and III. What it finds
+    is logged and shown once in the notice `ForeignInstallFound`, which changes nothing and offers
+    nothing for deletion: "Please do not delete registry keys by hand: Software\Sierra\CDKeys holds
+    the NeoEE CD keys. The Empire Earth Launcher offers a cleanup with a backup." (deleting
+    `Software\Sierra` by hand lost the CD keys in t=10950 and t=11021);
+  - the question `ForeignFolderQuestion` if the chosen folder is, contains or lies in the folder of
+    such an installation (e.g. `C:\Sierra` or the GOG folder; `C:\Sierra2` is not inside
+    `C:\Sierra`), and the question `SharedFolderQuestion` if it already holds the other community
+    product (EE in a NeoEE folder or the other way round, also an installation of setup 1.7.2): it
+    names the consequences (the launcher can no longer check the files of the other product;
+    uninstalling one removes files and the firewall rules of the other). "Yes", the default, goes
+    back to the folder page, "No" installs into the folder anyway;
+  - in silent mode and with `/SUPPRESSMSGBOXES` none of this is shown, the findings are only
+    logged and the installation continues. An update in place skips the folder page and these
+    checks. The new messages exist in English, German and French (111 custom messages now).
+  The pure parts are in `utils.iss` with 113 new unit tests (543 in all): `ClampGameWindowWidth/Height`
+  (the clamp of the game window, same results as before; the limits moved there from
+  `setup_is6.iss`), `IsScreenTooLow`, `FormatScreenMetrics`, `NormalizeFolderPath`,
+  `IsSameOrInside`, `IsSameFolder`, `IsDriveRootOrEmpty`, `InstalledFromFolder`,
+  `FormatHklmKeyName`, `IsForeignUninstallEntry`, `FormatFindingList`. `environment.iss` writes
+  nothing: no registry or file function that changes anything, and no key below `Software\Sierra`
+  is read.
+- `ci/check_contract.py` also checks the row "Publisher in the uninstall key" of contract 0
+  against `MyAppPublisher` of `config_ee.iss` and `config_neoee.iss` and against the constants
+  `CommunityPublisherEE` and `CommunityPublisherNeoEE` of `utils.iss`, by which the environment
+  checks leave out the community installations (four new self-test cases, 64 in all).
+- `docs/TEST-PLAN.de.md`, block 6: the Windows cases of the hints before the installation: low
+  screen and the screen line of the log (TP-60), old installations created with `reg add` and
+  removed again, with the exact wording of the notice and a check that a NeoEE installation with
+  CD keys leaves no `Neo` key in HKLM (TP-61, `P1`), EE and NeoEE in one folder (TP-62), and the
+  folder of a GOG or CD installation (TP-63). TP-24 now also reads the screen line of the log.
 
 ### Changed
 - The hidden setup data folder (holds `EEStatsSetup.dll` for the uninstaller) is now

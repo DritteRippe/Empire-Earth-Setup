@@ -8,13 +8,12 @@ Launcher hinterlässt, steht in [CONTRACT.md](CONTRACT.md).
 Stand: Gerüst aus Arbeitspaket S-WP2, Block 1 (Downloads, TP-10 bis TP-17) aus S-WP3, Block 2
 (Kompatibilität und Grafik, TP-20 bis TP-24) aus S-WP4, Block 3 (Build und Log, TP-30) aus S-WP5,
 Block 4 (Installationseintrag und `install.ini`, TP-40 und TP-41) aus S-WP6, Block 5
-(Integritätsmanifest, TP-50) aus S-WP7.
+(Integritätsmanifest, TP-50) aus S-WP7, Block 6 (Umgebung, TP-60 bis TP-63) aus S-WP8.
 Ausgearbeitet sind die Server-Vorabprüfung [TP-00](#tp-00-server-vorabprüfung), die Fälle der
-Blöcke 1 bis 5 und der Grundablauf
+Blöcke 1 bis 6 und der Grundablauf
 [TP-70](#tp-70-grundablauf-installieren-starten-deinstallieren). Seit S-WP5 hat jeder
 Fall eine Priorität (P1 bis P3, [Abschnitt 4](#4-vorlage-je-fall)).
-Jedes weitere Arbeitspaket (S-WP8) arbeitet die Fälle seines Blocks aus, S-WP9
-vervollständigt den Plan. Fälle, die noch nicht ausgearbeitet sind, tragen den Status
+S-WP9 arbeitet die übrigen Fälle aus und vervollständigt den Plan. Fälle, die noch nicht ausgearbeitet sind, tragen den Status
 `geplant: S-WPx`. `ci/check_test_plan.py` prüft die Form dieses Dokuments (siehe
 [Abschnitt 10](#10-automatische-prüfung-dieses-dokuments)).
 
@@ -95,7 +94,7 @@ Nummer ihres Blocks.
 | TP-3x | Build und Log | S-WP5 | SHA-256-Dateien der Setups und Setup-Log ohne `/LOG`, auch bei Over-the-Shoulder-Erhöhung (TP-30) |
 | TP-4x | Installationseintrag und `install.ini` | S-WP6 | Installationseintrag, `install.ini`, Defaults-Marker, `SetupBuild` und der Wert `Empire Earth Community: ContractVersion` im Uninstall-Schlüssel je Variante, auch bei schreibgeschützter oder geöffneter `install.ini` und nach dem Setup 1.7.2, Deinstallation (TP-40); Spieleinstellungen und Marker beim installierenden und bei einem zweiten Konto, Over-the-Shoulder-Erhöhung (TP-41) |
 | TP-5x | Integritätsmanifest | S-WP7 | `files.sha256` je Variante (Inhalt geprüft mit `Get-FileHash` bzw. `sha256sum -c`), von einem Virenscanner gelöschte Dateien mit Hinweis und `[MissingAfterInstall]`, eine gesperrte Datei, Dauer des Prüfens auf dem Laptop und auf HDD bzw. unter Windows 7 (TP-50) |
-| TP-6x | Umgebung | S-WP8 | niedrige Auflösung, fremde und alte Installationen, deren Ordner, EE und NeoEE in einem Ordner |
+| TP-6x | Umgebung | S-WP8 | Hinweis unter 768 Pixeln Höhe und Bildschirm, DPI und Spielfenster im Log (TP-60), fremde und alte Installationen: Schlüssel in HKLM, fremde Uninstall-Einträge, CD-Ordner, Wortlaut zu den CD-Keys (TP-61), EE und NeoEE in einem Ordner (TP-62), Installation in den Ordner einer GOG- oder CD-Installation (TP-63) |
 | TP-7x | Allgemeine Abläufe und Forumfälle | S-WP2, S-WP9 | Grundablauf, Standardnutzer, Version, Reparatur, Firewall, CD-Keys, Sprachen, laufendes Spiel |
 
 ## 4. Vorlage je Fall
@@ -1134,8 +1133,13 @@ Gemeinsam für alle Fälle dieses Blocks:
     groß“ oder „zu klein“. Passt das Bild nur mit `HIGHDPIAWARE` ((a) bzw. (d)), bekommt Vertrag 3.3
     den Hinweis, dass die Fenstergröße nur mit `HIGHDPIAWARE` passt (Vertrag O4); (c) ist dann die
     bekannte Folge von ADR 0005 für Windows 7, die (d) mit der freiwilligen Aufgabe beheben soll (README).
-- **Log-Hinweis:** Das Setup schreibt die Bildschirmgröße nicht ins Log; maßgeblich sind die
-  Registry-Werte aus Schritt 2. Bei (c) zusätzlich die Zeilen aus [TP-20](#tp-20-windows-7-neuinstallation-ohne-kompatibilitätswerte-und-mit-compatibility_legacy-nur-vm) (a),
+- **Log-Hinweis:** Seit S-WP8 steht am Anfang jedes Logs die Zeile
+  `Screen: <Breite> x <Höhe> pixels (primary screen, SM_CXSCREEN x SM_CYSCREEN), <dpi> DPI
+  (LOGPIXELSX, <p> % scaling), game window <Breite> x <Höhe>` ([TP-60](#tp-60-niedrige-bildschirmauflösung)):
+  bei 150 % `144 DPI (LOGPIXELSX, 150 % scaling)` und die physische Auflösung, das Spielfenster
+  gleich den Registry-Werten aus Schritt 2. Zeigt sie 96 DPI und die logische Auflösung (bei
+  1920 × 1080 also 1280 x 720), ist das ein Befund zu Vertrag O4. Bei (c) zusätzlich die Zeilen aus
+  [TP-20](#tp-20-windows-7-neuinstallation-ohne-kompatibilitätswerte-und-mit-compatibility_legacy-nur-vm) (a),
   bei (d) die aus TP-20 (d).
 
 ### Block 3: Build und Log (S-WP5)
@@ -1607,41 +1611,294 @@ Zeile mit `Get-FileHash`; wer Git für Windows installiert hat, kann im Installa
 
 ### Block 6: Umgebung (S-WP8)
 
-S-WP8 arbeitet hier aus, was ADR 0007 verlangt: Hinweis bei einer Bildschirmhöhe unter 768,
-gefundene fremde oder alte Installationen, Fragen `ForeignFolderQuestion` und
-`SharedFolderQuestion`, im Silent-Modus nur Log.
+Was ADR 0007 verlangt und nur auf Windows prüfbar ist: der Hinweis `LowScreenResolution` bei einer
+Bildschirmhöhe unter 768 Pixeln und die Zeile mit Bildschirmgröße, DPI und Spielfenster in jedem
+Log (TP-60); beim Verlassen der Ordnerseite einmal je Lauf der Hinweis `ForeignInstallFound` auf
+Schlüssel alter oder fremder Installationen in HKLM (beide Registry-Ansichten), fremde
+Uninstall-Einträge und den Ordner der CD-Version, mit dem Rat, keine Registry-Schlüssel von Hand zu
+löschen (TP-61); die Fragen `SharedFolderQuestion` (der andere Community-Setup im gewählten Ordner,
+TP-62) und `ForeignFolderQuestion` (der Ordner einer fremden Installation, TP-63), beide mit „Ja“ =
+anderen Ordner wählen als Vorgabe. Alle Prüfungen lesen nur; still (`/VERYSILENT`, `/SILENT`) und
+mit `/SUPPRESSMSGBOXES` erscheint nichts, das Log nennt jeden Fund, und die Installation läuft
+weiter. Bei einem Update überspringt Inno Setup die Ordnerseite und damit diese Prüfungen.
+Die Logik prüfen zusätzlich die Unit-Tests (Fenstergröße, Ordnervergleich, Uninstall-Einträge) und
+eine Wine-Probe der Analyse in einem 64- und einem 32-Bit-Präfix (ADR 0007, „Implementation“).
+
+Die Fälle legen Schlüssel und Einträge mit `reg add` in einer **Administrator**-Eingabeaufforderung
+an und entfernen sie danach wieder mit `reg delete`. Nur die hier genannten Testschlüssel löschen,
+nie `Software\Sierra` oder einen Teil davon (Regel 3). Ein Wert, der mit `\` endet, braucht vor dem
+schließenden Anführungszeichen `\\` (sonst liest `reg.exe` das Zeichen als Anführungszeichen); die
+Befehle unten lassen den abschließenden `\` deshalb weg.
 
 #### TP-60: Niedrige Bildschirmauflösung
 
-- **Status:** geplant: S-WP8
+- **Status:** ausgearbeitet
 - **Priorität:** P2
-- **Bezug:** R13, ADR 0007 (Punkt 1); Forum §8 Nr. 6 (t=3863, t=5831)
-- **Ziel:** Unter 768 Pixeln Höhe warnt das Setup; die Fenstergröße bleibt auf 1024 bis 1920 mal
-  768 bis 1080 begrenzt.
+- **Bezug:** R13, ADR 0007 (Punkt 1), Vertrag 3.3 und O4, Entscheidung K13 der Planrevision; Forum
+  §8 Nr. 6 (t=3863 p=26167: Netbook mit 1024 × 600, Absturz nach dem Intro; t=5831 p=39111:
+  2560 × 1600 startet nicht)
+- **Ziel:** Unter 768 Pixeln Bildschirmhöhe zeigt das Setup den Hinweis `LowScreenResolution` (nicht
+  im Silent-Modus), die Fenstergröße bleibt auf 1024 bis 1920 mal 768 bis 1080 begrenzt, und jedes
+  Log nennt Bildschirmgröße, DPI und Spielfenster.
+- **Build-Art:** A oder B (Schritt 6 nur B)
+- **Ausgangszustand:** kein Empire Earth installiert; eine VM, deren Auflösung sich frei einstellen
+  lässt. 1024 × 600 bietet Windows in *Einstellungen › System › Anzeige* meist nicht an:
+  VirtualBox `VBoxManage controlvm <VM> setvideomodehint 1024 600 32`, Hyper-V *Ansicht ›
+  Bildschirmauflösung* bzw. `Set-VMVideo -VMName <VM> -HorizontalResolution 1024 -VerticalResolution 600 -ResolutionType Single`
+  (VM aus); sonst 800 × 600.
+- **Snapshot:** `S-Basis` (oder `S-Sandbox` für (a) bis (c)); `Laptop` für (d) mit Weg B
+- **Varianten:** (a) EE-admin bei 1024 × 600 (oder 800 × 600), (b) EE-admin bei 1366 × 768, (c)
+  EE-user still bei 1024 × 600, (d) EE-admin auf einem Bildschirm über 1920 × 1080 oder mit 150 %
+  Skalierung. NeoEE und portable nutzen denselben Code (`environment.iss`) und werden nicht wiederholt.
+- **Schritte:**
+  1. (a) Auflösung 1024 × 600 einstellen. Setup mit
+     `/LOG="C:\EE-Test\logs\TP-60a_EE-admin.log"` starten, Sprache Deutsch. Nach der Rechtsfrage und
+     der Warnung des Testbuilds (bei „Nur für mich installieren“ auch nach dem Hinweis zum
+     Benutzermodus), vor dem Assistenten, erscheint der Hinweis: abfotografieren, „OK“, normal
+     installieren (Telemetrie aus).
+  2. Abfragen:
+
+     ```bat
+     reg query "HKCU\Software\SSSI\Empire Earth" /v "Game Window Width"
+     reg query "HKCU\Software\SSSI\Empire Earth" /v "Game Window Height"
+     reg query "HKCU\Software\Mad Doc Software\EE-AOC" /v "Game Window Height"
+     findstr /c:"Screen:" /c:"lower than" /c:"LowScreenResolution" C:\EE-Test\logs\TP-60a_EE-admin.log
+     ```
+
+     (hexadezimal: `0x400` = 1024, `0x300` = 768, `0x556` = 1366, `0x780` = 1920, `0x438` = 1080).
+  3. (b) Snapshot zurücksetzen, Auflösung 1366 × 768, Setup mit `TP-60b` im Log-Namen, Abfragen
+     wie in Schritt 2.
+  4. (c) Snapshot zurücksetzen, 1024 × 600:
+     `<Setup>.exe /VERYSILENT /SUPPRESSMSGBOXES /CURRENTUSER /LOG="C:\EE-Test\logs\TP-60c_EE-user.log"`,
+     danach Schritt 2 mit `TP-60c_EE-user.log`.
+  5. (d) Auf dem Laptop (Weg B) oder einer VM mit 2560 × 1440 bzw. mit 150 % Skalierung (dann wie
+     [TP-24](#tp-24-150--anzeigeskalierung-mit-und-ohne-aufgabe-compatibility)): Setup mit `TP-60d`,
+     Schritt 2.
+  6. Nur Weg B: nach (a) Empire Earth starten und notieren, ob das Hauptmenü passt oder abgeschnitten
+     ist und ob das Spiel nach dem Intro abstürzt; nach (d) prüfen, ob das Spiel mit 1920 × 1080
+     startet, dann im Spiel eine höhere Auflösung wählen (falls angeboten) und notieren, ob es
+     abstürzt (Forum §8 Nr. 6: die Begrenzung schützt nur den ersten Start). Beides sind Befunde.
+- **Erwartetes Ergebnis:**
+  - (a) Hinweis (Infosymbol): „Ihr Bildschirm hat 1024 x 600 Pixel. Die Menüs von Empire Earth
+    brauchen einen Bildschirm mit mindestens 768 Pixeln Höhe, daher stellt das Setup das
+    Spielfenster auf 1024 x 768 Pixel: …“ mit dem Rat zur Skalierung im Grafiktreiber oder zu einem
+    DirectX-Wrapper; danach läuft die Installation normal weiter. `Game Window Width` `0x400`,
+    `Game Window Height` `0x300`, für EE und AoC. Bei 800 × 600 dieselben Werte.
+  - (b) Kein Hinweis; `0x556` und `0x300`.
+  - (c) Kein Fenster, Installation vollständig, Werte wie (a).
+  - (d) `0x780` und `0x438`; bei 150 % ist die Breite die physische (siehe TP-24).
+  - Jedes Log hat genau eine Zeile `Screen: …`, deren Spielfenster den Registry-Werten entspricht.
+- **Log-Hinweis:** (a) `Screen: 1024 x 600 pixels (primary screen, SM_CXSCREEN x SM_CYSCREEN), 96 DPI
+  (LOGPIXELSX, 100 % scaling), game window 1024 x 768` und `The screen is lower than 768 pixels
+  (1024 x 600): the game window is set to 1024 x 768, the menus may not fit (notice
+  LowScreenResolution)`; (c) zusätzlich `Notice LowScreenResolution not shown (silent installation or
+  /SUPPRESSMSGBOXES)`; (b) nur die Zeile `Screen: 1366 x 768 pixels …, game window 1366 x 768`.
 
 #### TP-61: Alte Installation vorhanden
 
-- **Status:** geplant: S-WP8
-- **Priorität:** P2
-- **Bezug:** R12, ADR 0007 (Punkt 2); Forum §8 Nr. 8 (t=1036 p=4756, t=12082 p=49553)
-- **Ziel:** Das Setup meldet eine alte CD- oder GOG-Installation, ändert nichts an ihr und
-  erwähnt, dass `Software\Sierra\CDKeys` beim Aufräumen bleiben muss.
+- **Status:** ausgearbeitet
+- **Priorität:** P1 (Teile a bis c mit `reg add`, je wenige Minuten in der Windows-Sandbox, weil
+  der Hinweis die NeoEE-CD-Keys nennt und vor jeder Freigabe stimmen muss; Teil d mit einer echten
+  CD- oder GOG-Installation: P3; Teil e: P2)
+- **Bezug:** R12, ADR 0007 (Punkt 2), Entscheidungen K3 und K15 der Planrevision, Vertrag 0
+  (Herausgeber) und 1.4; Forum §8 Nr. 8 (t=1036 p=4756, t=12082 p=49553), Bericht 4.7 und 4.8
+  (t=2847 p=19589: verwaiste Einträge, Setups bieten nur „Reparieren/Entfernen“), t=10577 p=46302
+  (der störende Schlüssel lag „in a "Neo" directory“), Bericht 4.19 (t=10950, t=11021: CD-Keys weg
+  nach Löschen von `Software\Sierra`)
+- **Ziel:** Das Setup meldet Schlüssel alter Installationen in HKLM (auch alte NeoEE-Schlüssel),
+  fremde Uninstall-Einträge und den Ordner der CD-Version einmal je Lauf, rät davon ab,
+  Registry-Schlüssel von Hand zu löschen, nennt die NeoEE-CD-Keys und den Launcher, ändert nichts
+  und meldet keine Community-Installationen.
+- **Build-Art:** A oder B (Teil e nur B)
+- **Ausgangszustand:** (a) bis (c): kein Empire Earth installiert, keine Schlüssel
+  `HKLM\SOFTWARE\SSSI`, `HKLM\SOFTWARE\Mad Doc Software`, `HKLM\SOFTWARE\Neo` (in beiden Ansichten:
+  `/reg:32` und `/reg:64`). (d): eine echte alte Installation (Original-CD unter
+  `C:\Sierra\Empire Earth` oder die GOG-Version). (e): Internet für die CD-Keys.
+- **Snapshot:** `S-Sandbox` oder `S-Basis` für (a) bis (c), `S-Basis` für (e), `S-Alt` für (d)
+- **Varianten:** (a) EE-admin, (b) EE-admin, (c) NeoEE-user, sichtbar und still (HKLM wird auch
+  ohne Administratorrechte gelesen), (d) EE-admin, (e) NeoEE-admin mit CD-Keys, danach EE-admin.
+  Portable nutzt denselben Code.
+- **Schritte:**
+  1. (a) In einer Administrator-Eingabeaufforderung einen alten NeoEE-Schlüssel (32-Bit-Ansicht, wie
+     das alte NeoEE-Installationsprogramm), einen fremden Uninstall-Eintrag (wie GOG) und den Ordner
+     der CD-Version anlegen:
+
+     ```bat
+     reg add "HKLM\SOFTWARE\Neo\Empire Earth" /reg:32 /v "Installed From Volume" /d "C:" /f
+     reg add "HKLM\SOFTWARE\Neo\Empire Earth" /reg:32 /v "Installed From Directory" /d "\SIERRA\EMPIRE EARTH" /f
+     reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\EE-Test-GOG" /reg:32 /v DisplayName /d "Empire Earth Gold Edition" /f
+     reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\EE-Test-GOG" /reg:32 /v Publisher /d "GOG.com" /f
+     reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\EE-Test-GOG" /reg:32 /v InstallLocation /d "C:\GOG Games\Empire Earth Gold" /f
+     mkdir "C:\Sierra\Empire Earth"
+     ```
+
+     Dann EE-admin mit `/LOG="C:\EE-Test\logs\TP-61a_EE-admin.log"` starten (Sprache Deutsch), auf
+     der Ordnerseite den Standardordner lassen und „Weiter“: der Hinweis erscheint, abfotografieren,
+     „OK“. Mit „Zurück“ auf die Ordnerseite und wieder „Weiter“: kein zweiter Hinweis. Installieren.
+  2. Prüfen, dass das Setup nichts geändert hat:
+     `reg query "HKLM\SOFTWARE\Neo\Empire Earth" /reg:32`,
+     `reg query "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\EE-Test-GOG" /reg:32`,
+     `dir "C:\Sierra"`.
+  3. (b) Snapshot zurücksetzen (bzw. die Testeinträge aus Schritt 5 entfernen). Nur Einträge, die
+     **nicht** gemeldet werden dürfen: eine Community-Installation mit fremder AppId (Herausgeber der
+     Community) und Empire Earth II (ein anderes Spiel):
+
+     ```bat
+     reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\EE-Test-Community" /reg:32 /v DisplayName /d "Empire Earth v2.0.0.0 - Setup v1.7.2" /f
+     reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\EE-Test-Community" /reg:32 /v Publisher /d "Empire Earth Community" /f
+     reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\EE-Test-EE2" /reg:32 /v DisplayName /d "Empire Earth II" /f
+     reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\EE-Test-EE2" /reg:32 /v Publisher /d "Sierra Entertainment" /f
+     ```
+
+     EE-admin mit `TP-61b` im Log-Namen installieren.
+  4. (c) Die Einträge aus Schritt 1 wieder anlegen. NeoEE-user („Nur für mich installieren“) mit
+     `TP-61c` im Log-Namen bis zur Ordnerseite und „Weiter“, dann abbrechen; danach still:
+     `<NeoEE-Setup>.exe /VERYSILENT /SUPPRESSMSGBOXES /CURRENTUSER /LOG="C:\EE-Test\logs\TP-61c_NeoEE-user-silent.log"`.
+  5. Aufräumen (nur die Testeinträge, nie `Software\Sierra`):
+
+     ```bat
+     reg delete "HKLM\SOFTWARE\Neo\Empire Earth" /reg:32 /f
+     reg delete "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\EE-Test-GOG" /reg:32 /f
+     reg delete "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\EE-Test-Community" /reg:32 /f
+     reg delete "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\EE-Test-EE2" /reg:32 /f
+     rmdir "C:\Sierra\Empire Earth" & rmdir "C:\Sierra"
+     ```
+
+     (`HKLM\SOFTWARE\Neo` bleibt als leerer Schlüssel stehen, wenn er vorher nicht da war:
+     `reg delete "HKLM\SOFTWARE\Neo" /reg:32 /f` nur dann.)
+  6. (d) Auf `S-Alt` EE-admin installieren (Standardordner). Welche Zeilen der Hinweis zeigt, ins
+     Protokoll; danach die alte Installation einmal starten (sie muss unverändert laufen).
+  7. (e) Fehlalarm-Probe zu K3: NeoEE-admin mit der Aufgabe „NeoEE-CD-Keys registrieren“ installieren
+     (Weg B, Netz nötig), dann `reg query "HKLM\SOFTWARE\Neo" /s /reg:32` und
+     `reg query "HKLM\SOFTWARE\Neo" /s /reg:64`; danach EE-admin in seinen eigenen Standardordner
+     installieren (`TP-61e` im Log-Namen).
+- **Erwartetes Ergebnis:**
+  - (a) Nach „Weiter“ auf der Ordnerseite genau ein Hinweis (Infosymbol): „Das Setup hat Spuren einer
+    anderen Empire-Earth-Installation auf diesem Computer gefunden, zum Beispiel der Original-CD, von
+    GOG oder eines älteren NeoEE-Installationsprogramms:“ mit den Zeilen
+    `HKLM\Software\WOW6432Node\Neo\Empire Earth: C:\SIERRA\EMPIRE EARTH` (32-Bit-Windows: ohne
+    `WOW6432Node`) und `Empire Earth Gold Edition: C:\GOG Games\Empire Earth Gold`, dann „Das
+    Community-Setup installiert eine eigene Kopie und ändert nichts an der anderen Installation. …“
+    und wörtlich: „Bitte keine Registry-Schlüssel von Hand löschen; Software\Sierra\CDKeys enthält
+    die NeoEE-CD-Keys. Der Empire Earth Launcher bietet eine Bereinigung mit Sicherung an.“ Keine
+    Frage (der Standardordner gehört keiner fremden Installation). Kein zweiter Hinweis nach
+    „Zurück“/„Weiter“. Schritt 2: Schlüssel, Eintrag und Ordner unverändert.
+  - (b) Kein Hinweis.
+  - (c) Derselbe Hinweis wie (a), auch ohne Administratorrechte; still kein Fenster, die Installation
+    läuft durch.
+  - (d) Der Hinweis nennt die echte alte Installation (Befund: welche Zeilen); sie läuft danach
+    unverändert.
+  - (e) `HKLM\SOFTWARE\Neo` gibt es in keiner Ansicht, und EE-admin zeigt keinen Hinweis. Findet
+    sich doch ein `Neo`-Schlüssel (dann vermutlich von `authtools.dll`, Vertrag O8), ist das ein
+    Befund: die Prüfung braucht eine Ausnahme, bevor das Setup freigegeben wird.
+- **Log-Hinweis:** `Checking the chosen folder …`, je Fund eine Zeile `Foreign or old installation:
+  registry key HKLM\Software\WOW6432Node\Neo\Empire Earth: C:\SIERRA\EMPIRE EARTH`, `Foreign or old
+  installation: folder C:\Sierra\Empire Earth (already named by a registry key above)` und `Foreign
+  or old installation: uninstall entry HKLM\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\EE-Test-GOG,
+  DisplayName "Empire Earth Gold Edition", Publisher "GOG.com", InstallLocation "C:\GOG Games\Empire
+  Earth Gold"`, dann `Checked <n> uninstall entries of HKLM in <ms> ms` (Anzahl und Dauer ins
+  Protokoll) und `2 traces of foreign or old installations found, 1 of their folders exist (notice
+  ForeignInstallFound)`; still zusätzlich `Notice ForeignInstallFound not shown (silent installation
+  or /SUPPRESSMSGBOXES)`. (b) und (e): `No foreign or old installation of Empire Earth found`.
 
 #### TP-62: EE und NeoEE im selben Ordner
 
-- **Status:** geplant: S-WP8
-- **Priorität:** P2
-- **Bezug:** ADR 0007 (Punkt 3), Vertrag O11; Forum §8 Nr. 9
-- **Ziel:** Die Frage `SharedFolderQuestion` erscheint, und die Folgen (Integritätsprüfung,
-  Deinstallation, Firewall-Regeln) treten wie beschrieben ein.
+- **Status:** ausgearbeitet
+- **Priorität:** P2 (Teil d mit dem offiziellen Setup 1.7.2: P3)
+- **Bezug:** ADR 0007 (Punkt 3), Vertrag O11 und 1.4 (zwei Produkte in einer Wurzel); Forum §8
+  Nr. 9 (t=4723 p=33045: Parallelinstallationen, getrennte Ordner)
+- **Ziel:** Wer EE und NeoEE in denselben Ordner installieren will, bekommt die Frage
+  `SharedFolderQuestion` mit „Ja“ = anderen Ordner wählen als Vorgabe; „Ja“ bleibt auf der
+  Ordnerseite, „Nein“ installiert; die genannten Folgen (Deinstallation, Firewall-Regeln) treten ein.
+- **Build-Art:** A oder B (Teil d nur B)
+- **Ausgangszustand:** (a) bis (c): kein Empire Earth installiert. (d): offizielles NeoEE-Setup 1.7.2
+  installiert.
+- **Snapshot:** `S-Basis` (oder `S-Sandbox`) für (a) bis (c), `S-172-NeoEE` für (d)
+- **Varianten:** (a) EE-admin, dann NeoEE-admin in denselben Ordner; (b) EE-portable, dann
+  NeoEE-portable in denselben Ordner; (c) wie (a) still; (d) EE-admin dieses Testbuilds in den
+  Ordner der NeoEE-1.7.2-Installation.
+- **Schritte:**
+  1. (a) EE-admin im Standardordner `C:\Program Files (x86)\Empire Earth` installieren, mit
+     „Firewall-Ausnahme“. Dann NeoEE-admin mit `/LOG="C:\EE-Test\logs\TP-62a_NeoEE-admin.log"`
+     starten, auf der Ordnerseite `C:\Program Files (x86)\Empire Earth` eintragen, „Weiter“: die
+     Frage erscheint, abfotografieren, mit Enter beantworten („Ja“ ist vorgewählt). Erneut „Weiter“,
+     diesmal „Nein“, installieren (mit „Firewall-Ausnahme“).
+  2. Folgen ansehen: `dir /a "C:\Program Files (x86)\Empire Earth"` (beide `_setupdata_…`-Ordner und
+     zwei Deinstallationsprogramme, `unins000` und `unins001`);
+     `netsh advfirewall firewall show rule name=all | findstr /i /c:"Empire Earth"` notieren.
+     NeoEE deinstallieren (*Einstellungen › Apps*), dann
+     `dir "C:\Program Files (x86)\Empire Earth\Empire Earth\Empire Earth.exe"` und die
+     `netsh`-Zeile wiederholen.
+  3. (b) Snapshot zurücksetzen. EE-portable nach `C:\EE-Test\Gemeinsam` installieren, dann
+     NeoEE-portable mit `TP-62b` im Log-Namen auf denselben Ordner: Frage, „Nein“, installieren.
+  4. (c) Snapshot zurücksetzen, EE-admin wie in (a), dann
+     `<NeoEE-Setup>.exe /VERYSILENT /SUPPRESSMSGBOXES /DIR="C:\Program Files (x86)\Empire Earth" /LOG="C:\EE-Test\logs\TP-62c_NeoEE-admin.log"`.
+  5. (d) Nur Weg B, auf `S-172-NeoEE`: EE-admin dieses Testbuilds starten und den Ordner der
+     NeoEE-Installation (`C:\Program Files (x86)\Neo Empire Earth`) eintragen, „Weiter“, „Ja“.
+- **Erwartetes Ergebnis:**
+  - (a) Frage (Fragezeichen-Symbol): „Der gewählte Ordner enthält bereits Empire Earth, installiert
+    vom anderen Community-Setup: …“ mit den Folgen (der Launcher kann die installierten Dateien
+    nicht mehr prüfen, die Deinstallation des einen entfernt auch Dateien und die Firewall-Regeln
+    des anderen) und „Möchten Sie einen anderen Ordner wählen (empfohlen)?“. „Ja“ ist vorgewählt
+    und lässt die Ordnerseite stehen; „Nein“ installiert. Nach der Deinstallation von NeoEE fehlt
+    `Empire Earth.exe` (oder ist nicht mehr die EE-Version) und die Firewall-Regeln für
+    `…\Empire Earth\Empire Earth.exe` sind weg: genau die Folgen, die die Frage nennt.
+  - (b) Dieselbe Frage (gefunden über `_setupdata_EE`).
+  - (c) Kein Fenster, die Installation läuft durch.
+  - (d) Dieselbe Frage mit „NeoEE“ (1.7.2 hat noch keinen Ordner `_setupdata_NeoEE`; gefunden über
+    seinen Setup-Datenordner `<AppId>` oder `Inno Setup: App Path` seines Uninstall-Schlüssels).
+- **Log-Hinweis:** (a) `The folder C:\Program Files (x86)\Empire Earth already holds Empire Earth:
+  C:\Program Files (x86)\Empire Earth\_setupdata_EE exists (question SharedFolderQuestion)`,
+  `SharedFolderQuestion: Yes, the user chooses another folder`, beim zweiten Mal `SharedFolderQuestion:
+  No, the user installs into this folder anyway`; (c) `Question SharedFolderQuestion not asked (silent
+  installation or /SUPPRESSMSGBOXES), the installation continues`; (d) `… already holds NeoEE: …\<AppId>
+  (setup data folder of a setup up to 1.7.2) exists …` (oder `the uninstall key of the other product
+  names it as Inno Setup: App Path`).
 
 #### TP-63: Installation in den Ordner einer GOG- oder CD-Installation
 
-- **Status:** geplant: S-WP8
-- **Priorität:** P2
-- **Bezug:** ADR 0007 (Punkt 4); Forum §8 Nr. 21 (t=5733, t=5727, t=12082)
-- **Ziel:** Die Frage `ForeignFolderQuestion` erscheint mit „anderen Ordner wählen“ als Vorgabe;
-  in einen eigenen Ordner installiert, laufen GOG- und Community-Version nebeneinander.
+- **Status:** ausgearbeitet
+- **Priorität:** P2 (Teil b mit einer echten GOG-Installation: P3)
+- **Bezug:** R12, ADR 0007 (Punkt 4); Forum §8 Nr. 21 (t=5733: AoC nicht erkannt, t=5727 und
+  t=12082: Absturz nach dem Startbild der GOG-Version), t=5825 p=39087 (Spiel nach
+  `X:\Sierra\Empire Earth` kopiert, damit ein Installationsprogramm es findet)
+- **Ziel:** Wer in den Ordner einer fremden Installation installieren will, bekommt die Frage
+  `ForeignFolderQuestion` mit „anderen Ordner wählen“ als Vorgabe; `C:\Sierra2` gilt nicht als Teil
+  von `C:\Sierra`; in einem eigenen Ordner laufen GOG- und Community-Version nebeneinander.
+- **Build-Art:** A oder B (Teil b nur B)
+- **Ausgangszustand:** (a) und (c): die Einträge aus [TP-61](#tp-61-alte-installation-vorhanden)
+  Schritt 1, dazu `mkdir "C:\GOG Games\Empire Earth Gold"` und `mkdir C:\Sierra2`. (b): eine echte
+  GOG-Installation.
+- **Snapshot:** `S-Sandbox` oder `S-Basis` für (a) und (c), `S-Alt` mit GOG-Version für (b)
+- **Varianten:** (a) EE-admin, (b) EE-admin, (c) EE-admin still. NeoEE nutzt denselben Code.
+- **Schritte:**
+  1. (a) EE-admin mit `/LOG="C:\EE-Test\logs\TP-63a_EE-admin.log"` starten, auf der Ordnerseite
+     `C:\Sierra` eintragen, „Weiter“: nach dem Hinweis aus TP-61 kommt die Frage; mit Enter („Ja“)
+     beantworten. Dann `C:\Sierra2` eintragen, „Weiter“: keine Frage, mit „Zurück“ zurück zur
+     Ordnerseite. Dann `C:\GOG Games\Empire Earth Gold` eintragen, „Weiter“: Frage, „Nein“,
+     installieren. Danach `dir "C:\GOG Games\Empire Earth Gold"`.
+  2. (b) Nur Weg B, auf `S-Alt` mit der GOG-Version: auf der Ordnerseite den GOG-Ordner eintragen,
+     „Weiter“: Frage, „Ja“; dann den Standardordner lassen und installieren. Die GOG-Version und die
+     Community-Version abwechselnd starten (EE und AoC) und notieren, welche Installation AoC startet.
+  3. (c) `<Setup>.exe /VERYSILENT /SUPPRESSMSGBOXES /DIR="C:\Sierra" /LOG="C:\EE-Test\logs\TP-63c_EE-admin.log"`.
+  4. Aufräumen wie in TP-61 Schritt 5, dazu `rmdir C:\Sierra2` und den Ordner `C:\GOG Games` (nur
+     wenn er für diesen Test angelegt wurde) und die Testinstallation deinstallieren.
+- **Erwartetes Ergebnis:**
+  - (a) Bei `C:\Sierra`: Frage (Fragezeichen-Symbol) „Der gewählte Ordner gehört zu einer anderen
+    Empire-Earth-Installation (zum Beispiel der Original-CD oder von GOG): C:\SIERRA\EMPIRE EARTH …“
+    mit „Ja: zurück zur Ordnerauswahl. Nein: trotzdem in C:\Sierra installieren.“; „Ja“ ist
+    vorgewählt und lässt die Ordnerseite stehen. Bei `C:\Sierra2` keine Frage. Beim GOG-Ordner
+    dieselbe Frage mit `C:\GOG Games\Empire Earth Gold` (aus `InstallLocation`); nach „Nein“ liegt
+    `Empire Earth` im GOG-Ordner.
+  - (b) Die Frage erscheint; im eigenen Ordner installiert, starten beide Versionen (Befund: welche
+    Installation AoC startet, Absturz nach dem Startbild ja/nein, fehlende Menütexte ja/nein).
+  - (c) Kein Fenster, die Installation läuft durch.
+- **Log-Hinweis:** `The game folders in C:\Sierra would be, contain or lie in the folder of a foreign
+  or old installation: C:\SIERRA\EMPIRE EARTH (question ForeignFolderQuestion)`, `ForeignFolderQuestion:
+  Yes, the user chooses another folder`, `ForeignFolderQuestion: No, the user installs into this folder
+  anyway`; dazwischen für `C:\Sierra2` nur `Checking the chosen folder C:\Sierra2`, ohne Frage; (c)
+  `Question ForeignFolderQuestion not asked (silent installation or /SUPPRESSMSGBOXES), the
+  installation continues`.
 
 ### Block 7: Allgemeine Abläufe und Forumfälle
 
@@ -1794,10 +2051,10 @@ echtes Windows“). „Launcher“ heißt: Der Fall prüft den Launcher und geh�
 | 3 | Grafikmatrix mit und ohne Wrapper | TP-23 | ausgearbeitet |
 | 4 | Farbtiefe 16 Bit, Reparatur stellt 32 Bit her | TP-73; Launcher: „Reset the Game“ (R4) | geplant: S-WP9 |
 | 5 | Kompatibilitätsflags, Windows 7 | TP-20, TP-21 (Windows 7), TP-22 (alle Aufgaben, ohne `compatibility_windows`, ohne beide) | ausgearbeitet |
-| 6 | Auflösungsgrenzen, 1024x600 | TP-60 | geplant: S-WP8 |
+| 6 | Auflösungsgrenzen, 1024x600 | TP-60 | ausgearbeitet |
 | 7 | AoC ohne vorherigen EE-Start | TP-74 | geplant: S-WP9 |
-| 8 | Alt-Installation (CD, GOG) vorhanden | TP-61; Launcher: welche Installation er erkennt (Vertrag 1.4) | geplant: S-WP8 |
-| 9 | EE und NeoEE parallel, eines deinstallieren | TP-62 (gleicher Ordner), TP-75 (getrennte Ordner) | geplant: S-WP8, S-WP9 |
+| 8 | Alt-Installation (CD, GOG) vorhanden | TP-61; Launcher: welche Installation er erkennt (Vertrag 1.4) | ausgearbeitet |
+| 9 | EE und NeoEE parallel, eines deinstallieren | TP-62 (gleicher Ordner), TP-75 (getrennte Ordner) | ausgearbeitet: TP-62; geplant: S-WP9 |
 | 10 | Firewall beim Hosten | TP-76 | geplant: S-WP9 |
 | 11 | Hosting-Varianten, Portweiterleitung, zwei PCs hinter einem Router | Launcher: Netzwerkdiagnose (R7); Router und Portweiterleitung liegen außerhalb des Setups, dessen Firewall-Regeln prüft TP-76 | Launcher |
 | 12 | Netzwerkadapter (VPN, Hamachi) | Launcher: Vergleich der Adapter (R7); das Setup wählt keinen Adapter | Launcher |
@@ -1809,7 +2066,7 @@ echtes Windows“). „Launcher“ heißt: Der Fall prüft den Launcher und geh�
 | 18 | Laufende Instanz | TP-79; Launcher: hängende Prozesse beim Start (R3) | geplant: S-WP9 |
 | 19 | Kampagnen-Tribut | entfällt: Spiellogik der installierten Spieldateien, die das Setup unverändert installiert und nicht prüfen kann; ob die erwartete Version installiert ist, zeigt TP-72 | entfällt |
 | 20 | Launcher: Spielerliste ohne Netz, beschädigte `user.config`, Pfad mit Umlauten | Launcher: der ganze Fall betrifft den Launcher | Launcher |
-| 21 | GOG als Basis | TP-63 | geplant: S-WP8 |
+| 21 | GOG als Basis | TP-63 | ausgearbeitet |
 | 22 | NeoEE-Wartungsmodus über kaputter Installation | TP-73 | geplant: S-WP9 |
 
 ## 9. Protokoll
