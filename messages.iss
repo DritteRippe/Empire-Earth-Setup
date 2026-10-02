@@ -142,6 +142,13 @@ zh_TW.UserInstallMode=你使用的是用户模式安装，这意味着你不需�
 %n请注意，这种模式不能在计算机的防火墙上注册游戏，这可能会妨碍你主持游戏（但你应该仍然能够加入游戏）。 \
 %n如果你在机器上有管理员权限，请选择管理员模式。
 
+; Checks before the installation (environment.iss, docs/adr/0007-environment-warnings.md)
+; Primary screen lower than 768 pixels (InitializeSetup): %1 x %2 = screen size in pixels,
+; %3 x %4 = the game window the setup sets
+LowScreenResolution=Your screen is %1 x %2 pixels. The menus of Empire Earth need a screen at least 768 pixels high, so the setup sets the game window to %3 x %4 pixels: the game may not fit on the screen or may crash after the intro.%n%nThe scaling of your graphics driver (for example "GPU scaling") or a DirectX wrapper can help. The installation continues.
+de.LowScreenResolution=Ihr Bildschirm hat %1 x %2 Pixel. Die Menüs von Empire Earth brauchen einen Bildschirm mit mindestens 768 Pixeln Höhe, daher stellt das Setup das Spielfenster auf %3 x %4 Pixel: Das Spiel passt möglicherweise nicht auf den Bildschirm oder stürzt nach dem Intro ab.%n%nDie Skalierung Ihres Grafiktreibers (zum Beispiel „GPU-Skalierung“) oder ein DirectX-Wrapper kann helfen. Die Installation wird fortgesetzt.
+fr.LowScreenResolution=Votre écran fait %1 x %2 pixels. Les menus d'Empire Earth ont besoin d'un écran d'au moins 768 pixels de haut, le programme d'installation règle donc la fenêtre du jeu sur %3 x %4 pixels : le jeu risque de ne pas tenir à l'écran ou de planter après l'introduction.%n%nLa mise à l'échelle de votre pilote graphique (par exemple « mise à l'échelle GPU ») ou un wrapper DirectX peut aider. L'installation continue.
+
 ; Online files (RegisterOnlineFiles, downloads.iss)
 ; Neither file server answered over https with a valid certificate (SelectOnlineFilesServer)
 OnlineFilesUnreachable=The servers of the localized files could not be reached, or they did not present a valid security certificate (a problem of the servers, not of your computer).%n%nThe game is installed with the files included in this setup, so some content (for example voices and campaigns) may stay in English. To add the localized files, run this setup again later.

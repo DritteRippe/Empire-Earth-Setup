@@ -1197,6 +1197,8 @@ Filename: "{tmp}\directx\dxwebsetup.exe"; Parameters: "/Q"; Flags: runhidden; Ta
 //   downloads.iss   online localized files: policy, download page, downloads, verification
 //                   (needs utils.iss, extension.iss)
 //   randommaps.iss  random map scripts of the previous setup (needs extension.iss)
+//   environment.iss read-only checks before the installation: screen size, DPI and the notice for
+//                   a low screen (needs utils.iss, extension.iss)
 //   installstate.iss  install.ini, the integrity manifest files.sha256 and the contract version in
 //                   the uninstall key for the launcher; RecordInstalledFile, the AfterInstall of
 //                   [Files] (needs utils.iss, extension.iss)
@@ -1210,10 +1212,6 @@ Filename: "{tmp}\directx\dxwebsetup.exe"; Parameters: "/Q"; Flags: runhidden; Ta
     external 'generate_cdkeys@files:authtools.dll cdecl setuponly delayload';
 #endif
 
-// Screen size for the default game window (GetScreenResolutionWidth/Height)
-function GetSystemMetrics(nIndex: Integer): Integer;
-    external 'GetSystemMetrics@user32.dll stdcall';
-
 var
   // The game languages (GameLangs), filled by RegisterLangs; used by pages.iss
   Langs: TStringList;
@@ -1224,6 +1222,7 @@ var
 #include "pages.iss"
 #include "downloads.iss"
 #include "randommaps.iss"
+#include "environment.iss"
 #include "installstate.iss"
 
 // [Registry] value of the compatibility entries, from the selected tasks (BuildCompatibilityFlags,
@@ -1254,14 +1253,9 @@ begin
   Result := UpperCase(GetInstallWithoutDriveLetter(Param));
 end;
 
-const
-  // GetSystemMetrics indexes (Win32 API): width and height of the primary screen
-  SM_CXSCREEN = 0;
-  SM_CYSCREEN = 1;
-
-// [Registry] Game Window Height and Game Window Width: the size of the primary screen within the
-// limits of contract 3.3 (ClampGameWindowHeight/Width and MinGameWindowWidth ... MaxGameWindowHeight
-// in utils.iss)
+// [Registry] Game Window Height and Game Window Width: the size of the primary screen
+// (GetSystemMetrics, environment.iss) within the limits of contract 3.3 (ClampGameWindowHeight/Width
+// and MinGameWindowWidth ... MaxGameWindowHeight in utils.iss)
 function GetScreenResolutionHeight(Param: String): String;
 begin
   Result := IntToStr(ClampGameWindowHeight(GetSystemMetrics(SM_CYSCREEN)));
@@ -1473,7 +1467,8 @@ begin
 end;
 #endif
 
-// Before the wizard: setup music, update check and the questions that can end the setup
+// Before the wizard: setup music, update check and the questions that can end the setup, the screen
+// in the log and the notice for a low screen
 function InitializeSetup: Boolean;
 begin
   Result := False;
@@ -1484,6 +1479,8 @@ begin
     bassInit();
   if (IsWine()) then
     Log('Wine detected v' + GetWineVersion());
+  // Always, also if the setup ends below (contract O4, ADR 0007 point 1)
+  LogScreenMetrics();
 
   if (UpdateRequested()) then
     Exit;
@@ -1494,6 +1491,7 @@ begin
 #endif
   if (not ConfirmInstallMode()) then
     Exit;
+  ShowLowScreenResolutionNotice();
 #if InstallType == "NeoEE"
   ShowWineNeoEEGuiNotice();
 #endif
