@@ -2502,8 +2502,9 @@ nur, ob es den Schlüssel gibt, nie seine Werte (Regel 3).
 - **Status:** ausgearbeitet
 - **Priorität:** P2 (Teil c mit einem zweiten Rechner: P3)
 - **Bezug:** Forum §8 Nr. 10 und Forumsbericht 4.9 (Ports 33334 bis 33336, t=4266 p=30400);
-  Problemabgleich Nr. 8; `setup_is6.iss` `FirewallAllowRules` (TCP und UDP, ein- und ausgehend,
-  `profile=any`, nur im Modus admin)
+  Problemabgleich Nr. 8; Vertrag 4.1 (Firewall-Regeln legt und repariert nur das Setup); ADR 0007
+  (die Regeln hängen am Programmpfad); `setup_is6.iss` `FirewallAllowRules` (TCP und UDP, ein- und
+  ausgehend, `profile=any`, nur im Modus admin)
 - **Ziel:** Mit der Aufgabe `firewallexception` legt das Setup für beide Programme Regeln für alle
   Netzwerkprofile an, und Mitspieler kommen ohne Firewall-Dialog ins gehostete Spiel, im Profil
   „Öffentlich“ wie „Privat“; ohne die Aufgabe gibt es keine Regeln, im Modus user gibt es die
