@@ -1199,7 +1199,8 @@ Filename: "{tmp}\directx\dxwebsetup.exe"; Parameters: "/Q"; Flags: runhidden; Ta
 //   randommaps.iss  random map scripts of the previous setup (needs utils.iss, extension.iss)
 //   environment.iss read-only checks before the installation: screen size, DPI and the notice for
 //                   a low screen; foreign or old installations, their folders and the folder of the
-//                   other product, when the folder page is left (needs utils.iss, extension.iss)
+//                   other product, when the folder page is left; links in Data and Users before an
+//                   elevated installation (needs utils.iss, extension.iss)
 //   installstate.iss  install.ini, the integrity manifest files.sha256 and the contract version in
 //                   the uninstall key for the launcher; RecordInstalledFile, the AfterInstall of
 //                   [Files] (needs utils.iss, extension.iss)
@@ -1908,6 +1909,20 @@ begin
     'Windows Vista/7 by default, checking ' + RootName + ' for values of earlier setups' + OptIn);
   RemoveLegacyVistaCompatValue(RootKey, RootName, ExpandConstant('{app}\{#EEExe}'), WizardIsComponentSelected('game'));
   RemoveLegacyVistaCompatValue(RootKey, RootName, ExpandConstant('{app}\{#AoCExe}'), WizardIsComponentSelected('gameaoc'));
+end;
+
+// After the Ready page and the downloads into {tmp}, before anything is changed: in administrative
+// install mode no installation through links in the folders all users can write to (Data, Users;
+// CheckGameFoldersForLinks, environment.iss, ADR 0009). A message stops the setup on the "Preparing
+// to install" page; a silent installation ends with exit code 7. The user and portable modes do not
+// elevate the setup and are not checked.
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+begin
+  Result := '';
+  if IsAdminInstallMode then
+    Result := CheckGameFoldersForLinks()
+  else
+    Log('Link check skipped: not the administrative install mode');
 end;
 
 // Installation steps

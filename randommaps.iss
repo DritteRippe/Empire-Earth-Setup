@@ -22,7 +22,9 @@
 // never follows a junction or symbolic link (reparse point): a random map folder that is one is
 // left alone, reparse points inside it are neither listed nor entered, and a file is only deleted
 // if no folder on its way is one. Otherwise a user could make the setup delete files or empty
-// folders anywhere, or loop endlessly through a link to a parent folder.
+// folders anywhere, or loop endlessly through a link to a parent folder. In administrative install
+// mode PrepareToInstall already stops the installation if a folder below Data is a link
+// (environment.iss, ADR 0009); these checks stay for the other modes and for a link made after it.
 // Requires: SetupDataDir, AppID, EEDir, AoCDir, RmsSubDir (ISPP, setup_is6.iss), IsReparsePoint
 // (utils.iss), SilentInstall, SuppressMsgBoxes (extension.iss), the messages RmsBackupKept,
 // RmsBackupNotRestored (messages.iss).

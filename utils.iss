@@ -1259,8 +1259,8 @@ end;
 
 const
   // The message LinkInGameFolder names at most this many folders (FormatFindingList): it is shown on
-  // the "Preparing to install" page, which has less room than a message box
-  LinkFindingsShownMax = 5;
+  // the "Preparing to install" page, which has no scroll bar and less room than a message box
+  LinkFindingsShownMax = 3;
 
 // True if Path is a junction, symbolic link or other reparse point
 function IsReparsePoint(const Path: String): Boolean;

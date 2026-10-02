@@ -1,7 +1,8 @@
 ﻿[Code]
-// Read-only checks before the installation (docs/adr/0007-environment-warnings.md). They never
-// write, delete or move anything, and they never block a silent installation: in silent mode and
-// with /SUPPRESSMSGBOXES they only log.
+// Read-only checks before the installation (docs/adr/0007-environment-warnings.md and, for the link
+// check, docs/adr/0009-no-installation-through-links.md). They never write, delete or move
+// anything. Only the link check can stop the installation; the others never block a silent
+// installation: in silent mode and with /SUPPRESSMSGBOXES they only log.
 //
 //  - InitializeSetup, always (LogScreenMetrics): the size of the primary screen, its DPI with the
 //    display scaling it means, and the game window the setup writes ([Registry] Game Window Width
@@ -25,16 +26,24 @@
 //    Inno Setup skips the folder page on an update (DisableDirPage auto with UsePreviousAppDir):
 //    then nothing of this runs; the folder was checked at the first installation. A registry key or
 //    folder that cannot be read counts as nothing found (logged).
+//  - PrepareToInstall, administrative install mode only (CheckGameFoldersForLinks): links in the
+//    folders all users can write to (ADR 0009). [Dirs] gives every user modify rights on Data and
+//    Users of both games, and the elevated setup writes below them; a junction or symbolic link
+//    there could redirect those writes outside the installation. If Data, Users or a folder below
+//    them is a link (or cannot be listed), the setup stops on the "Preparing to install" page with
+//    the message LinkInGameFolder before anything is changed (silent: exit code 7). Not in user and
+//    portable mode: there the setup does not elevate itself.
 //
 // Nothing here writes to the registry or the file system, and no key below Software\Sierra is read
 // (the NeoEE CD keys are there).
 // Requires: utils.iss (ClampGameWindowWidth/Height, MinGameWindowHeight, IsScreenTooLow,
 // FormatScreenMetrics, NormalizeFolderPath, IsSameOrInside, IsSameFolder, IsDriveRootOrEmpty,
 // InstalledFromFolder, FormatHklmKeyName, IsForeignUninstallEntry, UninstallKeysPath,
-// FormatFindingList, FindingsShownMax, GetOtherProductUninstallRegPath, GetTickCount, TicksSince),
-// extension.iss (SilentInstall, SuppressMsgBoxes), the messages LowScreenResolution,
-// ForeignInstallFound, ForeignFolderQuestion and SharedFolderQuestion (messages.iss); ISPP:
-// InstallType, OtherAppID, EEDir, AoCDir (setup_is6.iss, config_*.iss).
+// FormatFindingList, FindingsShownMax, GetOtherProductUninstallRegPath, GetTickCount, TicksSince,
+// FindLinksInGameFolder, LinkFindingsShownMax), extension.iss (SilentInstall, SuppressMsgBoxes), the
+// messages LowScreenResolution, ForeignInstallFound, ForeignFolderQuestion, SharedFolderQuestion and
+// LinkInGameFolder (messages.iss); ISPP: InstallType, OtherAppID, EEDir, AoCDir (setup_is6.iss,
+// config_*.iss).
 
 // Size of the primary screen and DPI of the screen. Inno Setup 6.2.2 declares itself
 // system-DPI-aware (manifest of Setup.e32), so both are physical values at the display scaling of
@@ -382,5 +391,44 @@ begin
   except
     Log('The check of the chosen folder stopped: ' + GetExceptionMessage + ' (counts as nothing found)');
     Result := True;
+  end;
+end;
+
+// PrepareToInstall in administrative install mode (see the header, ADR 0009): Data, Users and every
+// folder below them in both game folders that exist, selected or not (the [InstallDelete] entries of
+// the AoC folder have no component), with FindLinksInGameFolder. Logs the number of folders examined,
+// the time and every finding. Returns '' if nothing was found, else the message LinkInGameFolder
+// with the folders, which stops the setup before anything is changed. An exception stops it as well,
+// because then the folders were not checked.
+function CheckGameFoldersForLinks: String;
+var
+  Findings: TStringList;
+  Folders, ReparseFiles: Integer;
+  Started: DWORD;
+begin
+  Result := '';
+  Findings := TStringList.Create;
+  try
+    Folders := 0;
+    ReparseFiles := 0;
+    Started := GetTickCount;
+    try
+      FindLinksInGameFolder(ExpandConstant('{app}\{#EEDir}'), '', Findings, Folders, ReparseFiles);
+      FindLinksInGameFolder(ExpandConstant('{app}\{#AoCDir}'), '', Findings, Folders, ReparseFiles);
+    except
+      Log('The link check stopped: ' + GetExceptionMessage + ' (the folders count as not checked)');
+      Findings.Add(ExpandConstant('{app}'));
+    end;
+    Log('Link check: ' + IntToStr(Folders) + ' folders below Data and Users of ' + ExpandConstant('{app}') + ' examined in ' +
+      IntToStr(TicksSince(Started)) + ' ms, ' + IntToStr(Findings.Count) + ' links or unreadable folders found, ' +
+      IntToStr(ReparseFiles) + ' files with a reparse point (allowed)');
+    if Findings.Count > 0 then
+    begin
+      Log('The installation stops before anything is changed (message LinkInGameFolder on the Preparing to install page; ' +
+        'silent installation: exit code 7)');
+      Result := FmtMessage(CustomMessage('LinkInGameFolder'), [FormatFindingList(Findings, LinkFindingsShownMax)]);
+    end;
+  finally
+    Findings.Free;
   end;
 end;
