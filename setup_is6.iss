@@ -1258,34 +1258,18 @@ const
   // GetSystemMetrics indexes (Win32 API): width and height of the primary screen
   SM_CXSCREEN = 0;
   SM_CYSCREEN = 1;
-  // The default game window ([Registry]) is the size of the screen, within these limits
-  MinGameWindowWidth = 1024;
-  MaxGameWindowWidth = 1920;
-  MinGameWindowHeight = 768;
-  MaxGameWindowHeight = 1080;
 
+// [Registry] Game Window Height and Game Window Width: the size of the primary screen within the
+// limits of contract 3.3 (ClampGameWindowHeight/Width and MinGameWindowWidth ... MaxGameWindowHeight
+// in utils.iss)
 function GetScreenResolutionHeight(Param: String): String;
-var
-  Tmp: Integer;
 begin
-  Tmp := GetSystemMetrics(SM_CYSCREEN);
-  if Tmp < MinGameWindowHeight then
-    Tmp := MinGameWindowHeight;
-  if Tmp > MaxGameWindowHeight then
-    Tmp := MaxGameWindowHeight;
-  Result := IntToStr(Tmp);
+  Result := IntToStr(ClampGameWindowHeight(GetSystemMetrics(SM_CYSCREEN)));
 end;
 
 function GetScreenResolutionWidth(Param: String): String;
-var
-  Tmp: Integer;
 begin
-  Tmp := GetSystemMetrics(SM_CXSCREEN);
-  if Tmp < MinGameWindowWidth then
-    Tmp := MinGameWindowWidth;
-  if Tmp > MaxGameWindowWidth then
-    Tmp := MaxGameWindowWidth;
-  Result := IntToStr(Tmp);
+  Result := IntToStr(ClampGameWindowWidth(GetSystemMetrics(SM_CXSCREEN)));
 end;
 
 // Update API of the community website, answers with HTTP 200 and

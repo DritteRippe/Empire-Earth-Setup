@@ -23,8 +23,9 @@ is the setup script. This check reads only TABLES of the contract, never its pro
   3.3, Value | ... | Minimum | Maximum          the constants MinGameWindowWidth, MaxGameWindowWidth,
                                                MinGameWindowHeight and MaxGameWindowHeight
                                                ('<name> = <number>;', each exactly once in
-                                               setup_is6.iss or its #include files), rows
-                                               Game Window Width and Game Window Height
+                                               setup_is6.iss or its #include files, today
+                                               utils.iss), rows Game Window Width and Game Window
+                                               Height
   3.4, Value name | Component | Data |         the [Registry] entries below
        Windows versions | Task                 Software\\Microsoft\\DirectX\\UserGpuPreferences
                                                (HKCU, REG_SZ, uninsdeletevalue): value name with
@@ -1785,17 +1786,17 @@ def self_test(source_root):
                  "| `Rasterizer Name` | REG_SZ | `Direct3D` | D |"),
          "Rasterizer Name: Empire Earth: data 'Direct3D' in the contract, computed (see 3.3)"),
         # 3.3
-        ("MaxGameWindowWidth 1920 -> 2560 in setup_is6.iss",
-         replace(main_script, "MaxGameWindowWidth = 1920;", "MaxGameWindowWidth = 2560;"),
-         "Game Window Width: maximum 1920 in the contract, 2560 in setup_is6.iss"),
+        ("MaxGameWindowWidth 1920 -> 2560 in utils.iss",
+         replace(utils, "MaxGameWindowWidth = 1920;", "MaxGameWindowWidth = 2560;"),
+         "Game Window Width: maximum 1920 in the contract, 2560 in utils.iss"),
         ("minimum height 768 -> 720 in the contract",
          replace(contract, "| `768` | `1080` |", "| `720` | `1080` |"),
-         "Game Window Height: minimum 720 in the contract, 768 in setup_is6.iss"),
+         "Game Window Height: minimum 720 in the contract, 768 in utils.iss"),
         ("row Game Window Height missing in the table of 3.3",
          replace(contract, "| `Game Window Height` | height of the primary screen (`SM_CYSCREEN`) | `768` | `1080` |\n", ""),
          "no row Game Window Height in the table of the window size limits"),
-        ("MinGameWindowWidth defined a second time (in utils.iss)",
-         replace(utils, "const\r\n  // Windows compatibility mode", "const\r\n  MinGameWindowWidth = 1024;\r\n  // Windows compatibility mode"),
+        ("MinGameWindowWidth defined a second time (in setup_is6.iss)",
+         replace(main_script, "const\r\n  // Setup background:", "const\r\n  MinGameWindowWidth = 1024;\r\n  // Setup background:"),
          "the constant MinGameWindowWidth must be defined exactly once"),
         # 3.4
         ("GpuPreference=2; -> GpuPreference=1; in setup_is6.iss",

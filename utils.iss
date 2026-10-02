@@ -1,9 +1,10 @@
 ﻿[Code]
 // Base helpers of the [Code] part: the URL constants, string split, language tag, compatibility
 // flags, uninstall keys of EE and NeoEE, the HTTP requests, URL checks, the download policy of
-// the online localized files and the install state for the launcher (install mode, install.ini,
-// writing a state file, the integrity manifest files.sha256). Included first, before every other
-// [Code] part.
+// the online localized files, the install state for the launcher (install mode, install.ini,
+// writing a state file, the integrity manifest files.sha256) and the environment checks before the
+// installation (game window size, low screen, folders and uninstall entries of other
+// installations). Included first, before every other [Code] part.
 // Requires: AppID, OtherAppID (ISPP, product configuration config_*.iss).
 // The functions without wizard access are tested by ci/tests/unit_tests.iss.
 
@@ -1038,4 +1039,215 @@ begin
     Log('Wrote ' + StateDir + ManifestFileName + ' (' + IntToStr(FileCount) + ' files, ' + IntToStr(GetArrayLength(Missing)) + ' missing)');
   end;
   Result := ReplaceStateFile(StateDir + InstallIniFileName, IniText + BuildMissingAfterInstallText(Missing));
+end;
+
+// Environment checks before the installation (environment.iss) and the default game window:
+// docs/adr/0007-environment-warnings.md, docs/CONTRACT.md 3.3
+
+const
+  // The default game window ([Registry] Game Window Width and Game Window Height,
+  // GetScreenResolutionWidth/Height in setup_is6.iss) is the size of the primary screen within
+  // these limits, each dimension on its own (contract 3.3, whose table ci/check_contract.py checks
+  // against these constants)
+  MinGameWindowWidth = 1024;
+  MaxGameWindowWidth = 1920;
+  MinGameWindowHeight = 768;
+  MaxGameWindowHeight = 1080;
+  // Pixels per inch (LOGPIXELSX) at a display scaling of 100 %
+  DefaultScreenDpi = 96;
+
+// Value, but at least Lowest and at most Highest
+function ClampToRange(const Value, Lowest, Highest: Integer): Integer;
+begin
+  Result := Value;
+  if Result < Lowest then
+    Result := Lowest;
+  if Result > Highest then
+    Result := Highest;
+end;
+
+// Game Window Width (contract 3.3) for a primary screen ScreenWidth pixels wide
+// (GetSystemMetrics(SM_CXSCREEN)): the width, at least MinGameWindowWidth and at most
+// MaxGameWindowWidth. 0 (GetSystemMetrics failed) gives the minimum.
+function ClampGameWindowWidth(const ScreenWidth: Integer): Integer;
+begin
+  Result := ClampToRange(ScreenWidth, MinGameWindowWidth, MaxGameWindowWidth);
+end;
+
+// Game Window Height (contract 3.3) for a primary screen ScreenHeight pixels high
+// (GetSystemMetrics(SM_CYSCREEN)): the height, at least MinGameWindowHeight and at most
+// MaxGameWindowHeight. 0 (GetSystemMetrics failed) gives the minimum.
+function ClampGameWindowHeight(const ScreenHeight: Integer): Integer;
+begin
+  Result := ClampToRange(ScreenHeight, MinGameWindowHeight, MaxGameWindowHeight);
+end;
+
+// True if the primary screen is lower than the menus of the game need (MinGameWindowHeight, the
+// height of the window the setup sets then): the setup warns (R13; t=3863 p=26167: a netbook with
+// 1024 x 600 crashes after the intro). A height of 0 or less is unknown (GetSystemMetrics returns 0
+// if it fails) and gives no warning.
+function IsScreenTooLow(const ScreenHeight: Integer): Boolean;
+begin
+  Result := (ScreenHeight > 0) and (ScreenHeight < MinGameWindowHeight);
+end;
+
+// The log line of the screen (ADR 0007 point 1, contract O4): size of the primary screen, its DPI
+// and the display scaling it means (Dpi 0 or less: unknown), and the game window the setup writes:
+// 'Screen: <w> x <h> pixels (primary screen, SM_CXSCREEN x SM_CYSCREEN), <dpi> DPI (LOGPIXELSX,
+// <p> % scaling), game window <w> x <h>'
+function FormatScreenMetrics(const ScreenWidth, ScreenHeight, Dpi: Integer): String;
+begin
+  Result := 'Screen: ' + IntToStr(ScreenWidth) + ' x ' + IntToStr(ScreenHeight) + ' pixels (primary screen, SM_CXSCREEN x SM_CYSCREEN), ';
+  if Dpi > 0 then
+    Result := Result + IntToStr(Dpi) + ' DPI (LOGPIXELSX, ' + IntToStr((Dpi * 100 + DefaultScreenDpi div 2) div DefaultScreenDpi) + ' % scaling)'
+  else
+    Result := Result + 'DPI unknown';
+  Result := Result + ', game window ' + IntToStr(ClampGameWindowWidth(ScreenWidth)) + ' x ' + IntToStr(ClampGameWindowHeight(ScreenHeight));
+end;
+
+// A folder path as the environment checks compare it: spaces around it removed, '/' as '\', no
+// doubled '\' (except the two at the start of a UNC path) and no '\' at the end ('C:\' gives 'C:').
+// Letters are not changed; '' stays ''.
+function NormalizeFolderPath(const Path: String): String;
+var
+  Prefix: String;
+begin
+  Result := Trim(Path);
+  StringChangeEx(Result, '/', '\', True);
+  Prefix := '';
+  if Copy(Result, 1, 2) = '\\' then
+  begin
+    Prefix := '\\';
+    Result := Copy(Result, 3, Length(Result));
+  end;
+  while Pos('\\', Result) > 0 do
+    StringChangeEx(Result, '\\', '\', True);
+  // Copy, not Result[...]: the check must also work on ''
+  while Copy(Result, Length(Result), 1) = '\' do
+    Result := Copy(Result, 1, Length(Result) - 1);
+  if Result <> '' then
+    Result := Prefix + Result;
+end;
+
+// True if Candidate is the folder Root or a folder below it (ADR 0007 point 4). Both are normalized
+// (NormalizeFolderPath) and compared ignoring case (AnsiUppercase: also letters such as U with
+// umlaut, as Windows compares names); a folder that only starts with the same letters is not below
+// it (C:\Sierra2 is not inside C:\Sierra). False if one of them is empty.
+function IsSameOrInside(const Root, Candidate: String): Boolean;
+var
+  RootKey, CandidateKey: String;
+begin
+  Result := False;
+  RootKey := AnsiUppercase(NormalizeFolderPath(Root));
+  CandidateKey := AnsiUppercase(NormalizeFolderPath(Candidate));
+  if (RootKey = '') or (CandidateKey = '') then
+    Exit;
+  if CandidateKey = RootKey then
+    Result := True
+  else if Length(CandidateKey) > Length(RootKey) then
+    Result := (Copy(CandidateKey, 1, Length(RootKey)) = RootKey) and (CandidateKey[Length(RootKey) + 1] = '\');
+end;
+
+// True if A and B name the same folder (IsSameOrInside in both directions: normalized, ignoring case)
+function IsSameFolder(const A, B: String): Boolean;
+begin
+  Result := IsSameOrInside(A, B) and IsSameOrInside(B, A);
+end;
+
+// True if Path is no folder the checks of another installation's folder can use: empty, '\' or the
+// root of a drive ('C:', 'C:\'). Such a value from the registry would contain every folder of the
+// drive.
+function IsDriveRootOrEmpty(const Path: String): Boolean;
+var
+  Folder: String;
+begin
+  Folder := NormalizeFolderPath(Path);
+  Result := (Folder = '') or ((Length(Folder) = 2) and (Copy(Folder, 2, 1) = ':'));
+end;
+
+// The folder that the "Installed From" values of a game settings key name (contract 3.3): the drive
+// Volume ('C:') followed by Directory ('\SIERRA\EMPIRE EARTH\'), normalized (NormalizeFolderPath);
+// '' if Volume is not a drive letter with ':' or Directory is empty
+function InstalledFromFolder(const Volume, Directory: String): String;
+var
+  Drive, Folder: String;
+begin
+  Result := '';
+  Drive := Trim(Volume);
+  Folder := Trim(Directory);
+  if (Length(Drive) <> 2) or (Copy(Drive, 2, 1) <> ':') or (Pos(Uppercase(Copy(Drive, 1, 1)), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ') = 0) or (Folder = '') then
+    Exit;
+  if (Copy(Folder, 1, 1) <> '\') and (Copy(Folder, 1, 1) <> '/') then
+    Folder := '\' + Folder;
+  Result := NormalizeFolderPath(Drive + Folder);
+end;
+
+// How regedit shows the key SubKey ('Software\...') of HKLM: in the 32-bit view (View32) of 64-bit
+// Windows (Win64) below Software\WOW6432Node, otherwise as it is (32-bit Windows has one view)
+function FormatHklmKeyName(const SubKey: String; const View32, Win64: Boolean): String;
+begin
+  if View32 and Win64 and (CompareText(Copy(SubKey, 1, 9), 'Software\') = 0) then
+    Result := 'HKLM\Software\WOW6432Node\' + Copy(SubKey, 10, Length(SubKey))
+  else
+    Result := 'HKLM\' + SubKey;
+end;
+
+const
+  // Publisher of the two community setups in their uninstall keys (contract 0, Products; the same as
+  // MyAppPublisher of config_ee.iss and config_neoee.iss, ci/check_contract.py checks all of them)
+  CommunityPublisherEE = 'Empire Earth Community';
+  CommunityPublisherNeoEE = 'Empire Earth Community & NeoEE';
+  // The uninstall entries (one subkey each) that environment.iss reads in both views of HKLM
+  UninstallKeysPath = 'Software\Microsoft\Windows\CurrentVersion\Uninstall';
+  // The notice ForeignInstallFound names at most this many findings (FormatFindingList)
+  FindingsShownMax = 12;
+
+// True if the uppercase DisplayName Name names Empire Earth (1) or NeoEE: it contains 'NEOEE', or
+// 'EMPIRE EARTH' not followed by ' II' (Empire Earth II and III are other games, with their own
+// folders and keys)
+function NamesEmpireEarthOrNeoEE(const Name: String): Boolean;
+var
+  Rest: String;
+  P: Integer;
+begin
+  Result := Pos('NEOEE', Name) > 0;
+  Rest := Name;
+  P := Pos('EMPIRE EARTH', Rest);
+  while (not Result) and (P > 0) do
+  begin
+    Rest := Copy(Rest, P + Length('EMPIRE EARTH'), Length(Rest));
+    if Copy(Rest, 1, 3) <> ' II' then
+      Result := True
+    else
+      P := Pos('EMPIRE EARTH', Rest);
+  end;
+end;
+
+// True if the uninstall entry with the key name KeyName (below UninstallKeysPath), DisplayName and
+// Publisher belongs to a foreign or old installation of Empire Earth or NeoEE that the setup
+// reports (ADR 0007 point 2: retail CD, GOG, old NeoEE installers; report 4.7 and 4.8): the
+// DisplayName names Empire Earth or NeoEE (NamesEmpireEarthOrNeoEE, ignoring case), the key is not
+// '{<AppId>}_is1' of one of the two community products (AppID, OtherAppID; ignoring case) and the
+// Publisher is not one of the two community publishers (ignoring case and spaces around it), so
+// community installations with other AppIds (test builds, official builds) are not reported either
+function IsForeignUninstallEntry(const KeyName, DisplayName, Publisher: String): Boolean;
+begin
+  Result := NamesEmpireEarthOrNeoEE(Uppercase(DisplayName)) and
+    (CompareText(KeyName, '{{#AppID}}_is1') <> 0) and (CompareText(KeyName, '{{#OtherAppID}}_is1') <> 0) and
+    (CompareText(Trim(Publisher), CommunityPublisherEE) <> 0) and (CompareText(Trim(Publisher), CommunityPublisherNeoEE) <> 0);
+end;
+
+// The list of the notice ForeignInstallFound (%1): a line break and two spaces before each of
+// Findings, at most MaxShown of them, then '  ... (+<n>)' for the n others (no words, so it needs
+// no translation)
+function FormatFindingList(const Findings: TStringList; const MaxShown: Integer): String;
+var
+  I: Integer;
+begin
+  Result := '';
+  for I := 0 to Findings.Count - 1 do
+    if I < MaxShown then
+      Result := Result + #13#10 + '  ' + Findings[I];
+  if Findings.Count > MaxShown then
+    Result := Result + #13#10 + '  ... (+' + IntToStr(Findings.Count - MaxShown) + ')';
 end;

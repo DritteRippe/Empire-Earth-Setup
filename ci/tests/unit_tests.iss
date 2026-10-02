@@ -1,6 +1,6 @@
 ﻿; Unit tests of the [Code] helpers without wizard access (utils.iss), including the download
 ; policy of the online localized files, the install state for the launcher and its integrity
-; manifest.
+; manifest, the default game window and the environment checks before the installation.
 ;
 ; A tiny setup that includes utils.iss, runs every test in InitializeSetup, writes the results to
 ; a text file and exits without installing anything (InitializeSetup returns False). It sends no
@@ -1148,6 +1148,229 @@ begin
   DelTree(Verified, True, True, True);
 end;
 
+// The clamp that GetScreenResolutionWidth/Height (setup_is6.iss) did inline before
+// ClampGameWindowWidth/Height replaced it, as the reference for "same results"
+function InlineClamp(const Value, Lowest, Highest: Integer): Integer;
+var
+  Tmp: Integer;
+begin
+  Tmp := Value;
+  if Tmp < Lowest then
+    Tmp := Lowest;
+  if Tmp > Highest then
+    Tmp := Highest;
+  Result := Tmp;
+end;
+
+procedure CheckScreen(const Width, Height: Integer; const ExpectedWidth, ExpectedHeight: Integer; const TooLow: Boolean);
+var
+  Name: String;
+begin
+  Name := IntToStr(Width) + ' x ' + IntToStr(Height);
+  Check('ClampGameWindowWidth/Height ' + Name, IntToStr(ClampGameWindowWidth(Width)) + ' x ' + IntToStr(ClampGameWindowHeight(Height)),
+    IntToStr(ExpectedWidth) + ' x ' + IntToStr(ExpectedHeight));
+  CheckBool('IsScreenTooLow ' + Name, IsScreenTooLow(Height), TooLow);
+end;
+
+// Contract 3.3 (1024 to 1920 x 768 to 1080, each dimension on its own) and the warning below 768
+// pixels (ADR 0007 point 1); the same results as the inline clamp it replaced
+procedure TestGameWindow;
+var
+  I, Differences: Integer;
+begin
+  Check('window limits (contract 3.3)', IntToStr(MinGameWindowWidth) + '-' + IntToStr(MaxGameWindowWidth) + ' x ' +
+    IntToStr(MinGameWindowHeight) + '-' + IntToStr(MaxGameWindowHeight), '1024-1920 x 768-1080');
+  // Screens of the forum report (section 8, test case 6) and of the contract
+  CheckScreen(1024, 600, 1024, 768, True);
+  CheckScreen(1366, 768, 1366, 768, False);
+  CheckScreen(1920, 1080, 1920, 1080, False);
+  CheckScreen(2560, 1440, 1920, 1080, False);
+  CheckScreen(800, 600, 1024, 768, True);
+  CheckScreen(1280, 720, 1280, 768, True);
+  CheckScreen(3840, 2160, 1920, 1080, False);
+  // The limits and their neighbours
+  CheckScreen(1023, 767, 1024, 768, True);
+  CheckScreen(1024, 768, 1024, 768, False);
+  CheckScreen(1025, 769, 1025, 769, False);
+  CheckScreen(1919, 1079, 1919, 1079, False);
+  CheckScreen(1920, 1080, 1920, 1080, False);
+  CheckScreen(1921, 1081, 1920, 1080, False);
+  // GetSystemMetrics returns 0 if it fails: the minimum, and no warning for an unknown height
+  CheckScreen(0, 0, 1024, 768, False);
+  CheckScreen(-1, -1, 1024, 768, False);
+  CheckScreen(1, 1, 1024, 768, True);
+  // Same results as the inline clamp for every size from -10 to 4000
+  Differences := 0;
+  for I := -10 to 4000 do
+  begin
+    if ClampGameWindowWidth(I) <> InlineClamp(I, 1024, 1920) then
+      Differences := Differences + 1;
+    if ClampGameWindowHeight(I) <> InlineClamp(I, 768, 1080) then
+      Differences := Differences + 1;
+  end;
+  Check('ClampGameWindowWidth/Height = inline clamp for -10 to 4000', IntToStr(Differences), '0');
+end;
+
+// The log line of the screen (ADR 0007 point 1, contract O4)
+procedure TestFormatScreenMetrics;
+begin
+  Check('FormatScreenMetrics 1920 x 1080 at 100 %', FormatScreenMetrics(1920, 1080, 96),
+    'Screen: 1920 x 1080 pixels (primary screen, SM_CXSCREEN x SM_CYSCREEN), 96 DPI (LOGPIXELSX, 100 % scaling), game window 1920 x 1080');
+  Check('FormatScreenMetrics 1024 x 600 at 150 %', FormatScreenMetrics(1024, 600, 144),
+    'Screen: 1024 x 600 pixels (primary screen, SM_CXSCREEN x SM_CYSCREEN), 144 DPI (LOGPIXELSX, 150 % scaling), game window 1024 x 768');
+  Check('FormatScreenMetrics 2560 x 1440 at 125 %', FormatScreenMetrics(2560, 1440, 120),
+    'Screen: 2560 x 1440 pixels (primary screen, SM_CXSCREEN x SM_CYSCREEN), 120 DPI (LOGPIXELSX, 125 % scaling), game window 1920 x 1080');
+  Check('FormatScreenMetrics 3840 x 2160 at 175 %', FormatScreenMetrics(3840, 2160, 168),
+    'Screen: 3840 x 2160 pixels (primary screen, SM_CXSCREEN x SM_CYSCREEN), 168 DPI (LOGPIXELSX, 175 % scaling), game window 1920 x 1080');
+  Check('FormatScreenMetrics DPI unknown', FormatScreenMetrics(1366, 768, 0),
+    'Screen: 1366 x 768 pixels (primary screen, SM_CXSCREEN x SM_CYSCREEN), DPI unknown, game window 1366 x 768');
+end;
+
+procedure TestNormalizeFolderPath;
+begin
+  Check('NormalizeFolderPath plain', NormalizeFolderPath('C:\Sierra\Empire Earth'), 'C:\Sierra\Empire Earth');
+  Check('NormalizeFolderPath slashes, doubled and trailing backslashes, spaces',
+    NormalizeFolderPath('  C:/Sierra//Empire Earth\\  '), 'C:\Sierra\Empire Earth');
+  Check('NormalizeFolderPath drive root', NormalizeFolderPath('C:\'), 'C:');
+  Check('NormalizeFolderPath UNC', NormalizeFolderPath('\\server\share\\Games\'), '\\server\share\Games');
+  Check('NormalizeFolderPath empty', NormalizeFolderPath(''), '');
+  Check('NormalizeFolderPath only backslashes', NormalizeFolderPath('\\\'), '');
+  Check('NormalizeFolderPath case kept', NormalizeFolderPath('c:\SIERRA\Empire earth'), 'c:\SIERRA\Empire earth');
+end;
+
+procedure CheckInside(const Root, Candidate: String; const Expected: Boolean);
+begin
+  CheckBool('IsSameOrInside "' + Root + '" "' + Candidate + '"', IsSameOrInside(Root, Candidate), Expected);
+end;
+
+// ADR 0007 point 4: the folder of another installation
+procedure TestIsSameOrInside;
+begin
+  CheckInside('C:\Sierra', 'C:\Sierra2', False);
+  CheckInside('C:\Sierra', 'C:\Sierra2\Empire Earth', False);
+  CheckInside('C:\Sierra', 'C:\Sierra', True);
+  CheckInside('C:\Sierra', 'C:\Sierra\Empire Earth', True);
+  CheckInside('C:\Sierra\Empire Earth', 'C:\Sierra', False);
+  CheckInside('C:\Sierra\', 'c:/sierra', True);
+  CheckInside('C:\SIERRA\EMPIRE EARTH\', 'C:\Sierra\Empire Earth\Empire Earth', True);
+  CheckInside('C:\Sierra', 'C:\Sierra\\Empire Earth\', True);
+  CheckInside('C:\Program Files (x86)\Sierra\Empire Earth', 'C:\PROGRAM FILES (X86)\SIERRA\EMPIRE EARTH\Data', True);
+  CheckInside('C:\GOG Games\Empire Earth Gold', 'C:\GOG Games\Empire Earth', False);
+  CheckInside('C:\', 'C:\Sierra', True);
+  CheckInside('D:\Sierra', 'C:\Sierra', False);
+  CheckInside('\\server\share\EE', '\\server\share\EE\Empire Earth', True);
+  CheckInside('C:\Spiele\' + #$DC + 'ber', 'C:\SPIELE\' + #$FC + 'BER\Empire Earth', True);
+  CheckInside('', 'C:\Sierra', False);
+  CheckInside('C:\Sierra', '', False);
+  CheckInside('', '', False);
+  CheckBool('IsSameFolder same folder, other spelling', IsSameFolder('C:\Program Files (x86)\Empire Earth\', 'c:/program files (x86)/empire earth'), True);
+  CheckBool('IsSameFolder folder below', IsSameFolder('C:\Games', 'C:\Games\Empire Earth'), False);
+  CheckBool('IsSameFolder folder above', IsSameFolder('C:\Games\Empire Earth', 'C:\Games'), False);
+  CheckBool('IsSameFolder empty', IsSameFolder('', ''), False);
+end;
+
+procedure TestIsDriveRootOrEmpty;
+begin
+  CheckBool('IsDriveRootOrEmpty C:\', IsDriveRootOrEmpty('C:\'), True);
+  CheckBool('IsDriveRootOrEmpty C:', IsDriveRootOrEmpty('C:'), True);
+  CheckBool('IsDriveRootOrEmpty empty', IsDriveRootOrEmpty(''), True);
+  CheckBool('IsDriveRootOrEmpty spaces', IsDriveRootOrEmpty('   '), True);
+  CheckBool('IsDriveRootOrEmpty backslash', IsDriveRootOrEmpty('\'), True);
+  CheckBool('IsDriveRootOrEmpty folder', IsDriveRootOrEmpty('C:\Sierra'), False);
+  CheckBool('IsDriveRootOrEmpty UNC share', IsDriveRootOrEmpty('\\server\share'), False);
+end;
+
+// "Installed From Volume" and "Installed From Directory" (contract 3.3)
+procedure TestInstalledFromFolder;
+begin
+  Check('InstalledFromFolder retail', InstalledFromFolder('C:', '\SIERRA\EMPIRE EARTH\'), 'C:\SIERRA\EMPIRE EARTH');
+  Check('InstalledFromFolder community form', InstalledFromFolder('D:', '\PROGRAM FILES (X86)\EMPIRE EARTH\Empire Earth\'),
+    'D:\PROGRAM FILES (X86)\EMPIRE EARTH\Empire Earth');
+  Check('InstalledFromFolder without leading backslash', InstalledFromFolder('d:', 'Games\EE'), 'd:\Games\EE');
+  Check('InstalledFromFolder doubled backslashes', InstalledFromFolder('C:', '\X\\Y\'), 'C:\X\Y');
+  Check('InstalledFromFolder spaces around', InstalledFromFolder(' C: ', ' \Sierra\ '), 'C:\Sierra');
+  Check('InstalledFromFolder drive root', InstalledFromFolder('C:', '\'), 'C:');
+  Check('InstalledFromFolder no volume', InstalledFromFolder('', '\SIERRA\'), '');
+  Check('InstalledFromFolder no directory', InstalledFromFolder('C:', ''), '');
+  Check('InstalledFromFolder volume without colon', InstalledFromFolder('CD', '\SIERRA\'), '');
+  Check('InstalledFromFolder volume not a letter', InstalledFromFolder('1:', '\SIERRA\'), '');
+  Check('InstalledFromFolder UNC volume', InstalledFromFolder('\\server', '\SIERRA\'), '');
+end;
+
+procedure TestFormatHklmKeyName;
+begin
+  Check('FormatHklmKeyName 32-bit view on 64-bit Windows', FormatHklmKeyName('Software\SSSI\Empire Earth', True, True),
+    'HKLM\Software\WOW6432Node\SSSI\Empire Earth');
+  Check('FormatHklmKeyName 64-bit view', FormatHklmKeyName('Software\SSSI\Empire Earth', False, True), 'HKLM\Software\SSSI\Empire Earth');
+  Check('FormatHklmKeyName 32-bit Windows', FormatHklmKeyName('Software\Neo\Art of Conquest', True, False), 'HKLM\Software\Neo\Art of Conquest');
+end;
+
+procedure CheckForeign(const KeyName, DisplayName, Publisher: String; const Expected: Boolean);
+begin
+  CheckBool('IsForeignUninstallEntry ' + KeyName + ' "' + DisplayName + '" "' + Publisher + '"',
+    IsForeignUninstallEntry(KeyName, DisplayName, Publisher), Expected);
+end;
+
+// ADR 0007 point 2: foreign uninstall entries; the community products are excluded by their AppIds
+// (AppID and OtherAppID of this test setup) and by their publishers
+procedure TestIsForeignUninstallEntry;
+begin
+  // Community AppIds, whatever the publisher
+  CheckForeign('{11111111-2222-3333-4444-555555555555}_is1', 'Empire Earth v2.0.0.0 - Setup v1.7.2', 'Empire Earth Community', False);
+  CheckForeign('{11111111-2222-3333-4444-555555555555}_is1', 'Empire Earth', 'Someone else', False);
+  CheckForeign('{66666666-7777-8888-9999-000000000000}_IS1', 'NeoEE v2.0.0.5 - Setup v1.7.2', '', False);
+  // Community publishers with other AppIds (official builds, test builds), also in other case and with spaces
+  CheckForeign('{4C0B46D8-E7EB-4B95-97D4-A578D9B914C6}_is1', 'Empire Earth v2.0.0.0 - Setup v1.7.2', 'Empire Earth Community', False);
+  CheckForeign('{A24FCC7A-5491-4FEA-837B-4E4430C349DA}_is1', 'NeoEE v2.0.0.5 - Setup v1.7.2', 'Empire Earth Community & NeoEE', False);
+  CheckForeign('{00000000-0000-0000-0000-0000000000EE}_is1', 'Empire Earth v2.0.0.0 - Setup v1.7.2', ' empire earth community ', False);
+  CheckForeign('{00000000-0000-0000-0000-000000000AEE}_is1', 'NeoEE', 'EMPIRE EARTH COMMUNITY & NEOEE', False);
+  // Foreign: GOG, retail (InstallShield), an old NeoEE installer, in any case
+  CheckForeign('1207658649_is1', 'Empire Earth Gold Edition', 'GOG.com', True);
+  CheckForeign('{0D0E5C3A-1F2B-4E3C-9A5D-6B7C8D9E0F10}', 'Empire Earth', 'Sierra', True);
+  CheckForeign('{0D0E5C3A-1F2B-4E3C-9A5D-6B7C8D9E0F11}', 'Empire Earth - The Art of Conquest', 'Mad Doc Software', True);
+  CheckForeign('{0D0E5C3A-1F2B-4E3C-9A5D-6B7C8D9E0F12}', 'NeoEE 2.0', '', True);
+  CheckForeign('NeoEE', 'neoee', 'NeoEE', True);
+  CheckForeign('X', 'empire earth art of conquest', '', True);
+  // An entry of the community publisher text inside another publisher is foreign
+  CheckForeign('X', 'Empire Earth', 'Empire Earth Community Fans', True);
+  // Not Empire Earth (1) or NeoEE: Empire Earth II and III are other games, other programs
+  CheckForeign('{1A2B3C4D-0000-0000-0000-000000000002}', 'Empire Earth II', 'Sierra', False);
+  CheckForeign('{1A2B3C4D-0000-0000-0000-000000000003}', 'Empire Earth III', 'Sierra', False);
+  CheckForeign('{1A2B3C4D-0000-0000-0000-000000000004}', 'Empire Earth II: The Art of Supremacy', 'Mad Doc Software', False);
+  CheckForeign('X', 'Empire Earth II and Empire Earth Gold', '', True);
+  CheckForeign('X', 'Age of Empires II', 'Microsoft', False);
+  CheckForeign('X', '', '', False);
+  CheckForeign('X', 'Earth Empire', '', False);
+end;
+
+procedure TestFormatFindingList;
+var
+  Findings: TStringList;
+  I: Integer;
+  Expected: String;
+begin
+  Findings := TStringList.Create;
+  try
+    Check('FormatFindingList nothing', FormatFindingList(Findings, FindingsShownMax), '');
+    Findings.Add('HKLM\Software\WOW6432Node\SSSI\Empire Earth: C:\SIERRA\EMPIRE EARTH');
+    Findings.Add('C:\Sierra\Empire Earth');
+    Check('FormatFindingList two', FormatFindingList(Findings, FindingsShownMax),
+      '' + #13#10 + '  HKLM\Software\WOW6432Node\SSSI\Empire Earth: C:\SIERRA\EMPIRE EARTH' + #13#10 + '  C:\Sierra\Empire Earth');
+    Findings.Clear;
+    Expected := '';
+    for I := 1 to 15 do
+    begin
+      Findings.Add('Entry ' + IntToStr(I));
+      if I <= 12 then
+        Expected := Expected + #13#10 + '  Entry ' + IntToStr(I);
+    end;
+    Check('FormatFindingList at most twelve', FormatFindingList(Findings, FindingsShownMax), Expected + #13#10 + '  ... (+3)');
+    Check('FormatFindingList limit 12', IntToStr(FindingsShownMax), '12');
+  finally
+    Findings.Free;
+  end;
+end;
+
 function InitializeSetup: Boolean;
 var
   Lines: TArrayOfString;
@@ -1191,6 +1414,15 @@ begin
     TestFormatMissingFileList;
     TestFormatManifestSummary;
     TestManifestFiles;
+    TestGameWindow;
+    TestFormatScreenMetrics;
+    TestNormalizeFolderPath;
+    TestIsSameOrInside;
+    TestIsDriveRootOrEmpty;
+    TestInstalledFromFolder;
+    TestFormatHklmKeyName;
+    TestIsForeignUninstallEntry;
+    TestFormatFindingList;
   except
     Failures := Failures + 1;
     Results.Add('FAIL exception: ' + GetExceptionMessage);
