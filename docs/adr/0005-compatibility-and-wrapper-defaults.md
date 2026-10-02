@@ -1,6 +1,6 @@
 # 0005. No compatibility values on Windows Vista/7; keep the DirectX wrapper preselection
 
-- Status: Accepted (implemented by S-WP4)
+- Status: Accepted, implemented (S-WP4, see [Implementation](#implementation))
 - Date: 2026-10-02
 - Requirements: R15, contract question O7
 - Revised: 2026-10-02, plan review before implementation (the 1.7.2 baseline was described wrongly;
@@ -100,6 +100,55 @@ DirectX wrappers:
   compiled code of the legacy value cleanup.
 - `CONTRACT.md` 3.7 and O7 change in both repositories (identical text, same commit subject).
 - The wrapper question stays open for real tests (test plan: graphics matrix).
+
+## Implementation
+
+S-WP4, 2026-10-02, in this order: the helper with its unit tests, the test cases (TP-20 to TP-24),
+then the change of the setup together with README, CHANGELOG and architecture document.
+
+- `utils.iss`: the constant `LegacyVistaCompatLayer` (the only place that still names the Windows
+  XP SP3 mode), `IsBelowWindows8(Major, Minor)` (6 unit tests, 5.1 to 10.0) and
+  `IsLegacyVistaCompatValue(Value)` (29 unit tests: every combination of `BuildCompatibilityFlags`
+  with and without the layer, the six values written out, and 15 values that must stay: `~`,
+  `~ RUNASADMIN`, `~ WINXPSP3 DISABLEDWM`, the empty value, other case, order and spacing, the
+  Windows 8+ values). Dropping the condition `Compatibility and` or comparing case-insensitively
+  makes 4 tests fail each.
+- `setup_is6.iss`: `MinVersion: {#Win8}` for the tasks `compatibility` and
+  `compatibility_windows`; `CompatibilityValuesByWindows` became `CompatibilityValuesWin8` without
+  the Vista/7 branch, so 8 `[Registry]` entries are gone (HKLM and HKCU, two task conditions each,
+  `Empire Earth.exe` and `EE-AOC.exe`). `RemoveLegacyVistaCompatValues` runs at `ssPostInstall`
+  after `RemoveLegacyRunAsAdmin`: below Windows 8 it reads the values of both programs in HKLM
+  (administrative install mode) or HKCU (user and portable mode) and deletes one only if
+  `IsLegacyVistaCompatValue` accepts it; each value is logged as removed, kept or missing. It runs
+  under Wine like on Windows (contract 3.7: every run) and finds nothing there, because no setup
+  offered the tasks under Wine. `pages.iss` is unchanged.
+- The preprocessed scripts of all four variants contain `WINXPSP3` only in
+  `LegacyVistaCompatLayer`. Their diff against the S-WP3 state (comment lines ignored) is the
+  `MinVersion` of the two tasks, the 8 entries and the new code.
+- Run-time probe under Wine (not in the repository: a tiny setup with the real
+  `RemoveLegacyVistaCompatValue`, cut out of `setup_is6.iss`, working on a scratch key in HKCU): it
+  removed `~ DWM8And16BitMitigation HIGHDPIAWARE HeapClearAllocation WINXPSP3` and
+  `~ RUNASADMIN WINXPSP3`, kept `~ RUNASADMIN` and `~ WINXPSP3 DISABLEDWM`, logged a missing value
+  and left the value of another program alone. The Windows version test is covered by the unit
+  tests only (the Wine prefix reports Windows 10).
+- Real-data comparison (maintainers only, never committed: EE and NeoEE built with ISCC from the
+  reconstructed 1.7.2 data, official AppIds, unsigned; the innoextract dumps compared
+  semantically). Against the S-WP3 build, for EE and NeoEE alike, only these differ: the compiled
+  code, the `MinVersion` of the tasks `compatibility` and `compatibility_windows` (Windows XP ->
+  Windows 8) and the 8 Vista/7 entries (80 -> 72 registry entries); files, data, messages,
+  components, the other tasks and registry entries, run entries and folders are identical, so the
+  `WIN7RTM` entries, the Windows 8+ flags and the GPU preference are unchanged. Against official
+  1.7.2 the registry entries that S-WP4 drops are exactly the 4 `EE-AOC.exe` entries for Windows
+  Vista/7 (HKLM and HKCU, with and without `WINXPSP3`); the 4 `Empire Earth.exe` entries with the
+  filter `0.62`, which never applied, were already absent from the S-WP3 build in that form and are
+  now gone completely. No entry was added. All other differences against 1.7.2 are unchanged.
+- README "Compatibility and graphics options" documents the evidence, the change on Windows 7 and
+  the way to "Native"; the CHANGELOG (Changed) names both comparisons. Test plan: TP-20 and TP-21
+  (Windows 7, virtual machine only: new installation without values, update over 1.7.2 that
+  removes the `EE-AOC.exe` value and keeps a value of the player), TP-22 (Windows 10/11
+  unchanged), TP-23 (graphics matrix native, DirectX 7, 9 and 11 with menu texts, mouse and the
+  NeoEE overlay), TP-24 (150 % with and without the task `compatibility`, and Windows 7; contract
+  O4).
 
 ## Alternatives considered
 
