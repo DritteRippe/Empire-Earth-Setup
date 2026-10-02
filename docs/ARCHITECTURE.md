@@ -53,9 +53,9 @@ requires.
 
 | File | Responsibility | Pure helpers (unit-tested) | v2 change |
 |---|---|---|---|
-| `setup_is6.iss` | Build switches and their checks, `[Setup]`, `[Languages]`, `[Types]`, `[Tasks]`, `[Components]`, `[Files]`, `[Dirs]`, `[Registry]`, `[Icons]`, `[InstallDelete]`, `[UninstallDelete]`, `[Run]`, `[UninstallRun]`; the event functions (`InitializeSetup`, `InitializeWizard`, `NextButtonClick`, `CurStepChanged`, ...) only dispatch to the modules | - | download wiring (S-WP3, done), compatibility defaults (S-WP4), `SetupLogging` and `ContractVersion` define (S-WP5), install record, defaults marker and `SetupBuild` (S-WP6), `AfterInstall: RecordInstalledFile` on the file entries (S-WP7) |
+| `setup_is6.iss` | Build switches and their checks, `[Setup]`, `[Languages]`, `[Types]`, `[Tasks]`, `[Components]`, `[Files]`, `[Dirs]`, `[Registry]`, `[Icons]`, `[InstallDelete]`, `[UninstallDelete]`, `[Run]`, `[UninstallRun]`; the event functions (`InitializeSetup`, `InitializeWizard`, `NextButtonClick`, `CurStepChanged`, ...) only dispatch to the modules | - | download wiring (S-WP3, done), compatibility tasks from Windows 8 on, no Vista/7 entries, `RemoveLegacyVistaCompatValues` (S-WP4, done), `SetupLogging` and `ContractVersion` define (S-WP5), install record, defaults marker and `SetupBuild` (S-WP6), `AfterInstall: RecordInstalledFile` on the file entries (S-WP7) |
 | `config_ee.iss`, `config_neoee.iss` | Product configuration | - | - |
-| `utils.iss` | URL constants, string helpers, language tag, compatibility flags, uninstall keys, the single HTTP implementation (`HttpGet`), URL allow-list of the update API, download policy (`GetOnlineFileCheck`, `CodeFileExtensions`) | yes, all functions without wizard access | TLS 1.2 for `HttpGet` on Windows 7 (`NeedsExplicitTlsProtocols`, `ApplyTlsProtocols`), `NextDownloadAction` (S-WP3, done); `IsLegacyVistaCompatValue` (S-WP4); INI text, `IsAsciiText` (S-WP6); manifest/path helpers, ordinal sort (S-WP7); screen size clamp, low-resolution predicate, `IsSameOrInside` (S-WP8) |
+| `utils.iss` | URL constants, string helpers, language tag, compatibility flags, uninstall keys, the single HTTP implementation (`HttpGet`), URL allow-list of the update API, download policy (`GetOnlineFileCheck`, `CodeFileExtensions`) | yes, all functions without wizard access | TLS 1.2 for `HttpGet` on Windows 7 (`NeedsExplicitTlsProtocols`, `ApplyTlsProtocols`), `NextDownloadAction` (S-WP3, done); `IsLegacyVistaCompatValue`, `IsBelowWindows8` (S-WP4, done); INI text, `IsAsciiText` (S-WP6); manifest/path helpers, ordinal sort (S-WP7); screen size clamp, low-resolution predicate, `IsSameOrInside` (S-WP8) |
 | `messages.iss` | `[CustomMessages]` in all languages, `[Messages]` overrides | `ci/check_messages.py` | new texts in en/de/fr per package |
 | `eestats.iss` | Wrapper of `EEStatsSetup.dll` (Wine, GPU vendor, statistics values) | - | - |
 | `extension.iss` | Command line switches, previous installation (uninstall key), Windows version | - | - |
@@ -114,7 +114,8 @@ CurStepChanged(ssInstall)
   -> uninstall key (Inno Setup recreates it)
 CurStepChanged(ssPostInstall)
   FinishRandomMapScripts, legacy root certificate, legacy RUNASADMIN,
-  legacy Vista/7 compatibility values (S-WP4), NeoEE CD keys (authtools.dll)
+  legacy Vista/7 compatibility values (S-WP4, done: only on Windows Vista/7, only exact values
+  of earlier setups, HKLM or HKCU by install mode), NeoEE CD keys (authtools.dll)
   WriteInstallState (last step, S-WP6/7): hash recorded files on a progress page, ASCII check,
   files.sha256.tmp -> files.sha256, install.ini.tmp -> install.ini, ContractVersion into the
   uninstall key, notice if installed files are gone (antivirus hint)
@@ -176,7 +177,8 @@ installation loop (an exception in `AfterInstall` would abort the installation, 
   registered/refused/accepted downloads (pinned or TLS-only, with SHA-256), server fallback and its
   cause, random map moves, certificate handling, CD-key result code, manifest summary (number of
   files, size, duration, missing files), files accepted without size check (no `Content-Length`),
-  the reason a download was not retried (stop, no mirror allowed), environment findings.
+  the reason a download was not retried (stop, no mirror allowed), compatibility values of
+  earlier setups removed or kept on Windows Vista/7 (with the value), environment findings.
 - **Never logged:** CD keys and anything below `Software\Sierra\CDKeys` (the setup does not read
   it), the anonymous telemetry id (the query of telemetry requests is cut from the log),
   credentials of any kind.
@@ -199,7 +201,7 @@ installation loop (an exception in `AfterInstall` would abort the installation, 
 
 | Level | What | Where | Command |
 |---|---|---|---|
-| Unit | Pure `[Code]` helpers (`utils.iss`): strings, URLs, download policy, `NextDownloadAction`, compatibility flags, legacy compatibility values, manifest lines, path conversion, INI text, `IsAsciiText`, ordinal sort, screen clamp, `IsSameOrInside` | `ci/tests/unit_tests.iss` (tiny setup, no network) | `ci/run_unit_tests.ps1`; Linux: `ISCC=... sh ci/tests/run_unit_tests.sh` |
+| Unit | Pure `[Code]` helpers (`utils.iss`): strings, URLs, download policy, `NextDownloadAction`, compatibility flags, legacy compatibility values and the Windows versions of their cleanup, manifest lines, path conversion, INI text, `IsAsciiText`, ordinal sort, screen clamp, `IsSameOrInside` | `ci/tests/unit_tests.iss` (tiny setup, no network) | `ci/run_unit_tests.ps1`; Linux: `ISCC=... sh ci/tests/run_unit_tests.sh` |
 | Unit (file) | Writing a manifest and `install.ini` for files the test creates in `{tmp}` (bytes: no BOM, ASCII, LF/CRLF, order, hashes) | `ci/tests/unit_tests.iss` | as above |
 | Unit (run time) | Setting the TLS protocol option on a `WinHttpRequest` object without a request (proves the run-time call, not only its compilation) | `ci/tests/unit_tests.iss` | as above |
 | Build | All four variants compile against placeholder assets, output names prove the variant | `ci/build.ps1 -Placeholders`; locally `verify_setup.sh` | CI workflow |
@@ -241,12 +243,15 @@ plan.
 - **O4** (physical pixels): Setup 6.2.2 declares itself system-DPI-aware (`<dpiAware>true</dpiAware>`
   in the manifest of `Setup.e32`), so `GetSystemMetrics` returns physical pixels of the primary
   screen at the logon DPI; a changed scaling without signing out again is the known exception. To be
-  confirmed on Windows at 150 % (test plan), twice: with the task `compatibility` (the game is
-  `HIGHDPIAWARE`) and without it (the game is DPI-virtualized and sees logical pixels). If the window
-  only fits with `HIGHDPIAWARE`, contract 3.3 says so.
+  confirmed on Windows at 150 % (test plan TP-24), twice: with the task `compatibility` (the game
+  is `HIGHDPIAWARE`) and without it (the game is DPI-virtualized and sees logical pixels), plus
+  Windows 7, which no longer gets `HIGHDPIAWARE`. If the window only fits with `HIGHDPIAWARE`,
+  contract 3.3 says so.
 - **O7** (defaults under review): decided in [ADR 0005](adr/0005-compatibility-and-wrapper-defaults.md);
   the contract revision (S-WP1) changed 3.7 in both repositories (a table of the values per task,
-  Windows version and root, which `ci/check_contract.py` reads), S-WP4 implements it.
+  Windows version and root, which `ci/check_contract.py` reads), S-WP4 implemented it (test cases
+  TP-20 to TP-24; the wrapper preselection stays until the graphics matrix TP-23 shows a better
+  default).
 - **O11** (EE and NeoEE in one folder): the setup asks (S-WP8).
 - **O12** (copy check): answered locally, `ci/compare_contract.py` (S-WP1).
 - **Setup version:** `MySetupVersion` stays `1.7.2` until the maintainers release v2; the update API

@@ -199,6 +199,28 @@ Refactoring and quality fixes (no new game content).
   marker; contract 3.7 has a table of the compatibility values (none on Windows Vista/7 except the
   opt-in `~ RUNASADMIN`, O7); O4, O11 and O12 are answered. Documentation only, later packages
   implement it.
+- Compatibility values on Windows Vista/7: the setup writes none any more. The tasks "Enable
+  compatibility flags" and "Enable earlier Windows compatibility mode" exist on Windows 8 and later
+  only, where nothing changes (`WIN7RTM`, the flags `DWM8And16BitMitigation HIGHDPIAWARE
+  HeapClearAllocation`, the GPU preference); on Windows Vista/7 only the opt-in task "Always run
+  the game as administrator, for all users" can still write `~ RUNASADMIN`. Compared with the
+  official 1.7.2 setups, `Empire Earth.exe` still gets no value on Windows 7 (its Vista/7 entries
+  never applied because of the version filter `0.6.2`) and `EE-AOC.exe` no longer gets
+  `~ DWM8And16BitMitigation HIGHDPIAWARE HeapClearAllocation WINXPSP3`. Compared with the refactor
+  branch before v2, which had fixed that filter, both programs lose the value. An update on
+  Windows Vista/7 removes, for both programs and in the root of the install mode (HKLM for an
+  administrative installation, else HKCU), a value that is exactly one of the six earlier setups
+  could write there with flags or the Windows XP SP3 mode (`IsLegacyVistaCompatValue`, unit-tested);
+  any other value, e.g. one the player set, and `~ RUNASADMIN` stay, and the log names every value
+  removed or kept. Why: no forum post reports that the XP mode or the flags helped on Windows 7, the
+  administrators never needed a compatibility mode there and one got a black screen and a runtime
+  error with it (save-ee.com t=4280 p=30477, p=30479; t=1827 p=12147). The evidence is thin, so the
+  test plan checks Windows 7 in a virtual machine (TP-20, TP-21). Without `HIGHDPIAWARE` Windows 7
+  scales the game at 150 % display scaling (TP-24). README: "Compatibility and graphics options";
+  decision record 0005.
+- The DirectX wrapper preselection of the graphics card page is unchanged; the README explains the
+  evidence and how to install without a wrapper ("Native"), the test plan has the graphics matrix
+  (TP-23).
 
 ### Removed
 - Entries for Windows XP and older: the WIN98 compatibility mode and the pre-Vista `netsh
@@ -244,9 +266,9 @@ Refactoring and quality fixes (no new game content).
 - Installing without AoC no longer creates AoC registry values (VSync, window size), which also
   stayed behind after uninstalling.
 - Compatibility options: Windows 8 and 8.1 get the compatibility entries of Windows 8+ (the
-  entries required Windows 10, so 8 and 8.1 got none), and Empire Earth gets the Windows 7
-  entries on Windows 7 (a wrong version filter, `0.6.2` instead of `0.0,6.2`, had only let them
-  apply to AoC).
+  entries required Windows 10, so 8 and 8.1 got none). The Windows Vista/7 entries, whose wrong
+  version filter (`0.6.2` instead of `0.0,6.2`) had only let them apply to AoC, are gone (see
+  Changed).
 - Portable setups no longer leave an uninstall entry in the registry (holding only the setup
   type) when installed with the recommended settings.
 - Tasks and components of the previous installation are matched exactly (release note 1.0.3.0

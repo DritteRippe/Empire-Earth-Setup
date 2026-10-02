@@ -448,8 +448,11 @@ Name: "custom"; Description: "{cm:TypeCustom}"; Flags: iscustom
 Name: "raw"; Description: "{cm:TypeRaw}";
 
 [Tasks]
-Name: "compatibility"; Description: "{cm:TaskCompatibility}"; MinVersion: {#WinXP}; Check: not IsWine
-Name: "compatibility_windows"; Description: "{cm:TaskCompatibilityWindows}"; MinVersion: {#WinXP}; Check: not IsWine
+; Compatibility values (see [Registry]): Windows 8 and later only. On Windows Vista/7 the setup
+; writes none, like the official 1.7.2 setups for Empire Earth.exe, and an update removes those of
+; earlier setups (RemoveLegacyVistaCompatValues); docs/adr/0005-compatibility-and-wrapper-defaults.md
+Name: "compatibility"; Description: "{cm:TaskCompatibility}"; MinVersion: {#Win8}; Check: not IsWine
+Name: "compatibility_windows"; Description: "{cm:TaskCompatibilityWindows}"; MinVersion: {#Win8}; Check: not IsWine
 Name: "firewallexception"; Description: "{cm:TaskFirewall}"; MinVersion: {#Win2000}; Check: IsAdminInstallMode and not IsWine
 ; DirectPlay: Windows feature used by old DirectX games, the GOG setup enables it too (see [Run])
 Name: "directplay"; Description: "{cm:TaskDirectPlay}"; MinVersion: {#Win8}; Check: IsAdminInstallMode
@@ -793,7 +796,7 @@ Name: "{app}\{#SetupDataDir}"; Attribs: hidden
 [Registry]
 ; Compatibility
 ;   WIN7RTM    DWM8And16BitMitigation    for Windows 8+ (MinVersion: Win8)
-;   WINXPSP3   DWM8And16BitMitigation    for Windows Vista/7 (OnlyBelowVersion: Win8)
+;   nothing on Windows Vista/7 except the opt-in RUNASADMIN (the tasks need Windows 8)
 ; (version filters: see the Windows version defines at the top)
 ; Help
 ;   HeapClearAllocation: Clear memory on program crash
@@ -821,14 +824,16 @@ Root: "HKCU"; Subkey: "Software\Microsoft\DirectX\UserGpuPreferences"; ValueType
 
 ; Compatibility values (AppCompatFlags\Layers) of both game programs. GetCompatibilityFlags gives
 ; "~" plus RUNASADMIN (task everyoneadminstart) and the flags of the task compatibility; the task
-; compatibility_windows adds a Windows compatibility mode: WIN7RTM on Windows 8 and later, WINXPSP3
-; on Vista/7. CompatibilityValues writes the value of EE and of AoC for the current parameters:
+; compatibility_windows adds the Windows compatibility mode WIN7RTM. Both tasks exist on Windows 8
+; and later only, so on Windows Vista/7 only the opt-in RUNASADMIN can be written there;
+; RemoveLegacyVistaCompatValues ([Code]) removes the values earlier setups wrote on Vista/7.
+; CompatibilityValues writes the value of EE and of AoC for the current parameters:
 ;   CompatRoot, CompatCheck  registry root and the Check of the install mode
 ;   CompatTasks              Tasks condition
-;   CompatVersions           version filter parameters, "" or "MinVersion: ...; [OnlyBelowVersion: ...; ]"
+;   CompatVersions           version filter parameters, "" or "MinVersion: ...; "
 ;   CompatLayer              "" or " <Windows compatibility mode>"
-; CompatibilityValuesByWindows writes them for Windows 8 and later and for Vista/7, with the
-; Windows compatibility mode of each if CompatWindowsMode is 1.
+; CompatibilityValuesWin8 writes them for Windows 8 and later, with WIN7RTM if CompatWindowsMode
+; is 1.
 #define public CompatRoot ""
 #define public CompatCheck ""
 #define public CompatTasks ""
@@ -841,10 +846,8 @@ Root: "{#CompatRoot}"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; Val
 Root: "{#CompatRoot}"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; ValueName: "{app}\{#AoCExe}"; ValueData: "{code:GetCompatibilityFlags}{#CompatLayer}"; \
   Flags: uninsdeletevalue; Check: {#CompatCheck}; {#CompatVersions}Tasks: {#CompatTasks}; Components: gameaoc
 #endsub
-#sub CompatibilityValuesByWindows
+#sub CompatibilityValuesWin8
   #expr CompatVersions = "MinVersion: " + Win8 + "; ", CompatLayer = (CompatWindowsMode ? " WIN7RTM" : "")
-  #call CompatibilityValues
-  #expr CompatVersions = "MinVersion: " + WinVista + "; OnlyBelowVersion: " + Win8 + "; ", CompatLayer = (CompatWindowsMode ? " WINXPSP3" : "")
   #call CompatibilityValues
 #endsub
 
@@ -852,10 +855,10 @@ Root: "{#CompatRoot}"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; Val
 #expr CompatRoot = "HKLM", CompatCheck = "IsAdminInstallMode"
 ; Windows compatibility mode (here also without the task compatibility, unlike in HKCU below)
 #expr CompatTasks = "compatibility_windows", CompatWindowsMode = 1
-#call CompatibilityValuesByWindows
+#call CompatibilityValuesWin8
 ; Compatibility flags without Windows compatibility mode
 #expr CompatTasks = "not compatibility_windows and compatibility", CompatWindowsMode = 0
-#call CompatibilityValuesByWindows
+#call CompatibilityValuesWin8
 ; RUNASADMIN only (opt-in task everyoneadminstart without the compatibility tasks), any Windows.
 ; Setups up to v1.7.2 also set "~ RUNASADMIN" in HKCU for the installing account by default;
 ; CurStepChanged removes that old value (RemoveLegacyRunAsAdmin).
@@ -866,10 +869,10 @@ Root: "{#CompatRoot}"; Subkey: "{#BaseRegCompatibility}"; ValueType: String; Val
 #expr CompatRoot = "HKCU", CompatCheck = "not IsAdminInstallMode"
 ; Windows compatibility mode (needs both tasks here)
 #expr CompatTasks = "compatibility_windows and compatibility", CompatWindowsMode = 1
-#call CompatibilityValuesByWindows
+#call CompatibilityValuesWin8
 ; Compatibility flags without Windows compatibility mode
 #expr CompatTasks = "not compatibility_windows and compatibility", CompatWindowsMode = 0
-#call CompatibilityValuesByWindows
+#call CompatibilityValuesWin8
 
 ; Game settings of one game below HKCU\GameRegKey (component GameComp, game folder GameDir below
 ; {app}). Renderer, VSync, window size, bit depths and "Installed From" are set on every
@@ -1758,6 +1761,55 @@ begin
   end;
 end;
 
+// Setups up to 1.7.2 and the refactor branch wrote compatibility values on Windows Vista/7
+// (official 1.7.2: the Windows XP SP3 mode and the flags of the task compatibility for EE-AOC.exe).
+// This setup writes none there (the tasks compatibility and compatibility_windows need Windows 8),
+// so it removes such a value, but only if it is exactly one those setups wrote
+// (IsLegacyVistaCompatValue, utils.iss): any other value, e.g. one the player set, and the
+// '~ RUNASADMIN' of the opt-in task everyoneadminstart, which [Registry] may have written in this
+// run, stay. docs/adr/0005-compatibility-and-wrapper-defaults.md, contract 3.7
+procedure RemoveLegacyVistaCompatValue(const RootKey: Integer; const RootName, ExePath: String);
+var
+  Value: String;
+begin
+  if not RegQueryStringValue(RootKey, '{#BaseRegCompatibility}', ExePath, Value) then
+    Log('No compatibility value of ' + ExePath + ' (' + RootName + ')')
+  else if not IsLegacyVistaCompatValue(Value) then
+    Log('Kept the compatibility value "' + Value + '" of ' + ExePath + ' (' + RootName + '): not a value of an earlier setup')
+  else if RegDeleteValue(RootKey, '{#BaseRegCompatibility}', ExePath) then
+    Log('Removed the old Windows Vista/7 compatibility value "' + Value + '" of ' + ExePath + ' (' + RootName + ')')
+  else
+    Log('Unable to remove the old Windows Vista/7 compatibility value "' + Value + '" of ' + ExePath + ' (' + RootName + ')');
+end;
+
+// ssPostInstall, after [Registry]: on Windows Vista/7 the old compatibility values of both game
+// programs, in the root the [Registry] entries use in this install mode (HKLM in administrative
+// install mode, HKCU in user and portable mode), on every run as contract 3.7 says. Under Wine
+// (which may report Windows 7) earlier setups never wrote such values, so it finds none there.
+procedure RemoveLegacyVistaCompatValues;
+var
+  Version: TWindowsVersion;
+  RootKey: Integer;
+  RootName: String;
+begin
+  GetWindowsVersionEx(Version);
+  if not IsBelowWindows8(Version.Major, Version.Minor) then
+    Exit;
+  if IsAdminInstallMode then
+  begin
+    RootKey := HKLM;
+    RootName := 'HKLM';
+  end else
+  begin
+    RootKey := HKCU;
+    RootName := 'HKCU';
+  end;
+  Log('Windows ' + IntToStr(Version.Major) + '.' + IntToStr(Version.Minor) + ': this setup writes no compatibility values on ' +
+    'Windows Vista/7, checking ' + RootName + ' for values of earlier setups');
+  RemoveLegacyVistaCompatValue(RootKey, RootName, ExpandConstant('{app}\{#EEExe}'));
+  RemoveLegacyVistaCompatValue(RootKey, RootName, ExpandConstant('{app}\{#AoCExe}'));
+end;
+
 // Installation steps
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
@@ -1782,6 +1834,8 @@ begin
       RemoveLegacyRunAsAdmin(ExpandConstant('{app}\{#EEExe}'));
       RemoveLegacyRunAsAdmin(ExpandConstant('{app}\{#AoCExe}'));
     end;
+    // Windows Vista/7: no compatibility values any more, those of earlier setups are removed
+    RemoveLegacyVistaCompatValues();
 #if InstallType == "NeoEE"
     // After all [Run] entries (it used to be the AfterInstall of a dummy "cmd.exe /C" entry)
     if (WizardIsTaskSelected('neoee_cdkeys')) then

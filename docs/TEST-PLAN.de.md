@@ -739,7 +739,7 @@ Gemeinsam für alle Fälle dieses Blocks:
   ausführen, für alle Benutzer …“ (`everyoneadminstart`) gibt es nur im Modus „admin“, sie ist nie
   vorausgewählt.
 - Log-Zeilen der Bereinigung (`setup_is6.iss`, `RemoveLegacyVistaCompatValues`), nur unter
-  Windows Vista/7 und nicht unter Wine:
+  Windows Vista/7:
   `Windows 6.1: this setup writes no compatibility values on Windows Vista/7, checking HKLM for values of earlier setups`
   (bzw. `HKCU`), danach je Spielprogramm eine der Zeilen `No compatibility value of <Pfad> (HKLM)`,
   `Removed the old Windows Vista/7 compatibility value "<Wert>" of <Pfad> (HKLM)`,
