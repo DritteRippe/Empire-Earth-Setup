@@ -35,6 +35,11 @@ jobs:
         shell: pwsh
         run: ./ci/run_unit_tests.ps1
 
+      # Helpers of the build script: hash list, DER copy of the signing certificate
+      - name: Build script tests
+        shell: pwsh
+        run: ./ci/tests/build_helpers.tests.ps1
+
       - name: Build
         shell: pwsh
         run: ./ci/build.ps1 -Placeholders -RequireVersion 6.2.2 -KeepPreprocessed out/preprocessed

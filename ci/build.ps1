@@ -9,9 +9,15 @@
     2. With -Placeholders: create a dummy file for every asset the resolved scripts reference
        but that does not exist (ci/make_placeholder_assets.py). Existing files are never touched.
     3. Write data\localized-text.sha256, the SHA-256 list of data\localized-text: the setups only
-       download online localized files whose hash is in this list (see downloads.iss).
+       install a downloaded Language.dll whose hash is in this list, and a listed data file only
+       if it matches (see downloads.iss).
     4. Compile every variant with ISCC /DInstallType /DInstallMode /DEE_AppID /DNeoEE_AppID into
        its own output folder and check that the file name proves the variant took effect.
+  With -SignSetup the certificate internal\misc\<CertFileName> (DER or PEM) is first converted to
+  a DER copy in the temporary build folder, checked against -CertHashSHA1 and passed to ISCC as
+  /DCertDerFile, see README.md "Signed builds".
+  The functions that do not need ISCC are in ci\build_helpers.ps1 (tested by
+  ci\tests\build_helpers.tests.ps1).
 
   Without -Placeholders the real assets (data\, internal\media, internal\misc, internal\runtime,
   tools\) must be present. An installer built from placeholders is useless and must never be
@@ -49,6 +55,23 @@
 .PARAMETER DownloadHashesOnly
   Only write data\localized-text.sha256 and exit, e.g. before compiling in the Inno Setup IDE.
 
+.PARAMETER SignSetup
+  Signed build (ISCC /DSignSetup=1). Needs -CertFileName and -CertHashSHA1, and a sign tool: the
+  ones configured in the Inno Setup IDE (Tools > Configure Sign Tools: NameInInnoSetupEE,
+  NameInInnoSetupNeo) or -SignTool. Not possible with -Placeholders.
+
+.PARAMETER CertFileName
+  Certificate file in internal\misc, DER or PEM (only with -SignSetup). The setup ships a DER copy
+  under this name.
+
+.PARAMETER CertHashSHA1
+  SHA-1 thumbprint of that certificate (only with -SignSetup); spaces are ignored.
+
+.PARAMETER SignTool
+  Sign command for both sign tools (ISCC /SNameInInnoSetupEE=... /SNameInInnoSetupNeo=...), with $f
+  for the file, e.g. 'signtool.exe sign /a /fd sha256 /tr http://timestamp.digicert.com /td sha256 $f'.
+  Default: the sign tools configured in the Inno Setup IDE.
+
 .EXAMPLE
   powershell -ExecutionPolicy Bypass -File ci\build.ps1 -Placeholders
 
@@ -57,6 +80,9 @@
 
 .EXAMPLE
   .\ci\build.ps1 -Variants NeoEE/Portable -EEAppID <GUID> -NeoEEAppID <GUID>
+
+.EXAMPLE
+  .\ci\build.ps1 -EEAppID <GUID> -NeoEEAppID <GUID> -SignSetup -CertFileName Empire_Earth_Community.crt -CertHashSHA1 <thumbprint> -SignTool 'signtool.exe sign /a /fd sha256 $f'
 #>
 #Requires -Version 5.1
 [CmdletBinding()]
@@ -71,7 +97,11 @@ param(
   [string]$RequireVersion,
   [string]$Python = 'python',
   [string]$KeepPreprocessed,
-  [switch]$DownloadHashesOnly
+  [switch]$DownloadHashesOnly,
+  [switch]$SignSetup,
+  [string]$CertFileName,
+  [string]$CertHashSHA1,
+  [string]$SignTool
 )
 
 Set-StrictMode -Version 2.0
@@ -143,30 +173,21 @@ function Show-LogErrors([string]$LogFile) {
     ForEach-Object { Write-Host "    $_" }
 }
 
-# SHA-256 list of the online localized files in sha256sum format ("<hash>  <path>", paths relative
-# to data\localized-text with forward slashes, UTF-8 without BOM). downloads.iss compiles it into
-# the setup, which then only accepts downloads matching it. ISPP 6.2 has no SHA-256 function,
-# so the list has to be written before compiling.
-function Write-DownloadHashes([string]$Folder, [string]$ListFile) {
-  if (-not (Test-Path -LiteralPath $Folder -PathType Container)) {
-    Write-Warning "$Folder not found: the setups will not download any localized files."
-    return
-  }
-  $base = (Get-Item -LiteralPath $Folder).FullName.TrimEnd('\') + '\'
-  $lines = @(Get-ChildItem -LiteralPath $Folder -Recurse -File | Sort-Object FullName | ForEach-Object {
-    $relative = $_.FullName.Substring($base.Length).Replace('\', '/')
-    $hash = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
-    "$hash  $relative"
-  })
-  [System.IO.File]::WriteAllLines($ListFile, [string[]]$lines, [System.Text.UTF8Encoding]::new($false))
-  Write-Host "Download hashes: $($lines.Count) file(s) of $Folder -> $ListFile"
-}
+# Write-DownloadHashes, ConvertTo-DerCertificateFile, ConvertTo-Thumbprint
+. (Join-Path $PSScriptRoot 'build_helpers.ps1')
 
 $LocalizedFolder = Join-Path $Root 'data\localized-text'
 $DownloadHashList = Join-Path $Root 'data\localized-text.sha256'
 if ($DownloadHashesOnly) {
   Write-DownloadHashes $LocalizedFolder $DownloadHashList
   exit 0
+}
+
+if ($SignSetup) {
+  if ($Placeholders) { throw '-SignSetup needs the real certificate and cannot be combined with -Placeholders.' }
+  if (-not $CertFileName -or -not $CertHashSHA1) { throw '-SignSetup needs -CertFileName and -CertHashSHA1.' }
+  $CertSource = Join-Path $Root "internal\misc\$CertFileName"
+  if (-not (Test-Path -LiteralPath $CertSource -PathType Leaf)) { throw "Certificate not found: $CertSource" }
 }
 
 if (-not $Iscc) { $Iscc = Find-Iscc }
@@ -190,9 +211,24 @@ try {
     if (-not $NeoEEAppID) { $NeoEEAppID = $DummyNeoEEAppID }
     Write-Warning 'Placeholder build: the installers only prove that the script compiles. Never distribute them.'
   }
-  $appIdDefines = @()
-  if ($EEAppID) { $appIdDefines += "/DEE_AppID=$EEAppID" }
-  if ($NeoEEAppID) { $appIdDefines += "/DNeoEE_AppID=$NeoEEAppID" }
+  # ISCC defines and options of both passes: AppIds, signing
+  $defines = @()
+  if ($EEAppID) { $defines += "/DEE_AppID=$EEAppID" }
+  if ($NeoEEAppID) { $defines += "/DNeoEE_AppID=$NeoEEAppID" }
+
+  # Signed builds ship a DER copy of the certificate: setup_is6.iss compares its SHA-1 with
+  # CertHashSHA1, and the community certificate is PEM, which ISPP cannot decode.
+  if ($SignSetup) {
+    $certDer = Join-Path (Join-Path $WorkDir 'cert') $CertFileName
+    $cert = ConvertTo-DerCertificateFile $CertSource $certDer
+    $thumbprint = ConvertTo-Thumbprint $CertHashSHA1
+    if ($cert.Thumbprint -ne $thumbprint) {
+      throw "CertHashSHA1 $thumbprint is not the thumbprint of $CertSource ($($cert.Thumbprint))."
+    }
+    Write-Host "Certificate: $CertSource ($($cert.Encoding)), DER copy $certDer, thumbprint $($cert.Thumbprint)"
+    $defines += @('/DSignSetup=1', "/DCertFileName=$CertFileName", "/DCertHashSHA1=$thumbprint", "/DCertDerFile=$certDer")
+    if ($SignTool) { $defines += @("/SNameInInnoSetupEE=$SignTool", "/SNameInInnoSetupNeo=$SignTool") }
+  }
 
   # Pass 1: dump the resolved script of every variant. The copy has to live next to
   # setup_is6.iss so that its relative #include paths resolve. The compile itself may fail
@@ -207,7 +243,7 @@ try {
     $saveLine = '#expr SaveToFile(AddBackslash(SourcePath) + "{0}")' -f $dump
     [System.IO.File]::AppendAllText((Join-Path $Root $copy), "`r`n$saveLine`r`n", [System.Text.UTF8Encoding]::new($false))
     $log = Join-Path $WorkDir "pp_${type}_${mode}.log"
-    Invoke-Iscc (@('/Q', '/O-', "/DInstallType=$type", "/DInstallMode=$mode") + $appIdDefines + @($copy)) $log | Out-Null
+    Invoke-Iscc (@('/Q', '/O-', "/DInstallType=$type", "/DInstallMode=$mode") + $defines + @($copy)) $log | Out-Null
     Remove-Item -LiteralPath $copy
     if (-not (Test-Path -LiteralPath $dump)) {
       Write-Host "FAIL ${variant}: preprocessing produced no output"
@@ -239,7 +275,7 @@ try {
     if (Test-Path -LiteralPath $variantOut) { Remove-Item -LiteralPath $variantOut -Recurse -Force }
     New-Item -ItemType Directory -Path $variantOut | Out-Null
     $log = Join-Path $WorkDir "${type}_${mode}.log"
-    $code = Invoke-Iscc (@('/Q', "/O$variantOut", "/DInstallType=$type", "/DInstallMode=$mode") + $appIdDefines + @($MainScript)) $log
+    $code = Invoke-Iscc (@('/Q', "/O$variantOut", "/DInstallType=$type", "/DInstallMode=$mode") + $defines + @($MainScript)) $log
 
     $exe = @(Get-ChildItem -LiteralPath $variantOut -Filter '*.exe' | Select-Object -ExpandProperty Name)
     $ok = ($code -eq 0) -and ($exe.Count -eq 1)

@@ -61,8 +61,10 @@
 ;   InstallType   EE | NeoEE                                   (default: EE)
 ;   SignSetup     0 | 1 (or false | true), needs the SignTool  (default: 0)
 ;                 named in [Setup] to be configured (ISCC /S)
-;   CertFileName  certificate file (DER) in internal\misc      (only used when SignSetup = 1)
+;   CertFileName  certificate file in internal\misc            (only used when SignSetup = 1)
 ;   CertHashSHA1  SHA-1 thumbprint of that certificate         (only used when SignSetup = 1)
+;   CertDerFile   DER copy of the certificate to ship, if       (only used when SignSetup = 1,
+;                 CertFileName is PEM (ci\build.ps1 sets it)    default: internal\misc\CertFileName)
 ;   TestID        0 = release build, > 0 = test build          (default: 0)
 ;   EE_AppID      AppId GUID of the EE setup, without braces   (required, see AppId notes below)
 ;   NeoEE_AppID   AppId GUID of the NeoEE setup, w/o braces    (required, see AppId notes below)
@@ -135,16 +137,42 @@
 
 #if CertInclude
   ; The thumbprint identifies the certificate before it is added (IsCertificateFileGenuine) and
-  ; when it is removed on uninstall, so it has to be the one of CertFileName. The certificate file
-  ; must be DER encoded: then its SHA-1 is the thumbprint. (The file only exists in the final
-  ; compile, the first pass of ci\build.ps1 -Placeholders skips that comparison.)
+  ; when it is removed on uninstall, so it has to be the one of the certificate file the setup
+  ; ships. That file must be DER encoded: then its SHA-1 is the thumbprint. The community
+  ; certificate in internal\misc is PEM (base64 text), which ISPP cannot decode (no base64
+  ; decoding, no binary strings) and whose file SHA-1 is not the thumbprint, so ci\build.ps1
+  ; writes a DER copy and passes it as CertDerFile (relative to this file, or absolute). The setup
+  ; extracts it as {tmp}\<CertFileName>; certutil reads DER and PEM alike.
+  #ifndef CertDerFile
+    #define CertDerFile "internal\misc\" + CertFileName
+  #endif
+  #if Copy(CertDerFile, 2, 1) == ":" || Copy(CertDerFile, 1, 2) == "\\"
+    #define CertDerPath CertDerFile
+  #else
+    #define CertDerPath AddBackslash(SourcePath) + CertDerFile
+  #endif
   #define CertThumbprint LowerCase(StringChange(CertHashSHA1, " ", ""))
   #if Len(CertThumbprint) != 40
     #error CertHashSHA1 must be the SHA-1 thumbprint (40 hex digits) of the certificate when SignSetup is enabled
   #endif
-  #if FileExists(AddBackslash(SourcePath) + "internal\misc\" + CertFileName)
-    #if GetSHA1OfFile(AddBackslash(SourcePath) + "internal\misc\" + CertFileName) != CertThumbprint
-      #pragma error "CertHashSHA1 is not the SHA-1 thumbprint of internal\misc\" + CertFileName + " (the certificate file must be DER encoded)"
+  ; (A missing file is reported by its [Files] entry; the first pass of a placeholder build runs
+  ; before the placeholder exists and skips the comparison.)
+  #if FileExists(CertDerPath)
+    #if GetSHA1OfFile(CertDerPath) != CertThumbprint
+      ; Tell a PEM file apart, the usual mistake
+      #define CertFileFirstLine ""
+      #define CertFileHandle FileOpen(CertDerPath)
+      #if CertFileHandle
+        #if !FileEof(CertFileHandle)
+          #expr CertFileFirstLine = Trim(FileRead(CertFileHandle))
+        #endif
+        #expr FileClose(CertFileHandle)
+      #endif
+      #if Pos("-----BEGIN", CertFileFirstLine) > 0
+        #pragma error CertDerFile + " is PEM encoded: build with ci\build.ps1 -SignSetup, which ships a DER copy, or convert it and pass the copy with /DCertDerFile=<file> (see README.md, Signed builds)"
+      #else
+        #pragma error "CertHashSHA1 is not the SHA-1 thumbprint of " + CertDerFile + " (the certificate file must be DER encoded)"
+      #endif
     #endif
   #endif
 #endif
@@ -597,7 +625,8 @@ Source: "data\Add-on\DLLs\Discord\*"; DestDir: "{app}\{#AddOnDir}"; Flags: ignor
 [Files]
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 #if CertInclude
-  Source: "internal\misc\{#CertFileName}"; DestDir: "{tmp}"; DestName: "{#CertFileName}"; Flags: deleteafterinstall; Tasks: certinclude;
+  ; DER encoded (CertDerFile), extracted under the name of the certificate (IsCertificateFileGenuine)
+  Source: "{#CertDerFile}"; DestDir: "{tmp}"; DestName: "{#CertFileName}"; Flags: deleteafterinstall; Tasks: certinclude;
 #endif
 
 Source: "data\Add-on\DLLs\EEStats\EEStatsSetup.dll"; DestDir: "{app}\{#SetupDataDir}"; Flags: noencryption nocompression ignoreversion recursesubdirs createallsubdirs; MinVersion: {#WinXP}

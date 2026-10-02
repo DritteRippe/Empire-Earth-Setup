@@ -21,6 +21,9 @@ Refactoring and quality fixes (no new game content).
   with a clear message.
 - `ci/build.ps1`: clean two-pass build of all four variants, optionally against placeholder
   assets; GitHub Actions workflow compiling every push and pull request with Inno Setup 6.2.2.
+  `-SignSetup -CertFileName -CertHashSHA1 [-SignTool]` makes signed builds with a DER or PEM
+  certificate (see Changed). Its helpers that need no Inno Setup are in `ci/build_helpers.ps1`,
+  tested by `ci/tests/build_helpers.tests.ps1` (also in the workflow).
 - `ci/make_placeholder_assets.py`: creates placeholder assets for contributors and CI, and lists
   the assets a variant needs (`--list`).
 - `ci/check_messages.py` (also run by the workflow): finds duplicate messages, `==` typos, unknown
@@ -72,9 +75,14 @@ Refactoring and quality fixes (no new game content).
   only added to the trusted publishers, and only if the user checks the task (it was preselected
   for administrators). This only helps with a certificate that chains to a trusted root, e.g. one
   bought from a public CA. Updates and the uninstaller remove the root entry earlier setups made.
-  The build stops unless `CertHashSHA1` is the thumbprint of the DER certificate file; the setup
-  only adds a certificate file with that thumbprint, and it is removed only if this product added
-  it and the other product (EE/NeoEE) does not use it, with consistent `certutil` arguments.
+  The build stops unless `CertHashSHA1` is the thumbprint of the certificate file the setup ships;
+  the setup only adds a certificate file with that thumbprint, and it is removed only if this
+  product added it and the other product (EE/NeoEE) does not use it, with consistent `certutil`
+  arguments. The thumbprint is the SHA-1 of the DER encoding, and the community certificate is
+  PEM, which the preprocessor cannot decode: `ci/build.ps1 -SignSetup` converts it to a DER copy
+  and passes it as `CertDerFile`, so the setup ships the certificate DER encoded (same name,
+  `certutil` reads both). Builds with ISCC directly need a DER file; a PEM file stops them with a
+  hint (see README, "Signed builds").
 - The Wine notice of NeoEE setups is worded as a proper sentence (same content).
 - Online localized files: a downloaded `Language.dll` (or any other file with code) is only
   installed if the setup knows its SHA-256; with the official data it knows those of every
