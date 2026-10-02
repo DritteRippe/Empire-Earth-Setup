@@ -18,7 +18,7 @@ the setup is [ARCHITECTURE.md](../ARCHITECTURE.md).
 | [0005](0005-compatibility-and-wrapper-defaults.md) | No compatibility values on Windows Vista/7; keep the DirectX wrapper preselection | Accepted, implemented; point 1 amended by 0010 |
 | [0006](0006-strict-tls-and-server-certificates.md) | Strict TLS everywhere, TLS 1.2 on Windows 7, operator guide for the file server certificate | Accepted, implemented |
 | [0007](0007-environment-warnings.md) | Read-only warnings for low resolution, foreign installations and a shared EE/NeoEE folder | Accepted |
-| [0008](0008-release-checksums-and-contract-check.md) | SHA-256 files of the built setups, CI check of the contract, a log of every setup run | Accepted |
+| [0008](0008-release-checksums-and-contract-check.md) | SHA-256 files of the built setups, CI check of the contract, a log of every setup run | Accepted, implemented |
 | [0009](0009-no-installation-through-links.md) | No elevated installation through links in the folders all users can write to | Accepted |
 | [0010](0010-opt-in-compatibility-on-windows-7.md) | Opt-in compatibility flags on Windows 7; rules for the graphics and VirtualStore results | Accepted |
 

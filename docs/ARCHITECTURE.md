@@ -311,7 +311,7 @@ plan.
 | 2 | S-WP2 | Test foundation: test plan skeleton with "Testbuild herstellen" and TP-00, source and test plan checks | R17, R18 | done |
 | 3 | S-WP3 | Built-in downloads replace IDP; TLS 1.2 for HTTP requests on Windows 7; operator guide | D2, D3, R16, R17 | done |
 | 4 | S-WP4 | Compatibility defaults (no values on Windows Vista/7), wrapper preselection documented | R15, O7 | done |
-| 5 | S-WP5 | Build, CI and diagnostics: SHA-256 files of the setups, contract check (done); setup log, priorities in the test plan, redirect probe | R14, D5, D3, R18 | in progress |
+| 5 | S-WP5 | Build, CI and diagnostics: SHA-256 files of the setups, contract check, setup log, priorities in the test plan, redirect probe (followed) and the release warning for files without a pin | R14, D5, D3, R18 | done |
 | 6 | S-WP10 | Contract revision 2 in both repositories (tables of 3.3/3.4, opt-in row of 3.7, launcher rules for a running setup in 4.2 and 2.5) and the opt-in task `compatibility_legacy` on Windows 7 | D5, R15, O4, O7, R17 | planned |
 | 7 | S-WP6 | Install record, `install.ini`, defaults marker, `SetupBuild`, uninstall key value | D5 (1.1, 1.2, 3.5), R1, R17 | planned |
 | 8 | S-WP7 | Integrity manifest and post-install file check | D5 (2), R2, R11, R17 | planned |
