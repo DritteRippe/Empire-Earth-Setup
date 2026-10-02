@@ -67,6 +67,46 @@ begin
     Result := Result + ' DWM8And16BitMitigation HIGHDPIAWARE HeapClearAllocation';
 end;
 
+const
+  // Windows compatibility mode (Windows XP SP3) that setups up to 1.7.2 and the refactor branch
+  // added on Windows Vista/7 with the task compatibility_windows. This setup no longer writes it;
+  // only the cleanup of those old values (IsLegacyVistaCompatValue) still knows it.
+  LegacyVistaCompatLayer = 'WINXPSP3';
+
+// True on Windows older than 8 (NT 6.2), i.e. Windows Vista and 7 for the setup (Inno Setup 6
+// setups do not start on older Windows): there the tasks compatibility and compatibility_windows
+// do not exist (MinVersion Win8), and an update removes the values earlier setups wrote
+// (IsLegacyVistaCompatValue). docs/adr/0005-compatibility-and-wrapper-defaults.md
+function IsBelowWindows8(const WindowsMajor, WindowsMinor: Cardinal): Boolean;
+begin
+  Result := (WindowsMajor < 6) or ((WindowsMajor = 6) and (WindowsMinor < 2));
+end;
+
+// True if Value (AppCompatFlags\Layers) is exactly a value that setups up to 1.7.2 and the
+// refactor branch wrote on Windows Vista/7 and that holds compatibility flags or the old Windows
+// compatibility mode: BuildCompatibilityFlags(RunAsAdmin, Compatibility) followed by
+// ' ' + LegacyVistaCompatLayer (task compatibility_windows), or without it if the flags of the
+// task compatibility are in it. Six values in all; the plain '~' and '~ RUNASADMIN' are not among
+// them ('~ RUNASADMIN' is what the opt-in task everyoneadminstart still writes on Windows Vista/7).
+// The comparison is exact and case-sensitive: a value the player set or changed (other flags,
+// another order, another case, extra spaces) is never one of them. Contract 3.7.
+function IsLegacyVistaCompatValue(const Value: String): Boolean;
+var
+  I: Integer;
+  RunAsAdmin, Compatibility: Boolean;
+  Flags: String;
+begin
+  Result := False;
+  for I := 0 to 3 do
+  begin
+    RunAsAdmin := (I and 1) <> 0;
+    Compatibility := (I and 2) <> 0;
+    Flags := BuildCompatibilityFlags(RunAsAdmin, Compatibility);
+    if (Value = Flags + ' ' + LegacyVistaCompatLayer) or (Compatibility and (Value = Flags)) then
+      Result := True;
+  end;
+end;
+
 // Uninstall key (below HKA) of this product
 function GetUninstallRegPath(): String;
 begin

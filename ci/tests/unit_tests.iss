@@ -92,6 +92,65 @@ begin
     '~ RUNASADMIN DWM8And16BitMitigation HIGHDPIAWARE HeapClearAllocation');
 end;
 
+procedure TestIsBelowWindows8;
+begin
+  CheckBool('IsBelowWindows8 XP 5.1', IsBelowWindows8(5, 1), True);
+  CheckBool('IsBelowWindows8 Vista 6.0', IsBelowWindows8(6, 0), True);
+  CheckBool('IsBelowWindows8 Windows 7 6.1', IsBelowWindows8(6, 1), True);
+  CheckBool('IsBelowWindows8 Windows 8 6.2', IsBelowWindows8(6, 2), False);
+  CheckBool('IsBelowWindows8 Windows 8.1 6.3', IsBelowWindows8(6, 3), False);
+  CheckBool('IsBelowWindows8 Windows 10/11 10.0', IsBelowWindows8(10, 0), False);
+end;
+
+procedure CheckLegacyVista(const Kind, Value: String; const Expected: Boolean);
+begin
+  CheckBool('IsLegacyVistaCompatValue ' + Kind + ' "' + Value + '"', IsLegacyVistaCompatValue(Value), Expected);
+end;
+
+// The values setups up to 1.7.2 and the refactor branch wrote on Windows Vista/7 that the cleanup
+// removes, and values it must never remove (contract 3.7, ADR 0005)
+procedure TestIsLegacyVistaCompatValue;
+var
+  I: Integer;
+  RunAsAdmin, Compatibility: Boolean;
+  Flags: String;
+begin
+  // Every combination of the tasks, built like the old [Registry] entries: with the Windows XP SP3
+  // mode always, without it only if the flags of the task compatibility are in the value
+  for I := 0 to 3 do
+  begin
+    RunAsAdmin := (I and 1) <> 0;
+    Compatibility := (I and 2) <> 0;
+    Flags := BuildCompatibilityFlags(RunAsAdmin, Compatibility);
+    CheckLegacyVista('combination', Flags + ' WINXPSP3', True);
+    CheckLegacyVista('combination', Flags, Compatibility);
+  end;
+  // The same six values written out, so that a change of BuildCompatibilityFlags shows here
+  CheckLegacyVista('old value', '~ WINXPSP3', True);
+  CheckLegacyVista('old value', '~ RUNASADMIN WINXPSP3', True);
+  CheckLegacyVista('old value', '~ DWM8And16BitMitigation HIGHDPIAWARE HeapClearAllocation', True);
+  CheckLegacyVista('old value', '~ DWM8And16BitMitigation HIGHDPIAWARE HeapClearAllocation WINXPSP3', True);
+  CheckLegacyVista('old value', '~ RUNASADMIN DWM8And16BitMitigation HIGHDPIAWARE HeapClearAllocation', True);
+  CheckLegacyVista('old value', '~ RUNASADMIN DWM8And16BitMitigation HIGHDPIAWARE HeapClearAllocation WINXPSP3', True);
+  // Never removed: no flags (the opt-in RUNASADMIN of this setup), values of the player, of
+  // Windows 8 and later, empty, other case, order or spacing
+  CheckLegacyVista('kept', '~', False);
+  CheckLegacyVista('kept', '~ RUNASADMIN', False);
+  CheckLegacyVista('kept', '~ WINXPSP3 DISABLEDWM', False);
+  CheckLegacyVista('kept', '', False);
+  CheckLegacyVista('kept', '~ winxpsp3', False);
+  CheckLegacyVista('kept', '~ WinXPSP3', False);
+  CheckLegacyVista('kept', '~ dwm8and16bitmitigation highdpiaware heapclearallocation', False);
+  CheckLegacyVista('kept', '~ RUNASADMIN DWM8And16BitMitigation HIGHDPIAWARE HeapClearAllocation winxpsp3', False);
+  CheckLegacyVista('kept', '~ HIGHDPIAWARE DWM8And16BitMitigation HeapClearAllocation WINXPSP3', False);
+  CheckLegacyVista('kept', '~ WINXPSP3 RUNASADMIN', False);
+  CheckLegacyVista('kept', '~  WINXPSP3', False);
+  CheckLegacyVista('kept', '~ WINXPSP3 ', False);
+  CheckLegacyVista('kept', 'WINXPSP3', False);
+  CheckLegacyVista('kept', '~ DWM8And16BitMitigation HIGHDPIAWARE HeapClearAllocation WIN7RTM', False);
+  CheckLegacyVista('kept', '~ WIN7RTM', False);
+end;
+
 procedure TestUninstallKeys;
 begin
   Check('GetUninstallRegPath', GetUninstallRegPath(),
@@ -339,6 +398,8 @@ begin
     TestStrSplit;
     TestLanguageTag;
     TestCompatibilityFlags;
+    TestIsBelowWindows8;
+    TestIsLegacyVistaCompatValue;
     TestUninstallKeys;
     TestUrlEncode;
     TestSplitHttpsUrl;
