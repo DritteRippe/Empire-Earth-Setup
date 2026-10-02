@@ -45,7 +45,11 @@ Vor jedem Testtag lesen. Diese Regeln gehen jedem einzelnen Fall vor.
 
 1. **VM bzw. Snapshot.** Ein Placeholder-Build (Weg A, [6.2](#62-weg-a-placeholder-build)) läuft
    nur in einer virtuellen Maschine, in der Windows-Sandbox oder auf einem Snapshot, nie auf dem
-   Laptop über eine echte Installation. Jeder Fall nennt seinen Ausgangs-Snapshot
+   Laptop über eine echte Installation. Ein Placeholder-Build mit den offiziellen AppIds (Weg A+,
+   [6.4](#64-weg-a-placeholder-build-mit-den-offiziellen-appids)) läuft nur in einer VM oder
+   Sandbox, in der vorher das offizielle Setup 1.7.2 installiert wurde, **nie auf dem Laptop**,
+   auch nicht „nur zum Ausprobieren“: Er ist für Windows dasselbe Produkt wie die echte
+   Installation und überschreibt sie. Jeder Fall nennt seinen Ausgangs-Snapshot
    ([Abschnitt 5](#5-testumgebungen-und-snapshots)); vor dem Fall wird er wiederhergestellt. Ein
    echter Build (Weg B) darf auf dem Laptop laufen, aber nur mit Rückweg: vorher einen
    Wiederherstellungspunkt anlegen (*Systemsteuerung › System › Computerschutz*) und den
@@ -58,7 +62,7 @@ Vor jedem Testtag lesen. Diese Regeln gehen jedem einzelnen Fall vor.
    `HKLM\SOFTWARE\WOW6432Node`, HKCU), auch nicht beim Aufräumen nach einem Test. Dort liegen die
    NeoEE-CD-Keys; danach meldet das Spiel „CD key invalid“ (Forumsbericht 4.19). Die Werte gehören
    auch nicht in Protokolle oder Bildschirmfotos.
-4. **Testbuilds nie weitergeben.** Weder Weg A noch Weg B: nicht hochladen (auch nicht zu
+4. **Testbuilds nie weitergeben.** Weder Weg A noch A+ noch B: nicht hochladen (auch nicht zu
    Online-Virenscannern), nicht in Cloud-Ordner legen, nicht im Forum oder auf Discord teilen.
    Nach der Testrunde den Ordner `out\` und die Kopien in den VMs löschen. Testbuilds zeigen beim
    Start „DIES IST EIN TEST-SETUP, ID = …“ (`TestSetupWarning`).
@@ -114,7 +118,7 @@ dieser Liste darunter. Ein ausgearbeiteter Fall hat alle Felder; ein geplanter F
 - **Priorität:** P1 | P2 | P3
 - **Bezug:** Anforderung (R…), ADR, Vertrag, Forum (§8 Nr., t=…/p=…)
 - **Ziel:** was der Fall zeigen soll (ein Satz)
-- **Build-Art:** A (Placeholder-Build) | B (echter Build) | A oder B | keine (kein Setup nötig)
+- **Build-Art:** A (Placeholder-Build) | A+ (Placeholder-Build mit den offiziellen AppIds) | B (echter Build) | A oder B | keine (kein Setup nötig)
 - **Ausgangszustand:** was vor dem Fall installiert bzw. eingestellt ist
 - **Snapshot:** Name aus Abschnitt 5, der vor dem Fall wiederhergestellt wird
 - **Varianten:** welche von EE/NeoEE × admin/user/portable; ausgelassene mit Grund
@@ -158,15 +162,50 @@ Feld selbst, z. B. `P2 (P1 bei Weg B)`, oder in der Commit-Nachricht).
 | Snapshot | Inhalt | wofür |
 |---|---|---|
 | `S-Basis` | VM mit Windows 11 oder 10 (64 Bit), aktuelle Updates, kein Empire Earth, keine Reste alter Installationen; ein Administratorkonto und ein Standardkonto „Spieler“; Netzwerk an | Erstinstallation, Weg A und B |
-| `S-Sandbox` | Windows-Sandbox (Windows 10/11 Pro): startet jedes Mal frisch, ohne 3D-Beschleunigung | schnelle Läufe mit Weg A (das Spiel startet dort nicht) |
-| `S-172-EE`, `S-172-NeoEE` | `S-Basis` plus offizielles Setup 1.7.2 (EE bzw. NeoEE) als Administrator installiert, einmal gestartet | Update über 1.7.2, nur Weg B |
+| `S-Sandbox` | Windows-Sandbox (Windows 10/11 Pro): startet jedes Mal frisch, ohne 3D-Beschleunigung, ein Konto mit Administratorrechten | schnelle Läufe mit Weg A (das Spiel startet dort nicht); mit dem offiziellen Setup 1.7.2 in derselben Sitzung auch Weg A+ (siehe unten) |
+| `S-172-EE`, `S-172-NeoEE` | `S-Basis` plus offizielles Setup 1.7.2 (EE bzw. NeoEE) als Administrator installiert, einmal gestartet | Update über 1.7.2, Weg A+ oder B |
 | `S-Win7` | VM mit Windows 7 SP1 (64 Bit), ohne KB3140245 und ohne SChannel-Änderungen | TLS 1.2 und Kompatibilitätswerte unter Windows 7 (S-WP3, S-WP4) |
-| `S-Win7-172-EE` | `S-Win7` plus offizielles Setup 1.7.2 (EE) als Administrator mit „Empfohlene Einstellungen“ und AoC installiert, einmal gestartet | Update über 1.7.2 unter Windows 7 (TP-21), nur Weg B |
+| `S-Win7-172-EE` | `S-Win7` plus offizielles Setup 1.7.2 (EE) als Administrator mit „Empfohlene Einstellungen“ und AoC installiert, einmal gestartet | Update über 1.7.2 unter Windows 7 (TP-21), Weg A+ oder B |
+| `S-Win81` | VM mit Windows 8.1 (64 Bit), aktuelle Updates, kein Empire Earth | nur die Windows-8.1-Variante von TP-22 (P3) |
 | `S-Alt` | `S-Basis` plus eine alte Installation: Original-CD unter `C:\Sierra\Empire Earth` bzw. GOG-Version | fremde und alte Installationen (S-WP8) |
 | `Laptop` | das echte System des Testers, mit Wiederherstellungspunkt und Sicherung (Regel 1) | nur Weg B |
 
 Die Windows-7-VM bekommt nur Fälle, die das ausdrücklich verlangen; sie hat keinen aktuellen
 Browser, `TP-00` läuft deshalb auf dem Laptop.
+
+**Windows-Sandbox.** Sie gibt es nur in Windows 10/11 Pro, Enterprise und Education
+(*Windows-Features aktivieren oder deaktivieren › Windows-Sandbox*); unter Windows Home übernimmt
+eine VM mit dem Snapshot `S-Basis` ihre Rolle. Alles in der Sandbox ist beim Schließen weg, auch die
+Logs. Deshalb eine Konfigurationsdatei anlegen, die den Ordner `C:\EE-Test` des Laptops beschreibbar
+in die Sandbox legt (er erscheint dort auf dem Desktop), und die Sandbox per Doppelklick auf diese
+Datei starten:
+
+```xml
+<Configuration>
+  <MappedFolders>
+    <MappedFolder>
+      <HostFolder>C:\EE-Test</HostFolder>
+      <ReadOnly>false</ReadOnly>
+    </MappedFolder>
+  </MappedFolders>
+</Configuration>
+```
+
+Gespeichert als `C:\EE-Test\EE-Test.wsb`; für Läufe ohne Netz eine Kopie `EE-Test-offline.wsb` mit
+der zusätzlichen Zeile `<Networking>Disable</Networking>` direkt unter `<Configuration>`. Die Setups
+liegen in `C:\EE-Test\setups` (vom Laptop dorthin kopiert) und werden in der Sandbox vom Desktop
+gestartet. In der Sandbox den Ordner `C:\EE-Test\logs` anlegen (Regel 6) und vor dem Schließen die
+Logs auf den freigegebenen Ordner kopieren:
+`xcopy C:\EE-Test\logs "%USERPROFILE%\Desktop\EE-Test\logs\" /y`.
+
+**`S-172-EE` in der Sandbox.** Für den Kurzdurchlauf lässt sich `S-172-EE` in einer frischen
+Sandbox-Sitzung herstellen: das offizielle EE-Setup 1.7.2 (selbst heruntergeladen, in
+`C:\EE-Test\setups`) als Administrator mit „Empfohlene Einstellungen“ und AoC installieren,
+Spielsprache Englisch (keine Downloads), Telemetrie aus. Das Spiel startet in der Sandbox nicht;
+der Schritt „einmal gestartet“ entfällt. Er ändert nichts, was die Update-Fälle prüfen (Registry
+des Setups, versteckter Setup-Ordner, Kompatibilitätswerte), nur Dateien, die das Spiel selbst
+anlegt. Nach dem Schließen der Sandbox ist der Zustand weg und wird beim nächsten Mal neu
+hergestellt.
 
 ## 6. Testbuild herstellen
 
@@ -178,7 +217,15 @@ den Testbuild nicht als veraltet meldet; Testbuilds unterscheidet der Wert `Setu
 Installationseintrag und in der ersten eigenen Zeile des Setup-Logs
 ([TP-40](#tp-40-installationseintrag-und-installini-je-variante)).
 
-### 6.1 Voraussetzungen (beide Wege)
+Es gibt drei Wege; die Build-Art jedes Falls nennt, welche er braucht:
+
+| Weg | Spieldaten | AppIds | wofür | wo |
+|---|---|---|---|---|
+| A ([6.2](#62-weg-a-placeholder-build)) | Platzhalter | Platzhalter (eigenes Produkt) | Mechanik einer Erstinstallation, Reparatur, Deinstallation | VM, Windows-Sandbox, Snapshot |
+| A+ ([6.4](#64-weg-a-placeholder-build-mit-den-offiziellen-appids)) | Platzhalter | die offiziellen (aus der eigenen Installation abgelesen) | Mechanik des Updates über 1.7.2 ohne Daten der Maintainer | nur VM bzw. Sandbox mit dem offiziellen Setup 1.7.2 (`S-172-*`, `S-Win7-172-EE`) |
+| B ([6.3](#63-weg-b-echter-build-aus-eigenen-daten)) | eigene echte Daten | die offiziellen | alles, auch Spielstart und Dauer mit echten Daten | Laptop (mit Rückweg, Regel 1) oder VM |
+
+### 6.1 Voraussetzungen (alle Wege)
 
 - Windows 10 oder 11, Windows PowerShell 5.1 (eingebaut) oder PowerShell 7.
 - Eine Arbeitskopie dieses Repositorys mit dem Stand, der getestet wird (Branch `v2`). Den Commit
@@ -188,7 +235,7 @@ Installationseintrag und in der ersten eigenen Zeile des Setup-Logs
   `choco install innosetup --version=6.2.2`. `ci\build.ps1` findet `ISCC.exe` im Standardordner
   `C:\Program Files (x86)\Inno Setup 6\`, sonst `-Iscc <Pfad>`; `-RequireVersion 6.2.2` bricht bei
   einer anderen Version ab.
-- Python 3 nur für Weg A (`ci\make_placeholder_assets.py`; `python` im `PATH`, sonst
+- Python 3 nur für Weg A und A+ (`ci\make_placeholder_assets.py`; `python` im `PATH`, sonst
   `-Python <Pfad>`).
 
 ### 6.2 Weg A: Placeholder-Build
@@ -263,8 +310,8 @@ Spiel gestartet wird. Der Build verlässt den Laptop bzw. die VM nie (Regel 4).
 
 Folge: Weg B setzt Quelle 1 voraus, oder eine Rekonstruktion, die der Tester selbst mit eigenen
 Werkzeugen aus selbst heruntergeladenen Setups erstellt (nur lokal, nie weitergeben). Ohne Daten
-gibt es nur Weg A; Fälle mit Build-Art B kommen dann ins Protokoll als „nicht durchgeführt: keine
-Daten“.
+gibt es nur Weg A und Weg A+ ([6.4](#64-weg-a-placeholder-build-mit-den-offiziellen-appids)); Fälle
+und Teile mit Build-Art B kommen dann ins Protokoll als „nicht durchgeführt: keine Daten“.
 
 **Schritte:**
 
@@ -323,7 +370,63 @@ Daten“.
    signieren.
 5. Nach der Testrunde `out\` löschen (Regel 4).
 
-### 6.4 Silent-Tests
+### 6.4 Weg A+: Placeholder-Build mit den offiziellen AppIds
+
+> **Warnung:** Ein A+-Build ist für Windows **dieselbe Anwendung** wie das veröffentlichte Setup.
+> Auf einem Rechner mit einer echten Installation desselben Produkts aktualisiert er diese
+> Installation an Ort und Stelle und ersetzt die Spieldateien durch Platzhalter; das Spiel startet
+> danach nicht mehr, und seine Deinstallation entfernt die ganze Installation. Deshalb nur in einer
+> VM bzw. Sandbox mit dem offiziellen Setup 1.7.2 (`S-172-EE`, `S-172-NeoEE`, `S-Win7-172-EE`, die
+> Sandbox wie in [Abschnitt 5](#5-testumgebungen-und-snapshots)), **nie auf dem Laptop** und nie
+> weitergeben (Regel 4).
+
+Wofür: die Mechanik des Updates über eine Installation des offiziellen Setups 1.7.2, ohne die
+Daten der Maintainer (Weg B). Dieselbe AppId lässt Inno Setup die vorhandene Installation
+erkennen: derselbe Ordner, die Komponenten und Aufgaben des vorigen Laufs, die Option „Vorhandene
+Installation reparieren“ auf der Seite „Installationsmodus“ (Spiel- und Setup-Version sind gleich,
+deshalb nicht „Aktuelle Installation aktualisieren“), derselbe Uninstall-Schlüssel. Damit prüfbar:
+das Entfernen des alten versteckten Ordners `<Spielordner>\<AppId>`, die Bereinigung alter
+Kompatibilitätswerte und des alten `~ RUNASADMIN`, der neue Installationseintrag, `install.ini`,
+`files.sha256` und der Wert `Empire Earth Community: ContractVersion` im Uninstall-Schlüssel nach
+einem Update, und dass unter „Apps“ genau ein Eintrag bleibt.
+
+1. **`EEStatsSetup.dll` bereitstellen** wie in [6.2](#62-weg-a-placeholder-build) Schritt 1. Bei
+   einer Installation 1.7.2 liegt sie im versteckten Ordner `<Spielordner>\<AppId>` (z. B. in der
+   Sandbox nach der Installation von 1.7.2: `dir /a "C:\Program Files (x86)\Empire Earth"`).
+2. **Offizielle AppIds ablesen** wie in [6.3](#63-weg-b-echter-build-aus-eigenen-daten) Schritt 2:
+   aus der eigenen Installation des Community-Setups auf dem Laptop (nur lesen) oder einmalig in der
+   VM bzw. Sandbox nach der Installation des offiziellen Setups 1.7.2. Die AppIds ändern sich über
+   die Versionen nicht; einmal ins Protokoll geschrieben, gelten sie für alle weiteren Runden.
+3. **Bauen** (im Repository-Ordner, in einen eigenen Ausgabeordner, damit die Setups nicht mit denen
+   von Weg A verwechselt werden):
+
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File ci\build.ps1 -Placeholders -EEAppID <EE-AppId> -NeoEEAppID <NeoEE-AppId> -TestID 1 -OutputDir out\aplus
+   ```
+
+   `-Placeholders` setzt Platzhalter-AppIds nur für die Produkte ein, deren AppId fehlt. Wer nur das
+   EE-Setup 1.7.2 hat, baut nur EE: `-EEAppID <EE-AppId> -Variants EE/Regular` (NeoEE bekommt die
+   Platzhalter-AppId und wird nicht gebaut). Erwartet: die Warnungen „Test build 1: …“ und
+   „Placeholder build: …“, `SetupBuild: test1-<Commit>`, `PASS EE/Regular -> EE_Setup_v1.7.2.exe`
+   und `All <n> variant(s) built into …\out\aplus`; das EE-Setup liegt in
+   `out\aplus\EE_Regular\EE_Setup_v1.7.2.exe`. Im Protokoll steht als Build `A+, 1, <Commit>`.
+4. Nach der Testrunde `out\aplus` löschen (Regel 4).
+
+**Grenzen von Weg A+** (gelten in den Fällen als erwartet):
+
+- Alle Grenzen von Weg A ([6.2](#62-weg-a-placeholder-build) Schritt 3): `dxwebsetup`, die
+  CD-Key-Registrierung von NeoEE (`CDKeysToolMissing`), verworfene gepinnte Downloads, keine Musik.
+- Nach dem Update sind die Spieldateien Platzhalter: kein Spielstart, keine Aussage darüber, ob die
+  Dateien von 1.7.2 und von v2 zusammenpassen (das zeigt der Vergleich mit den echten Daten der
+  Maintainer und Weg B). `files.sha256` enthält die Prüfsummen der Platzhalter.
+- Nur Produkte mit offizieller AppId sind ein Update. Ein EE-Build ohne die offizielle NeoEE-AppId
+  erkennt eine NeoEE-Installation 1.7.2 nicht als „das andere Produkt“ (Frage
+  `SharedFolderQuestion`, [TP-62](#tp-62-ee-und-neoee-im-selben-ordner) (d)): dafür beide AppIds
+  angeben.
+- Die Deinstallation des A+-Builds entfernt die Installation 1.7.2 mit (es ist dieselbe); der
+  Ausgangszustand kommt nur über den Snapshot bzw. eine neue Sandbox zurück.
+
+### 6.5 Silent-Tests
 
 Testbuilds zeigen die Warnung `TestSetupWarning` auch im Silent-Modus (`setup_is6.iss`:
 „shown even in silent mode“). Ohne `/SUPPRESSMSGBOXES` wartet ein Silent-Setup deshalb auf einen
@@ -886,7 +989,7 @@ Gemeinsam für alle Fälle dieses Blocks:
   Spieler selbst gesetzt hat, `~ RUNASADMIN` und den Wert, den derselbe Lauf mit
   `compatibility_legacy` schreibt; wird die Aufgabe bei einem späteren Lauf abgewählt, entfernt die
   Bereinigung ihren Wert.
-- **Build-Art:** (a) B; (b) und (c) A oder B
+- **Build-Art:** (a) A+ oder B (die Spielstarts in Schritt 2 und 4 nur B); (b) und (c) A oder B
 - **Ausgangszustand:** (a) offizielles Setup 1.7.2 (EE) unter Windows 7 als Administrator mit
   „Empfohlene Einstellungen“ und „Installiere Empire Earth und Die Kunst der Eroberungen -
   Erweiterung“ installiert, einmal gestartet; dazu ein eigener Wert des Spielers für
@@ -910,10 +1013,12 @@ Gemeinsam für alle Fälle dieses Blocks:
      reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers" /v "C:\Program Files (x86)\Empire Earth\Empire Earth\Empire Earth.exe" /t REG_SZ /d "~ WINXPSP3 DISABLEDWM" /f /reg:64
      ```
 
-  4. Den Testbuild (Weg B, offizielle AppIds) mit `/LOG="C:\EE-Test\logs\TP-21a_EE-admin.log"`
-     starten, „Aktuelle Installation aktualisieren“ bzw. „Vorhandene Installation reparieren“,
-     Telemetrie aus, installieren, fertigstellen. Die `reg query`-Befehle wiederholen und AoC wie in
-     Schritt 2 starten.
+  4. Den Testbuild mit den offiziellen AppIds (Weg A+ aus
+     [6.4](#64-weg-a-placeholder-build-mit-den-offiziellen-appids) oder Weg B) mit
+     `/LOG="C:\EE-Test\logs\TP-21a_EE-admin.log"` starten (Weg A+ zusätzlich
+     `/MERGETASKS="!dxwebsetup"`), „Aktuelle Installation aktualisieren“ bzw. „Vorhandene
+     Installation reparieren“, Telemetrie aus, installieren, fertigstellen. Die `reg query`-Befehle
+     wiederholen; nur Weg B: AoC wie in Schritt 2 starten.
   5. (b) admin: Auf `S-Win7` in einer Eingabeaufforderung als Administrator nachstellen, was ein
      früheres Setup mit `everyoneadminstart` und beiden Kompatibilitätsaufgaben für Empire Earth
      geschrieben hätte, und einen eigenen Wert für AoC setzen:
@@ -960,8 +1065,8 @@ Gemeinsam für alle Fälle dieses Blocks:
 - **Erwartetes Ergebnis:**
   - (a) nach dem Update: kein Wert mehr für `EE-AOC.exe` in HKLM; für `Empire Earth.exe` in HKLM
     weiterhin `~ WINXPSP3 DISABLEDWM` (der Wert des Spielers); in HKCU keine der beiden
-    `~ RUNASADMIN`-Zeilen mehr. AoC startet nach dem Update ohne Fehler; das Ergebnis aus Schritt 2
-    steht zum Vergleich im Protokoll.
+    `~ RUNASADMIN`-Zeilen mehr. Nur Weg B: AoC startet nach dem Update ohne Fehler; das Ergebnis
+    aus Schritt 2 steht zum Vergleich im Protokoll.
   - (b) admin: der Wert von `Empire Earth.exe` ist entfernt, `EE-AOC.exe` behält
     `~ WINXPSP3 DISABLEDWM`.
   - (b) user: der Wert von `Empire Earth.exe` ist entfernt, `EE-AOC.exe` behält `~ RUNASADMIN`.
@@ -994,7 +1099,7 @@ Gemeinsam für alle Fälle dieses Blocks:
   Aufgabe `compatibility`, die GPU-Präferenz), ein Update entfernt keinen Kompatibilitätswert außer
   dem alten `~ RUNASADMIN` in HKCU, und das Spiel startet mit allen Aufgaben, ohne
   `compatibility_windows` und ohne beide.
-- **Build-Art:** A oder B (Schritt 5 und Variante (e) nur B)
+- **Build-Art:** (a) bis (d) A oder B, (e) A+ oder B (Schritt 5 nur B)
 - **Ausgangszustand:** (a) bis (d) kein Empire Earth; (e) offizielles Setup 1.7.2 (EE) als
   Administrator installiert, einmal gestartet.
 - **Snapshot:** (a) bis (d) `S-Basis`; (e) `S-172-EE`. Auf dem `Laptop` nur Weg B mit
@@ -1012,9 +1117,10 @@ Gemeinsam für alle Fälle dieses Blocks:
   3. Snapshot zurücksetzen und wie Schritt 2 mit (b) „Kompatibilitätsmodus für ältere
      Windows-Versionen aktivieren“ abgewählt (`TP-22b`), (c) beide abgewählt (`TP-22c`), (d)
      `/CURRENTUSER` mit beiden Aufgaben (`TP-22d_EE-user`).
-  4. (e) Auf `S-172-EE` die Ausgaben der `reg query`-Befehle notieren, den Testbuild (Weg B,
-     offizielle AppIds) mit `/LOG="C:\EE-Test\logs\TP-22e_EE-admin.log"` und „Aktuelle Installation
-     aktualisieren“ bzw. „Vorhandene Installation reparieren“ ausführen, danach dieselben Abfragen.
+  4. (e) Auf `S-172-EE` die Ausgaben der `reg query`-Befehle notieren, den Testbuild mit den
+     offiziellen AppIds (Weg A+ mit `/MERGETASKS="!dxwebsetup"` oder Weg B) mit
+     `/LOG="C:\EE-Test\logs\TP-22e_EE-admin.log"` und „Aktuelle Installation aktualisieren“ bzw.
+     „Vorhandene Installation reparieren“ ausführen, danach dieselben Abfragen.
   5. Nur Weg B: nach (a), (b) und (c) Empire Earth und AoC je starten (siehe oben).
 - **Erwartetes Ergebnis:**
   - (a): in HKLM für beide Programme `~ DWM8And16BitMitigation HIGHDPIAWARE HeapClearAllocation WIN7RTM`,
@@ -1254,8 +1360,8 @@ Benutzerkonten, Freigabemodi beim Löschen).
 Werte für die Prüfung (Weg A, `ci\build.ps1 -Placeholders -TestID 1`): AppId EE
 `00000000-0000-0000-0000-0000000000EE`, NeoEE `00000000-0000-0000-0000-000000000AEE`; Spielversion
 EE `2.0.0.0`, NeoEE `2.0.0.5`; Setup-Version `1.7.2`; `SetupBuild` ist `test1-<Commit>` mit dem
-kurzen Commit, den `ci\build.ps1` beim Bauen als `SetupBuild: …` ausgibt (ins Protokoll). Weg B:
-die offiziellen AppIds aus [6.3](#63-weg-b-echter-build-aus-eigenen-daten).
+kurzen Commit, den `ci\build.ps1` beim Bauen als `SetupBuild: …` ausgibt (ins Protokoll). Weg A+
+und B: die offiziellen AppIds aus [6.3](#63-weg-b-echter-build-aus-eigenen-daten).
 
 #### TP-40: Installationseintrag und install.ini je Variante
 
@@ -1268,7 +1374,7 @@ die offiziellen AppIds aus [6.3](#63-weg-b-echter-build-aus-eigenen-daten).
   Vertrag beschreibt; der Wert `Empire Earth Community: ContractVersion` steht nur nach einem Lauf,
   der `install.ini` wirklich ersetzt hat; die Deinstallation entfernt Eintrag, Marker und Ordner und
   lässt `Software\Sierra\CDKeys` stehen.
-- **Build-Art:** A oder B; Teil (f) nur B (offizielle AppIds, damit das Setup 1.7.2 dieselbe
+- **Build-Art:** A oder B; Teil (f) A+ oder B (offizielle AppIds, damit das Setup 1.7.2 dieselbe
   Installation aktualisiert).
 - **Ausgangszustand:** kein Empire Earth installiert; für (f) das offizielle EE-Setup 1.7.2
   (selbst heruntergeladen) in der VM.
@@ -1333,7 +1439,7 @@ die offiziellen AppIds aus [6.3](#63-weg-b-echter-build-aus-eigenen-daten).
      `$f = [IO.File]::Open('C:\Program Files (x86)\Empire Earth\_setupdata_EE\install.ini', 'Open', 'Read', 'Read')`,
      das Setup reparieren lassen (PowerShell dabei offen lassen), erst nach dem Ende des Setups
      `$f.Close()`, abfragen, und noch einmal reparieren.
-  7. (f) Nur Weg B: Snapshot zurücksetzen, den Testbuild EE-admin installieren, dann das
+  7. (f) Nur Weg A+ oder B: Snapshot zurücksetzen, den Testbuild EE-admin installieren, dann das
      offizielle Setup 1.7.2 über diese Installation laufen lassen („Aktuelle Installation
      aktualisieren“ bzw. „reparieren“), danach den Wert im Uninstall-Schlüssel, den
      Installationseintrag und `install.ini` abfragen; zum Schluss den Testbuild noch einmal laufen
@@ -1814,7 +1920,7 @@ Befehle unten lassen den abschließenden `\` deshalb weg.
 - **Ziel:** Wer EE und NeoEE in denselben Ordner installieren will, bekommt die Frage
   `SharedFolderQuestion` mit „Ja“ = anderen Ordner wählen als Vorgabe; „Ja“ bleibt auf der
   Ordnerseite, „Nein“ installiert; die genannten Folgen (Deinstallation, Firewall-Regeln) treten ein.
-- **Build-Art:** A oder B (Teil d nur B)
+- **Build-Art:** A oder B (Teil d A+ mit beiden offiziellen AppIds oder B)
 - **Ausgangszustand:** (a) bis (c): kein Empire Earth installiert. (d): offizielles NeoEE-Setup 1.7.2
   installiert.
 - **Snapshot:** `S-Basis` (oder `S-Sandbox`) für (a) bis (c), `S-172-NeoEE` für (d)
@@ -1837,7 +1943,8 @@ Befehle unten lassen den abschließenden `\` deshalb weg.
      NeoEE-portable mit `TP-62b` im Log-Namen auf denselben Ordner: Frage, „Nein“, installieren.
   4. (c) Snapshot zurücksetzen, EE-admin wie in (a), dann
      `<NeoEE-Setup>.exe /VERYSILENT /SUPPRESSMSGBOXES /DIR="C:\Program Files (x86)\Empire Earth" /LOG="C:\EE-Test\logs\TP-62c_NeoEE-admin.log"`.
-  5. (d) Nur Weg B, auf `S-172-NeoEE`: EE-admin dieses Testbuilds starten und den Ordner der
+  5. (d) Nur Weg A+ (mit beiden offiziellen AppIds gebaut) oder B, auf `S-172-NeoEE`: EE-admin
+     dieses Testbuilds starten und den Ordner der
      NeoEE-Installation (`C:\Program Files (x86)\Neo Empire Earth`) eintragen, „Weiter“, „Ja“.
 - **Erwartetes Ergebnis:**
   - (a) Frage (Fragezeichen-Symbol): „Der gewählte Ordner enthält bereits Empire Earth, installiert
@@ -1914,11 +2021,12 @@ Befehle unten lassen den abschließenden `\` deshalb weg.
   (Uninstall-Schlüssel); Forum §8 Nr. 2 (Version, nur Startbild)
 - **Ziel:** Ein Testbuild installiert sich vollständig, das Spiel startet (Weg B), und die
   Deinstallation räumt auf. Jeder andere Fall setzt voraus, dass dieser besteht.
-- **Build-Art:** A oder B (Schritt 6 nur B)
-- **Ausgangszustand:** (a) Erstinstallation: kein Empire Earth installiert. (b) Update, nur
-  Weg B: offizielles Setup 1.7.2 desselben Produkts als Administrator installiert.
-- **Snapshot:** (a) `S-Basis` oder `S-Sandbox` (nur Weg A); (b) `S-172-EE` bzw. `S-172-NeoEE`.
-  Auf dem `Laptop` nur Weg B und nur mit Wiederherstellungspunkt.
+- **Build-Art:** (a) A oder B, (b) A+ oder B (Schritt 6 nur B)
+- **Ausgangszustand:** (a) Erstinstallation: kein Empire Earth installiert. (b) Update: offizielles
+  Setup 1.7.2 desselben Produkts als Administrator installiert.
+- **Snapshot:** (a) `S-Basis` oder `S-Sandbox` (nur Weg A); (b) `S-172-EE` bzw. `S-172-NeoEE`, für
+  Weg A+ auch die Sandbox mit dem Setup 1.7.2 ([Abschnitt 5](#5-testumgebungen-und-snapshots)). Auf
+  dem `Laptop` nur Weg B und nur mit Wiederherstellungspunkt.
 - **Varianten:** EE-admin und NeoEE-admin (a und b), EE-user und NeoEE-user (a), EE-portable und
   NeoEE-portable (a; ohne Deinstallation, Schritt 7 entfällt).
 - **Schritte:**
@@ -1933,28 +2041,37 @@ Befehle unten lassen den abschließenden `\` deshalb weg.
      „Installiere Empire Earth und Die Kunst der Eroberungen - Erweiterung“, bei (b) die angebotene
      Option für die vorhandene Installation („Aktuelle Installation aktualisieren“ bzw.
      „Vorhandene Installation reparieren“), jeweils mit abgewählter Telemetrie-Zustimmung;
-     Grafikkarte wie vorgeschlagen, Zielordner unverändert, installieren, „Fertigstellen“. Bei Weg A ist die Meldung zu `dxwebsetup.exe` erwartet
-     ([6.2](#62-weg-a-placeholder-build)); wer sie vermeiden will, nimmt die benutzerdefinierten
-     Einstellungen und wählt dort die Aufgabe „DirectX-Endbenutzer-Runtime installieren“ ab.
+     Grafikkarte wie vorgeschlagen, Zielordner unverändert, installieren, „Fertigstellen“. Bei Weg A
+     ist die Meldung zu `dxwebsetup.exe` erwartet ([6.2](#62-weg-a-placeholder-build)); wer sie
+     vermeiden will, nimmt die benutzerdefinierten Einstellungen und wählt dort die Aufgabe
+     „DirectX-Endbenutzer-Runtime installieren“ ab. Bei (b) mit Weg A+ (das Setup aus `out\aplus`)
+     zeigt die Reparatur keine Aufgabenseite: dort beim Start `/MERGETASKS="!dxwebsetup"` anhängen.
   5. Prüfen (Eingabeaufforderung):
      `reg query "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{<AppId>}_is1" /v DisplayName /reg:64`
      (bei „user“ `HKCU\Software\…` ohne `/reg:64`; bei Weg A die Platzhalter-AppId), und im
      Explorer den Spielordner mit `Empire Earth\Empire Earth.exe`,
      `Empire Earth - The Art of Conquest\EE-AOC.exe` und dem versteckten Ordner
-     `_setupdata_EE` bzw. `_setupdata_NeoEE`.
+     `_setupdata_EE` bzw. `_setupdata_NeoEE`. Bei (b) zusätzlich
+     `reg query "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{<AppId>}_is1" /v "Empire Earth Community: ContractVersion" /reg:64`,
+     `reg query "HKLM\SOFTWARE\Empire Earth Community\Installations\EE" /v InstallPath /reg:64`
+     (NeoEE: `…\Installations\NeoEE`) und `dir /a "<Installationsordner>"`.
   6. Nur Weg B: Empire Earth und The Art of Conquest je einmal bis ins Hauptmenü starten, die
      angezeigte Version notieren, beenden.
   7. Deinstallieren: `"<Installationsordner>\unins000.exe" /LOG="C:\EE-Test\logs\TP-70_EE-admin_uninstall.log"`.
 - **Erwartetes Ergebnis:**
   - Die Testwarnung nennt `ID = 1`, Setup-Version 1.7.2 und die Spielversion. Außer ihr, der
     Rechtsfrage bei (a), dem Hinweis zum Benutzermodus bei „user“ und den bekannten Grenzen von
-    Weg A ([6.2](#62-weg-a-placeholder-build)) erscheint keine Fehlermeldung. Ausnahme NeoEE in
+    Weg A und A+ ([6.2](#62-weg-a-placeholder-build), [6.4](#64-weg-a-placeholder-build-mit-den-offiziellen-appids))
+    erscheint keine Fehlermeldung. Ausnahme NeoEE in
     einer VM mit Weg B: Die CD-Key-Registrierung kann die VM erkennen und `CDKeysErrorVM` melden
     (das prüft TP-77); die Installation läuft trotzdem zu Ende.
   - Schritt 5: `DisplayName` ist `Empire Earth v2.0.0.0 - Setup v1.7.2` bzw.
     `NeoEE v2.0.0.5 - Setup v1.7.2`; Spielordner und `_setupdata_<Produkt>` existieren. Bei (b)
     gibt es unter „Apps“ genau einen Eintrag des Produkts, der Zielordner ist der der Installation
-    1.7.2, und der alte versteckte Ordner `<Spielordner>\<AppId>` ist entfernt. Portable: kein
+    1.7.2, und der alte versteckte Ordner `<Spielordner>\<AppId>` ist entfernt (`dir /a` zeigt nur
+    `_setupdata_<Produkt>`); der Uninstall-Schlüssel hat `Empire Earth Community: ContractVersion`
+    `0x1`, `InstallPath` ist der Ordner der Installation 1.7.2. Weg A+: danach startet das Spiel nicht
+    mehr (Platzhalter, [6.4](#64-weg-a-placeholder-build-mit-den-offiziellen-appids)). Portable: kein
     Uninstall-Schlüssel, Ordner `Empire Earth Portable` bzw. `Neo Empire Earth Portable` neben dem
     Setup.
   - Schritt 6: Beide Spiele erreichen das Hauptmenü ohne Fehlermeldung.
@@ -1962,8 +2079,11 @@ Befehle unten lassen den abschließenden `\` deshalb weg.
     bleiben höchstens Dateien, die das Spiel selbst angelegt hat; `Software\Sierra\CDKeys` ist
     unverändert (NeoEE).
 - **Log-Hinweis:** Das Setup-Log enthält `Installation process succeeded.` und keine Zeile mit
-  `Exception` oder `Runtime error`. Bei Weg A erklären die Zeilen zu `dxwebsetup.exe` bzw.
-  `authtools.dll` die erwarteten Hinweise. Bei Problemen beide Logs ins Protokoll.
+  `Exception` oder `Runtime error`. Bei Weg A und A+ erklären die Zeilen zu `dxwebsetup.exe` bzw.
+  `authtools.dll` die erwarteten Hinweise. Bei (b) zeigt Inno Setup, dass es die vorhandene
+  Installation fortführt: `Will append to existing uninstall log: <Ordner der Installation
+  1.7.2>\unins000.dat` (bei einer Erstinstallation `Creating new uninstall log: …`). Bei Problemen
+  beide Logs ins Protokoll.
 
 #### TP-71: Als Administrator installieren, als Standardbenutzer spielen
 
