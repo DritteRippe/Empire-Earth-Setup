@@ -57,15 +57,15 @@ has no translation for (they are shown in English) and the `zh_TW` texts that ar
 `zh_CN` ones. Its output is the current to-do list; the overview below is the state when this
 file was last updated.
 
-Custom messages to translate: 101 (14 of them only used by NeoEE setups; the Mute/Unmute button
+Custom messages to translate: 102 (14 of them only used by NeoEE setups; the Mute/Unmute button
 texts `SoundCtrlButtonCaptionSoundOn/Off` stay English on purpose and are not counted).
 
 | Language | Translated | Missing |
 |---|---|---|
-| English (default) | 101 | - |
-| German `de`, French `fr` | 101 | - |
-| Spanish `es`, Italian `it`, Polish `pl`, Russian `ru`, Korean `ko`, Chinese Simplified `zh_CN`, Chinese Traditional `zh_TW` | 35 | 66: the messages added after setup 1.7.2 |
-| Brazilian Portuguese `pt_BR` | 13 | 88: everything except the game language page (`LIQP_*`), see below |
+| English (default) | 102 | - |
+| German `de`, French `fr` | 102 | - |
+| Spanish `es`, Italian `it`, Polish `pl`, Russian `ru`, Korean `ko`, Chinese Simplified `zh_CN`, Chinese Traditional `zh_TW` | 35 | 67: the messages added after setup 1.7.2 |
+| Brazilian Portuguese `pt_BR` | 13 | 89: everything except the game language page (`LIQP_*`), see below |
 | Setup-only languages (`hy`, `bg`, `ca`, ...) | 0 | all; these languages only have Inno Setup's own texts |
 
 ## Help wanted

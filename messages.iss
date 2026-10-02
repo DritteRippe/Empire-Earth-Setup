@@ -198,6 +198,10 @@ fr.TaskCertInclude=Faire confiance au certificat de la communauté Empire Earth 
 TaskCompatibility=Enable compatibility flags
 de.TaskCompatibility=Kompatibilitätseinstellungen aktivieren
 fr.TaskCompatibility=Activer les options de compatibilité
+; Opt-in task compatibility_legacy, only shown on Windows 7 (the same flags as TaskCompatibility)
+TaskCompatibilityLegacy=Enable compatibility flags (optional on Windows 7: can help if the game looks blurry or does not fit on the screen with enlarged display scaling)
+de.TaskCompatibilityLegacy=Kompatibilitätseinstellungen aktivieren (optional unter Windows 7: kann helfen, wenn das Spiel bei vergrößerter Anzeige unscharf aussieht oder nicht auf den Bildschirm passt)
+fr.TaskCompatibilityLegacy=Activer les options de compatibilité (facultatif sous Windows 7 : peut aider si le jeu est flou ou ne tient pas à l'écran avec une mise à l'échelle de l'affichage agrandie)
 TaskCompatibilityWindows=Enable earlier Windows compatibility mode
 de.TaskCompatibilityWindows=Kompatibilitätsmodus für ältere Windows-Versionen aktivieren
 fr.TaskCompatibilityWindows=Activer le mode de compatibilité avec une version antérieure de Windows

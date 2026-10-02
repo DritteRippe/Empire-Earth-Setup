@@ -23,11 +23,16 @@ is the setup script. This check reads only TABLES of the contract, never its pro
   3.7, Task | Values | Windows versions |      the compatibility entries of [Registry]
        Root (admin/user/portable)              (AppCompatFlags\\Layers): the flags each task adds
                                                (BuildCompatibilityFlags in utils.iss with the tasks
-                                               GetCompatibilityFlags passes), the Windows
-                                               compatibility mode appended by the entries
-                                               (e.g. WIN7RTM), the MinVersion of the tasks and of
-                                               the entries, the root per install mode, and the
-                                               order of the rows (the order of the value)
+                                               GetCompatibilityFlags passes; several tasks joined by
+                                               'or' are one row each), the Windows compatibility
+                                               mode appended by the entries (e.g. WIN7RTM), the
+                                               Windows versions from MinVersion and OnlyBelowVersion
+                                               of the tasks and of the entries ("all", "8 and
+                                               later", "7 only"), "(opt-in)" = the task has
+                                               Flags: unchecked, the root per install mode, and the
+                                               order of the rows (the order of the value); two
+                                               entries for the same program and root that can both
+                                               apply in one run are an error
 
 The [Registry] section is preprocessed for each of the four build variants (EE/NeoEE x
 Regular/Portable; Regular gives the install modes admin and user, Portable the mode portable) by a
@@ -933,18 +938,57 @@ def nt_version(text):
     return (int(match.group(1)), int(match.group(2) or 0))
 
 
+def version_range(min_version, only_below_version):
+    """(lowest NT version, NT version it is only below or None) of MinVersion and OnlyBelowVersion.
+    An OnlyBelowVersion of 0 means no limit, as in Inno Setup."""
+    below = nt_version(only_below_version)
+    return (nt_version(min_version), None if below == (0, 0) else below)
+
+
+def intersect(first, second):
+    """The versions two ranges have in common, None if there are none."""
+    if first is None or second is None:
+        return None
+    low = max(first[0], second[0])
+    highs = [high for high in (first[1], second[1]) if high is not None]
+    high = min(highs) if highs else None
+    return None if high is not None and high <= low else (low, high)
+
+
+def union(ranges):
+    """The smallest range that holds all ranges (None if there are none)."""
+    ranges = [r for r in ranges if r is not None]
+    if not ranges:
+        return None
+    high = None if any(r[1] is None for r in ranges) else max(r[1] for r in ranges)
+    return (min(r[0] for r in ranges), high)
+
+
+# Windows names of NT versions, and of the version just below an OnlyBelowVersion
+WINDOWS_NAMES = {(6, 1): "7", (6, 2): "8", (6, 3): "8.1", (10, 0): "10"}
+WINDOWS_BELOW = {(6, 2): "7", (6, 3): "8", (10, 0): "8.1"}
+
+
 def version_label(version):
-    """The 'Windows versions' text of contract 3.7: setups made with Inno Setup 6 start on Windows 7
-    SP1 and later, so any minimum up to NT 6.1 is 'all'."""
-    if version <= (6, 1):
-        return "all"
-    names = {(6, 2): "8", (6, 3): "8.1", (10, 0): "10"}
-    return f"{names.get(version, f'NT {version[0]}.{version[1]}')} and later"
+    """The 'Windows versions' text of contract 3.7 (and 3.4) for a range: setups made with Inno
+    Setup 6 start on Windows 7 SP1 and later, so any minimum up to NT 6.1 is Windows 7, and a range
+    without an upper limit that starts there is 'all'. Examples: 'all', '8 and later', '7 only'."""
+    low, high = version
+    first = "7" if low <= (6, 1) else WINDOWS_NAMES.get(low, f"NT {low[0]}.{low[1]}")
+    if high is None:
+        return "all" if low <= (6, 1) else f"{first} and later"
+    last = WINDOWS_BELOW.get(high, f"below NT {high[0]}.{high[1]}")
+    return f"{first} only" if first == last else f"{first} to {last}"
+
+
+OPT_IN = "(opt-in)"
 
 
 def compatibility_flag_tasks(root):
     """[(task, flags)] in the order BuildCompatibilityFlags appends them, with the tasks that
-    GetCompatibilityFlags passes for its parameters."""
+    GetCompatibilityFlags passes for its parameters. A parameter may get several tasks joined by
+    'or' (WizardIsTaskSelected('a') or WizardIsTaskSelected('b')): each of them is a row with the
+    same flags, in that order."""
     utils = read_text(root / UTILS_SCRIPT)
     header = re.search(r"function\s+BuildCompatibilityFlags\s*\(([^)]*)\)\s*:\s*String\s*;", utils)
     if not header:
@@ -972,26 +1016,31 @@ def compatibility_flag_tasks(root):
     arguments = split_top_level(call.group(1) + ")" * (call.group(1).count("(") - call.group(1).count(")")))
     tasks = []
     for argument in arguments:
-        match = re.fullmatch(r"\s*WizardIsTaskSelected\s*\(\s*'([^']+)'\s*\)\s*", argument)
-        if not match:
-            raise CheckError(f"{MAIN_SCRIPT}: GetCompatibilityFlags passes '{argument.strip()}' to "
-                             "BuildCompatibilityFlags, expected WizardIsTaskSelected('<task>')")
-        tasks.append(match.group(1).lower())
+        names = []
+        for part in re.split(r"\s+or\s+", argument.strip(), flags=re.I):
+            match = re.fullmatch(r"\s*WizardIsTaskSelected\s*\(\s*'([^']+)'\s*\)\s*", part)
+            if not match:
+                raise CheckError(f"{MAIN_SCRIPT}: GetCompatibilityFlags passes '{argument.strip()}' to "
+                                 "BuildCompatibilityFlags, expected WizardIsTaskSelected('<task>'), "
+                                 "or several of them joined by 'or'")
+            names.append(match.group(1).lower())
+        tasks.append(names)
     if len(tasks) != len(params):
         raise CheckError(f"{MAIN_SCRIPT}: GetCompatibilityFlags passes {len(tasks)} tasks, "
                          f"BuildCompatibilityFlags has {len(params)} parameters")
-    by_param = {param.lower(): task for param, task in zip(params, tasks)}
+    by_param = {param.lower(): names for param, names in zip(params, tasks)}
     result = []
     for param, flags in appended:
         if param.lower() not in by_param:
             raise CheckError(f"{UTILS_SCRIPT}: BuildCompatibilityFlags tests '{param}', which is not a parameter")
-        result.append((by_param[param.lower()], " ".join(flags.split())))
+        result += [(task, " ".join(flags.split())) for task in by_param[param.lower()]]
     return result
 
 
 def script_tasks(root):
-    """{task: {"check": AST, "min": version, "line": n}} of [Tasks] in setup_is6.iss, read as
-    written (an #if around a task is ignored; a task defined twice must be defined the same way)."""
+    """{task: {"check": AST, "range": versions, "optin": bool, "line": n}} of [Tasks] in
+    setup_is6.iss, read as written (an #if around a task is ignored; a task defined twice must be
+    defined the same way). range: MinVersion and OnlyBelowVersion; optin: Flags: unchecked."""
     defines = collect_defines(root, "EE", "Regular")
     tasks = {}
     for no, text in section(logical_lines(read_text(root / MAIN_SCRIPT)), "Tasks"):
@@ -1001,24 +1050,52 @@ def script_tasks(root):
         try:
             text = re.sub(r"\{#([^}]*)\}", lambda m: str(IsppExpression(m.group(1), defines).evaluate()), text)
         except CheckError:
-            pass  # e.g. a description: only Name, MinVersion and Check are used
+            pass  # e.g. a description: only Name, MinVersion, OnlyBelowVersion, Flags and Check are used
         params = parse_params(text)
         if "name" not in params:
             continue
         name = params["name"].lower()
         info = {"check": parse_bool_or_true(params.get("check", "")),
-                "min": nt_version(params.get("minversion", "")), "line": no}
-        if name in tasks and (tasks[name]["check"], tasks[name]["min"]) != (info["check"], info["min"]):
+                "range": version_range(params.get("minversion", ""), params.get("onlybelowversion", "")),
+                "optin": "unchecked" in params.get("flags", "").lower().split(), "line": no}
+        if name in tasks and (tasks[name]["check"], tasks[name]["range"], tasks[name]["optin"]) != \
+                (info["check"], info["range"], info["optin"]):
             raise CheckError(f"{MAIN_SCRIPT}:{no}: task {name} is defined twice with different "
-                             "Check or MinVersion")
+                             "Check, Windows versions or Flags")
         tasks[name] = info
     return tasks
 
 
+def assignments(node, fixed):
+    """Every assignment of the atoms (fixed ones kept) that makes the expression true."""
+    free = sorted(atoms(node) - set(fixed))
+    for bits in range(2 ** len(free)):
+        values = dict(fixed)
+        values.update({atom: bool(bits >> i & 1) for i, atom in enumerate(free)})
+        if evaluate_bool(node, values):
+            yield values
+
+
+def selected_range(node, fixed, versions, tasks):
+    """The Windows versions (within versions) on which the tasks can be selected so that the
+    expression is true, as the union over every such selection: a selected task exists only on its
+    own Windows versions. None if there is no such selection."""
+    found = []
+    for values in assignments(node, dict(fixed, **{"#true": True})):
+        current = versions
+        for name, selected in values.items():
+            if selected and name in tasks:
+                current = intersect(current, tasks[name]["range"])
+        if current is not None:
+            found.append(current)
+    return union(found)
+
+
 def script_compatibility_rows(entries, flag_tasks, tasks, modes):
     """The rows of contract 3.7 as the script implies them for the install modes of one variant:
-    [(task, values, lowest Windows version with a value or None, {mode: root or "-"},
-    MinVersion of the task, line of the task)]."""
+    [{"task", "values", "version": Windows versions with a value or None, "roots": {mode: root
+    or "-"}, "task_range", "optin", "line"}]. Raises CheckError for entries that this check cannot
+    read and for two entries that can write the value of the same program at once."""
     compat = []
     for no, params in entries:
         if UNREADABLE in params.get("subkey", ""):
@@ -1030,18 +1107,15 @@ def script_compatibility_rows(entries, flag_tasks, tasks, modes):
         if not data.startswith(COMPAT_FLAGS_CODE):
             raise CheckError(f"{MAIN_SCRIPT}:{no}: compatibility value '{data}' does not start with "
                              f"{COMPAT_FLAGS_CODE}")
-        if params.get("onlybelowversion"):
-            raise CheckError(f"{MAIN_SCRIPT}:{no}: OnlyBelowVersion on a compatibility entry cannot "
-                             "be expressed in the table of contract 3.7")
         compat.append({"line": no, "root": params.get("root", "").upper(),
                        "check": parse_bool_or_true(params.get("check", "")),
                        "tasks": parse_bool_or_true(params.get("tasks", "")),
-                       "min": nt_version(params.get("minversion", "")),
+                       "range": version_range(params.get("minversion", ""), params.get("onlybelowversion", "")),
                        "layer": " ".join(data[len(COMPAT_FLAGS_CODE):].split()),
                        "components": params.get("components", "").strip().lower(),
                        "signature": (params.get("root", "").upper(), params.get("check", ""),
                                      params.get("tasks", ""), params.get("minversion", ""),
-                                     data)})
+                                     params.get("onlybelowversion", ""), data)})
     # Every entry exists for both programs (component game: Empire Earth.exe, gameaoc: EE-AOC.exe)
     by_signature = {}
     for entry in compat:
@@ -1067,13 +1141,35 @@ def script_compatibility_rows(entries, flag_tasks, tasks, modes):
     def applies(entry, mode):
         return satisfiable_with_true(entry["check"], {"isadmininstallmode": mode == "admin"})
 
-    def can_select(entry, task, mode):
-        fixed = {name: False for name in names if not available(name, mode)}
-        fixed[task] = True
-        return available(task, mode) and applies(entry, mode) and satisfiable_with_true(entry["tasks"], fixed)
+    def unavailable(mode):
+        return {name: False for name in names if not available(name, mode)}
+
+    def selection(entry, task, mode):
+        """Windows versions on which the entry writes a value with the task selected, or None."""
+        if not (available(task, mode) and applies(entry, mode)):
+            return None
+        fixed = dict(unavailable(mode), **{task: True})
+        return selected_range(entry["tasks"], fixed, entry["range"], tasks)
 
     def implied(entry):
         return {name for name in names if not satisfiable_with_true(entry["tasks"], {name: False})}
+
+    # Two entries for the same program and root must never apply in the same run: the value would
+    # depend on the order of [Registry]
+    for mode in modes:
+        for index, first in enumerate(compat):
+            for second in compat[index + 1:]:
+                if (first["root"], first["components"]) != (second["root"], second["components"]):
+                    continue
+                if not (applies(first, mode) and applies(second, mode)):
+                    continue
+                both = ("and", first["tasks"], second["tasks"])
+                if selected_range(both, unavailable(mode), intersect(first["range"], second["range"]), tasks):
+                    raise CheckError(f"{MAIN_SCRIPT}:{first['line']} and {second['line']}: both "
+                                     f"compatibility entries can write the value of the component "
+                                     f"{first['components']} in {first['root']} in the same run "
+                                     f"({mode} mode); their Tasks or Windows versions must exclude "
+                                     "each other")
 
     rows = [(task, flags, lambda entry: True) for task, flags in flag_tasks]
     layers = []
@@ -1097,12 +1193,17 @@ def script_compatibility_rows(entries, flag_tasks, tasks, modes):
             if not available(task, mode):
                 roots[mode] = "-"
                 continue
-            found = sorted({entry["root"] for entry in compat if selects(entry) and can_select(entry, task, mode)})
-            versions += [max(entry["min"], tasks[task]["min"]) for entry in compat
-                         if selects(entry) and can_select(entry, task, mode)]
-            roots[mode] = "+".join(found) if found else "-"
-        version = min(versions) if versions else None
-        result.append((task, values, version, roots, tasks[task]["min"], tasks[task]["line"]))
+            found = []
+            for entry in compat:
+                if selects(entry):
+                    version = selection(entry, task, mode)
+                    if version is not None:
+                        found.append(entry["root"])
+                        versions.append(version)
+            roots[mode] = "+".join(sorted(set(found))) if found else "-"
+        result.append({"task": task, "values": values, "version": union(versions), "roots": roots,
+                       "task_range": tasks[task]["range"], "optin": tasks[task]["optin"],
+                       "line": tasks[task]["line"]})
     return result
 
 
@@ -1120,9 +1221,13 @@ def check_compatibility(contract_lines, per_variant, errors):
             errors.append(f"{CONTRACT}:{no} (3.7): root '{row[root_column]}' is not "
                           "'<admin> / <user> / <portable>'")
             continue
+        version = " ".join(plain(row["Windows versions"]).split())
+        optin = version.endswith(OPT_IN)
+        if optin:
+            version = version[:-len(OPT_IN)].strip()
         contract.append({"no": no, "task": plain(row["Task"]).lower(),
                          "values": " ".join(plain(row["Values"]).split()),
-                         "version": plain(row["Windows versions"]), "roots": dict(zip(ALL_MODES, roots))})
+                         "version": version, "optin": optin, "roots": dict(zip(ALL_MODES, roots))})
 
     # Merge the variants: admin and user come from the Regular variants, portable from Portable;
     # the Windows versions of a row are those of the variants in which the task writes a value
@@ -1131,17 +1236,14 @@ def check_compatibility(contract_lines, per_variant, errors):
         variant = f"{install_type}/{install_mode}"
         if merged is None:
             first_variant = variant
-            merged = [{"task": task, "values": values, "version": None, "roots": {},
-                       "task_min": task_min, "line": line}
-                      for task, values, _, _, task_min, line in variant_rows]
-        if [(row[0], row[1]) for row in variant_rows] != [(row["task"], row["values"]) for row in merged]:
+            merged = [dict(row, version=None, roots={}) for row in variant_rows]
+        if [(row["task"], row["values"]) for row in variant_rows] != [(row["task"], row["values"]) for row in merged]:
             errors.append(f"{MAIN_SCRIPT}: the compatibility values of {variant} differ from those of "
                           f"{first_variant}; contract 3.7 has one table for all variants")
             continue
-        for row, (_, _, version, roots, _, _) in zip(merged, variant_rows):
-            if version is not None:
-                row["version"] = version if row["version"] is None else min(row["version"], version)
-            for mode, root in roots.items():
+        for row, variant_row in zip(merged, variant_rows):
+            row["version"] = union([row["version"], variant_row["version"]])
+            for mode, root in variant_row["roots"].items():
                 if mode in row["roots"] and row["roots"][mode] != root:
                     errors.append(f"{MAIN_SCRIPT}: {row['task']}: root {root} in {variant}, "
                                   f"{row['roots'][mode]} in another variant of the mode {mode}")
@@ -1150,14 +1252,17 @@ def check_compatibility(contract_lines, per_variant, errors):
     for row in merged:
         if row["version"] is None:
             errors.append(f"{MAIN_SCRIPT}:{row['line']}: task {row['task']} writes no compatibility value")
-        elif version_label(row["task_min"]) != version_label(row["version"]):
-            errors.append(f"{MAIN_SCRIPT}:{row['line']}: task {row['task']} is offered on "
-                          f"{version_label(row['task_min'])} Windows versions, but its compatibility "
-                          f"value applies only on {version_label(row['version'])}: give the task the "
-                          "MinVersion of its entries (contract 3.7: below it the setup neither shows "
-                          "nor selects the task)")
+        elif version_label(row["task_range"]) != version_label(row["version"]):
+            errors.append(f"{MAIN_SCRIPT}:{row['line']}: task {row['task']} is offered on the Windows "
+                          f"versions '{version_label(row['task_range'])}', but its compatibility value "
+                          f"applies only on '{version_label(row['version'])}': give the task the "
+                          "MinVersion/OnlyBelowVersion of its entries (contract 3.7: on other Windows "
+                          "versions the setup neither shows nor selects the task)")
     script_order = [row["task"] for row in merged]
     contract_order = [row["task"] for row in contract]
+    for task in sorted({task for task in script_order if script_order.count(task) > 1}):
+        values = " and ".join(f"`{row['values']}`" for row in merged if row["task"] == task)
+        errors.append(f"{MAIN_SCRIPT}: task {task} adds {values}; contract 3.7 has one row per task")
     if script_order != contract_order:
         if sorted(script_order) == sorted(contract_order):
             errors.append(f"{CONTRACT} (3.7): rows in the order {', '.join(contract_order)}, but the "
@@ -1183,8 +1288,13 @@ def check_compatibility(contract_lines, per_variant, errors):
                           f"in {MAIN_SCRIPT} / {UTILS_SCRIPT}")
         if script["version"] is not None and row["version"] != version_label(script["version"]):
             errors.append(f"{where}: Windows versions '{row['version']}' in the contract, "
-                          f"'{version_label(script['version'])}' in {MAIN_SCRIPT} (MinVersion of the "
-                          "task and its entries)")
+                          f"'{version_label(script['version'])}' in {MAIN_SCRIPT} (MinVersion and "
+                          "OnlyBelowVersion of the task and its entries)")
+        if row["optin"] != script["optin"]:
+            errors.append(f"{where}: {'opt-in' if row['optin'] else 'selected by default'} in the "
+                          f"contract ('{OPT_IN}' after the Windows versions), but the task "
+                          f"{'is selected by default' if not script['optin'] else 'has Flags: unchecked'}"
+                          f" in {MAIN_SCRIPT}")
         for mode in ALL_MODES:
             have = script["roots"].get(mode)
             if have is not None and row["roots"][mode] != have:
@@ -1410,6 +1520,8 @@ def self_test(source_root):
 
     crlf = "\r\n"
     contract, main_script, utils = CONTRACT, MAIN_SCRIPT, UTILS_SCRIPT
+    LEGACY_ROW = ("| `compatibility_legacy` | `DWM8And16BitMitigation HIGHDPIAWARE HeapClearAllocation` "
+                  "| 7 only (opt-in) | HKLM / HKCU / HKCU |")
     cases = [
         # header
         ("ContractVersion 1 -> 2 in setup_is6.iss",
@@ -1473,14 +1585,20 @@ def self_test(source_root):
         ("task compatibility offered on Windows 7",
          replace(main_script, 'Name: "compatibility"; Description: "{cm:TaskCompatibility}"; MinVersion: {#Win8}',
                  'Name: "compatibility"; Description: "{cm:TaskCompatibility}"; MinVersion: {#Win7}'),
-         "task compatibility is offered on all Windows versions"),
+         # with it, the entries of compatibility_legacy (GetCompatibilityFlags passes both tasks)
+         # would give its flags on Windows 7 too
+         "compatibility: Windows versions '8 and later' in the contract, 'all' in setup_is6.iss"),
+        ("task compatibility_windows offered on Windows 7",
+         replace(main_script, 'Name: "compatibility_windows"; Description: "{cm:TaskCompatibilityWindows}"; MinVersion: {#Win8}',
+                 'Name: "compatibility_windows"; Description: "{cm:TaskCompatibilityWindows}"; MinVersion: {#Win7}'),
+         "task compatibility_windows is offered on the Windows versions 'all', but its compatibility value applies only on '8 and later'"),
         ("Windows versions of compatibility in the contract",
          replace(contract, "| `compatibility` | `DWM8And16BitMitigation HIGHDPIAWARE HeapClearAllocation` | 8 and later |",
                  "| `compatibility` | `DWM8And16BitMitigation HIGHDPIAWARE HeapClearAllocation` | all |"),
          "compatibility: Windows versions 'all' in the contract, '8 and later'"),
         ("root of the user mode in the contract",
-         replace(contract, "| 8 and later | HKLM / HKCU / HKCU |\n| `compatibility_windows`",
-                 "| 8 and later | HKLM / HKLM / HKCU |\n| `compatibility_windows`"),
+         replace(contract, "| 8 and later | HKLM / HKCU / HKCU |\n| `compatibility_legacy`",
+                 "| 8 and later | HKLM / HKLM / HKCU |\n| `compatibility_legacy`"),
          "compatibility: root in the user mode HKLM in the contract, HKCU"),
         ("compatibility values of the administrative mode in HKCU",
          replace(main_script, '#expr CompatRoot = "HKLM", CompatCheck = "IsAdminInstallMode"',
@@ -1490,19 +1608,54 @@ def self_test(source_root):
          both(replace(main_script, '#expr CompatRoot = "HKCU", CompatCheck = "not IsAdminInstallMode"',
                       '#if InstallMode == "Regular"' + crlf
                       + '#expr CompatRoot = "HKCU", CompatCheck = "not IsAdminInstallMode"'),
-              replace(main_script, '#call CompatibilityValuesWin8' + crlf + crlf + '; Game settings',
-                      '#call CompatibilityValuesWin8' + crlf + '#endif' + crlf + crlf + '; Game settings')),
+              replace(main_script, '#call CompatibilityValuesWin7' + crlf + crlf + '; Game settings',
+                      '#call CompatibilityValuesWin7' + crlf + '#endif' + crlf + crlf + '; Game settings')),
          "root in the portable mode HKCU in the contract, -"),
         ("rows of 3.7 in another order",
-         replace(contract, "| `compatibility` | `DWM8And16BitMitigation HIGHDPIAWARE HeapClearAllocation` | 8 and later | HKLM / HKCU / HKCU |\n"
-                           "| `compatibility_windows` | `WIN7RTM` | 8 and later | HKLM / HKCU / HKCU |\n",
-                 "| `compatibility_windows` | `WIN7RTM` | 8 and later | HKLM / HKCU / HKCU |\n"
-                 "| `compatibility` | `DWM8And16BitMitigation HIGHDPIAWARE HeapClearAllocation` | 8 and later | HKLM / HKCU / HKCU |\n"),
-         "rows in the order everyoneadminstart, compatibility_windows, compatibility"),
+         replace(contract, LEGACY_ROW + "\n| `compatibility_windows` | `WIN7RTM` | 8 and later | HKLM / HKCU / HKCU |\n",
+                 "| `compatibility_windows` | `WIN7RTM` | 8 and later | HKLM / HKCU / HKCU |\n" + LEGACY_ROW + "\n"),
+         "rows in the order everyoneadminstart, compatibility, compatibility_windows, compatibility_legacy"),
         ("table of 3.7 without its Root column",
          replace(contract, "| Task | Values | Windows versions | Root (admin/user/portable) |",
                  "| Task | Values | Windows versions | Hive |"),
          "the table of 3.7 has no column Root"),
+        # 3.7, the opt-in row compatibility_legacy (Windows 7 only, ADR 0010)
+        ("row compatibility_legacy missing in the contract", replace(contract, LEGACY_ROW + "\n", ""),
+         "no row for the task(s) compatibility_legacy"),
+        ("WINXPSP3 in the row compatibility_legacy of the contract",
+         replace(contract, LEGACY_ROW, LEGACY_ROW.replace("HeapClearAllocation`", "HeapClearAllocation WINXPSP3`")),
+         "compatibility_legacy: values `DWM8And16BitMitigation HIGHDPIAWARE HeapClearAllocation WINXPSP3` in the contract"),
+        ("the entries of compatibility_legacy append WINXPSP3 in setup_is6.iss",
+         replace(main_script, '#expr CompatVersions = "OnlyBelowVersion: " + Win8 + "; ", CompatLayer = ""',
+                 '#expr CompatVersions = "OnlyBelowVersion: " + Win8 + "; ", CompatLayer = " WINXPSP3"'),
+         "task compatibility_legacy adds `DWM8And16BitMitigation HIGHDPIAWARE HeapClearAllocation` and `WINXPSP3`"),
+        ("Windows versions of compatibility_legacy in the contract",
+         replace(contract, LEGACY_ROW, LEGACY_ROW.replace("| 7 only (opt-in) |", "| 8 and later (opt-in) |")),
+         "compatibility_legacy: Windows versions '8 and later' in the contract, '7 only'"),
+        ("compatibility_legacy without (opt-in) in the contract",
+         replace(contract, LEGACY_ROW, LEGACY_ROW.replace("| 7 only (opt-in) |", "| 7 only |")),
+         "compatibility_legacy: selected by default in the contract"),
+        ("task compatibility_legacy selected by default",
+         replace(main_script, 'OnlyBelowVersion: {#Win8}; Flags: unchecked; Check: not IsWine',
+                 'OnlyBelowVersion: {#Win8}; Check: not IsWine'),
+         "compatibility_legacy: opt-in in the contract ('(opt-in)' after the Windows versions), but the task is selected by default"),
+        ("task compatibility_legacy offered on every Windows",
+         replace(main_script, 'Description: "{cm:TaskCompatibilityLegacy}"; OnlyBelowVersion: {#Win8}; ',
+                 'Description: "{cm:TaskCompatibilityLegacy}"; '),
+         # its flags would then also come with the entries of Windows 8 and later
+         "compatibility_legacy: Windows versions '7 only' in the contract, 'all' in setup_is6.iss"),
+        ("GetCompatibilityFlags does not pass compatibility_legacy",
+         replace(main_script, "WizardIsTaskSelected('compatibility') or WizardIsTaskSelected('compatibility_legacy')",
+                 "WizardIsTaskSelected('compatibility')"),
+         "the task(s) compatibility_legacy add no compatibility value"),
+        ("GetCompatibilityFlags joins the tasks with and",
+         replace(main_script, "WizardIsTaskSelected('compatibility') or WizardIsTaskSelected('compatibility_legacy')",
+                 "WizardIsTaskSelected('compatibility') and WizardIsTaskSelected('compatibility_legacy')"),
+         "or several of them joined by 'or'"),
+        ("RUNASADMIN only also with compatibility_legacy (two entries for one value)",
+         replace(main_script, " and not compatibility and not compatibility_legacy\", CompatVersions",
+                 " and not compatibility\", CompatVersions"),
+         "both compatibility entries can write the value of the component game in HKLM in the same run"),
         # ISPP subset
         ("ISPP function in a compatibility entry",
          replace(main_script, 'ValueData: "{code:GetCompatibilityFlags}{#CompatLayer}"; \\\r\n  Flags: uninsdeletevalue; Check: {#CompatCheck}; {#CompatVersions}Tasks: {#CompatTasks}; Components: gameaoc',
