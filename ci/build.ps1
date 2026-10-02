@@ -15,8 +15,8 @@
        downloads follow a redirect from https:// to http:// (ADR 0008), so these files are only
        as safe as the configuration of the file servers (docs\SERVER-OPERATIONS.md, section 6).
     4. Compile every variant with ISCC /DInstallType /DInstallMode /DEE_AppID /DNeoEE_AppID
-       [/DTestID] into its own output folder and check that the file name proves the variant took
-       effect.
+       [/DTestID] [/DSetupBuild] into its own output folder and check that the file name proves the
+       variant took effect.
     5. Write <setup>.exe.sha256 next to every setup that passed (sha256sum format, after ISCC has
        signed it) and print its SHA-256, to publish next to the download.
   With -SignSetup the certificate internal\misc\<CertFileName> (DER or PEM) is first converted to
@@ -46,6 +46,14 @@
   test runs need /SUPPRESSMSGBOXES). Default: the TestID define in setup_is6.iss (0). Test builds
   are for testing only and must never be distributed (docs/TEST-PLAN.de.md, "Testbuild
   herstellen").
+
+.PARAMETER SetupBuild
+  Build identifier, passed to ISCC as /DSetupBuild=<text>: the setups write it into install.ini and
+  the install record (docs/CONTRACT.md 1.1, 1.2), so that test builds of the same setup version can
+  be told apart. At most 64 characters of A-Z a-z 0-9 . _ - (anything else stops the script before
+  ISCC runs); '' passes none. Default: test<TestID>-<commit> for a test build (TestID > 0, commit =
+  the short Git commit of the repository, test<TestID> without Git), the short commit in CI (GitHub
+  Actions), none for every other build (the setups then write no SetupBuild value).
 
 .PARAMETER Variants
   Variants to build, any of EE/Regular, NeoEE/Regular, EE/Portable, NeoEE/Portable (default: all).
@@ -109,6 +117,7 @@ param(
   [string]$NeoEEAppID,
   [ValidateRange(0, 2147483647)]
   [int]$TestID,
+  [string]$SetupBuild,
   [ValidateSet('EE/Regular', 'NeoEE/Regular', 'EE/Portable', 'NeoEE/Portable')]
   [string[]]$Variants = @('EE/Regular', 'NeoEE/Regular', 'EE/Portable', 'NeoEE/Portable'),
   [string]$OutputDir,
@@ -195,7 +204,8 @@ function Show-LogErrors([string]$LogFile) {
 }
 
 # Write-DownloadHashes, ConvertTo-DerCertificateFile, ConvertTo-Thumbprint, Get-TestIdDefine,
-# Write-FileSha256, Get-OnlineFiles, Get-UnpinnedOnlineFiles
+# Get-SetupBuild, Assert-SetupBuild, Get-SetupBuildDefine, Get-GitShortCommit, Write-FileSha256,
+# Get-OnlineFiles, Get-UnpinnedOnlineFiles
 . (Join-Path $PSScriptRoot 'build_helpers.ps1')
 
 $LocalizedFolder = Join-Path $Root 'data\localized-text'
@@ -210,6 +220,14 @@ if ($SignSetup) {
   if (-not $CertFileName -or -not $CertHashSHA1) { throw '-SignSetup needs -CertFileName and -CertHashSHA1.' }
   $CertSource = Join-Path $Root "internal\misc\$CertFileName"
   if (-not (Test-Path -LiteralPath $CertSource -PathType Leaf)) { throw "Certificate not found: $CertSource" }
+}
+
+# Build identifier (ADR 0004 point 10), checked before ISCC runs: -SetupBuild, else
+# test<TestID>-<commit> for a test build, the short commit in CI, none for every other build
+if ($PSBoundParameters.ContainsKey('SetupBuild')) {
+  $SetupBuildValue = Assert-SetupBuild $SetupBuild
+} else {
+  $SetupBuildValue = Get-SetupBuild $TestID (Get-GitShortCommit $Root) ($env:GITHUB_ACTIONS -eq 'true')
 }
 
 if (-not $Iscc) { $Iscc = Find-Iscc }
@@ -243,6 +261,12 @@ try {
     if ($TestID -gt 0) {
       Write-Warning "Test build ${TestID}: fast compression and a warning on every start. For testing only, never distribute it."
     }
+  }
+  $defines += Get-SetupBuildDefine $SetupBuildValue
+  if ($SetupBuildValue) {
+    Write-Host "SetupBuild: $SetupBuildValue"
+  } else {
+    Write-Host 'SetupBuild: none (the setups write no SetupBuild value)'
   }
 
   # Signed builds ship a DER copy of the certificate: setup_is6.iss compares its SHA-1 with

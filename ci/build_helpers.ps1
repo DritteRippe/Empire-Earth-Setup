@@ -1,8 +1,9 @@
 <#
 .SYNOPSIS
   Helper functions of ci\build.ps1 that do not need Inno Setup: the SHA-256 list of the online
-  localized files, the DER copy of the signing certificate, the ISCC switch of the test build
-  number, the SHA-256 file of every built setup and the list of online files without a pin.
+  localized files, the DER copy of the signing certificate, the ISCC switches of the test build
+  number and of the build identifier, the SHA-256 file of every built setup and the list of online
+  files without a pin.
 
 .DESCRIPTION
   Dot-sourced by ci\build.ps1 and by ci\tests\build_helpers.tests.ps1. Kept free of ISCC and of
@@ -121,6 +122,57 @@ function Get-TestIdDefine($TestID) {
     throw "TestID '$TestID' is not a whole number >= 0 (0 = release build, > 0 = test build)."
   }
   return "/DTestID=$number"
+}
+
+# Build identifier of the setups (ISCC /DSetupBuild, ADR 0004 point 10): the setups write it into
+# install.ini and the install record (contract 1.1, 1.2), so that builds of the same MySetupVersion
+# can be told apart. A test build (TestID > 0) gets "test<TestID>-<commit>" ("test<TestID>"
+# without a commit), a build in CI ($IsCI: GitHub Actions) the short commit, every other build none
+# (''), e.g. a local release build. $Commit is the short Git commit (Get-GitShortCommit), '' if it
+# is unknown.
+function Get-SetupBuild([int]$TestID, [string]$Commit, [bool]$IsCI) {
+  if ($TestID -gt 0) {
+    if ($Commit) { return "test$TestID-$Commit" }
+    return "test$TestID"
+  }
+  if ($IsCI) { return $Commit }
+  return ''
+}
+
+# Checks a build identifier like setup_is6.iss does: '' (none) or at most 64 characters of
+# A-Z a-z 0-9 . _ - (it goes into the registry, into install.ini, which is ASCII, and onto the ISCC
+# command line). Returns it; anything else throws, so ISCC never sees it.
+function Assert-SetupBuild([string]$Value) {
+  if ($Value -cnotmatch '^[A-Za-z0-9._-]{0,64}\z') {
+    throw "SetupBuild '$Value' is not a build identifier (at most 64 characters of A-Z a-z 0-9 . _ -)."
+  }
+  return $Value
+}
+
+# ISCC switch of the build identifier $Value: "/DSetupBuild=<value>", nothing for '' (the default of
+# setup_is6.iss: no SetupBuild value). An invalid value throws (Assert-SetupBuild).
+function Get-SetupBuildDefine([string]$Value) {
+  $Value = Assert-SetupBuild $Value
+  if ($Value -eq '') { return @() }
+  return @("/DSetupBuild=$Value")
+}
+
+# Short commit of the Git checkout $Root ("git rev-parse --short=7 HEAD": 7 or more lowercase hex
+# digits), '' if Git is missing or $Root is not a checkout.
+function Get-GitShortCommit([string]$Root) {
+  $git = Get-Command 'git' -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+  if (-not $git) { return '' }
+  $previous = $ErrorActionPreference
+  $ErrorActionPreference = 'Continue'   # stderr lines of a native command must not throw
+  try {
+    $output = & $git.Source -C $Root rev-parse --short=7 HEAD 2>$null
+    $code = $LASTEXITCODE
+  } finally {
+    $ErrorActionPreference = $previous
+  }
+  $commit = "$output".Trim()
+  if ($code -eq 0 -and $commit -cmatch '^[0-9a-f]{7,40}\z') { return $commit }
+  return ''
 }
 
 # Writes the SHA-256 of the file $Path to $Destination (default: "$Path.sha256") in sha256sum format:

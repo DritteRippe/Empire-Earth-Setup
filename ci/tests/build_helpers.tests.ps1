@@ -1,7 +1,7 @@
 <#
 .SYNOPSIS
   Tests of ci\build_helpers.ps1 (SHA-256 list of the online files, DER copy of the certificate,
-  test build number) and a dry run of ci\build.ps1.
+  test build number, build identifier) and a dry run of ci\build.ps1.
 
 .DESCRIPTION
   Needs neither Inno Setup nor the game data: the test certificates are generated (self-signed,
@@ -140,6 +140,42 @@ try {
   Check 'Get-TestIdDefine of a string' (Get-TestIdDefine '42') '/DTestID=42'
   foreach ($bad in @(-1, '-1', '+1', '1.5', ' 1', '1e3', 'abc', '', $null, '2147483648')) {
     CheckThrows "Get-TestIdDefine refuses '$bad'" { Get-TestIdDefine $bad }
+  }
+
+  # --- Get-SetupBuild, Assert-SetupBuild, Get-SetupBuildDefine, Get-GitShortCommit
+  Check 'Get-SetupBuild release build' (Get-SetupBuild 0 'ab12cd3' $false) ''
+  Check 'Get-SetupBuild release build in CI' (Get-SetupBuild 0 'ab12cd3' $true) 'ab12cd3'
+  Check 'Get-SetupBuild test build' (Get-SetupBuild 2 'ab12cd3' $false) 'test2-ab12cd3'
+  Check 'Get-SetupBuild test build in CI' (Get-SetupBuild 2 'ab12cd3' $true) 'test2-ab12cd3'
+  Check 'Get-SetupBuild test build without a commit' (Get-SetupBuild 2 '' $false) 'test2'
+  Check 'Get-SetupBuild CI without a commit' (Get-SetupBuild 0 '' $true) ''
+  foreach ($good in @('', 'ab12cd3', 'test1-ab12cd3', 'v2.0.0-rc_1', ('x' * 64))) {
+    Check "Assert-SetupBuild accepts '$good'" (Assert-SetupBuild $good) $good
+  }
+  foreach ($bad in @('a b', 'a}b', '{app}', 'a;b', 'a"b', "a'b", "a$([char]0xE4)", ('x' * 65), "ab`n", "ab`r`n", 'a\b', 'a/b', 'a%b')) {
+    CheckThrows "Assert-SetupBuild refuses '$bad'" { Assert-SetupBuild $bad }
+  }
+  Check 'Get-SetupBuildDefine' (Get-SetupBuildDefine 'test1-ab12cd3') '/DSetupBuild=test1-ab12cd3'
+  Check 'Get-SetupBuildDefine of none' @(Get-SetupBuildDefine '').Count 0
+  CheckThrows 'Get-SetupBuildDefine refuses an invalid value' { Get-SetupBuildDefine 'a b' }
+  Check 'Get-GitShortCommit outside a checkout' (Get-GitShortCommit $temp) ''
+  $git = Get-Command 'git' -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+  # A Git checkout with one commit (a temporary repository; no settings of the user needed)
+  function New-TestCheckout([string]$Folder) {
+    & $git.Source -C $Folder init -q 2>&1 | Out-Null
+    & $git.Source -C $Folder add -A 2>&1 | Out-Null
+    & $git.Source -C $Folder -c user.name=test -c user.email=test@example.invalid -c commit.gpgsign=false commit -q -m test 2>&1 | Out-Null
+    return "$(& $git.Source -C $Folder rev-parse --short=7 HEAD 2>$null)".Trim()
+  }
+  if ($git) {
+    $checkout = Join-Path $temp 'checkout'
+    New-Item -ItemType Directory -Path $checkout | Out-Null
+    [System.IO.File]::WriteAllText((Join-Path $checkout 'a.txt'), 'a')
+    $expectedCommit = New-TestCheckout $checkout
+    Check 'Get-GitShortCommit of a checkout: 7 hex digits' ($expectedCommit -cmatch '^[0-9a-f]{7}$') $true
+    Check 'Get-GitShortCommit of a checkout' (Get-GitShortCommit $checkout) $expectedCommit
+  } else {
+    Write-Host 'SKIP Get-GitShortCommit of a checkout (no git on this system)'
   }
 
   # --- Write-FileSha256: sha256sum format, one LF, UTF-8 without BOM, overwrites
@@ -301,6 +337,14 @@ try {
   foreach ($name in @('setup_is6.iss', 'utils.iss')) {
     Copy-Item -LiteralPath (Join-Path $repoRoot $name) -Destination $repo
   }
+  # The copy is a Git checkout (if Git exists), so that test builds get test<TestID>-<commit>; the
+  # dry runs are no CI runs unless a case says so
+  $repoCommit = ''
+  if ($git) { $repoCommit = New-TestCheckout $repo }
+  $testBuild = 'test1'
+  if ($repoCommit) { $testBuild = "test1-$repoCommit" }
+  $savedGitHubActions = $env:GITHUB_ACTIONS
+  $env:GITHUB_ACTIONS = $null
   $calls = Join-Path $temp 'iscc_calls.txt'
   $fakeIscc = Join-Path $temp 'fake_iscc.ps1'
   $fake = @'
@@ -337,6 +381,9 @@ exit 0
   Check 'dry run -TestID 1: version probe without TestID' ($lines[0] -like '*/DTestID*') $false
   Check 'dry run -TestID 1: /DTestID=1 in every compile' @($lines | Where-Object { " $_ " -like '* /DTestID=1 *' }).Count 4
   Check 'dry run -TestID 1: AppIds in every compile' @($lines | Where-Object { $_ -like '*/DEE_AppID=00000000-0000-0000-0000-0000000000EE /DNeoEE_AppID=00000000-0000-0000-0000-000000000AEE*' }).Count 4
+  Check "dry run -TestID 1: /DSetupBuild=$testBuild in every compile" @($lines | Where-Object { " $_ " -like "* /DSetupBuild=$testBuild *" }).Count 4
+  Check 'dry run -TestID 1: version probe without SetupBuild' ($lines[0] -like '*/DSetupBuild*') $false
+  Check 'dry run -TestID 1: SetupBuild printed' @($buildOutput | Where-Object { $_ -ceq "SetupBuild: $testBuild" }).Count 1
   Check 'dry run -TestID 1: setups' @(Get-ChildItem -LiteralPath (Join-Path $repo 'out') -Recurse -Filter '*.exe').Count 2
   # A SHA-256 file next to every setup that passed, and the hash in the output
   foreach ($variantName in @('EE_Regular', 'NeoEE_Portable')) {
@@ -360,6 +407,8 @@ exit 0
   $buildOutput = @(& $build @common 3>&1 6>&1 | ForEach-Object { "$_" })
   Check 'dry run without -TestID: exit code' $LASTEXITCODE 0
   Check 'dry run without -TestID: no /DTestID (default of setup_is6.iss)' @(Get-Content -LiteralPath $calls | Where-Object { $_ -like '*/DTestID*' }).Count 0
+  Check 'dry run without -TestID, not in CI: no /DSetupBuild' @(Get-Content -LiteralPath $calls | Where-Object { $_ -like '*/DSetupBuild*' }).Count 0
+  Check 'dry run without -TestID, not in CI: no SetupBuild printed' @($buildOutput | Where-Object { $_ -like 'SetupBuild: none*' }).Count 1
   Check 'dry run release: warning for EE' @($buildOutput | Where-Object { $_ -like 'Release build: the EE setups download 160 online file(s) without a SHA-256 pin.*' }).Count 1
   Check 'dry run release: warning for NeoEE' @($buildOutput | Where-Object { $_ -like 'Release build: the NeoEE setups download 170 online file(s) without a SHA-256 pin.*' }).Count 1
   Check 'dry run release: the files are listed' @($buildOutput | Where-Object { $_ -ceq '    Game/de/EE/Data/Movies/Empire Earth.bik' }).Count 2
@@ -369,9 +418,20 @@ exit 0
   $pinned = Join-Path $repo 'data\localized-text\Game\de\EE\Data\data.ssa'
   New-Item -ItemType Directory -Path (Split-Path -Parent $pinned) -Force | Out-Null
   [System.IO.File]::WriteAllText($pinned, 'voices')
+  # ... and in CI (GitHub Actions) a release build gets the short commit as SetupBuild
   Remove-Item -LiteralPath $calls
-  $buildOutput = @(& $build @common -TestID 0 3>&1 6>&1 | ForEach-Object { "$_" })
+  $env:GITHUB_ACTIONS = 'true'
+  try {
+    $buildOutput = @(& $build @common -TestID 0 3>&1 6>&1 | ForEach-Object { "$_" })
+  } finally {
+    $env:GITHUB_ACTIONS = $null
+  }
   Check 'dry run -TestID 0: /DTestID=0 in every compile' @(Get-Content -LiteralPath $calls | Where-Object { " $_ " -like '* /DTestID=0 *' }).Count 4
+  if ($repoCommit) {
+    Check 'dry run -TestID 0 in CI: /DSetupBuild=<commit> in every compile' @(Get-Content -LiteralPath $calls | Where-Object { " $_ " -like "* /DSetupBuild=$repoCommit *" }).Count 4
+  } else {
+    Check 'dry run -TestID 0 in CI without Git: no /DSetupBuild' @(Get-Content -LiteralPath $calls | Where-Object { $_ -like '*/DSetupBuild*' }).Count 0
+  }
   Check 'dry run -TestID 0: warning without the pinned file' @($buildOutput | Where-Object { $_ -like 'Release build: the EE setups download 159 online file(s)*' }).Count 1
   Check 'dry run -TestID 0: the pinned file is not listed' @($buildOutput | Where-Object { $_ -ceq '    Game/de/EE/Data/data.ssa' }).Count 0
   Remove-Item -LiteralPath (Join-Path $repo 'data') -Recurse -Force
@@ -386,10 +446,20 @@ exit 0
   Check 'dry run -Placeholders: number of online files without a pin' @($buildOutput | Where-Object { $_ -like 'Online files of the EE setups without a SHA-256 pin: 160 (placeholder pins;*' }).Count 1
   Check 'dry run -Placeholders: no list' @($buildOutput | Where-Object { $_ -like '    *' -or $_ -like 'Release build:*' }).Count 0
 
+  # -SetupBuild wins over the default, also in a test build; '' passes none
+  Remove-Item -LiteralPath $calls
+  & $build @common -TestID 1 -SetupBuild 'v2.0.0-rc_1' 3>$null 6>$null | Out-Null
+  Check 'dry run -SetupBuild: /DSetupBuild=v2.0.0-rc_1 in every compile' @(Get-Content -LiteralPath $calls | Where-Object { " $_ " -like '* /DSetupBuild=v2.0.0-rc_1 *' }).Count 4
+  Remove-Item -LiteralPath $calls
+  & $build @common -TestID 1 -SetupBuild '' 3>$null 6>$null | Out-Null
+  Check "dry run -SetupBuild '': no /DSetupBuild" @(Get-Content -LiteralPath $calls | Where-Object { $_ -like '*/DSetupBuild*' }).Count 0
+
   Remove-Item -LiteralPath $calls
   CheckThrows 'build.ps1 refuses -TestID -1' { & $build @common -TestID -1 3>$null 6>$null }
   CheckThrows 'build.ps1 refuses -TestID abc' { & $build @common -TestID abc 3>$null 6>$null }
-  Check 'build.ps1 calls no ISCC for an invalid -TestID' (Test-Path -LiteralPath $calls) $false
+  CheckThrows 'build.ps1 refuses -SetupBuild with a space' { & $build @common -SetupBuild 'a b' 3>$null 6>$null }
+  CheckThrows 'build.ps1 refuses -SetupBuild with a brace' { & $build @common -SetupBuild '{app}' 3>$null 6>$null }
+  Check 'build.ps1 calls no ISCC for an invalid -TestID or -SetupBuild' (Test-Path -LiteralPath $calls) $false
 
   # An ISCC that prints nothing (e.g. it cannot start): a clear version error, not a missing log
   $silentIscc = Join-Path $temp 'silent_iscc.ps1'
@@ -407,6 +477,7 @@ exit 0
     if ($CertHashSHA1) { Check "thumbprint of $CertFile" $result.Thumbprint (ConvertTo-Thumbprint $CertHashSHA1) }
   }
 } finally {
+  if (Test-Path variable:savedGitHubActions) { $env:GITHUB_ACTIONS = $savedGitHubActions }
   Remove-Item -LiteralPath $temp -Recurse -Force -ErrorAction SilentlyContinue
 }
 

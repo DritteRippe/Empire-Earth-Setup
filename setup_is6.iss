@@ -71,6 +71,10 @@
 ;   CertDerFile   DER copy of the certificate to ship, if       (only used when SignSetup = 1,
 ;                 CertFileName is PEM (ci\build.ps1 sets it)    default: internal\misc\CertFileName)
 ;   TestID        0 = release build, > 0 = test build          (default: 0)
+;   SetupBuild    build identifier for install.ini and the     (default: empty = none)
+;                 install record: A-Z a-z 0-9 . _ -, at most 64
+;                 characters (ci\build.ps1: test<TestID>-<commit>
+;                 for a test build, the short commit in CI)
 ;   EE_AppID      AppId GUID of the EE setup, without braces   (required, see AppId notes below)
 ;   NeoEE_AppID   AppId GUID of the NeoEE setup, w/o braces    (required, see AppId notes below)
 ; Example: ISCC /DInstallType=NeoEE /DInstallMode=Portable /DEE_AppID=<GUID> /DNeoEE_AppID=<GUID> setup_is6.iss
@@ -207,6 +211,26 @@
 #endif
 #if TestID < 0
   #error TestID must be a non-negative integer (0 = release build)
+#endif
+
+; SetupBuild: identifier of this build. install.ini and the install record carry it (contract 1.1,
+; 1.2, docs/adr/0004-install-record-and-integrity-manifest.md point 10), so that builds of the same
+; MySetupVersion can be told apart, e.g. test builds (MySetupVersion stays until a release).
+; ci\build.ps1 passes test<TestID>-<commit> for a test build and the short Git commit in CI; empty
+; (the default) writes no SetupBuild value. Only A-Z a-z 0-9 . _ - (it is written into the registry
+; and into install.ini, which is ASCII), at most 64 characters.
+#ifndef SetupBuild
+  #define SetupBuild ""
+#endif
+; A bare /DSetupBuild or /DSetupBuild= passes no value: none as well
+#if TypeOf(SetupBuild) == TYPE_NULL
+  #undef SetupBuild
+  #define SetupBuild ""
+#endif
+; S without the characters of Chars (case-sensitive)
+#define StripChars(str S, str Chars) Chars == "" ? S : StripChars(StringChange(S, Copy(Chars, 1, 1), ""), Copy(Chars, 2))
+#if Len(SetupBuild) > 64 || StripChars(LowerCase(SetupBuild), "0123456789abcdefghijklmnopqrstuvwxyz._-") != ""
+  #pragma error "SetupBuild '" + SetupBuild + "' is not a build identifier (A-Z a-z 0-9 . _ -, at most 64 characters)"
 #endif
 
 ; END SETUP SETTINGS
@@ -1421,6 +1445,8 @@ end;
 function InitializeSetup: Boolean;
 begin
   Result := False;
+  Log('{#MyAppName} {#MyAppVersion}, setup {#MySetupVersion} ({#InstallType}, {#InstallMode}), SetupBuild "{#SetupBuild}", ' +
+    'TestID {#TestID}, contract version {#ContractVersion}');
 
   if (not SilentInstall and not IsWine) then
     bassInit();
