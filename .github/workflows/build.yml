@@ -30,6 +30,12 @@ jobs:
         shell: pwsh
         run: python ci/check_messages.py --coverage
 
+      # docs/CONTRACT.md must be identical in the launcher repository, which CI cannot reach: the
+      # copy check runs locally (README, "Verify"); here only its self-test.
+      - name: Contract copy check (self-test)
+        shell: pwsh
+        run: python ci/compare_contract.py --self-test
+
       # Unit tests of the [Code] helpers: a tiny test setup that only computes (no network)
       - name: Unit tests
         shell: pwsh

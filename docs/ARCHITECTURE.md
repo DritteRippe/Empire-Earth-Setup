@@ -70,7 +70,7 @@ requires.
 | `ci/build.ps1`, `ci/build_helpers.ps1` | Two-pass build of all variants, hash list of `data\localized-text`, DER copy of the certificate | `ci/tests/build_helpers.tests.ps1` | SHA-256 files of the built setups, `/DSetupBuild` (S-WP5, S-WP6) |
 | `ci/check_messages.py` | Checks `messages.iss` and the use of messages in every own script | - | own scripts from the `#include` lines, encoding check of every own `.iss` (S-WP2) |
 | `ci/check_contract.py` (new) | Checks that the tables of `docs/CONTRACT.md` match the source of truth in the script (`GameSettings`, `CodeFileExtensions`, compatibility table, `ContractVersion`); lints the `[Files]` flags below `{app}` | `--self-test` | new (S-WP5) |
-| `ci/compare_contract.py` (new) | Local only: SHA-256 of both copies of `docs/CONTRACT.md` (contract O12) | - | new (S-WP1) |
+| `ci/compare_contract.py` (new) | Local only: compares the SHA-256 of both copies of `docs/CONTRACT.md` (contract O12); exit code 0 identical, 1 different (both hashes, first differing line), 2 file missing | `--self-test` (CI workflow) | new (S-WP1) |
 | `ci/check_test_plan.py` (new) | `docs/TEST-PLAN.de.md`: unique TP ids, every forum test case 1 to 22 assigned, every TP id named in an acceptance exists | - | new (S-WP2) |
 | `ci/tests/unit_tests.iss` | Unit tests of the pure helpers (a tiny setup that only computes) | - | extended per package |
 
@@ -205,7 +205,7 @@ installation loop (an exception in `AfterInstall` would abort the installation, 
 | Build | All four variants compile against placeholder assets, output names prove the variant | `ci/build.ps1 -Placeholders`; locally `verify_setup.sh` | CI workflow |
 | Messages and sources | Duplicates, `==` typos, unknown prefixes, undefined messages in every own script (from the `#include` lines), order; coverage report; UTF-8 BOM and CRLF of every own `.iss` | `ci/check_messages.py` (S-WP2) | CI workflow |
 | Contract | The tables of `docs/CONTRACT.md` match `GameSettings`, `CodeFileExtensions`, the compatibility entries, `ContractVersion`; `[Files]` flags below `{app}` | `ci/check_contract.py` (S-WP5) | CI workflow |
-| Contract copies | Both copies of `docs/CONTRACT.md` are identical (O12) | `ci/compare_contract.py <launcher clone>` (S-WP1) | local, every package that touches the contract |
+| Contract copies | Both copies of `docs/CONTRACT.md` are identical (O12) | `ci/compare_contract.py <launcher clone>` (S-WP1), README "Verify" | local, every package that touches the contract, in both directions (`--repo`); its `--self-test` in the CI workflow |
 | Test plan | Unique TP ids, forum test cases 1 to 22 assigned, TP ids named in acceptance criteria exist | `ci/check_test_plan.py` (S-WP2) | CI workflow |
 | Build helpers | Hash lists, DER certificate copy, SHA-256 files of the setups | `ci/tests/build_helpers.tests.ps1` | CI workflow, PowerShell 7 on Linux |
 | Real-data equivalence (maintainers, local only) | Build EE and NeoEE with the reconstructed official data, dump with innoextract and compare semantically with the previous build and the official 1.7.2 setups: only the changes of the package may differ | not in the repository (game data must never be committed) | after every package that changes the compiled setup |

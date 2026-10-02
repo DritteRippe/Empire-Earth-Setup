@@ -65,6 +65,10 @@ Refactoring and quality fixes (no new game content).
   record and the integrity manifest are written, compatibility and DirectX wrapper defaults, strict
   TLS and the file server certificate, warnings before the installation, checksums of the setups
   and a check of the contract. Documentation only, the setup does not change yet.
+- `ci/compare_contract.py`: checks locally that `docs/CONTRACT.md` is identical in this and in the
+  launcher repository (CI cannot reach the other repository): exit code 0 if the SHA-256 of both
+  copies is the same, 1 with both hashes and the first differing line if not, 2 if a file is
+  missing. Its `--self-test` runs in the workflow. See README, "Verify".
 
 ### Changed
 - The hidden setup data folder (holds `EEStatsSetup.dll` for the uninstaller) is now
