@@ -236,7 +236,7 @@ Refactoring and quality fixes (no new game content).
   installation and repair write the value, a locked or read-only `install.ini` leaves it out with a
   log line, admin, user and portable write what the contract says, the uninstaller removes record,
   marker and folder and leaves `Software\Sierra\CDKeys` alone. The integrity manifest
-  `files.sha256` follows (S-WP7).
+  `files.sha256` came with the next work package (S-WP7, see below).
 - Build switch `SetupBuild` (ADR 0004 point 10): an optional build identifier of at most 64
   characters `A-Z a-z 0-9 . _ -` (anything else stops the build), written into `install.ini` and the
   install record, so that builds of the same setup version can be told apart. `ci/build.ps1` passes
@@ -256,6 +256,48 @@ Refactoring and quality fixes (no new game content).
   removes (TP-40, `P1`); the game settings and the marker of the installing account, a second
   account and over-the-shoulder elevation (TP-41, `P2`). Section 6 says where a test build shows its
   `SetupBuild`.
+- Integrity manifest `files.sha256` for the Empire Earth Launcher (contract 2; ADR 0004 points 3 to
+  8; README "Empire Earth Launcher"), in every variant including portable, next to `install.ini` in
+  the setup data folder:
+  - every compiled `[Files]` entry below the installation folder has
+    `AfterInstall: RecordInstalledFile`, which only adds the destination to a list (no file access,
+    no exception can escape and abort the installation); the setup data folder, `_wonkver.pub`
+    (deleted after the installation) and the `external` entries have none, and the verified online
+    localized files are added from `{tmp}\verified` with the folders of their `[Files]` entries,
+    including the EE learning campaign that AoC uses;
+  - at the end of the installation, after the NeoEE CD keys, the page "Checking the installed files"
+    (English, German, French) shows the progress while the setup hashes every recorded file once
+    (paths sorted ordinal ignoring case by a merge sort, one entry per file in the spelling of the
+    last entry that installed it) and writes `<sha256>  <path>` lines (lowercase hex, `/`, LF, ASCII
+    without BOM) through `files.sha256.tmp`; the log gets
+    `Manifest: <n> files, <MB> MB, <ms> ms, <MB/s> MB/s`;
+  - a file that cannot be read is tried twice more after 300 ms; if it stays locked, or a path is not
+    ASCII, or a destination could not be recorded, the run writes **no** manifest (logged), and
+    neither then nor after a failed deletion of the old one does the uninstall key get
+    `Empire Earth Community: ContractVersion`, so the launcher reports "Unknown" instead of trusting
+    an old or wrong manifest;
+  - installed files that are gone at that moment (typically deleted or quarantined by an antivirus
+    program, forum t=11045, t=41147) are logged, listed under `[MissingAfterInstall]` in
+    `install.ini` and named in one notice `FilesMissingAfterInstall` (English, German, French: at
+    most ten names and "and ... more", the advice to add an antivirus exception for the installation
+    folder and to run the setup again for the same folder); in silent mode and with
+    `/SUPPRESSMSGBOXES` only the log.
+  The pure helpers (`GetManifestPath`, `IsManifestExcludedPath`, `ManifestLine`,
+  `CompareManifestPaths`, `MergeSortManifestPaths`, `RemoveDuplicateManifestPaths`,
+  `BuildMissingAfterInstallText`, `FormatMissingFileList`, `FormatManifestSummary`) and the file-level
+  writer (`HashFileWithRetries`, `CollectExternalFiles`, `GetManifestPaths`, `HashManifestFiles`,
+  `WriteInstallStateFiles`) are in `utils.iss` with 138 new unit tests (430 in all), among them a sort
+  of 2000 paths in mixed case and a file-level test with a deleted and a locked file.
+  `ci/check_contract.py` checks that every compiled entry below `{app}` has the `AfterInstall` and
+  that the excluded ones do not (five new self-test cases). A probe setup under Wine with the real
+  code showed every case, including `sha256sum -c` over the written manifest. 5 new custom messages
+  (107 in all).
+- `docs/TEST-PLAN.de.md`, block 5: the Windows cases of the manifest (TP-50, `P1`): `files.sha256`
+  of EE-admin, NeoEE-admin and EE-portable checked line by line with PowerShell `Get-FileHash` (or
+  `sha256sum -c` in Git Bash), two files deleted during the installation by a PowerShell loop that
+  plays the antivirus program (notice, `[MissingAfterInstall]`, repair, silent), a file held open
+  without sharing (no manifest, no value in the uninstall key), and the duration on the laptop
+  (under 30 s, no "Not responding") and on an HDD or in the Windows 7 virtual machine.
 
 ### Changed
 - The hidden setup data folder (holds `EEStatsSetup.dll` for the uninstaller) is now

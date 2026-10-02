@@ -943,7 +943,7 @@ end;
 // logged), or a file could not be hashed after its retries (HashFileWithRetries; the file and the
 // exception are logged). From then on the files are only checked for existence. ProgressPage, if
 // not nil, shows Status, the file and the progress per file (its SetProgress processes window
-// messages, so Windows does not mark the wizard as not responding while about 1.5 GB are read).
+// messages, so Windows does not mark the wizard as not responding while several hundred MB are read).
 function HashManifestFiles(const InstallRoot: String; const Paths: TArrayOfString; const HashFiles: Boolean;
   const ProgressPage: TOutputProgressWizardPage; const Status: String;
   var Text: String; var Missing: TArrayOfString; var FileCount: Integer; var Bytes: Int64): Boolean;

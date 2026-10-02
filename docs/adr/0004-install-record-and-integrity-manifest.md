@@ -1,8 +1,7 @@
 # 0004. Install record, install.ini, integrity manifest and defaults marker
 
-- Status: Accepted, implemented in part: points 1, 2, 6, 9 and 10 for `install.ini` by S-WP6 (see
-  [Implementation](#implementation)); points 3 to 5, 7 and 8 and the manifest in points 6 and 9
-  follow with S-WP7
+- Status: Accepted, implemented: points 1, 2, 6, 9 and 10 for `install.ini` by S-WP6, points 3 to 8
+  and the manifest in points 6 and 9 by S-WP7 (see [Implementation](#implementation))
 - Date: 2026-10-02
 - Requirements: D5 (setup side of [CONTRACT.md](../CONTRACT.md) 1.1, 1.2, 2, 3.5), R1, R2, R11, R17
 - Revised: 2026-10-02, plan review before implementation (ASCII instead of `UTF8Encode`, which
@@ -12,7 +11,11 @@
   `RenameFile` does not overwrite; retries for files that are briefly locked; a sort of at most
   n log n; throughput in the log); implementation of S-WP6 (point 2: every run writes the record
   anew; point 6: a run whose deletion failed still writes the files if it can, only the value of
-  point 9 is left out; point 10: the characters of `SetupBuild` and the default of the build script)
+  point 9 is left out; point 10: the characters of `SetupBuild` and the default of the build script);
+  implementation of S-WP7 (point 3: three external entries of verified online files, among them the
+  copy of the EE learning campaign for AoC, and a destination that cannot be recorded switches the
+  manifest off; point 4: the order manifest, `install.ini`, uninstall key value, and the amount of
+  data hashed, measured in the real-data builds, also in Consequences)
 
 ## Context
 
@@ -50,9 +53,12 @@ is testable without running an installer.
    `goto Skip` paths end before `NotifyAfterInstallFileEntry`), so the manifest lists every
    destination the run **processed** (installed or kept); contract 2.3 says so. That a kept file is
    rare is enforced by a lint in `ci/check_contract.py`: every `[Files]` entry below `{app}` has
-   `ignoreversion` and none has `onlyifdoesntexist`, `promptifolder` or `confirmoverwrite`. The verified online files (one `external` wildcard entry per game folder) are added from
-   `{tmp}\verified` when the manifest is written, mapped to their game folder exactly like `[Files]`
-   installs them.
+   `ignoreversion` and none has `onlyifdoesntexist`, `promptifolder` or `confirmoverwrite`. The
+   verified online files (an `external` wildcard entry per game folder and one that copies the EE
+   learning campaign into the AoC folder as well) are added from `{tmp}\verified` when the manifest
+   is written, mapped to their game folder exactly like `[Files]` installs them. A destination that
+   `RecordInstalledFile` cannot record (an exception, caught there) switches the manifest off for
+   this run.
 4. **Writing at the end of `ssPostInstall`** (`installstate.iss`, after random maps, certificate
    handling and NeoEE CD keys): the recorded paths are converted to manifest paths, de-duplicated
    case-insensitively (a later entry that overwrites the same file counts once), sorted ordinal
@@ -71,9 +77,10 @@ is testable without running an installer.
    looks valid. Hashing runs on an output progress page (`CreateOutputProgressPage`, text "Checking the
    installed files..." in en/de/fr, progress per file): its `SetProgress` processes window messages
    (`ScriptDlg.pas`, `TOutputProgressWizardPage.ProcessMsgs`), so Windows does not mark the wizard
-   as "Not responding" while about 1.5 GB are hashed. The log gets one summary line
+   as "Not responding" while several hundred MB are hashed. The log gets one summary line
    (`Manifest: <n> files, <MB> MB, <ms> ms, <MB/s> MB/s`); the test plan sets the limit (under 30 s
    on the test laptop, no "Not responding") and measures once more on an HDD or in the Windows 7 VM.
+   The uninstall key value of point 9 is written after both files.
 5. **Encoding: ASCII only.** Inno Setup 6.2.2's Pascal Script has no `UTF8Encode` (a probe script
    compiled with ISCC 6.2.2 stops with "Unknown identifier 'UTF8Encode'"; `ScriptFunc_R.pas`
    registers no such function). The text is therefore built as ASCII and written with
@@ -151,10 +158,13 @@ Inno Setup 6.2.2 sources (`jrsoftware/issrc`, tag `is-6_2_2`):
 
 - The real-data comparison of S-WP7 shows `AfterInstall: RecordInstalledFile` on the file entries
   below `{app}` and nothing else changed in `[Files]`; S-WP6 shows the new `[Registry]` entries.
-- Hashing all installed files takes a measurable time at the end of the installation (about 1.5 GB;
-  the files were just written and are usually in the file cache). The time is logged and has a limit
-  in the test plan; if the limit is missed, the fallback is to hash only the `code` class and store
-  the size of the others, which is a contract change.
+- Hashing all installed files takes a measurable time at the end of the installation (the files
+  were just written and are usually in the file cache). In the builds from the reconstructed 1.7.2
+  data all compiled entries below `{app}` together hold 722 MB (EE) and 809 MB (NeoEE), counting
+  every component and every alternative (only one DirectX wrapper and one language are installed
+  at a time); the downloaded localized files come on top. The plan's estimate of 1.5 GB was too
+  high. The time is logged and has a limit in the test plan; if the limit is missed, the fallback
+  is to hash only the `code` class and store the size of the others, which is a contract change.
 - A future installed file with a non-ASCII name would switch the manifest off (logged) instead of
   writing a wrong one; the build would have to add an encoder first.
 - A run that installs nothing below `{app}` (impossible today, `game` is fixed) would write an empty
@@ -167,10 +177,10 @@ Inno Setup 6.2.2 sources (`jrsoftware/issrc`, tag `is-6_2_2`):
 ## Implementation
 
 S-WP6, 2026-10-02: points 1, 2, 6, 9 and 10 for `install.ini`; the manifest (points 3 to 5, 7, 8 and
-`files.sha256` in points 6 and 9) follows with S-WP7. In this order: the pure helpers with their unit
-tests (`7bde676`), `SetupBuild` (`2474edb`), `install.ini` and the uninstall key value (`e389f34`),
-the install record and the defaults marker (`f35856a`), README and CHANGELOG (`d82e7e5`), the test
-cases TP-40 and TP-41 (`a9d9229`).
+`files.sha256` in points 6 and 9) came with S-WP7 (second part of this section). In this order: the
+pure helpers with their unit tests (`7bde676`), `SetupBuild` (`2474edb`), `install.ini` and the
+uninstall key value (`e389f34`), the install record and the defaults marker (`f35856a`), README and
+CHANGELOG (`d82e7e5`), the test cases TP-40 and TP-41 (`a9d9229`).
 
 - **Point 1:** `ContractVersion` is the value of the record, the marker, `install.ini` and the
   uninstall key value; its comment in `setup_is6.iss` says so.
@@ -246,6 +256,89 @@ cases TP-40 and TP-41 (`a9d9229`).
 - **Not verified here:** the 64-bit registry view on real 64-bit Windows (the Wine prefix is 32-bit),
   share modes and the read-only attribute on NTFS, over-the-shoulder elevation and a later run of
   the official setup 1.7.2: TP-40 and TP-41.
+
+S-WP7, 2026-10-02: points 3 to 8 and `files.sha256` in points 6 and 9. In this order: the pure
+helpers with their unit tests (`ed3f2bd`), the file-level writer with its unit test (`c6b4f10`), the
+recording with the `[Files]` lint (`4b64154`), the writing at the end of the setup with the progress
+page, the notice and the messages (`4eafaed`), this documentation with test case TP-50.
+
+- **Point 3:** 44 `[Files]` entries as written (107 in the preprocessed EE script, 179 in the NeoEE
+  one; 2340 and 2504 after ISCC expanded the wildcards) have `AfterInstall: RecordInstalledFile`.
+  `RecordInstalledFile` (`installstate.iss`) appends
+  `ExpandConstant(CurrentFileName)` to a `TStringList` inside `try`/`except`; an exception only
+  increments `RecordFailures`, which makes `WriteInstallStateFiles` write no manifest. Without it:
+  `EEStatsSetup.dll` (setup data folder), `_wonkver.pub` (`deleteafterinstall`), the eight
+  permission entries and the three entries of `{tmp}\verified` (all `external`). `Install.pas`,
+  `CopyFiles`, calls `NotifyAfterInstallFileEntry` once per entry after `RecurseExternalCopyFiles`
+  and `Main.pas` sets `CurrentFileName` to `FileEntry.DestName`, the folder for an external
+  wildcard entry; so `RecordVerifiedOnlineFiles` adds the verified files with
+  `CollectExternalFiles` (`utils.iss`, the same choice of files as `RecurseExternalCopyFiles`: no
+  hidden files, no hidden folders) under the components of the three entries: `{tmp}\verified\EE`
+  to the EE folder (`game and language\update`), `{tmp}\verified\AoC` and the EE learning campaign
+  to the AoC folder (`gameaoc and language\update`). `ci/check_contract.py` checks the rule in both
+  directions, as written and in the preprocessed scripts (five self-test cases).
+- **Point 4:** `WriteInstallState`, the last step of `ssPostInstall`, shows the output progress page
+  created in `InitializeWizard` (`CreateManifestProgressPage`, caption "Checking the installed
+  files") and calls `WriteInstallStateFiles` (`utils.iss`): `GetManifestPaths` (`GetManifestPath`,
+  `IsManifestExcludedPath`, `MergeSortManifestPaths` with uppercase keys computed once,
+  `RemoveDuplicateManifestPaths` keeping the spelling recorded last), `HashManifestFiles`
+  (`FileExists`, `HashFileWithRetries` with 3 attempts and 2 pauses of 300 ms, `FileSize64`,
+  `SetText`/`SetProgress` per file), the log line from `FormatManifestSummary` (`GetTickCount` of
+  `kernel32.dll`, also across its wrap), `ReplaceStateFile` for `files.sha256` if complete, then for
+  `install.ini` with `BuildMissingAfterInstallText`. The page is hidden in `finally`. Order:
+  manifest, `install.ini`, notice, uninstall key value.
+- **Point 5:** `HashManifestFiles` checks every manifest path with `IsAsciiText`; a path that is not
+  ASCII switches the manifest off (logged), `BuildMissingAfterInstallText` leaves such a path out
+  of `[MissingAfterInstall]`, the notice still names it.
+- **Point 6:** `DeleteInstallState` deletes `files.sha256` and `files.sha256.tmp` as well; a failure
+  sets `InstallStateDeleteFailed` as for `install.ini`.
+- **Point 7:** `ReportMissingFiles`: one log line per missing file (in `HashManifestFiles`), one
+  summary line, and `MsgBox(FilesMissingAfterInstall, mbError)` with `FormatMissingFileList` (at
+  most `MissingFilesShownMax` = 10 names with `\`, then `FilesMissingAfterInstallMore`) and the
+  installation folder, not if `SilentInstall` or `SuppressMsgBoxes`. New messages in English, German
+  and French: `ManifestPageCaption`, `ManifestPageDescription`, `ManifestPageStatus`,
+  `FilesMissingAfterInstall`, `FilesMissingAfterInstallMore`.
+- **Point 8:** the helpers of point 4 and 7 in `utils.iss`; 138 new unit tests, 430 in all, pass
+  under Wine: path conversion (outside, the root itself, `..`, `.`, `:`, empty segments, `/`, a
+  root with non-ASCII characters), exclusions, lines, ordering (`_` after the letters,
+  `Empire Earth - The Art of Conquest/` before `Empire Earth/`), the merge sort of 2000 paths in
+  mixed case (19173 comparisons, limit 2000 * 11) and of 1000 paths recorded twice (the later
+  spelling kept), `[MissingAfterInstall]` with the example of contract 1.2, the notice list with 0,
+  2, 10, 11 and 25 files, the log line with 3 GB; at file level an installation in `{tmp}` with a
+  deleted file (no BOM, only LF, ASCII, order, hashes equal to `GetSHA256OfFile`, each file once,
+  excluded and outside paths left out, no `.tmp`, `[MissingAfterInstall]`), a verified file next to
+  a hidden one, a file held open without sharing (`Sharing violation`, 602 ms for the three
+  attempts, no manifest, `install.ini` written), an incomplete recording, a non-ASCII path, nothing
+  recorded (an empty manifest).
+- **Point 9:** `WriteContractVersionValue(IniWritten and ManifestWritten)`.
+- **Real-data comparison** (maintainers only, never committed: EE and NeoEE built with ISCC from the
+  reconstructed 1.7.2 data, official AppIds, unsigned, no `SetupBuild`; innoextract dumps) against
+  the S-WP6 build (`f35856a`): the `[Files]` entries are identical in order, fields and locations
+  except the new `After install: "RecordInstalledFile"`; EE: 2340 of 2352
+  entries below `{app}` have it, the other 12 are the setup data folder (1) and the
+  external entries (11); NeoEE: 2504 of 2518, the other 14 are
+  the setup data folder (1), the external entries (11) and `_wonkver.pub` (2); no other entry has
+  it. Besides that only the compiled code (EE 130862 -> 148571 bytes, NeoEE 135561 -> 153282 bytes)
+  and the 15 new messages differ; every other section is identical.
+- **Run-time probe under Wine** (not in the repository): a setup with `utils.iss`, `extension.iss`
+  and `installstate.iss` unchanged, the three `{tmp}\verified` entries and the 15 message lines cut
+  out of the real files, compiled entries like those of the setup (wildcards with subfolders, a
+  second entry that installs `Empire Earth.exe` again, the setup data folder, a `deleteafterinstall`
+  file), 64 MB of data and verified online files created at `ssInstall` as `VerifyDownloadedFiles`
+  leaves them. User, admin and portable mode: 13 recorded destinations, `files.sha256` with 11
+  lines that `sha256sum -c` accepts in the installation folder, ordered as `LC_ALL=C sort -f`, no
+  BOM, no CR, no `.tmp`, the uninstall key value (not in portable); `Manifest: 11 files, 64.0 MB,
+  599 ms, 106.8 MB/s` (between 576 and 752 ms in all runs). Two files deleted right before the last
+  step: two log lines, `[MissingAfterInstall]` with both, no dialog in `/VERYSILENT`, the value is
+  written. `Data\data.ssa` held open without sharing: three `Sharing violation` attempts, `No
+  manifest in this run`, `install.ini` written, no value. `files.sha256` read-only: `Unable to delete
+  ...: it is read-only` at both steps, the old manifest kept, no value. `files.sha256` held open
+  without `FILE_SHARE_DELETE` during `ssInstall`: the deletion fails, the new manifest is written at
+  the end, no value (decision K4). `/SILENT` with the visible progress window completes. The
+  uninstaller removes the folder.
+- **Not verified here:** an antivirus program on Windows, share modes on NTFS, "Not responding"
+  and the duration with real data on real hardware (test case TP-50, also on an HDD or in the
+  Windows 7 virtual machine), the notice itself (only shown without silent mode).
 
 ## Alternatives considered
 

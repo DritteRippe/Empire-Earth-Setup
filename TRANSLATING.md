@@ -57,15 +57,15 @@ has no translation for (they are shown in English) and the `zh_TW` texts that ar
 `zh_CN` ones. Its output is the current to-do list; the overview below is the state when this
 file was last updated.
 
-Custom messages to translate: 102 (14 of them only used by NeoEE setups; the Mute/Unmute button
+Custom messages to translate: 107 (14 of them only used by NeoEE setups; the Mute/Unmute button
 texts `SoundCtrlButtonCaptionSoundOn/Off` stay English on purpose and are not counted).
 
 | Language | Translated | Missing |
 |---|---|---|
-| English (default) | 102 | - |
-| German `de`, French `fr` | 102 | - |
-| Spanish `es`, Italian `it`, Polish `pl`, Russian `ru`, Korean `ko`, Chinese Simplified `zh_CN`, Chinese Traditional `zh_TW` | 35 | 67: the messages added after setup 1.7.2 |
-| Brazilian Portuguese `pt_BR` | 13 | 89: everything except the game language page (`LIQP_*`), see below |
+| English (default) | 107 | - |
+| German `de`, French `fr` | 107 | - |
+| Spanish `es`, Italian `it`, Polish `pl`, Russian `ru`, Korean `ko`, Chinese Simplified `zh_CN`, Chinese Traditional `zh_TW` | 35 | 72: the messages added after setup 1.7.2 |
+| Brazilian Portuguese `pt_BR` | 13 | 94: everything except the game language page (`LIQP_*`), see below |
 | Setup-only languages (`hy`, `bg`, `ca`, ...) | 0 | all; these languages only have Inno Setup's own texts |
 
 ## Help wanted
@@ -83,8 +83,10 @@ texts of the installation mode page and the `GPUIQP_*` texts of the graphics car
 These exist in English, German and French only (`--coverage` lists them by name): installation
 types, task and component descriptions, the DirectX wrapper part of the graphics card page,
 status texts, the title and description of the download page, the reports about online
-localized files and random map scripts, the NeoEE CD key messages (NeoEE setups only) and the Wine
-notice of NeoEE setups. `TestSetupWarning` is only shown by test builds and has low priority.
+localized files and random map scripts, the page that checks the installed files at the end of the
+installation (`ManifestPage*`) and the notice about files that were missing then, e.g. deleted by an
+antivirus program (`FilesMissingAfterInstall*`), the NeoEE CD key messages (NeoEE setups only) and
+the Wine notice of NeoEE setups. `TestSetupWarning` is only shown by test builds and has low priority.
 
 ### Korean (ko): texts of the download page
 

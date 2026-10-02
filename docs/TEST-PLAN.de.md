@@ -7,12 +7,13 @@ Launcher hinterlässt, steht in [CONTRACT.md](CONTRACT.md).
 
 Stand: Gerüst aus Arbeitspaket S-WP2, Block 1 (Downloads, TP-10 bis TP-17) aus S-WP3, Block 2
 (Kompatibilität und Grafik, TP-20 bis TP-24) aus S-WP4, Block 3 (Build und Log, TP-30) aus S-WP5,
-Block 4 (Installationseintrag und `install.ini`, TP-40 und TP-41) aus S-WP6.
+Block 4 (Installationseintrag und `install.ini`, TP-40 und TP-41) aus S-WP6, Block 5
+(Integritätsmanifest, TP-50) aus S-WP7.
 Ausgearbeitet sind die Server-Vorabprüfung [TP-00](#tp-00-server-vorabprüfung), die Fälle der
-Blöcke 1 bis 4 und der Grundablauf
+Blöcke 1 bis 5 und der Grundablauf
 [TP-70](#tp-70-grundablauf-installieren-starten-deinstallieren). Seit S-WP5 hat jeder
 Fall eine Priorität (P1 bis P3, [Abschnitt 4](#4-vorlage-je-fall)).
-Jedes weitere Arbeitspaket (S-WP7, S-WP8) arbeitet die Fälle seines Blocks aus, S-WP9
+Jedes weitere Arbeitspaket (S-WP8) arbeitet die Fälle seines Blocks aus, S-WP9
 vervollständigt den Plan. Fälle, die noch nicht ausgearbeitet sind, tragen den Status
 `geplant: S-WPx`. `ci/check_test_plan.py` prüft die Form dieses Dokuments (siehe
 [Abschnitt 10](#10-automatische-prüfung-dieses-dokuments)).
@@ -93,7 +94,7 @@ Nummer ihres Blocks.
 | TP-2x | Kompatibilität und Grafik | S-WP4, S-WP10 | Windows 7 ohne Kompatibilitätswerte und mit der freiwilligen Aufgabe `compatibility_legacy` (TP-20), Bereinigung beim Update unter Windows 7, auch mit `compatibility_legacy` (TP-21), Windows 10/11 unverändert (TP-22), Grafikmatrix mit und ohne DirectX-Wrapper (TP-23), 150 % Anzeigeskalierung mit und ohne `compatibility` bzw. `compatibility_legacy` (TP-24) |
 | TP-3x | Build und Log | S-WP5 | SHA-256-Dateien der Setups und Setup-Log ohne `/LOG`, auch bei Over-the-Shoulder-Erhöhung (TP-30) |
 | TP-4x | Installationseintrag und `install.ini` | S-WP6 | Installationseintrag, `install.ini`, Defaults-Marker, `SetupBuild` und der Wert `Empire Earth Community: ContractVersion` im Uninstall-Schlüssel je Variante, auch bei schreibgeschützter oder geöffneter `install.ini` und nach dem Setup 1.7.2, Deinstallation (TP-40); Spieleinstellungen und Marker beim installierenden und bei einem zweiten Konto, Over-the-Shoulder-Erhöhung (TP-41) |
-| TP-5x | Integritätsmanifest | S-WP7 | `files.sha256`, Dateiprüfung nach der Installation, Dauer des Hashens |
+| TP-5x | Integritätsmanifest | S-WP7 | `files.sha256` je Variante (Inhalt geprüft mit `Get-FileHash` bzw. `sha256sum -c`), von einem Virenscanner gelöschte Dateien mit Hinweis und `[MissingAfterInstall]`, eine gesperrte Datei, Dauer des Prüfens auf dem Laptop und auf HDD bzw. unter Windows 7 (TP-50) |
 | TP-6x | Umgebung | S-WP8 | niedrige Auflösung, fremde und alte Installationen, deren Ordner, EE und NeoEE in einem Ordner |
 | TP-7x | Allgemeine Abläufe und Forumfälle | S-WP2, S-WP9 | Grundablauf, Standardnutzer, Version, Reparatur, Firewall, CD-Keys, Sprachen, laufendes Spiel |
 
@@ -1434,17 +1435,175 @@ die offiziellen AppIds aus [6.3](#63-weg-b-echter-build-aus-eigenen-daten).
 
 ### Block 5: Integritätsmanifest (S-WP7)
 
-S-WP7 arbeitet hier aus, was ADR 0004 (Punkte 3 bis 8) verlangt: `files.sha256` nach jeder
-Installation, Dauer des Hashens (Schwelle: unter 30 s auf dem Testlaptop, keine Meldung „Keine
-Rückmeldung“), Dateien, die während der Installation verschwinden.
+Was ADR 0004 (Punkte 3 bis 8) und Vertrag 1.2 und 2 verlangen und nur auf Windows prüfbar ist:
+`files.sha256` im versteckten Ordner `_setupdata_<Produkt>` nach jeder Installation (alle Varianten,
+ASCII mit LF, ohne BOM, jede Datei einmal, sortiert), die Seite „Installierte Dateien werden
+geprüft“ am Ende der Installation und ihre Dauer, Dateien, die während der Installation verschwinden
+(`[MissingAfterInstall]` in `install.ini` und der Hinweis mit dem Rat zur Antivirus-Ausnahme), und
+eine Datei, die ein anderes Programm gesperrt hält (kein Manifest, kein Wert
+`Empire Earth Community: ContractVersion` im Uninstall-Schlüssel). Die Logik prüfen zusätzlich die
+Unit-Tests (Pfade, Zeilen, Sortierung mit 2000 Einträgen, `[MissingAfterInstall]`, Hinweisliste und
+auf Dateiebene das ganze Schreiben mit gelöschter und gesperrter Datei) und eine Wine-Probe der
+Analyse (ADR 0004, „Implementation“); hier geht es um das echte Windows (Virenscanner,
+Freigabemodi, Dauer auf echter Hardware).
+
+Unter Windows gibt es kein `sha256sum`. Die PowerShell-Zeilen in TP-50 prüfen das Manifest Zeile für
+Zeile mit `Get-FileHash`; wer Git für Windows installiert hat, kann im Installationsordner in der
+„Git Bash“ auch `sha256sum -c _setupdata_EE/files.sha256` aufrufen (gleiches Ergebnis).
 
 #### TP-50: Von Antivirenprogrammen gelöschte Dateien
 
-- **Status:** geplant: S-WP7
-- **Priorität:** P1
-- **Bezug:** R2, R11, ADR 0004 (Punkt 7); Forum §8 Nr. 14 (t=11045, t=41147)
-- **Ziel:** Fehlen wichtige Dateien nach der Installation, nennt das Setup sie und rät zu einer
-  Ausnahme im Virenscanner und zur Reparatur.
+- **Status:** ausgearbeitet
+- **Priorität:** P1 (Teil c mit gesperrter Datei: P2; Zeitmessung auf HDD bzw. in der
+  Windows-7-VM, Teil e: P3)
+- **Bezug:** R2, R11, D5, ADR 0004 (Punkte 3 bis 8), Vertrag 1.2, 2.1 bis 2.3, Entscheidungen K4
+  und K12 der Planrevision; Forum §8 Nr. 14 (t=11045 p=48037, t=41147 p=80317: Antivirenprogramme
+  löschen Spieldateien)
+- **Ziel:** Jede Installation hinterlässt ein `files.sha256`, das genau die installierten Dateien mit
+  ihren SHA-256 nennt; verschwindet eine Datei während der Installation, nennt das Setup sie, rät zur
+  Ausnahme im Virenscanner und zur Reparatur; eine gesperrte Datei führt zu keinem Manifest statt zu
+  einem falschen; das Prüfen dauert auf dem Laptop unter 30 s, ohne dass Windows „Keine Rückmeldung“
+  meldet.
+- **Build-Art:** A oder B für (a) bis (c); (d) und (e) nur B (die Dauer hängt an den echten
+  Spieldaten: bei allen Komponenten bis gut 700 MB bei EE und 800 MB bei NeoEE aus dem Setup, dazu
+  die heruntergeladenen Sprachdateien).
+- **Ausgangszustand:** kein Empire Earth installiert; Microsoft Defender wie im Auslieferungszustand
+  (keine eigene Ausnahme für den Spielordner).
+- **Snapshot:** `S-Basis` vor (a), (b) und (c), `S-Sandbox` reicht für (a) bis (c); `Laptop` für (d);
+  `S-Win7` oder eine VM auf einer HDD für (e).
+- **Varianten:** (a) EE-admin und NeoEE-admin, zusätzlich EE-portable; (b) EE-user (dabei auch
+  `/VERYSILENT`); (c) EE-user; (d) EE-admin mit allen Komponenten (Weg B, Laptop); (e) EE-admin
+  (Weg B, HDD oder Windows-7-VM). EE-user und NeoEE-user schreiben das Manifest mit demselben Code
+  wie EE-admin; NeoEE-portable wie EE-portable.
+- **Schritte:**
+  1. Ordner `C:\EE-Test\logs` anlegen. Bei allen Läufen: Setup mit
+     `/LOG="C:\EE-Test\logs\TP-50<Teil>_<Variante>.log"` starten, Spielsprache Deutsch, empfohlene
+     Einstellungen mit Empire Earth und AoC, Telemetrie aus (Weg A: Grenzen in
+     [6.2](#62-weg-a-placeholder-build)).
+  2. (a) EE-admin installieren. Am Ende der Installation erscheint kurz die Seite „Installierte
+     Dateien werden geprüft“ mit Fortschrittsbalken und Dateinamen. Danach in PowerShell (Pfad je
+     Variante anpassen; NeoEE: `…\Neo Empire Earth` und `_setupdata_NeoEE`; portable:
+     `<Ordner des Setups>\Empire Earth Portable`):
+
+     ```powershell
+     $root = 'C:\Program Files (x86)\Empire Earth'
+     $m = Join-Path $root '_setupdata_EE\files.sha256'
+     $b = [IO.File]::ReadAllBytes($m)
+     'BOM: ' + ($b.Length -ge 3 -and $b[0] -eq 0xEF -and $b[1] -eq 0xBB -and $b[2] -eq 0xBF)
+     'CR: ' + @($b | Where-Object { $_ -eq 13 }).Count
+     'Nicht-ASCII: ' + @($b | Where-Object { $_ -gt 127 }).Count
+     $lines = @(Get-Content -LiteralPath $m)
+     $paths = @($lines | ForEach-Object { $_.Substring(66) })
+     'Zeilen: ' + $lines.Count
+     'Form falsch: ' + @($lines | Where-Object { $_ -notmatch '^[0-9a-f]{64}  [^\\:]+$' }).Count
+     'Doppelt (ohne Gross-/Kleinschreibung): ' + ($paths.Count - @($paths | Sort-Object -Unique).Count)
+     'Setup-Datenordner oder unins*: ' + @($paths | Where-Object { $_ -like '_setupdata_*' -or $_ -like 'unins*' }).Count
+     $falsch = foreach ($l in $lines) {
+       $p = Join-Path $root ($l.Substring(66) -replace '/', '\')
+       if (-not (Test-Path -LiteralPath $p) -or (Get-FileHash -LiteralPath $p -Algorithm SHA256).Hash.ToLower() -ne $l.Substring(0, 64)) { $l.Substring(66) }
+     }
+     'Hash falsch oder Datei fehlt: ' + @($falsch).Count; $falsch
+     Get-ChildItem -Force (Split-Path $m) | Select-Object Name, Length
+     Get-Content -LiteralPath (Join-Path $root '_setupdata_EE\install.ini')
+     reg query "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{<AppId>}_is1" /v "Empire Earth Community: ContractVersion" /reg:64
+     ```
+
+     Dasselbe nach NeoEE-admin (in seinem eigenen Snapshot) und nach EE-portable.
+  3. (b) Snapshot zurücksetzen. Vor dem Setup in einer **normalen** PowerShell (EE-user braucht keine
+     Administratorrechte) einen „Virenscanner“ starten, der zwei Dateien löscht, sobald das Setup sie
+     angelegt hat, und das 15 Minuten lang wiederholt:
+
+     ```powershell
+     $spiel = "$env:LOCALAPPDATA\Programs\Empire Earth\Empire Earth"
+     $ziele = @("$spiel\Language.dll", "$spiel\help.rtf")
+     $ende = (Get-Date).AddMinutes(15)
+     while ((Get-Date) -lt $ende) {
+       foreach ($z in $ziele) { if (Test-Path -LiteralPath $z) { Remove-Item -LiteralPath $z -Force -ErrorAction SilentlyContinue; if (-not (Test-Path -LiteralPath $z)) { "gelöscht: $z" } } }
+       Start-Sleep -Milliseconds 200
+     }
+     ```
+
+     Beide Dateien gibt es in Weg A und B (`Language.dll` ist die deutsche Sprachdatei, eine Datei mit
+     Programmcode, wie sie Virenscanner oft treffen). Dann EE-user installieren („Nur für mich installieren“). Den Hinweis am Ende fotografieren bzw.
+     abschreiben, das Setup beenden, die Schleife mit Strg+C stoppen und abfragen:
+     `Get-Content "$env:LOCALAPPDATA\Programs\Empire Earth\_setupdata_EE\install.ini"`,
+     `Select-String -Path "$env:LOCALAPPDATA\Programs\Empire Earth\_setupdata_EE\files.sha256" -Pattern 'Language.dll|help.rtf'`
+     und `reg query "HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\{<AppId>}_is1" /v "Empire Earth Community: ContractVersion"`.
+     Danach das Setup noch einmal ohne Schleife ausführen („Vorhandene Installation reparieren“) und
+     dieselben Abfragen wiederholen. Zum Schluss mit laufender Schleife (vorher neu starten) noch
+     einmal still reparieren: `<Setup>.exe /VERYSILENT /SUPPRESSMSGBOXES /LOG="C:\EE-Test\logs\TP-50b_silent.log"`.
+     Mehr als zehn Dateien (Zeile „und … weitere“, nur Weg B): statt der zwei Dateien alle Dateien
+     eines Ordners löschen, also in der Schleife die `foreach`-Zeile durch
+     `Get-ChildItem -LiteralPath "$spiel\Users\default\Civilizations" -File -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue`
+     ersetzen (Komponente mit den eC-Zivilisationen gewählt, 15 Dateien).
+  4. (c) Snapshot zurücksetzen. Eine PowerShell starten, die `Empire Earth\EULA_DSML.txt` (eine Datei,
+     die nur der erste Eintrag des Setups kopiert) zwei Sekunden nach ihrem Erscheinen ohne Freigabe
+     öffnet und bis zum Ende des Setups offen hält, wie ein Virenscanner, der eine Datei länger prüft:
+
+     ```powershell
+     $z = "$env:LOCALAPPDATA\Programs\Empire Earth\Empire Earth\EULA_DSML.txt"
+     while (-not (Test-Path -LiteralPath $z)) { Start-Sleep -Milliseconds 100 }
+     Start-Sleep -Seconds 2
+     $f = [IO.File]::Open($z, 'Open', 'Read', 'None'); 'gesperrt'
+     ```
+
+     EE-user installieren; erst nach dem Ende des Setups `$f.Close()`. Abfragen wie in (b), dazu `Test-Path "$env:LOCALAPPDATA\Programs\Empire Earth\_setupdata_EE\files.sha256"`.
+     Danach ohne Sperre reparieren und noch einmal abfragen. Meldet das Setup schon beim Kopieren,
+     dass die Datei verwendet wird, war die Sperre zu früh: „Wiederholen“ nach `$f.Close()` wählen und
+     den Teil mit einer längeren Pause wiederholen.
+  5. (d) Nur Weg B, auf dem Laptop: EE-admin mit „Benutzerdefinierte Installation“ und allen
+     Komponenten (HD-Pakete, Filme, Zivilisationen, Werkzeuge) installieren. Während
+     die Seite „Installierte Dateien werden geprüft“ zu sehen ist, auf die Titelleiste achten und die
+     Zeit mit der Uhr stoppen; danach im Log die Zeile `Manifest: …` suchen:
+     `Select-String -Path C:\EE-Test\logs\TP-50d_EE-admin.log -Pattern 'Manifest:'`. Die Abfrage aus
+     (a) läuft auf dem Laptop gegen alle Dateien (sie braucht selbst etwa so lange wie das Setup).
+  6. (e) Nur Weg B, auf einer HDD oder in der Windows-7-VM (`S-Win7`): wie (d), nur Zeit und Logzeile
+     notieren.
+- **Erwartetes Ergebnis:**
+  - (a) `BOM: False`, `CR: 0`, `Nicht-ASCII: 0`, `Form falsch: 0`, `Doppelt …: 0`,
+    `Setup-Datenordner oder unins*: 0`, `Hash falsch oder Datei fehlt: 0`. Die Zeilen sind nach dem
+    Pfad sortiert (ohne Groß-/Kleinschreibung; `Empire Earth - The Art of Conquest/…` vor
+    `Empire Earth/…`, `Tools/…` zuletzt), jede Datei steht einmal, auch `Empire Earth.exe` bei NeoEE
+    (dort mit dem Hash der Admin-Version aus `NeoEE - Admin`). Im Ordner `_setupdata_EE` liegen
+    `EEStatsSetup.dll`, `files.sha256` und `install.ini`, keine `.tmp`-Datei; `install.ini` hat keinen
+    Abschnitt `[MissingAfterInstall]`; der Uninstall-Schlüssel hat
+    `Empire Earth Community: ContractVersion    REG_DWORD    0x1` (portable: kein Uninstall-Schlüssel,
+    das Manifest gibt es trotzdem).
+  - (b) Die Schleife meldet beide Dateien als gelöscht. Am Ende erscheint ein Hinweis (Fehlersymbol):
+    „Einige installierte Dateien fehlten am Ende der Installation:“ mit den zwei Dateien
+    (`Empire Earth\help.rtf`, `Empire Earth\Language.dll`, mit `\`), dem Satz zu
+    Antivirenprogrammen, dem Installationsordner und dem Rat, danach das Setup erneut für denselben
+    Ordner auszuführen. Das Setup endet normal. `install.ini` endet mit einer Leerzeile und
+    `[MissingAfterInstall]`, `1=Empire Earth/help.rtf`, `2=Empire Earth/Language.dll`;
+    `files.sha256` nennt die beiden Dateien nicht; der Wert im
+    Uninstall-Schlüssel ist da (fehlende Dateien verhindern ihn nicht, der Launcher wertet
+    `[MissingAfterInstall]` aus). Nach der Reparatur ohne Schleife: kein Hinweis, kein
+    `[MissingAfterInstall]`, beide Dateien stehen wieder im Manifest. Still mit Schleife: kein Fenster,
+    die Dateien stehen in `install.ini` und im Log. Mit mehr als zehn Dateien zeigt der Hinweis zehn
+    Namen und die Zeile „und <Anzahl> weitere“.
+  - (c) Das Setup endet ohne Meldung. `files.sha256` gibt es **nicht** (`Test-Path`: `False`),
+    `install.ini` gibt es; der Uninstall-Schlüssel hat **keinen** Wert
+    `Empire Earth Community: ContractVersion` (der Launcher meldet dann „Unbekannt“ und rät zur
+    Reparatur). Nach der Reparatur ohne Sperre sind Manifest und Wert wieder da.
+  - (d) Die Seite „Installierte Dateien werden geprüft“ zeigt den Fortschritt, die Titelleiste nie
+    „(Keine Rückmeldung)“, und das Prüfen dauert unter 30 s (`<ms>` der Logzeile unter 30000). Die
+    Logzeile nennt die Anzahl der Dateien, die Größe (bei allen Komponenten einige hundert MB) und
+    den Durchsatz; alle Werte ins Protokoll.
+  - (e) Zeit und Logzeile im Protokoll; mehr als 60 s oder „Keine Rückmeldung“ als Abweichung melden
+    (dann entscheiden die Betreuer über den Rückfall aus ADR 0004, „Consequences“: nur die Dateien der
+    Klasse `code` hashen).
+- **Log-Hinweis:** Bei `ssInstall`: `Install state of the previous run deleted (or there was none):
+  …\install.ini, …\files.sha256`. Am Ende: `Checking <n> recorded destinations of installed files for
+  …\files.sha256`, `Manifest: <n> files, <MB> MB, <ms> ms, <MB/s> MB/s`,
+  `Wrote …\files.sha256 (<n> files, <k> missing)`, `Wrote …\install.ini (…)` und
+  `Wrote "Empire Earth Community: ContractVersion" = 1 into the uninstall key`. (b): je Datei
+  `Installed file missing after the installation (deleted or moved, e.g. by an antivirus program): …`
+  und `2 installed files were missing at the end of the installation, listed in
+  [MissingAfterInstall] of install.ini …`. (c): dreimal `Unable to hash …\EULA_DSML.txt (attempt
+  <i> of 3): …` (je etwa 300 ms auseinander), dann `No manifest in this run: unable to hash … after 3
+  attempts: …`, `Not writing …\files.sha256: the manifest of this run is not complete (see above)` und
+  `Not writing "Empire Earth Community: ContractVersion" into the uninstall key: install.ini or
+  files.sha256 of this run could not be written; …`.
 
 ### Block 6: Umgebung (S-WP8)
 
@@ -1643,7 +1802,7 @@ echtes Windows“). „Launcher“ heißt: Der Fall prüft den Launcher und geh�
 | 11 | Hosting-Varianten, Portweiterleitung, zwei PCs hinter einem Router | Launcher: Netzwerkdiagnose (R7); Router und Portweiterleitung liegen außerhalb des Setups, dessen Firewall-Regeln prüft TP-76 | Launcher |
 | 12 | Netzwerkadapter (VPN, Hamachi) | Launcher: Vergleich der Adapter (R7); das Setup wählt keinen Adapter | Launcher |
 | 13 | CD-Keys: Server gesperrt, VM, `CDKeyCheck` | TP-77 | geplant: S-WP9 |
-| 14 | Antivirus löscht Dateien | TP-50 | geplant: S-WP7 |
+| 14 | Antivirus löscht Dateien | TP-50 | ausgearbeitet |
 | 15 | Offline, nur Spiegel, manipulierter Download | TP-00, TP-10, TP-11, TP-16 | ausgearbeitet |
 | 16 | Sprachen: Deutsch für EE und AoC | TP-78 | geplant: S-WP9 |
 | 17 | Spielstände im Mehrspieler, Namen mit Sonderzeichen | Launcher: Export und Import der Spielstände, Namensprüfung (R10); das Setup fasst Spielstände nicht an | Launcher |
