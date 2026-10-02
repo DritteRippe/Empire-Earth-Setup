@@ -10,7 +10,7 @@
 💻 Can run on Windows 10/11 powered by an ARM/ARM64 processor\
 💡 Simple and advanced installation mode\
 📣 Discord Status\
-📥 Download localized content online (support mirror, every file checked against its SHA-256)\
+📥 Download localized content online (support mirror, HTTPS only, program files only with a known SHA-256)\
 ✅ Online update checker (support mirror)\
 🖥️ DirectX Wrapper (DX7 to DX12)\
 🪛 Better compatibility with additonal flags\
@@ -85,13 +85,20 @@ powershell -ExecutionPolicy Bypass -File ci\build.ps1 -EEAppID <GUID> -NeoEEAppI
 Useful options: `-Variants NeoEE/Regular`, `-OutputDir <dir>`, `-Iscc <path to ISCC.exe>`, `-KeepPreprocessed <dir>`. Run `Get-Help ci\build.ps1 -Detailed` for all of them.
 
 ### Online localized files
-The setups can download localized content (voices, campaigns, lobby texts) from `files.empireearth.eu`, with `storage.ee.zocker-160.de` as mirror. TLS certificates are validated, and a downloaded file is only installed if its SHA-256 matches a hash compiled into the setup; any other file is discarded and the setup installs its own files instead (`downloads.iss`). Downloads only happen with the component "Download localized voices and campaigns" and a game language other than English; AoC files only with AoC. Failed downloads can be skipped. Afterwards the setup lists, as a notice, every selected file it did not install from the download: not downloaded, discarded because it differs from the known version (e.g. updated on the server after the build), or not downloaded at all because the setup knows no hash for it.
+The setups can download localized content (voices, campaigns, the localized intro movie, lobby texts) from `files.empireearth.eu`, with `storage.ee.zocker-160.de` as mirror. Downloads only happen with the component "Download localized voices and campaigns" and a game language other than English; AoC files only with AoC. Both servers are only used over HTTPS, and an invalid TLS certificate stops a download instead of being ignored. What the setup accepts (`downloads.iss`, `GetOnlineFileCheck` in `utils.iss`):
+
+- **Files that can contain code** (`Language.dll`; the extensions are listed once, `CodeFileExtensions` in `utils.iss`: `.dll`, `.exe`, `.asi`, `.ocx`, `.sys`, `.scr`, `.bat`, `.cmd`, `.com`, `.ps1`, `.vbs`, `.js`, `.msi`, `.cpl`, `.lnk`, `.reg` and similar) only if their SHA-256 matches a hash compiled into the setup (a "pin"). Without a pin they are not downloaded at all.
+- **Data files** (`data.ssa`, the campaigns, the movie, the lobby files) must match their pin if the setup has one. Without a pin they are accepted as the server sends them, but only over HTTPS with a validated certificate and never from an `http://` URL (main server and mirror alike); the setup log calls them "TLS-verified, not pinned".
+
+Why the two rules: most data files (`data.ssa` with the voices, the campaigns, the movie) only exist on the servers and can change there independently of the setup, so a build can rarely pin them. Requiring a pin for every file made the download component useless: with the official data only `Language.dll` and the lobby files had pins, and they are the same files the setup installs itself. Data files are only read by the game, and TLS with certificate validation makes sure they come unchanged from the community servers. Code is different: the elevated setup installs it into the game folder, where it runs every time the game starts, so the trust in a server (or in anyone who gets hold of it or of a certificate for it) is not enough for code; it must be the exact file the build knew.
+
+Afterwards the setup lists, as a notice, every selected file it did not install from the download: not downloaded (failed or skipped), discarded because it does not match its pin (e.g. updated on the server after the build, or damaged), or a program file without pin. For each of them it installs its own version. Failed downloads can be skipped.
 
 The hashes come from `data\localized-text.sha256`, a list in `sha256sum` format (`<hash>  <path>`, UTF-8 without BOM), with paths relative to `data\localized-text`. The `localized` folder of the file servers has the same layout, except that it also has a lobby folder per language tag where `data\localized-text` has one folder for several languages: the setup requests the Chinese lobby files from `Lobby/zh-CN/` and `Lobby/zh-TW/` (also below `Mods/NeoEE/`), like the setups up to 1.7.2, and checks them against the entries of `Lobby/zh/` (the lobby folder of both languages, `GameLangLobbyDirs` in `setup_is6.iss`); the servers hold the same files in all three folders. Inno Setup 6.2 cannot compute SHA-256 in the preprocessor, so the list has to exist before compiling:
 
 - `ci\build.ps1` writes it from `data\localized-text` before every build. Before compiling in the IDE or with ISCC directly, run `powershell -ExecutionPolicy Bypass -File ci\build.ps1 -DownloadHashesOnly`, or on Linux/Wine `(cd data/localized-text && find . -type f -print0 | sort -z | xargs -0 sha256sum) > data/localized-text.sha256`.
-- Files that only exist on the servers (voices, campaigns, the localized intro movie) are only downloaded if the same file is placed in `data\localized-text` at its server path before the list is written; otherwise the setup tells the player that they stay as installed (often English). When the files on the servers change, rebuild the setup.
-- Without the list (or with an empty one) the compiler prints a warning and the setup does not offer the download component. `ISCC /DDownloadHashFile=<file>` uses another list.
+- Files that only exist on the servers (voices, campaigns, the localized intro movie) are downloaded without pin (TLS-verified). To pin one as well, place the same file in `data\localized-text` at its server path before the list is written; a pinned file that changes on the servers is discarded until the setup is rebuilt. A `Language.dll` (or any other file with code) is only downloaded if the list has it.
+- Without the list (or with an empty one) the compiler prints a warning; the setup still offers the download, but only gets data files (TLS-verified) and no `Language.dll`. `ISCC /DDownloadHashFile=<file>` uses another list.
 
 Very old Windows 7 installations without updated root certificates or TLS 1.2 support can no longer download these files (the setup no longer ignores invalid certificates): the installation continues with the files included in the setup. Such systems should install the Windows updates or use the full/offline setup.
 
@@ -102,7 +109,7 @@ powershell -ExecutionPolicy Bypass -File ci\build.ps1 -Placeholders
 creates a small placeholder file for every missing asset (existing files are never overwritten) and uses dummy AppIds. Such a build only proves that the script compiles for all variants: **never distribute it**, and remove the placeholder files before building with the real data.
 
 ### Unit tests
-`ci\tests\unit_tests.iss` tests the `[Code]` helpers that only compute something (string split, language tag, compatibility flags, uninstall keys, URL encoding and the URL checks of the update question, all in `utils.iss`). It is a tiny setup that runs the tests and exits without installing anything or using the network:
+`ci\tests\unit_tests.iss` tests the `[Code]` helpers that only compute something (string split, language tag, compatibility flags, uninstall keys, URL encoding, the URL checks of the update question and the download policy of the online files: file types with code, https URLs, https servers; all in `utils.iss`). It is a tiny setup that runs the tests and exits without installing anything or using the network:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File ci\run_unit_tests.ps1

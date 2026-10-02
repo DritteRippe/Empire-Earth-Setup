@@ -1,29 +1,38 @@
 ﻿[Code]
-// Online localized files: SHA-256 pins and verification
+// Online localized files: download policy, SHA-256 pins and verification
 //
 // RegisterOnlineFiles (setup_is6.iss) downloads localized files from the community file servers
-// with IDP. A download is only accepted when its SHA-256 matches a hash compiled into this setup:
-//  - AddOnlineFile registers a file only if a hash is known for its server path,
-//  - VerifyDownloadedFiles (ssInstall, before any file is installed) checks every downloaded file
-//    and moves the matching ones to {tmp}\verified\, the only folder [Files] installs them from.
-//    A mismatching file is deleted. Every registered file that does not arrive there (download
-//    failed or skipped, checksum mismatch) is logged and reported; for it the setup installs the
-//    file it contains itself.
-//  - A selected file without a known hash is not downloaded at all, it is reported too
-//    (NoteUnverifiableOnlineFile), so the player knows that it stays as the setup installs it.
-//  - A build without any hash hides the download component (Check: HasDownloadPins).
+// with IDP. Both servers are https URLs, and IDP never accepts an invalid TLS certificate
+// (InvalidCert=Stop, InitOnlineFilesDownload). Which files are accepted (GetOnlineFileCheck,
+// utils.iss):
+//  - A file that can contain code (Language.dll; the types are listed once, CodeFileExtensions in
+//    utils.iss) only with its SHA-256 compiled into this setup ("pin"). Without a pin it is not
+//    downloaded at all: whoever controls the server or its certificate must not be able to make
+//    the elevated setup install code.
+//  - A data file (voices, campaigns, movies, lobby texts) with a pin only if it matches the pin.
+//    Without a pin it is accepted as the server sends it, but only over https with a validated
+//    certificate, never from an http URL (main server and mirror alike); the log calls it
+//    "TLS-verified, not pinned". Most of these files (data.ssa, the campaigns, the localized
+//    intro movie) only exist on the servers, so a build can rarely pin them; requiring a pin made
+//    the download component useless.
+// AddOnlineFile registers a file only under these conditions. VerifyDownloadedFiles (ssInstall,
+// before any file is installed) checks every downloaded file and moves the accepted ones to
+// {tmp}\verified\, the only folder [Files] installs them from; a file that does not match its pin
+// is deleted. Every selected file that does not arrive there (code file without pin, download
+// failed or skipped, pin mismatch) is logged and reported as a notice, and the setup installs the
+// file it contains itself.
 //
-// The hashes come from a list in sha256sum format ("<SHA-256 in hex>  <path>", one file per line,
+// The pins come from a list in sha256sum format ("<SHA-256 in hex>  <path>", one file per line,
 // paths relative to data\localized-text, whose layout the "localized" folder of the file servers
 // has too; the servers also have a lobby folder per language tag where data\localized-text has
-// one for several languages, see RegisterGameOnlineFiles). ISPP 6.2 can only compute MD5 and SHA-1 (GetSHA256OfFile is missing until
-// Inno Setup 6.3), so the list is created before compiling: ci\build.ps1 writes it from
-// data\localized-text, see README.md "Online localized files". Without the list the setup compiles
-// with a warning and does not offer the download (component language\update).
+// one for several languages, see RegisterGameOnlineFiles). ISPP 6.2 can only compute MD5 and
+// SHA-1 (GetSHA256OfFile is missing until Inno Setup 6.3), so the list is created before
+// compiling: ci\build.ps1 writes it from data\localized-text, see README.md "Online localized
+// files". Without the list the setup compiles with a warning, and no Language.dll is downloaded.
 //
 // Requires: EEDir, AoCDir (ISPP, setup_is6.iss), OnlineFilesURL, OnlineFilesMirrorURL,
-// GetHttpStatus (utils.iss), SilentInstall, SuppressMsgBoxes (extension.iss), the IDP functions
-// (idp.iss), the Download* messages (messages.iss).
+// GetHttpStatus, GetOnlineFileCheck, IsHttpsUrl (utils.iss), SilentInstall, SuppressMsgBoxes
+// (extension.iss), the IDP functions (idp.iss), the Download* messages (messages.iss).
 
 // DownloadHashFile: the hash list, relative to setup_is6.iss unless absolute (ISCC /DDownloadHashFile=...)
 #ifndef DownloadHashFile
@@ -82,16 +91,20 @@ type
     Url: String;
     RelPath: String;
     RelDest: String;  // download target relative to {tmp}, e.g. EE\Language.dll
-    SHA256: String;
+    SHA256: String;   // the pin, '' for a data file accepted without one (TLS-verified only)
     CopyOf: Integer;  // -1, or the entry with the same URL: its verified file is copied to RelDest
+  end;
+
+  TRefusedOnlineFile = record
+    RelDest: String;
+    Problem: String;  // custom message describing why it is not downloaded
   end;
 
 var
   DownloadPins: array of TDownloadPin;
   OnlineFiles: array of TOnlineFile;
-  // Download targets (relative to {tmp}) of selected files that are not downloaded because no
-  // SHA-256 is known for them
-  UnverifiableOnlineFiles: array of String;
+  // Selected files that are not downloaded at all (GetOnlineFileCheck refused them)
+  RefusedOnlineFiles: array of TRefusedOnlineFile;
   // Server tried first and mirror, see SelectOnlineFilesServer
   OnlineFilesPrimaryURL, OnlineFilesSecondaryURL: String;
 
@@ -118,10 +131,10 @@ begin
   Log('Online files: ' + IntToStr(GetArrayLength(DownloadPins)) + ' SHA-256 hashes known');
 end;
 #if DownloadPinCount == 0
-  #pragma warning "No SHA-256 hashes in " + DownloadHashPath + ": this setup will not offer the download of localized files (see README.md, Online localized files)"
+  #pragma warning "No SHA-256 hashes in " + DownloadHashPath + ": this setup will not download any Language.dll, only data files over HTTPS (see README.md, Online localized files)"
 #endif
 
-// SHA-256 known for a server path (exact match), '' if none
+// SHA-256 pin of a path of the hash list (exact match), '' if none
 function GetDownloadPin(const RelPath: String): String;
 var
   I: Integer;
@@ -135,11 +148,13 @@ begin
     end;
 end;
 
-// Also the Check of the component language\update, so it is known at compile time (component
-// checks may run before InitializeWizard, where RegisterDownloadPins runs)
-function HasDownloadPins: Boolean;
+// Can any localized file be downloaded? Files with a pin, and data files without one from an https
+// server (GetOnlineFileCheck). Also the Check of the component language\update, so only
+// compile-time values and constants (component checks may run before InitializeWizard, where
+// RegisterDownloadPins runs).
+function CanDownloadOnlineFiles: Boolean;
 begin
-  Result := {#DownloadPinCount} > 0;
+  Result := ({#DownloadPinCount} > 0) or IsHttpsUrl(OnlineFilesURL) or IsHttpsUrl(OnlineFilesMirrorURL);
 end;
 
 // Chooses the server the files are downloaded from (OnlineFilesURL and OnlineFilesMirrorURL,
@@ -169,45 +184,74 @@ procedure ClearOnlineFiles;
 begin
   idpClearFiles();
   SetArrayLength(OnlineFiles, 0);
-  SetArrayLength(UnverifiableOnlineFiles, 0);
+  SetArrayLength(RefusedOnlineFiles, 0);
 end;
 
-// Registers the download of <server>/RelPath to {tmp}\RelDest, but only if the SHA-256 of
-// PinPath (the path of the file in the hash list, usually RelPath) is known and no other file is
-// registered for RelDest yet. The caller registers only what is selected
-// (IDP would download a file if any one of its components is selected) and calls
-// NoteUnverifiableOnlineFile if it finds no file to register for RelDest. Call
-// SelectOnlineFilesServer first. True if the file is registered.
-function AddOnlineFile(const RelPath, PinPath, RelDest: String): Boolean;
+// Selected file that is not downloaded at all, for the report of VerifyDownloadedFiles: RelDest is
+// its download target, Problem the custom message that describes why (once per target)
+procedure NoteRefusedOnlineFile(const RelDest, Problem: String);
 var
-  I, N, CopyOf: Integer;
-  Hash, Url: String;
+  I, N: Integer;
 begin
-  Result := False;
-  Hash := GetDownloadPin(PinPath);
-  if Hash = '' then
-  begin
-    Log('Online file skipped, no SHA-256 known for ' + PinPath);
-    Exit;
-  end;
+  N := GetArrayLength(RefusedOnlineFiles);
+  for I := 0 to N - 1 do
+    if CompareText(RefusedOnlineFiles[I].RelDest, RelDest) = 0 then
+      Exit;
+  SetArrayLength(RefusedOnlineFiles, N + 1);
+  RefusedOnlineFiles[N].RelDest := RelDest;
+  RefusedOnlineFiles[N].Problem := Problem;
+end;
 
-  CopyOf := -1;
+// Registers the download of <server>/RelPath to {tmp}\RelDest if GetOnlineFileCheck (utils.iss)
+// accepts it with the pin of PinPath (the path of the file in the hash list, usually RelPath);
+// otherwise the file is noted for the report (NoteRefusedOnlineFile). Only one file per RelDest.
+// The caller registers only what is selected (IDP would download a file if any one of its
+// components is selected). Call SelectOnlineFilesServer first.
+procedure AddOnlineFile(const RelPath, PinPath, RelDest: String);
+var
+  I, N, CopyOf, Check: Integer;
+  Hash, Url, MirrorUrl: String;
+begin
   for I := 0 to GetArrayLength(OnlineFiles) - 1 do
-  begin
     if CompareText(OnlineFiles[I].RelDest, RelDest) = 0 then
     begin
       Log('Online file skipped, ' + RelDest + ' is already downloaded from ' + OnlineFiles[I].RelPath);
       Exit;
     end;
+
+  Hash := GetDownloadPin(PinPath);
+  Url := OnlineFilesPrimaryURL + '/' + RelPath;
+  MirrorUrl := OnlineFilesSecondaryURL + '/' + RelPath;
+  Check := GetOnlineFileCheck(RelDest, Hash, Url);
+  if Check = OnlineFileRefusedCode then
+  begin
+    Log('Online file not downloaded, it may contain code and no SHA-256 is known for ' + PinPath);
+    NoteRefusedOnlineFile(RelDest, 'DownloadFileUnverifiable');
+    Exit;
+  end;
+  if Check = OnlineFileRefusedInsecure then
+  begin
+    Log('Online file not downloaded, no SHA-256 is known for ' + PinPath + ' and ' + Url + ' is not https');
+    NoteRefusedOnlineFile(RelDest, 'DownloadFileMissing');
+    Exit;
+  end;
+  // The mirror only under the same condition: a file without pin never comes over http
+  if GetOnlineFileCheck(RelDest, Hash, MirrorUrl) <> Check then
+  begin
+    Log('Mirror not used for ' + RelPath + ', ' + MirrorUrl + ' is not https');
+    MirrorUrl := '';
+  end;
+
+  CopyOf := -1;
+  for I := 0 to GetArrayLength(OnlineFiles) - 1 do
     if (OnlineFiles[I].RelPath = RelPath) and (OnlineFiles[I].CopyOf < 0) then
       CopyOf := I;
-  end;
 
   if CopyOf < 0 then
   begin
-    Url := OnlineFilesPrimaryURL + '/' + RelPath;
     idpAddFile(Url, ExpandConstant('{tmp}\' + RelDest));
-    idpAddMirror(Url, OnlineFilesSecondaryURL + '/' + RelPath);
+    if MirrorUrl <> '' then
+      idpAddMirror(Url, MirrorUrl);
   end
   else
     // IDP downloads a URL only once and ignores a second target for it (checked with idp.dll
@@ -221,24 +265,10 @@ begin
   OnlineFiles[N].RelDest := RelDest;
   OnlineFiles[N].SHA256 := Hash;
   OnlineFiles[N].CopyOf := CopyOf;
-  Result := True;
-end;
-
-// No file with a known SHA-256 could be registered for the selected download target RelDest:
-// remembered for the report of VerifyDownloadedFiles (once, and not if a file is registered for it)
-procedure NoteUnverifiableOnlineFile(const RelDest: String);
-var
-  I, N: Integer;
-begin
-  for I := 0 to GetArrayLength(OnlineFiles) - 1 do
-    if CompareText(OnlineFiles[I].RelDest, RelDest) = 0 then
-      Exit;
-  N := GetArrayLength(UnverifiableOnlineFiles);
-  for I := 0 to N - 1 do
-    if CompareText(UnverifiableOnlineFiles[I], RelDest) = 0 then
-      Exit;
-  SetArrayLength(UnverifiableOnlineFiles, N + 1);
-  UnverifiableOnlineFiles[N] := RelDest;
+  if Hash <> '' then
+    Log('Online file registered, SHA-256 pinned: ' + RelPath)
+  else
+    Log('Online file registered, TLS-verified, not pinned: ' + RelPath);
 end;
 
 // RelDest as the player sees it: the game folder instead of EE/AoC
@@ -252,7 +282,8 @@ begin
 end;
 
 // Result of VerifyDownloadedFiles for one file: '' if it is in {tmp}\verified, else the name of
-// the custom message that describes the problem
+// the custom message that describes the problem. A file with a pin must match it; a data file
+// without one is accepted as downloaded over https (its SHA-256 is only logged).
 function VerifyOnlineFile(const OnlineFile: TOnlineFile): String;
 var
   Source, Target, Hash: String;
@@ -276,13 +307,17 @@ begin
     Log('Unable to hash ' + Source + ': ' + GetExceptionMessage);
   end;
 
-  // Only a file with the expected SHA-256 is moved to the verified folder
+  // Only a file with the expected SHA-256 (or a data file without pin) is moved to the verified
+  // folder
   Result := 'DownloadFileRejected';
-  if Hash <> OnlineFile.SHA256 then
+  if (OnlineFile.SHA256 <> '') and (Hash <> OnlineFile.SHA256) then
     Log('Online file rejected, SHA-256 mismatch: ' + OnlineFile.RelPath + ' (got ' + Hash + ')')
   else if ForceDirectories(ExtractFileDir(Target)) and RenameFile(Source, Target) then
   begin
-    Log('Online file verified: ' + OnlineFile.RelPath + ' (SHA-256 ' + Hash + ')');
+    if OnlineFile.SHA256 <> '' then
+      Log('Online file verified, SHA-256 pinned: ' + OnlineFile.RelPath + ' (SHA-256 ' + Hash + ')')
+    else
+      Log('Online file accepted, TLS-verified, not pinned: ' + OnlineFile.RelPath + ' (SHA-256 ' + Hash + ')');
     Result := '';
   end
   else
@@ -292,12 +327,12 @@ begin
     Log('Unable to delete ' + Source + ' (it is not installed anyway)');
 end;
 
-// Checks every downloaded file against its SHA-256 and moves the matching ones to
+// Checks every downloaded file (VerifyOnlineFile) and moves the accepted ones to
 // {tmp}\verified\<RelDest>, copies files needed in both game folders, then reports every
-// registered file that is not there and every selected file that was not downloaded because no
-// SHA-256 is known for it, so the player knows which localized content stays as the setup
-// installs it itself (some of it in English). Nothing harmful was installed in any of these cases,
-// so the report is a notice. Must run before [Files] is processed (ssInstall).
+// registered file that is not there and every selected file that was not downloaded at all
+// (RefusedOnlineFiles), so the player knows which localized content stays as the setup installs
+// it itself (some of it in English). Nothing harmful was installed in any of these cases, so the
+// report is a notice. Must run before [Files] is processed (ssInstall).
 procedure VerifyDownloadedFiles;
 var
   I, Missing: Integer;
@@ -336,23 +371,23 @@ begin
     end;
   end;
 
-  for I := 0 to GetArrayLength(UnverifiableOnlineFiles) - 1 do
+  for I := 0 to GetArrayLength(RefusedOnlineFiles) - 1 do
   begin
     Missing := Missing + 1;
-    Report := Report + #13#10 + '  ' + FmtMessage(CustomMessage('DownloadFileUnverifiable'), [OnlineFileDisplayName(UnverifiableOnlineFiles[I])]);
+    Report := Report + #13#10 + '  ' + FmtMessage(CustomMessage(RefusedOnlineFiles[I].Problem), [OnlineFileDisplayName(RefusedOnlineFiles[I].RelDest)]);
   end;
 
   if Missing = 0 then
   begin
     if GetArrayLength(OnlineFiles) > 0 then
-      Log('All ' + IntToStr(GetArrayLength(OnlineFiles)) + ' online files verified');
+      Log('All ' + IntToStr(GetArrayLength(OnlineFiles)) + ' online files accepted');
     Exit;
   end;
 
-  Log(IntToStr(Missing) + ' of ' + IntToStr(GetArrayLength(OnlineFiles) + GetArrayLength(UnverifiableOnlineFiles)) + ' selected online files are missing, the setup installs its own files instead:' + Report);
-  // A checksum mismatch (a file updated on the server after this setup was built, or a damaged
-  // or tampered download) is reported like the other cases: the file was discarded, nothing of it
-  // is installed
+  Log(IntToStr(Missing) + ' of ' + IntToStr(GetArrayLength(OnlineFiles) + GetArrayLength(RefusedOnlineFiles)) + ' selected online files are missing, the setup installs its own files instead:' + Report);
+  // A pin mismatch (a file updated on the server after this setup was built, or a damaged or
+  // tampered download) is reported like the other cases: the file was discarded, nothing of it is
+  // installed
   if not SilentInstall and not SuppressMsgBoxes then
     MsgBox(FmtMessage(CustomMessage('DownloadIncomplete'), [Report]), mbInformation, MB_OK);
 end;

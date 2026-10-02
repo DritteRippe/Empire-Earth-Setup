@@ -506,8 +506,8 @@ Name: "language"; Description: "{cm:CompLanguage}"; Types: full compact custom r
 Name: "language\{#GameLangs[LangIndex]}"; Description: "{cm:LIQP_{#GameLangs[LangIndex]}}"; Flags: exclusive;
 #endsub
 #for {LangIndex = 0; LangIndex < GameLangCount; LangIndex++} GameLangComponent
-; Only offered if the setup knows SHA-256 hashes of online files (downloads.iss)
-Name: "language\update"; Description: "{cm:CompLanguageUpdate}"; Types: full compact custom raw; Flags: disablenouninstallwarning; Check: HasDownloadPins
+; Only offered if the setup can download any localized file (downloads.iss)
+Name: "language\update"; Description: "{cm:CompLanguageUpdate}"; Types: full compact custom raw; Flags: disablenouninstallwarning; Check: CanDownloadOnlineFiles
 
 ; Localized text of one game in [Files]: for every game language (GameLangs) its Language.dll,
 ; then the lobby files of the game, then the lobby files shared by EE and AoC, each with the
@@ -641,7 +641,7 @@ Source: "data\Add-on\Movies\EE\*"; DestDir: "{app}\{#EEDir}\Data\Movies"; Flags:
   #call LocalizedTextFiles
 #endif
 
-; EE Online Lang Any Based Content (only downloads that passed the SHA-256 check, see downloads.iss)
+; EE Online Lang Any Based Content (only downloads that passed the checks of downloads.iss)
 Source: "{tmp}\verified\EE\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs external skipifsourcedoesntexist; Components: game and language\update;
 
 ; Add-on files (see GameAddOnFiles)
@@ -1602,28 +1602,22 @@ end;
 // Registers the file FilePath of the server folder ServerDir (path below the "localized" folder
 // of the servers, ending with '/') for the game folder GameKey, see AddOnlineFile. PinDir is the
 // folder of data\localized-text whose SHA-256 list entry applies (see RegisterGameOnlineFiles).
-function TryAddGameOnlineFile(const ServerDir, PinDir, GameKey, FilePath: String): Boolean;
-begin
-  Result := AddOnlineFile(ServerDir + FilePath, PinDir + FilePath, GameOnlineFileDest(GameKey, FilePath));
-end;
-
-// TryAddGameOnlineFile, and if that registers nothing the file is reported as not verifiable
 procedure AddGameOnlineFile(const ServerDir, PinDir, GameKey, FilePath: String);
 begin
-  if not TryAddGameOnlineFile(ServerDir, PinDir, GameKey, FilePath) then
-    NoteUnverifiableOnlineFile(GameOnlineFileDest(GameKey, FilePath));
+  AddOnlineFile(ServerDir + FilePath, PinDir + FilePath, GameOnlineFileDest(GameKey, FilePath));
 end;
 
-// NeoEE setups install the NeoEE version of a localized file where there is one, like [Files]
-// does with the local files (the NeoEE entries come last and overwrite the EE ones); otherwise,
-// and in EE setups, the EE version
+// NeoEE setups download the NeoEE version of a localized file that has one (Mods/NeoEE/, every
+// language has them), like [Files] installs the local NeoEE versions over the EE ones; EE setups
+// the EE version. NeoEE setups never fall back to the EE version: installed last, it would
+// replace the NeoEE file of the setup with the wrong one.
 procedure AddLocalizedGameOnlineFile(const ServerDir, PinDir, GameKey, FilePath: String);
 begin
 #if InstallType == "NeoEE"
-  if TryAddGameOnlineFile('Mods/NeoEE/' + ServerDir, 'Mods/NeoEE/' + PinDir, GameKey, FilePath) then
-    Exit;
-#endif
+  AddGameOnlineFile('Mods/NeoEE/' + ServerDir, 'Mods/NeoEE/' + PinDir, GameKey, FilePath);
+#else
   AddGameOnlineFile(ServerDir, PinDir, GameKey, FilePath);
+#endif
 end;
 
 // Registers the localized files of one game for the language tag LangCode: GameKey (EE or AoC)
@@ -1670,7 +1664,8 @@ begin
   // Storage Localized structure : {base_url}/localized/{scope}/{language}/{GameType}/
   // Note: EELearningCampaign.ssa is the same for AoC, [Files] installs the one of EE for both
   // AddOnlineFile (downloads.iss) registers the file on both servers (same path on the mirror),
-  // but only if its SHA-256 is known: every download is verified before it is installed.
+  // if the download policy allows it: files with code only with a known SHA-256, data files
+  // without one only over https; every download is checked before it is installed.
   // Only selected content is registered: IDP downloads a file if any one of the components given
   // to it is selected, so 'game' (always selected) used to make every file download.
 
@@ -1693,9 +1688,9 @@ begin
     Exit;
   end;
 
-  if (not HasDownloadPins()) then
+  if (not CanDownloadOnlineFiles()) then
   begin
-    Log('This setup knows no SHA-256 of online files, it will only use local files.');
+    Log('This setup cannot download any localized file (no SHA-256 known, no https server), it will only use local files.');
     Exit;
   end;
 
@@ -1928,8 +1923,9 @@ begin
   idpSetOption('SendTimeout', IntToStr(IdpTransferTimeoutMs));
   idpSetOption('ReceiveTimeout', IntToStr(IdpTransferTimeoutMs));
   idpSetOption('ErrorDialog', 'UrlList');
-  // Never accept an invalid TLS certificate (the IDP default would let the user ignore it).
-  // Downloads are also checked against their SHA-256 (downloads.iss).
+  // Never accept an invalid TLS certificate (the IDP default would let the user ignore it): data
+  // files without a SHA-256 pin are accepted because they come over validated TLS, files with a
+  // pin are also checked against it (downloads.iss).
   idpSetOption('InvalidCert', 'Stop');
   // Failed downloads can be skipped: VerifyDownloadedFiles reports every file that is missing then
   idpSetOption('AllowContinue', '1');

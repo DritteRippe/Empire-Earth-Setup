@@ -1,7 +1,7 @@
 ﻿[Code]
 // Base helpers of the [Code] part: the URL constants, string split, language tag, compatibility
-// flags, uninstall keys of EE and NeoEE, the HTTP requests and URL checks. Included first, before
-// every other [Code] part.
+// flags, uninstall keys of EE and NeoEE, the HTTP requests, URL checks and the download policy of
+// the online localized files. Included first, before every other [Code] part.
 // Requires: AppID, OtherAppID (ISPP, product configuration config_*.iss).
 // The functions without wizard access are tested by ci/tests/unit_tests.iss.
 
@@ -244,4 +244,85 @@ begin
   else if Host = GitHubHost then
     // Anyone can publish on github.com: only the EE-modders organization, no dot segments/escapes
     Result := (CompareText(Copy(Path, 1, Length(GitHubProjectPath)), GitHubProjectPath) = 0) and (Pos('..', Path) = 0) and (Pos('%', Path) = 0);
+end;
+
+// Download policy of the online localized files (downloads.iss)
+
+const
+  // Extensions (lowercase, each between '|') of files that can contain code which Windows, the game
+  // or a mod loader runs: programs, libraries and plug-ins (Language.dll, ASI mods), drivers,
+  // scripts, installers and packages, shortcuts, registry and setup information files, compiled
+  // help. A downloaded file of these types is only installed if its SHA-256 is compiled into the
+  // setup (GetOnlineFileCheck).
+  CodeFileExtensions = '|exe|dll|asi|ocx|sys|drv|scr|com|pif|cpl|efi|ax|acm|mui|' +
+    'bat|cmd|ps1|psm1|psd1|vbs|vbe|js|jse|wsf|wsh|wsc|sct|hta|' +
+    'msi|msp|mst|msc|appx|msix|jar|' +
+    'lnk|url|scf|reg|inf|chm|hlp|';
+
+  // Results of GetOnlineFileCheck: how a downloaded file is accepted, or why it is not downloaded
+  OnlineFilePinned = 1;           // only if it has the SHA-256 compiled into the setup
+  OnlineFileTlsOnly = 2;          // data file, no SHA-256 known: accepted as the https server sends it
+  OnlineFileRefusedCode = -1;     // may contain code and no SHA-256 is known
+  OnlineFileRefusedInsecure = -2; // data file, no SHA-256 known and the URL is not https
+
+// Extension of the last name of Path (after the last '\' or '/'), lowercase and without the dot,
+// '' if it has none. Trailing dots and spaces do not count, as Windows drops them from file names
+// ('Language.dll.' is Language.dll).
+function GetFileNameExtension(const Path: String): String;
+var
+  I, Last: Integer;
+  Name: String;
+begin
+  Name := Path;
+  for I := Length(Name) downto 1 do
+    if (Name[I] = '\') or (Name[I] = '/') then
+    begin
+      Name := Copy(Name, I + 1, Length(Name));
+      Break;
+    end;
+  Last := Length(Name);
+  while (Last > 0) and ((Name[Last] = '.') or (Name[Last] = ' ')) do
+    Last := Last - 1;
+  Name := Copy(Name, 1, Last);
+
+  Result := '';
+  for I := Length(Name) downto 1 do
+    if Name[I] = '.' then
+    begin
+      Result := LowerCase(Copy(Name, I + 1, Length(Name)));
+      Break;
+    end;
+end;
+
+// True if the file (relative path or name) may contain code (CodeFileExtensions). A ':' (alternate
+// data stream, drive) or a '|' in the extension also counts as code, so the list cannot be fooled.
+function IsCodeFileName(const Path: String): Boolean;
+var
+  Ext: String;
+begin
+  Ext := GetFileNameExtension(Path);
+  Result := (Pos(':', Path) > 0) or (Pos('|', Ext) > 0) or
+    ((Ext <> '') and (Pos('|' + Ext + '|', CodeFileExtensions) > 0));
+end;
+
+// True if Url uses the https scheme (IDP validates the certificate then, see InvalidCert)
+function IsHttpsUrl(const Url: String): Boolean;
+begin
+  Result := (Length(Url) > 8) and (CompareText(Copy(Url, 1, 8), 'https://') = 0);
+end;
+
+// How the online file FileName (its download target) from Url is accepted, see the Online* results:
+// with a known SHA-256 (SHA256 not empty) only if it matches, whatever the type. Without one, a file
+// that may contain code is refused, a data file (voices, campaigns, movies, lobby texts) is accepted
+// as the server sends it, but only over https with a validated certificate.
+function GetOnlineFileCheck(const FileName, SHA256, Url: String): Integer;
+begin
+  if SHA256 <> '' then
+    Result := OnlineFilePinned
+  else if IsCodeFileName(FileName) then
+    Result := OnlineFileRefusedCode
+  else if not IsHttpsUrl(Url) then
+    Result := OnlineFileRefusedInsecure
+  else
+    Result := OnlineFileTlsOnly;
 end;

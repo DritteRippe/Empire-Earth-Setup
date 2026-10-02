@@ -1,4 +1,5 @@
-﻿; Unit tests of the [Code] helpers without wizard access (utils.iss).
+﻿; Unit tests of the [Code] helpers without wizard access (utils.iss), including the download
+; policy of the online localized files.
 ;
 ; A tiny setup that includes utils.iss, runs every test in InitializeSetup, writes the results to
 ; a text file and exits without installing anything (InitializeSetup returns False). It sends no
@@ -162,6 +163,88 @@ begin
   CheckBool('IsAllowedUpdateUrl empty', IsAllowedUpdateUrl(''), False);
 end;
 
+procedure TestFileNameExtension;
+begin
+  Check('GetFileNameExtension name', GetFileNameExtension('Language.dll'), 'dll');
+  Check('GetFileNameExtension server path', GetFileNameExtension('Game/de/EE/Language.DLL'), 'dll');
+  Check('GetFileNameExtension target path', GetFileNameExtension('EE\Data\WONLobby Resources\_WONStatus.cfg'), 'cfg');
+  Check('GetFileNameExtension space in name', GetFileNameExtension('EE\Data\Movies\Empire Earth.bik'), 'bik');
+  Check('GetFileNameExtension double', GetFileNameExtension('a/data.ssa.exe'), 'exe');
+  Check('GetFileNameExtension trailing dot', GetFileNameExtension('Language.dll.'), 'dll');
+  Check('GetFileNameExtension trailing dots and spaces', GetFileNameExtension('Language.dll . '), 'dll');
+  Check('GetFileNameExtension dot only in folder', GetFileNameExtension('Data.v2/readme'), '');
+  Check('GetFileNameExtension none', GetFileNameExtension('Data/README'), '');
+  Check('GetFileNameExtension empty', GetFileNameExtension(''), '');
+end;
+
+procedure TestIsCodeFileName;
+begin
+  CheckBool('IsCodeFileName Language.dll', IsCodeFileName('Game/de/EE/Language.dll'), True);
+  CheckBool('IsCodeFileName upper case', IsCodeFileName('EE\LANGUAGE.DLL'), True);
+  CheckBool('IsCodeFileName trailing dot', IsCodeFileName('EE\Language.dll.'), True);
+  CheckBool('IsCodeFileName exe', IsCodeFileName('Empire Earth.exe'), True);
+  CheckBool('IsCodeFileName asi', IsCodeFileName('mod.asi'), True);
+  CheckBool('IsCodeFileName ocx', IsCodeFileName('x.ocx'), True);
+  CheckBool('IsCodeFileName sys', IsCodeFileName('x.sys'), True);
+  CheckBool('IsCodeFileName scr', IsCodeFileName('x.scr'), True);
+  CheckBool('IsCodeFileName bat', IsCodeFileName('x.bat'), True);
+  CheckBool('IsCodeFileName cmd', IsCodeFileName('x.cmd'), True);
+  CheckBool('IsCodeFileName com', IsCodeFileName('x.com'), True);
+  CheckBool('IsCodeFileName ps1', IsCodeFileName('x.ps1'), True);
+  CheckBool('IsCodeFileName vbs', IsCodeFileName('x.vbs'), True);
+  CheckBool('IsCodeFileName js', IsCodeFileName('x.js'), True);
+  CheckBool('IsCodeFileName msi', IsCodeFileName('x.msi'), True);
+  CheckBool('IsCodeFileName cpl', IsCodeFileName('x.cpl'), True);
+  CheckBool('IsCodeFileName lnk', IsCodeFileName('x.lnk'), True);
+  CheckBool('IsCodeFileName reg', IsCodeFileName('x.reg'), True);
+  CheckBool('IsCodeFileName alternate data stream', IsCodeFileName('EE\WONLobby.cfg:x.exe'), True);
+  CheckBool('IsCodeFileName separator in extension', IsCodeFileName('x.exe|dll'), True);
+  CheckBool('IsCodeFileName data.ssa', IsCodeFileName('Game/de/EE/Data/data.ssa'), False);
+  CheckBool('IsCodeFileName campaign', IsCodeFileName('EE\Data\Campaigns\EETheBritish.ssa'), False);
+  CheckBool('IsCodeFileName movie', IsCodeFileName('EE\Data\Movies\Empire Earth.bik'), False);
+  CheckBool('IsCodeFileName lobby cfg', IsCodeFileName('Lobby/de/EE/WONLobby.cfg'), False);
+  CheckBool('IsCodeFileName prefix of an extension', IsCodeFileName('x.ex'), False);
+  CheckBool('IsCodeFileName extension inside a longer one', IsCodeFileName('x.dlls'), False);
+  CheckBool('IsCodeFileName no extension', IsCodeFileName('Data/README'), False);
+end;
+
+procedure TestIsHttpsUrl;
+begin
+  CheckBool('IsHttpsUrl https', IsHttpsUrl('https://files.empireearth.eu/localized/Game/de/EE/Data/data.ssa'), True);
+  CheckBool('IsHttpsUrl upper case', IsHttpsUrl('HTTPS://files.empireearth.eu/x'), True);
+  CheckBool('IsHttpsUrl space in path', IsHttpsUrl('https://files.empireearth.eu/localized/Game/de/EE/Data/Movies/Empire Earth.bik'), True);
+  CheckBool('IsHttpsUrl http', IsHttpsUrl('http://files.empireearth.eu/x'), False);
+  CheckBool('IsHttpsUrl ftp', IsHttpsUrl('ftp://files.empireearth.eu/x'), False);
+  CheckBool('IsHttpsUrl scheme only', IsHttpsUrl('https://'), False);
+  CheckBool('IsHttpsUrl no scheme', IsHttpsUrl('files.empireearth.eu/x'), False);
+  CheckBool('IsHttpsUrl leading space', IsHttpsUrl(' https://files.empireearth.eu/x'), False);
+  CheckBool('IsHttpsUrl empty', IsHttpsUrl(''), False);
+end;
+
+// The servers of the online files must be https: data files without SHA-256 are only accepted
+// from https URLs
+procedure TestOnlineFilesServers;
+var
+  Host, Path: String;
+begin
+  CheckBool('OnlineFilesURL is https', IsHttpsUrl(OnlineFilesURL) and SplitHttpsUrl(OnlineFilesURL, Host, Path), True);
+  CheckBool('OnlineFilesMirrorURL is https', IsHttpsUrl(OnlineFilesMirrorURL) and SplitHttpsUrl(OnlineFilesMirrorURL, Host, Path), True);
+end;
+
+procedure TestOnlineFileCheck;
+var
+  Pin: String;
+begin
+  Pin := '899f5196c68a6d9529d662ef6728539ec9935581eff6a5c3db32d339f81cd34e';
+  Check('GetOnlineFileCheck code with pin', IntToStr(GetOnlineFileCheck('EE\Language.dll', Pin, 'https://h/Game/de/EE/Language.dll')), IntToStr(OnlineFilePinned));
+  Check('GetOnlineFileCheck code without pin', IntToStr(GetOnlineFileCheck('EE\Language.dll', '', 'https://h/Game/de/EE/Language.dll')), IntToStr(OnlineFileRefusedCode));
+  Check('GetOnlineFileCheck code without pin over http', IntToStr(GetOnlineFileCheck('EE\Language.dll', '', 'http://h/Game/de/EE/Language.dll')), IntToStr(OnlineFileRefusedCode));
+  Check('GetOnlineFileCheck data with pin', IntToStr(GetOnlineFileCheck('EE\WONLobby.cfg', Pin, 'https://h/Lobby/de/EE/WONLobby.cfg')), IntToStr(OnlineFilePinned));
+  Check('GetOnlineFileCheck data without pin over https', IntToStr(GetOnlineFileCheck('EE\Data\data.ssa', '', 'https://h/Game/de/EE/Data/data.ssa')), IntToStr(OnlineFileTlsOnly));
+  Check('GetOnlineFileCheck data without pin over http', IntToStr(GetOnlineFileCheck('EE\Data\data.ssa', '', 'http://h/Game/de/EE/Data/data.ssa')), IntToStr(OnlineFileRefusedInsecure));
+  Check('GetOnlineFileCheck data without pin, no URL', IntToStr(GetOnlineFileCheck('EE\Data\data.ssa', '', '')), IntToStr(OnlineFileRefusedInsecure));
+end;
+
 function InitializeSetup: Boolean;
 var
   Lines: TArrayOfString;
@@ -179,6 +262,11 @@ begin
     TestSplitHttpsUrl;
     TestIsDomainOrSubdomain;
     TestIsAllowedUpdateUrl;
+    TestFileNameExtension;
+    TestIsCodeFileName;
+    TestIsHttpsUrl;
+    TestOnlineFilesServers;
+    TestOnlineFileCheck;
   except
     Failures := Failures + 1;
     Results.Add('FAIL exception: ' + GetExceptionMessage);

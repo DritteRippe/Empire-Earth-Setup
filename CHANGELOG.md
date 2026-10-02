@@ -31,13 +31,15 @@ Refactoring and quality fixes (no new game content).
 - `.gitattributes` and `.editorconfig` (UTF-8 with BOM and CRLF for the own `.iss` files).
 - Unit tests of the `[Code]` helpers that only compute something (`ci/tests/unit_tests.iss`, run
   by `ci/run_unit_tests.ps1`, on Linux/Wine by `ci/tests/run_unit_tests.sh`, and by the
-  workflow): string split, language tag, compatibility flags, uninstall keys, URL encoding and the
-  URL checks of the update question. The test setup only computes, it installs nothing and uses
-  no network.
+  workflow): string split, language tag, compatibility flags, uninstall keys, URL encoding, the
+  URL checks of the update question and the download policy of the online localized files (file
+  types with code, https URLs, https servers). The test setup only computes, it installs nothing
+  and uses no network.
 - This changelog (moved out of the script header) and a "Building" section in the README.
 - SHA-256 list of the online localized files (`data\localized-text.sha256`, build switch
   `DownloadHashFile`): `ci/build.ps1` writes it before compiling, `-DownloadHashesOnly` only writes
-  it (for builds in the Inno Setup IDE). See README, "Online localized files".
+  it (for builds in the Inno Setup IDE). The setups install a downloaded `Language.dll` only if it
+  is in this list. See README, "Online localized files".
 - Localized texts (English, German, French) for the new messages and for the task descriptions of
   the firewall, administrator and certificate options.
 - German and French texts for the installation types, the tasks and components, the status texts
@@ -74,6 +76,15 @@ Refactoring and quality fixes (no new game content).
   only adds a certificate file with that thumbprint, and it is removed only if this product added
   it and the other product (EE/NeoEE) does not use it, with consistent `certutil` arguments.
 - The Wine notice of NeoEE setups is worded as a proper sentence (same content).
+- Online localized files: a downloaded `Language.dll` (or any other file with code) is only
+  installed if the setup knows its SHA-256; with the official data it knows those of every
+  language. Voices, campaigns, the localized movie and the lobby files are still downloaded
+  without a known hash, but only over HTTPS with a validated certificate (see Security): they only
+  exist on the servers and change there, and requiring a hash for them as well would leave the
+  download component practically useless (it would only fetch files identical to the ones the
+  setup installs anyway). The component is offered whenever downloads are possible, also by a
+  setup built without the hash list, which then downloads no `Language.dll`. The notice after the
+  download only lists files that really were not installed from it.
 
 ### Removed
 - Entries for Windows XP and older: the WIN98 compatibility mode and the pre-Vista `netsh
@@ -129,17 +140,15 @@ Refactoring and quality fixes (no new game content).
   The servers are no longer contacted for English or with the download deselected, and if only
   the mirror answers, the files are downloaded from it first. After the download the setup lists
   every selected localized file it did not install from the download (not downloaded, discarded
-  after the checksum check, or not downloaded because the setup knows no verified version of it)
-  and installs its own version of it; it used to continue silently with a partly translated game.
+  because it does not match its SHA-256, or a program file the setup knows no verified version
+  of) and installs its own version of it; it used to continue silently with a partly translated
+  game.
   The list is a notice, not an error. The message about unreachable servers is localized.
 - AoC gets the downloaded localized lobby files it shares with Empire Earth: IDP downloads a URL
   only once and silently dropped the second target.
-- NeoEE: where a NeoEE version of a localized file exists, only that one is downloaded. If its
-  download failed, the EE version downloaded to the same place replaced the NeoEE file.
-- Simplified and Traditional Chinese: the downloaded lobby files are checked against the hashes of
-  `Lobby\zh\` (and `Mods\NeoEE\Lobby\zh\`), the one lobby folder `data\localized-text` has for
-  both languages. The setup requests them from `Lobby/zh-CN/` and `Lobby/zh-TW/` on the servers,
-  for which the hash list has no entries, so they were never downloaded.
+- NeoEE: where a NeoEE version of a localized file exists (`Language.dll`, `WONLobby.cfg`), only
+  that one is downloaded, never the EE version. If its download failed, the EE version
+  downloaded to the same place replaced the NeoEE file.
 - Random map scripts: installing, repairing or updating no longer deletes the whole
   `Data\Random Map Scripts` folders, which also deleted maps players made or downloaded
   themselves. Only the maps the previous setup installed are removed; the setup keeps a list of
@@ -149,15 +158,26 @@ Refactoring and quality fixes (no new game content).
   installation is cancelled or fails, the old folder is moved back.
 
 ### Security
-- Online localized files: TLS certificates are validated (invalid certificates used to be
-  ignored), and a downloaded file is only installed if its SHA-256 matches a hash compiled into
-  the setup. Other files are deleted, logged and reported, and the setup installs its own files
-  instead. The hashes come from `data\localized-text.sha256`, which `ci/build.ps1` writes from
-  `data\localized-text`; a setup built without it does not offer the download (see README,
-  "Online localized files"). The reachability check of the file servers no longer falls back to HTTP.
-  Very old Windows 7 installations without updated root certificates can no longer download
-  these files and continue with the files included in the setup; they should install the
-  Windows updates or use the full/offline setup.
+- Online localized files: downloads use HTTPS only, from both servers, and TLS certificates are
+  validated (invalid certificates used to be ignored). Files that can contain code (`Language.dll`;
+  `.dll`, `.exe`, `.asi`, `.ocx`, `.sys`, `.scr`, `.bat`, `.cmd`, `.com`, `.ps1`, `.vbs`, `.js`,
+  `.msi`, `.cpl` and similar, listed once in `utils.iss`) are only installed if their SHA-256
+  matches a hash compiled into the setup, and not downloaded at all without one: the elevated
+  setup puts them into the game folder, where they run whenever the game starts, so trusting the
+  server and its certificate is not enough for them. Data files (`data.ssa` with the voices, the
+  campaigns, the localized movie, the lobby files) must match their hash if the setup has one;
+  without one they are accepted over HTTPS with a validated certificate ("TLS-verified, not
+  pinned" in the log), never over HTTP. Most of them only exist on the servers and change there,
+  so the build can rarely know their hashes. Files that do not match their hash are deleted,
+  logged and reported, and the setup installs its own files instead. The hashes come from
+  `data\localized-text.sha256`, which `ci/build.ps1` writes from `data\localized-text` (see
+  README, "Online localized files"). The Chinese lobby files, requested from `Lobby/zh-CN/` and
+  `Lobby/zh-TW/` as before, are checked against the hashes of `Lobby\zh\` (also below
+  `Mods\NeoEE\`), the one lobby folder `data\localized-text` has for both languages. The
+  reachability check of the file servers no longer falls back to HTTP. Very old Windows 7
+  installations without updated root certificates can no longer download these files and continue
+  with the files included in the setup; they should install the Windows updates or use the
+  full/offline setup.
 - Random map scripts: the elevated setup never follows junctions or symbolic links in the random
   map folders, which all users can write to. A user could otherwise have made it delete files or
   empty folders elsewhere, or loop through a link to a parent folder.
