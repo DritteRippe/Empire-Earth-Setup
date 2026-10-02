@@ -1062,7 +1062,7 @@ begin
     // The antivirus deletes one file during the installation
     CheckBool('manifest: one installed file deleted', DeleteFile(Root + '\Empire Earth\DDraw.dll'), True);
     SaveStringToFile(Manifest + StateFileTempSuffix, 'left by an aborted run', False);
-    IniWritten := WriteInstallStateFiles(Root, '_setupdata_EE', Recorded, IniText, nil, '', ManifestWritten, Missing);
+    IniWritten := WriteInstallStateFiles(Root, '_setupdata_EE', Recorded, True, IniText, nil, '', ManifestWritten, Missing);
     CheckBool('WriteInstallStateFiles: install.ini written', IniWritten, True);
     CheckBool('WriteInstallStateFiles: files.sha256 written', ManifestWritten, True);
     Expected := ExpectedLine(Root, 'Empire Earth - The Art of Conquest/EE-AOC.exe') +
@@ -1085,7 +1085,7 @@ begin
 
     // Everything there again: no [MissingAfterInstall]; an existing manifest is replaced
     CreateTestFile(Root, 'Empire Earth\DDraw.dll', 'wrapper');
-    IniWritten := WriteInstallStateFiles(Root, '_setupdata_EE', Recorded, IniText, nil, '', ManifestWritten, Missing);
+    IniWritten := WriteInstallStateFiles(Root, '_setupdata_EE', Recorded, True, IniText, nil, '', ManifestWritten, Missing);
     CheckBool('WriteInstallStateFiles over the old files: both written', IniWritten and ManifestWritten, True);
     Check('WriteInstallStateFiles over the old files: nothing missing', IntToStr(GetArrayLength(Missing)), '0');
     Check('WriteInstallStateFiles over the old files: install.ini without [MissingAfterInstall]', FileText(Ini), IniText);
@@ -1098,6 +1098,16 @@ begin
       ExpectedLine(Root, 'Empire Earth/Empire Earth.exe') +
       ExpectedLine(Root, 'Tools/Diagnostic/EE-Diagnostic.exe'));
 
+    // A destination that could not be recorded: no manifest, the old one stays deleted, missing
+    // files are still found
+    CheckBool('incomplete recording: old manifest deleted (ssInstall)', DeleteStateFile(Manifest), True);
+    CheckBool('incomplete recording: one installed file deleted', DeleteFile(Root + '\Empire Earth\DDraw.dll'), True);
+    IniWritten := WriteInstallStateFiles(Root, '_setupdata_EE', Recorded, False, IniText, nil, '', ManifestWritten, Missing);
+    CheckBool('WriteInstallStateFiles with an incomplete recording: no manifest', ManifestWritten or FileExists(Manifest), False);
+    CheckBool('WriteInstallStateFiles with an incomplete recording: install.ini written', IniWritten, True);
+    Check('WriteInstallStateFiles with an incomplete recording: missing files', JoinedPaths(Missing), 'Empire Earth/DDraw.dll');
+    CreateTestFile(Root, 'Empire Earth\DDraw.dll', 'wrapper');
+
     // A file held open without sharing: retries, then no manifest (the old one was deleted at
     // ssInstall), install.ini is still written
     Handle := CreateFile(Root + '\Empire Earth\Data\data.ssa', GENERIC_READ, 0, 0, OPEN_EXISTING, 0, 0);
@@ -1107,8 +1117,8 @@ begin
     Elapsed := TicksSince(Started);
     CheckBool('HashFileWithRetries of a locked file: the exception (' + Error + ')', Error <> '', True);
     CheckBool('HashFileWithRetries of a locked file: two pauses of 300 ms (' + IntToStr(Elapsed) + ' ms)', Elapsed >= 550, True);
-    CheckBool('locked file: old manifest deleted (ssInstall)', DeleteStateFile(Manifest), True);
-    IniWritten := WriteInstallStateFiles(Root, '_setupdata_EE', Recorded, IniText, nil, '', ManifestWritten, Missing);
+    CheckBool('locked file: no manifest yet', FileExists(Manifest), False);
+    IniWritten := WriteInstallStateFiles(Root, '_setupdata_EE', Recorded, True, IniText, nil, '', ManifestWritten, Missing);
     CheckBool('WriteInstallStateFiles with a locked file: no manifest', ManifestWritten, False);
     CheckBool('WriteInstallStateFiles with a locked file: no files.sha256', FileExists(Manifest), False);
     CheckBool('WriteInstallStateFiles with a locked file: no files.sha256.tmp', FileExists(Manifest + StateFileTempSuffix), False);
@@ -1120,7 +1130,7 @@ begin
     // A path that is not ASCII (of a file that is gone; Wine here cannot create such a name): no
     // manifest, the path is left out of install.ini but named in the notice
     Recorded.Add(Root + '\Empire Earth\Data\Gone ' + #$FC + '.ssa');
-    IniWritten := WriteInstallStateFiles(Root, '_setupdata_EE', Recorded, IniText, nil, '', ManifestWritten, Missing);
+    IniWritten := WriteInstallStateFiles(Root, '_setupdata_EE', Recorded, True, IniText, nil, '', ManifestWritten, Missing);
     CheckBool('WriteInstallStateFiles with a path that is not ASCII: no manifest', ManifestWritten or FileExists(Manifest), False);
     CheckBool('WriteInstallStateFiles with a path that is not ASCII: install.ini written', IniWritten, True);
     Check('WriteInstallStateFiles with a path that is not ASCII: missing for the notice', JoinedPaths(Missing), 'Empire Earth/Data/Gone ' + #$FC + '.ssa');
@@ -1128,7 +1138,7 @@ begin
 
     // Nothing recorded: an empty manifest is valid
     Recorded.Clear;
-    IniWritten := WriteInstallStateFiles(Root, '_setupdata_EE', Recorded, IniText, nil, '', ManifestWritten, Missing);
+    IniWritten := WriteInstallStateFiles(Root, '_setupdata_EE', Recorded, True, IniText, nil, '', ManifestWritten, Missing);
     CheckBool('WriteInstallStateFiles with nothing recorded: both written', IniWritten and ManifestWritten, True);
     Check('WriteInstallStateFiles with nothing recorded: empty manifest', FileText(Manifest), '');
   finally

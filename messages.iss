@@ -176,6 +176,27 @@ DownloadFileUnverifiable=%1 (program file, no verified version known to this set
 de.DownloadFileUnverifiable=%1 (Programmdatei, diesem Setup ist keine geprüfte Version bekannt, nicht heruntergeladen)
 fr.DownloadFileUnverifiable=%1 (fichier programme, aucune version vérifiée connue de ce programme d'installation, non téléchargé)
 
+; Integrity manifest at the end of the installation (installstate.iss): title, description and
+; status text of the progress page while the installed files are checked (CreateManifestProgressPage)
+ManifestPageCaption=Checking the installed files
+de.ManifestPageCaption=Installierte Dateien werden geprüft
+fr.ManifestPageCaption=Vérification des fichiers installés
+ManifestPageDescription=Please wait while the setup checks the installed files and records their checksums.
+de.ManifestPageDescription=Bitte warten Sie, während das Setup die installierten Dateien prüft und ihre Prüfsummen speichert.
+fr.ManifestPageDescription=Veuillez patienter pendant que l'installation vérifie les fichiers installés et enregistre leurs sommes de contrôle.
+ManifestPageStatus=Checking the installed files...
+de.ManifestPageStatus=Installierte Dateien werden geprüft...
+fr.ManifestPageStatus=Vérification des fichiers installés...
+; Installed files that were gone at the end of the installation (ReportMissingFiles): %1 = list, one
+; line per file, at most ten, then FilesMissingAfterInstallMore; %2 = installation folder
+FilesMissingAfterInstall=Some installed files were missing at the end of the installation:%1%n%nAntivirus programs often delete game files or move them to quarantine. Add an exception for the installation folder in your antivirus program:%n%2%n%nThen run this setup again for the same folder to repair the installation. Until then the game may not start or may be incomplete.
+de.FilesMissingAfterInstall=Einige installierte Dateien fehlten am Ende der Installation:%1%n%nAntivirenprogramme löschen Spieldateien oft oder verschieben sie in die Quarantäne. Fügen Sie in Ihrem Antivirenprogramm eine Ausnahme für den Installationsordner hinzu:%n%2%n%nFühren Sie danach dieses Setup erneut für denselben Ordner aus, um die Installation zu reparieren. Bis dahin startet das Spiel möglicherweise nicht oder ist unvollständig.
+fr.FilesMissingAfterInstall=Certains fichiers installés manquaient à la fin de l'installation :%1%n%nLes antivirus suppriment souvent des fichiers du jeu ou les mettent en quarantaine. Ajoutez une exception pour le dossier d'installation dans votre antivirus :%n%2%n%nRelancez ensuite ce programme d'installation pour le même dossier afin de réparer l'installation. D'ici là, le jeu risque de ne pas démarrer ou d'être incomplet.
+; %1 = number of missing files not listed
+FilesMissingAfterInstallMore=and %1 more
+de.FilesMissingAfterInstallMore=und %1 weitere
+fr.FilesMissingAfterInstallMore=et %1 autres
+
 ; Random Map Scripts of a setup up to v1.7.2 that this setup does not install again (randommaps.iss):
 ; %1 = backup folder, %2 = Random Map Scripts folder
 RmsBackupKept=Random map scripts that this setup does not install (your own maps or maps of older versions) were moved to:%n%1%n%nTo play your own maps, copy them back to:%n%2

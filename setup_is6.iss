@@ -1197,8 +1197,9 @@ Filename: "{tmp}\directx\dxwebsetup.exe"; Parameters: "/Q"; Flags: runhidden; Ta
 //   downloads.iss   online localized files: policy, download page, downloads, verification
 //                   (needs utils.iss, extension.iss)
 //   randommaps.iss  random map scripts of the previous setup (needs extension.iss)
-//   installstate.iss  install.ini and the contract version in the uninstall key for the launcher
-//                   (needs utils.iss)
+//   installstate.iss  install.ini, the integrity manifest files.sha256 and the contract version in
+//                   the uninstall key for the launcher; RecordInstalledFile, the AfterInstall of
+//                   [Files] (needs utils.iss, extension.iss)
 //   telemetry.iss   setup statistics, included further down after the language functions it uses
 #include "eestats.iss"
 
@@ -1931,8 +1932,9 @@ procedure CurStepChanged(CurStep: TSetupStep);
 begin
   if (CurStep = ssInstall) then
   begin
-    // First, before [Files]: install.ini of the previous run goes, so that an aborted installation
-    // leaves none that claims a valid state; a failed deletion is remembered (WriteInstallState)
+    // First, before [Files]: install.ini and files.sha256 of the previous run go, so that an aborted
+    // installation leaves none that claims a valid state; a failed deletion is remembered
+    // (WriteInstallState)
     DeleteInstallState();
     // Runs before [Files]: only downloads matching their SHA-256 are moved to {tmp}\verified
     VerifyDownloadedFiles();
@@ -1967,8 +1969,9 @@ begin
       RegisterCDKeys();
     end;
 #endif
-    // Last, after every other step (contract 1.2, 1.3): install.ini, then the contract version in
-    // the uninstall key of the Regular variants if the install state of this run is complete
+    // Last, after every other step (contract 1.2, 1.3, 2.1): files.sha256 and install.ini of the
+    // files this run processed (progress page, notice if files are gone), then the contract version
+    // in the uninstall key of the Regular variants if the install state of this run is complete
     WriteInstallState();
   end;
 end;
@@ -2133,6 +2136,8 @@ begin
 
   // The download page of the online localized files (shown by DownloadOnlineFiles)
   CreateOnlineFilesDownloadPage();
+  // The progress page of the integrity manifest (shown by WriteInstallState)
+  CreateManifestProgressPage();
 end;
 
 procedure DeinitializeSetup;

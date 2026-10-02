@@ -473,8 +473,8 @@ begin
     Result := 'user';
 end;
 
-// True if every character of Text is ASCII (code 0 to 127). install.ini (and the manifest,
-// S-WP7) are written with SaveStringToFile, which converts the text to the ANSI code page: only
+// True if every character of Text is ASCII (code 0 to 127). install.ini and the manifest
+// files.sha256 are written with SaveStringToFile, which converts the text to the ANSI code page: only
 // ASCII is the same in every code page and is valid UTF-8 without BOM, as contract 1.2 and 2.2
 // ask. Inno Setup 6.2.2 has no UTF8Encode, so a text that is not ASCII is not written at all
 // (ReplaceStateFile); its characters are never replaced (ADR 0004 point 5).
@@ -525,7 +525,7 @@ end;
 // end of ssPostInstall (contract 1.3, 2.1 and 2.5, ADR 0004 point 9): only in a variant with an
 // uninstall key (HasUninstallKey: Regular, not Portable), only if ssInstall deleted the state
 // files of the previous run (StateDeleted), and only if this run wrote and renamed every state file
-// (StateWritten: install.ini; with S-WP7 also the manifest). Inno Setup recreates the uninstall key
+// (StateWritten: install.ini and files.sha256). Inno Setup recreates the uninstall key
 // on every run, so without the value the launcher reports the state Unknown instead of trusting
 // files of an earlier run, also of a setup up to 1.7.2 that ran later.
 function ShouldWriteContractVersionValue(const HasUninstallKey, StateDeleted, StateWritten: Boolean): Boolean;
@@ -939,12 +939,12 @@ end;
 // (contract 2.2): Text gets a ManifestLine for every file that exists, Missing the paths of the
 // files that do not exist (any more, e.g. deleted by a virus scanner; each one logged), FileCount
 // and Bytes the number and size of the hashed files. Returns False if the manifest must not be
-// written: a path is not ASCII (contract 2.2, logged), or a file could not be hashed after its
-// retries (HashFileWithRetries; the file and the exception are logged). After that the remaining
-// files are only checked for existence. ProgressPage, if not nil, shows Status, the file and the
-// progress per file (its SetProgress processes window messages, so Windows does not mark the wizard
-// as not responding while about 1.5 GB are read).
-function HashManifestFiles(const InstallRoot: String; const Paths: TArrayOfString;
+// written: HashFiles is False (the caller already knows that), a path is not ASCII (contract 2.2,
+// logged), or a file could not be hashed after its retries (HashFileWithRetries; the file and the
+// exception are logged). From then on the files are only checked for existence. ProgressPage, if
+// not nil, shows Status, the file and the progress per file (its SetProgress processes window
+// messages, so Windows does not mark the wizard as not responding while about 1.5 GB are read).
+function HashManifestFiles(const InstallRoot: String; const Paths: TArrayOfString; const HashFiles: Boolean;
   const ProgressPage: TOutputProgressWizardPage; const Status: String;
   var Text: String; var Missing: TArrayOfString; var FileCount: Integer; var Bytes: Int64): Boolean;
 var
@@ -952,7 +952,7 @@ var
   FullPath, Hash, Error: String;
   Size: Int64;
 begin
-  Result := True;
+  Result := HashFiles;
   Text := '';
   FileCount := 0;
   Bytes := 0;
@@ -1004,15 +1004,16 @@ end;
 // processed destinations, GetManifestPaths, HashManifestFiles) and logs FormatManifestSummary; then
 // files.sha256, if the manifest is complete, and install.ini with the text IniText (BuildInstallIniText)
 // and [MissingAfterInstall] for the files that are gone, both with ReplaceStateFile (ASCII check,
-// temporary file, the target deleted and gone before the rename). Returns True if install.ini was
-// written; ManifestWritten tells the same of files.sha256, Missing gives the manifest paths of the
-// files that are gone (also those that are not ASCII, for the notice). If the manifest is not
-// complete, no files.sha256 is written at all: the one of the previous run was deleted at
-// ssInstall (DeleteStateFile; if that failed, the uninstall key gets no contract version). Every
-// outcome is logged; nothing is shown.
+// temporary file, the target deleted and gone before the rename). RecordingComplete False (a
+// destination could not be recorded) gives no manifest; the files are still checked for existence.
+// Returns True if install.ini was written; ManifestWritten tells the same of files.sha256, Missing
+// gives the manifest paths of the files that are gone (also those that are not ASCII, for the
+// notice). If the manifest is not complete, no files.sha256 is written at all: the one of the
+// previous run was deleted at ssInstall (DeleteStateFile; if that failed, the uninstall key gets no
+// contract version). Every outcome is logged; nothing is shown.
 function WriteInstallStateFiles(const InstallRoot, SetupDataDir: String; const Recorded: TStringList;
-  const IniText: String; const ProgressPage: TOutputProgressWizardPage; const Status: String;
-  var ManifestWritten: Boolean; var Missing: TArrayOfString): Boolean;
+  const RecordingComplete: Boolean; const IniText: String; const ProgressPage: TOutputProgressWizardPage;
+  const Status: String; var ManifestWritten: Boolean; var Missing: TArrayOfString): Boolean;
 var
   StateDir, Text: String;
   Paths: TArrayOfString;
@@ -1025,7 +1026,9 @@ begin
   StateDir := AddBackslash(InstallRoot) + SetupDataDir + '\';
   Paths := GetManifestPaths(InstallRoot, SetupDataDir, Recorded);
   Started := GetTickCount;
-  Complete := HashManifestFiles(InstallRoot, Paths, ProgressPage, Status, Text, Missing, FileCount, Bytes);
+  if not RecordingComplete then
+    Log('No manifest in this run: not every installed file could be recorded');
+  Complete := HashManifestFiles(InstallRoot, Paths, RecordingComplete, ProgressPage, Status, Text, Missing, FileCount, Bytes);
   Log(FormatManifestSummary(FileCount, Bytes, TicksSince(Started)));
   if not Complete then
     Log('Not writing ' + StateDir + ManifestFileName + ': the manifest of this run is not complete (see above)')
