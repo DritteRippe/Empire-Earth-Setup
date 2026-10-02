@@ -6,11 +6,12 @@ Teststrategie) und zu den Entscheidungen in [docs/adr](adr/README.md). Was das S
 Launcher hinterlässt, steht in [CONTRACT.md](CONTRACT.md).
 
 Stand: Gerüst aus Arbeitspaket S-WP2, Block 1 (Downloads, TP-10 bis TP-17) aus S-WP3, Block 2
-(Kompatibilität und Grafik, TP-20 bis TP-24) aus S-WP4. Ausgearbeitet sind die
-Server-Vorabprüfung [TP-00](#tp-00-server-vorabprüfung), die Fälle der Blöcke 1 und 2 und der
-Grundablauf [TP-70](#tp-70-grundablauf-installieren-starten-deinstallieren). Seit S-WP5 hat jeder
+(Kompatibilität und Grafik, TP-20 bis TP-24) aus S-WP4, Block 3 (Build und Log, TP-30) aus S-WP5.
+Ausgearbeitet sind die Server-Vorabprüfung [TP-00](#tp-00-server-vorabprüfung), die Fälle der
+Blöcke 1 bis 3 und der Grundablauf
+[TP-70](#tp-70-grundablauf-installieren-starten-deinstallieren). Seit S-WP5 hat jeder
 Fall eine Priorität (P1 bis P3, [Abschnitt 4](#4-vorlage-je-fall)).
-Jedes weitere Arbeitspaket (S-WP5 bis S-WP8) arbeitet die Fälle seines Blocks aus, S-WP9
+Jedes weitere Arbeitspaket (S-WP6 bis S-WP8) arbeitet die Fälle seines Blocks aus, S-WP9
 vervollständigt den Plan. Fälle, die noch nicht ausgearbeitet sind, tragen den Status
 `geplant: S-WPx`. `ci/check_test_plan.py` prüft die Form dieses Dokuments (siehe
 [Abschnitt 10](#10-automatische-prüfung-dieses-dokuments)).
@@ -89,7 +90,7 @@ Nummer ihres Blocks.
 | TP-00 | Vorabprüfung | S-WP2 | Zustand der beiden Dateiserver vor jedem Testtag mit Downloads |
 | TP-1x | Downloads | S-WP3 | eingebaute Downloads statt IDP: Hauptserver ungültig und Spiegel (TP-10), offline (TP-11), Stopp-Knopf am ersten und am zweiten Server (TP-12, TP-13), Silent (TP-14), Koreanisch (TP-15), verworfener Download (TP-16), TLS 1.2 unter Windows 7 (TP-17) |
 | TP-2x | Kompatibilität und Grafik | S-WP4 | Windows 7 ohne Kompatibilitätswerte (TP-20), Bereinigung beim Update unter Windows 7 (TP-21), Windows 10/11 unverändert (TP-22), Grafikmatrix mit und ohne DirectX-Wrapper (TP-23), 150 % Anzeigeskalierung mit und ohne `compatibility` (TP-24) |
-| TP-3x | Build und Log | S-WP5 | SHA-256-Dateien der Setups, Setup-Log ohne `/LOG` |
+| TP-3x | Build und Log | S-WP5 | SHA-256-Dateien der Setups und Setup-Log ohne `/LOG`, auch bei Over-the-Shoulder-Erhöhung (TP-30) |
 | TP-4x | Installationseintrag und `install.ini` | S-WP6 | Registry-Eintrag, `install.ini`, Defaults-Marker, `SetupBuild`, Wert `ContractVersion` im Uninstall-Schlüssel |
 | TP-5x | Integritätsmanifest | S-WP7 | `files.sha256`, Dateiprüfung nach der Installation, Dauer des Hashens |
 | TP-6x | Umgebung | S-WP8 | niedrige Auflösung, fremde und alte Installationen, deren Ordner, EE und NeoEE in einem Ordner |
@@ -1058,16 +1059,94 @@ Gemeinsam für alle Fälle dieses Blocks:
 
 ### Block 3: Build und Log (S-WP5)
 
-S-WP5 arbeitet hier aus, was ADR 0008 verlangt: SHA-256-Datei neben jedem Setup und ihre Prüfung
-mit `Get-FileHash`, Setup-Log ohne `/LOG` unter `%TEMP%`.
+Was ADR 0008 (Punkte 1 und 5) verlangt und nur auf Windows prüfbar ist: die SHA-256-Datei neben
+jedem Setup und ihre Prüfung mit `Get-FileHash` und `sha256sum -c`, und das Setup-Log, das jedes
+Setup ohne `/LOG` unter `%TEMP%` schreibt (`SetupLogging=yes`), auch bei Over-the-Shoulder-Erhöhung.
+Die Form der SHA-256-Datei prüft zusätzlich `ci/tests/build_helpers.tests.ps1`.
 
 #### TP-30: Prüfsumme des Setups und Setup-Log ohne Schalter
 
-- **Status:** geplant: S-WP5
+- **Status:** ausgearbeitet
 - **Priorität:** P1
-- **Bezug:** R14, ADR 0008
-- **Ziel:** Die veröffentlichte SHA-256 passt zur Setup-Datei, und jedes Setup schreibt ein Log,
-  ohne dass der Spieler `/LOG` kennen muss.
+- **Bezug:** R14, ADR 0008 (Punkte 1 und 5), README „Checksums of the setups“ und „Support“;
+  Forum §8 Nr. 12 des Problemabgleichs (t=5741, t=3763: kaputte und umgepackte Downloads)
+- **Ziel:** Die SHA-256-Datei neben jedem Setup passt zur Setup-Datei und lässt sich mit
+  `Get-FileHash` und `sha256sum -c` prüfen; jedes Setup schreibt ohne `/LOG` ein Log nach `%TEMP%`,
+  bei Over-the-Shoulder-Erhöhung in das `%TEMP%` des Administratorkontos, und `/LOG` gilt weiter.
+- **Build-Art:** A oder B; Teil (a) prüft nur die Dateien des Builds (keine Installation).
+- **Ausgangszustand:** (a) Ordner `out\` des Testbuilds aus [Abschnitt 6](#6-testbuild-herstellen)
+  mit den vier Setups und ihren `.sha256`-Dateien. (b) bis (e) kein Empire Earth installiert, ein
+  Administratorkonto und das Standardkonto „Spieler“.
+- **Snapshot:** (a) keiner (es wird nichts verändert; auf dem Rechner, auf dem gebaut wurde);
+  (b) bis (e) `S-Basis`, vor jedem Teil zurückgesetzt (die Windows-Sandbox hat kein
+  Standardkonto).
+- **Varianten:** (a) alle vier Setups; (b), (c), (e) EE-admin; (d) EE-user. NeoEE und portable
+  schreiben ihr Log auf dieselbe Weise (eine Einstellung von Inno Setup für alle Varianten) und
+  kommen nur in (a) vor.
+- **Schritte:**
+  1. (a) PowerShell im Ordner `out\EE_Regular` öffnen und ausführen:
+
+     ```powershell
+     Get-FileHash .\EE_Setup_v1.7.2.exe -Algorithm SHA256
+     Get-Content .\EE_Setup_v1.7.2.exe.sha256
+     (Get-FileHash .\EE_Setup_v1.7.2.exe -Algorithm SHA256).Hash -eq (Get-Content .\EE_Setup_v1.7.2.exe.sha256).Split(' ')[0]
+     ```
+
+     Dasselbe in `out\NeoEE_Regular`, `out\EE_Portable` und `out\NeoEE_Portable` mit den
+     Dateinamen dort.
+  2. (a) Mit Git Bash oder WSL im selben Ordner `sha256sum -c EE_Setup_v1.7.2.exe.sha256`. Gegenprobe
+     an einer Kopie (das Original bleibt unverändert), in PowerShell:
+
+     ```powershell
+     New-Item -ItemType Directory C:\EE-Test\tp30 -Force | Out-Null
+     Copy-Item .\EE_Setup_v1.7.2.exe, .\EE_Setup_v1.7.2.exe.sha256 C:\EE-Test\tp30\
+     Add-Content C:\EE-Test\tp30\EE_Setup_v1.7.2.exe -Value 'x'
+     ```
+
+     In `C:\EE-Test\tp30` erneut `sha256sum -c EE_Setup_v1.7.2.exe.sha256` und den Vergleich aus
+     Schritt 1 ausführen, danach `C:\EE-Test\tp30` löschen. Ohne Git Bash und WSL entfällt nur
+     `sha256sum` (im Protokoll vermerken), nicht der Vergleich mit `Get-FileHash`.
+  3. (b) Als Administrator anmelden, im Explorer `%TEMP%` öffnen und die vorhandenen Dateien
+     `Setup Log *.txt` notieren. Das Setup per Doppelklick starten (ohne `/LOG`), „Für alle
+     Benutzer installieren“, Spielsprache Deutsch, empfohlene Einstellungen, Telemetrie aus,
+     installieren (Weg A: Grenzen in [6.2](#62-weg-a-placeholder-build)). Danach `%TEMP%` neu
+     laden (F5).
+  4. (c) Snapshot zurücksetzen, als „Spieler“ anmelden, `%TEMP%` öffnen und notieren, das Setup
+     per Doppelklick starten, „Für alle Benutzer installieren“ wählen und in der
+     Benutzerkontensteuerung Name und Kennwort des Administratorkontos eingeben
+     (Over-the-Shoulder-Erhöhung), wie in (b) installieren. Danach `%TEMP%` von „Spieler“ neu
+     laden; dann abmelden, als Administrator anmelden und dessen `%TEMP%` öffnen
+     (`C:\Users\<Administrator>\AppData\Local\Temp`).
+  5. (d) Snapshot zurücksetzen, als „Spieler“ das Setup starten, „Nur für mich installieren“
+     wählen (keine Benutzerkontensteuerung) und installieren; `%TEMP%` von „Spieler“ neu laden.
+  6. (e) Snapshot zurücksetzen, als Administrator `%TEMP%` notieren, das Setup mit
+     `/LOG="C:\EE-Test\logs\TP-30e_EE-admin.log"` starten und wie in (b) installieren. Danach über
+     *Einstellungen › Apps* deinstallieren (ohne `/LOG`) und `%TEMP%` neu laden.
+  7. Das neue Log aus (c) öffnen und mit Strg+F nach den Namen der beiden Konten suchen.
+- **Erwartetes Ergebnis:**
+  - (a) `Get-FileHash` zeigt dieselben 64 Zeichen wie die `.sha256`-Datei (dort in
+    Kleinbuchstaben), der Vergleich ergibt `True`. Die `.sha256`-Datei hat genau eine Zeile:
+    Prüfsumme, zwei Leerzeichen, Dateiname ohne Ordner. `sha256sum -c` meldet
+    `EE_Setup_v1.7.2.exe: OK`; an der veränderten Kopie `EE_Setup_v1.7.2.exe: FAILED` mit einer
+    Warnung „computed checksum did NOT match“, und der Vergleich ergibt `False`. Dasselbe für alle
+    vier Setups.
+  - (b) Genau eine neue Datei `Setup Log <heutiges Datum> #<n>.txt` (z. B.
+    `Setup Log 2026-10-02 #001.txt`) im `%TEMP%` des Administrators.
+  - (c) Im `%TEMP%` von „Spieler“ keine neue Datei `Setup Log …`; die neue Datei liegt im
+    `%TEMP%` des Administratorkontos, wie README „Support“ sagt.
+  - (d) Die neue Datei liegt im `%TEMP%` von „Spieler“.
+  - (e) Das Log steht in `C:\EE-Test\logs\TP-30e_EE-admin.log`; in `%TEMP%` entsteht dabei keine
+    neue Datei `Setup Log …`, und die Deinstallation ohne `/LOG` schreibt kein Log.
+  - Schritt 7: Das Log enthält Pfade mit dem Namen des Administratorkontos (mindestens das
+    temporäre Verzeichnis), aber keine Kennwörter und keine CD-Keys. Der Rat der README, das Log
+    vor dem öffentlichen Posten anzusehen, ist also nötig.
+- **Log-Hinweis:** Die ersten Zeilen jedes Setup-Logs: `Setup version: Inno Setup version 6.2.2`,
+  `Original Setup EXE: <Pfad des Setups>`, `Setup command line: …` (in b bis d ohne `/LOG`, in e
+  mit), `User privileges: Administrative` (b, c, e) bzw. `User privileges: None` (d),
+  `Administrative install mode: Yes` (b, c, e) bzw. `No` (d) und
+  `Created temporary directory: C:\Users\<Konto>\AppData\Local\Temp\is-….tmp` mit dem Konto, in
+  dessen `%TEMP%` das Log liegt (c: das Administratorkonto). Am Ende
+  `Installation process succeeded.`
 
 ### Block 4: Installationseintrag und install.ini (S-WP6)
 

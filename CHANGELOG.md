@@ -165,6 +165,12 @@ Refactoring and quality fixes (no new game content).
   `ci/check_test_plan.py` reports a missing or invalid priority (only `P1` to `P3`, optionally
   with a remark in parentheses), and its self-test proves it with a case without the field and one
   with `P4`.
+- `docs/TEST-PLAN.de.md`, block 3: the Windows case of the checksums and the setup log (TP-30,
+  `P1`): the `.sha256` file of every setup checked with `Get-FileHash` and `sha256sum -c`, also
+  against a modified copy; the log without `/LOG` in the `%TEMP%` of the administrator, of the
+  standard user after over-the-shoulder elevation (in the administrator's `%TEMP%`, not in the
+  user's), of a "just for me" installation; `/LOG=<file>` instead of the `%TEMP%` log; no log of
+  the uninstaller without `/LOG`; user names in the paths of the log.
 
 ### Changed
 - The hidden setup data folder (holds `EEStatsSetup.dll` for the uninstaller) is now
