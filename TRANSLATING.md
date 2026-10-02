@@ -91,8 +91,9 @@ localized files and random map scripts, the page that checks the installed files
 installation (`ManifestPage*`) and the notice about files that were missing then, e.g. deleted by an
 antivirus program (`FilesMissingAfterInstall*`), the hints before the installation (a screen lower
 than 768 pixels, `LowScreenResolution`; traces of other or old Empire Earth installations,
-`ForeignInstallFound`, whose sentence about `Software\Sierra\CDKeys` must keep its meaning: do not
-delete registry keys by hand; the questions about the folder of another installation and about a
+`ForeignInstallFound`, whose sentence about `Software\Sierra\CDKeys` must keep its meaning: never
+delete `Software\Sierra` or one of its parent keys, and which must not promise more of the launcher
+than removing old game settings of the own account; the questions about the folder of another installation and about a
 folder that already holds the other community product, `ForeignFolderQuestion` and
 `SharedFolderQuestion`, where "Yes" must stay the answer that goes back to the folder page), the
 message that stops an installation for all users because of a link in the folders `Data` or `Users`
