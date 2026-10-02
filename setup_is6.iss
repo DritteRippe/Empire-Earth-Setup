@@ -20,7 +20,7 @@
 ;  Others   : DeepL / DuckDuckGo Translator
 ; ---------------------------------------
 ; External Dep.
-;   InnoSetup Downloader Plugin (download files + support mirrors), BASS (audio module)
+;   BASS (audio module); downloads use Inno Setup's built-in support (downloads.iss)
 ; Additional Content
 ;   Omega (Patch & Neo Content Patch), yukon aka. drex (dreXmod.dll)
 ;   Dege (DX Wrapper: dgVoodoo), GOG (DX Wrapper), zocker_160 & EnergyCube (Reborn.dll)
@@ -402,12 +402,11 @@ ArchitecturesInstallIn64BitMode=x64 arm64 ia64
 ;                   [Code] part may use it)
 ;   messages.iss    [CustomMessages] and [Messages] (needs InstallType, MyAppVersion,
 ;                   MySetupVersion, MySetupPassword)
-;   idp.iss, bass.iss  third-party: download plugin and setup music (needs BassLoopSound)
+;   bass.iss        third-party: setup music (needs BassLoopSound)
 ; The other own files are included in [Code], see there. Defines that included files use must be
 ; defined above the first #sub ([Components]), see the ISPP note there.
 #include "utils.iss"
 #include "messages.iss"
-#include "internal\lib\idp\idp.iss"
 #define BassLoopSound "internal\misc\Loop.flac"
 #include "internal\lib\bass\bass.iss"
 

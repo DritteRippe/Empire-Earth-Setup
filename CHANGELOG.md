@@ -195,6 +195,10 @@ Refactoring and quality fixes (no new game content).
   firewall` rules (23 entries). Setups made with Inno Setup 6 do not start on these systems, so
   the entries never ran. For the same reason the Quick Launch shortcut task (shown only below
   Windows 7) and its three shortcuts are removed.
+- The Inno Download Plugin (IDP 1.6.0, `internal/lib/idp`: two binaries from 2014, its script and
+  language files) and its `[Files]` entry: the setups no longer contain or load `idp.dll`. The
+  localized files are downloaded with Inno Setup's built-in support (see Changed). The installed
+  game files do not change.
 
 ### Fixed
 - English installation mode page: "Recommended settings" instead of "Recommanded settings".

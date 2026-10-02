@@ -66,7 +66,7 @@ requires.
 | `installstate.iss` (new) | Contract writer: records installed files, deletes stale state at `ssInstall`, writes `install.ini` and `files.sha256` (ASCII) at the end of `ssPostInstall`, the contract version into the uninstall key, reports files that disappeared | via `utils.iss` | new (S-WP6, S-WP7) |
 | `environment.iss` (new) | Read-only checks before the installation: low screen height, foreign or old installations, installing into their folder, EE and NeoEE in one folder | via `utils.iss` | new (S-WP8) |
 | `internal/lib/bass` | Setup music (third-party) | - | - |
-| `internal/lib/idp` | Inno Download Plugin (third-party DLL) | - | **removed** in the last commit of S-WP3 |
+| `internal/lib/idp` | Inno Download Plugin (third-party DLL) | - | **removed** in the last commit of S-WP3 (done) |
 | `ci/build.ps1`, `ci/build_helpers.ps1` | Two-pass build of all variants, hash list of `data\localized-text`, DER copy of the certificate | `ci/tests/build_helpers.tests.ps1` | SHA-256 files of the built setups, `/DSetupBuild` (S-WP5, S-WP6) |
 | `ci/check_messages.py` | Checks `messages.iss`, the use of messages in every own script and the encoding (UTF-8 BOM, CRLF) of every own `.iss`; finds the own scripts itself (root and `ci/tests` `*.iss` plus the `#include "..."` closure of `setup_is6.iss`, without `internal/`) | `--self-test` (CI workflow) | own scripts from the `#include` lines, encoding check, self-test (S-WP2, done) |
 | `ci/check_contract.py` (new) | Checks that the tables of `docs/CONTRACT.md` match the source of truth in the script (`GameSettings`, `CodeFileExtensions`, compatibility table, `ContractVersion`); lints the `[Files]` flags below `{app}` | `--self-test` | new (S-WP5) |

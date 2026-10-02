@@ -1,6 +1,6 @@
 # 0003. Replace the Inno Download Plugin by Inno Setup's built-in downloads
 
-- Status: Accepted (implemented by S-WP3)
+- Status: Accepted, implemented (S-WP3, see [Implementation](#implementation))
 - Date: 2026-10-02
 - Requirements: D3, R16, R17
 - Revised: 2026-10-02, plan review before implementation (stop button vs. mirror, size check only
@@ -116,6 +116,47 @@ the silent mode. Both are cases of the test plan.
   decision after each attempt (`NextDownloadAction`); the download loop itself is tested on Windows
   (`docs/TEST-PLAN.de.md`: main server with invalid certificate, mirror, offline, stop button at the
   main server and at the mirror, `/VERYSILENT`, Korean).
+
+## Implementation
+
+S-WP3, 2026-10-02, in this order: the decision helper (`NextDownloadAction` with 15 unit tests),
+the test cases (`docs/TEST-PLAN.de.md`, TP-10 to TP-17), the engine, and IDP's removal as the last,
+separate commit.
+
+- `downloads.iss`: `CreateOnlineFilesDownloadPage` (the one `CreateDownloadPage`, called by
+  `InitializeWizard`; its progress callback only notes whether the server announced a size, the
+  page logs the progress itself), `DownloadOnlineFiles` (called by `NextButtonClick(wpReady)` after
+  `RegisterOnlineFiles`), `DownloadOnlineFile` (first server, then `NextDownloadAction`) and
+  `DownloadOnlineFileFrom` (one `Clear`/`Add`/`Download` with an empty `RequiredSHA256OfFile`, the
+  copy of `AbortedByUser` as the first statement of the `except` block, the own pin check with
+  `GetSHA256OfFile`). Each registered file carries the URL on the other server (`SecondaryUrl`,
+  empty when the policy does not allow it there) and its `DownloadProblem`, which
+  `VerifyOnlineFile` reads instead of `idpFileDownloaded`; the rest of `VerifyDownloadedFiles` is
+  unchanged. New messages `DownloadPageCaption`, `DownloadPageDescription`, `DownloadFileSkipped`;
+  `OnlineFilesUnreachable` reworded (English, German, French).
+- Also fixed in the package: the warning of test builds used `MsgBox`, which `/SUPPRESSMSGBOXES`
+  never suppresses; silent test runs (TP-14) need `SuppressibleMsgBox`.
+- Run-time probe under Wine (not in the repository: it needs local test servers on the loopback
+  interface and a copy of `utils.iss` whose URL constants point to them; the policy check accepted
+  `http://127.0.0.1` there so that the unpinned paths could run): a pin mismatch and an HTTP 404
+  were followed by exactly one request to the other server, a mismatch on both servers was
+  reported as `DownloadFileRejected`, a chunked answer was accepted with the log line `accepted
+  without size check`, a self-signed certificate was refused before any request reached the
+  server, the file needed by EE and AoC was requested once and copied, and URLs with spaces were
+  sent as `%20`. A stop, simulated by sending the button's `BN_CLICKED` to the page (the question
+  is a suppressible message box that answers "Yes" with `/SUPPRESSMSGBOXES`), at the first server,
+  at the second server and after the last byte of a file sent no further request; the complete
+  file was kept, every other file was reported as `DownloadFileSkipped`.
+- Real-data comparison (maintainers only, never committed: EE and NeoEE built with ISCC from the
+  reconstructed 1.7.2 data, official AppIds, unsigned; the innoextract dumps compared semantically
+  with those of the refactor branch before v2): after the engine commit only the compiled code and the messages differ (the
+  reworded `OnlineFilesUnreachable`, the three new messages, and `DownloadFileUnsaved` of the base
+  branch); after the removal of IDP additionally the `{tmp}\idp.dll` entry with its data entry and
+  IDP's own 407 custom messages (`IDP_*`, from its language files) are gone. The files installed
+  into `{app}`, registry values, run entries, tasks, components, icons and folders are identical.
+- After the last commit `git grep -n -i -w idp` finds nothing in `*.iss`, `*.ps1`, `*.py` and
+  `*.yml`; the own scripts contain no `http://` constant (only test inputs in
+  `ci/tests/unit_tests.iss` that must be refused).
 
 ## Alternatives considered
 
