@@ -331,7 +331,8 @@ page, the notice and the messages (`4eafaed`), this documentation with test case
   599 ms, 106.8 MB/s` (between 576 and 752 ms in all runs). Two files deleted right before the last
   step: two log lines, `[MissingAfterInstall]` with both, no dialog in `/VERYSILENT`, the value is
   written. `Data\data.ssa` held open without sharing: three `Sharing violation` attempts, `No
-  manifest in this run`, `install.ini` written, no value. `files.sha256` read-only: `Unable to delete
+  manifest in this run`, `install.ini` written, no value. The same file only read-only (attribute):
+  hashed like any other, manifest and value written (the attribute does not prevent reading). `files.sha256` read-only: `Unable to delete
   ...: it is read-only` at both steps, the old manifest kept, no value. `files.sha256` held open
   without `FILE_SHARE_DELETE` during `ssInstall`: the deletion fails, the new manifest is written at
   the end, no value (decision K4). `/SILENT` with the visible progress window completes. The
