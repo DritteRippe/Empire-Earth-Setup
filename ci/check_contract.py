@@ -20,6 +20,17 @@ is the setup script. This check reads only TABLES of the contract, never its pro
                                                entries is "see 3.3"; per-game data such as the
                                                ending epoch is "Empire Earth `13` ..., The Art of
                                                Conquest `14` ..."
+  3.3, Value | ... | Minimum | Maximum          the constants MinGameWindowWidth, MaxGameWindowWidth,
+                                               MinGameWindowHeight and MaxGameWindowHeight
+                                               ('<name> = <number>;', each exactly once in
+                                               setup_is6.iss or its #include files), rows
+                                               Game Window Width and Game Window Height
+  3.4, Value name | Component | Data |         the [Registry] entries below
+       Windows versions | Task                 Software\\Microsoft\\DirectX\\UserGpuPreferences
+                                               (HKCU, REG_SZ, uninsdeletevalue): value name with
+                                               {app} as <root>, Components, ValueData, the Windows
+                                               versions of the entry and its task, Tasks; the same
+                                               in all variants
   3.7, Task | Values | Windows versions |      the compatibility entries of [Registry]
        Root (admin/user/portable)              (AppCompatFlags\\Layers): the flags each task adds
                                                (BuildCompatibilityFlags in utils.iss with the tasks
@@ -51,9 +62,10 @@ every file its #include "..." lines name. There are no exceptions: the rule is a
 contract, an exception would need a change of the contract first.
 
 --self-test runs the check against modified temporary copies of the repository (one changed
-value per rule, e.g. Music Volume $2C -> $2D, a missing extension, WIN7RTM -> WIN8RTM, a [Files]
-entry without ignoreversion) that must fail with the expected message, and against copies that
-must pass.
+value per rule, e.g. Music Volume $2C -> $2D, a missing extension, a window limit 1920 -> 2560,
+GpuPreference=2; -> GpuPreference=1;, WIN7RTM -> WIN8RTM, a missing row compatibility_legacy, a
+[Files] entry without ignoreversion) that must fail with the expected message, and against copies
+that must pass.
 
 --preprocessed <folder> takes the scripts that ISCC itself preprocessed (ci/build.ps1
 -KeepPreprocessed <folder>: EE_Regular.iss, NeoEE_Regular.iss, EE_Portable.iss,
@@ -1304,6 +1316,149 @@ def check_compatibility(contract_lines, per_variant, errors):
 
 
 # ---------------------------------------------------------------------------------------------
+# Rule 3.3: window size limits
+
+# The rows of the table of 3.3 and the dimension of their constants (Min<...>/Max<...>)
+WINDOW_LIMITS = {"Game Window Width": "GameWindowWidth", "Game Window Height": "GameWindowHeight"}
+
+
+def script_window_limits(root):
+    """{constant: (value, "file:line")} of MinGameWindowWidth ... MaxGameWindowHeight, each defined
+    exactly once as '<name> = <number>;' in setup_is6.iss or a file of its #include lines (wherever
+    a refactoring moves them)."""
+    names = [bound + dimension for dimension in WINDOW_LIMITS.values() for bound in ("Min", "Max")]
+    found = {name: [] for name in names}
+    for rel in own_include_closure(root):
+        for no, text in logical_lines(read_text(root / rel)):
+            match = re.match(r"^\s*(\w+)\s*=\s*(\d+)\s*;", text)
+            if match and match.group(1) in found:
+                found[match.group(1)].append((int(match.group(2)), f"{rel.as_posix()}:{no}"))
+    result = {}
+    for name, places in found.items():
+        if len(places) != 1:
+            where = ", ".join(place for _, place in places) or "nowhere"
+            raise CheckError(f"the constant {name} must be defined exactly once ('{name} = <number>;' in "
+                             f"{MAIN_SCRIPT} or its #include files), found {len(places)} times: {where}")
+        result[name] = places[0]
+    return result
+
+
+def check_window_limits(root, contract_lines, errors):
+    header, rows = first_table(contract_section(contract_lines, "3.3"), "3.3")
+    require_columns(header, ["Value", "Minimum", "Maximum"], "3.3")
+    script = script_window_limits(root)
+    seen = []
+    for no, row in rows:
+        name = plain(row["Value"])
+        where = f"{CONTRACT}:{no} (3.3) {name}"
+        if name not in WINDOW_LIMITS:
+            errors.append(f"{where}: not a window size value (expected {', '.join(WINDOW_LIMITS)})")
+            continue
+        if name in seen:
+            errors.append(f"{where}: listed twice")
+            continue
+        seen.append(name)
+        for column, bound in (("Minimum", "Min"), ("Maximum", "Max")):
+            constant = bound + WINDOW_LIMITS[name]
+            value, place = script[constant]
+            cell = plain(row[column])
+            if not re.fullmatch(r"\d+", cell):
+                errors.append(f"{where}: {column.lower()} '{row[column]}' is not a number")
+            elif int(cell) != value:
+                errors.append(f"{where}: {column.lower()} {cell} in the contract, {value} in {place} "
+                              f"({constant})")
+    for name in WINDOW_LIMITS:
+        if name not in seen:
+            errors.append(f"{CONTRACT} (3.3): no row {name} in the table of the window size limits")
+    return len(seen)
+
+
+# ---------------------------------------------------------------------------------------------
+# Rule 3.4: GPU preference (uses the Windows version helpers of rule 3.7)
+
+GPU_KEY = "software\\microsoft\\directx\\usergpupreferences"
+APP_PREFIX = "{app}\\"
+ROOT_PLACEHOLDER = "<root>\\"
+
+
+def script_gpu_preferences(entries, tasks):
+    """{value name with <root>: {"component", "data", "version", "task", "line"}} of the [Registry]
+    entries below UserGpuPreferences of one variant; version: Windows versions of the entry and of
+    its task."""
+    result = {}
+    for no, params in entries:
+        key = params.get("subkey", "")
+        if UNREADABLE in key:
+            unreadable(no, params, "contract 3.4 (it may be a GPU preference)")
+        if key.lower() != GPU_KEY:
+            continue
+        unreadable(no, params, "contract 3.4")
+        where = f"{MAIN_SCRIPT}:{no}"
+        if params.get("root", "").upper() != "HKCU":
+            raise CheckError(f"{where}: a GPU preference outside HKCU (contract 3.4: Windows has it per user)")
+        if params.get("valuetype", "").lower() != "string":
+            raise CheckError(f"{where}: a GPU preference of ValueType '{params.get('valuetype', '')}', "
+                             "contract 3.4 says REG_SZ")
+        if "uninsdeletevalue" not in params.get("flags", "").lower().split():
+            raise CheckError(f"{where}: a GPU preference without the flag uninsdeletevalue (contract 3.4: "
+                             "the uninstaller removes it)")
+        name = params.get("valuename", "")
+        if not name.lower().startswith(APP_PREFIX):
+            raise CheckError(f"{where}: GPU preference value name '{name}' is not a path below {{app}}")
+        name = ROOT_PLACEHOLDER + name[len(APP_PREFIX):]
+        if name in result:
+            raise CheckError(f"{where}: two GPU preference entries for {name}")
+        task = " ".join(params.get("tasks", "").split()).lower()
+        version = version_range(params.get("minversion", ""), params.get("onlybelowversion", ""))
+        if task in tasks:
+            version = intersect(version, tasks[task]["range"])
+        result[name] = {"component": params.get("components", "").strip().lower(),
+                        "data": params.get("valuedata", ""), "task": task,
+                        "version": version_label(version) if version else "none", "line": no}
+    return result
+
+
+def check_gpu_preferences(contract_lines, per_variant, errors):
+    """per_variant: {(type, mode): script_gpu_preferences of that variant}."""
+    header, rows = first_table(contract_section(contract_lines, "3.4"), "3.4")
+    columns = ["Value name", "Component", "Data", "Windows versions", "Task"]
+    require_columns(header, columns, "3.4")
+    variants = list(per_variant.items())
+    (first_type, first_mode), script = variants[0]
+    for (install_type, install_mode), other in variants[1:]:
+        if {name: {k: v for k, v in info.items() if k != "line"} for name, info in other.items()} != \
+                {name: {k: v for k, v in info.items() if k != "line"} for name, info in script.items()}:
+            errors.append(f"{MAIN_SCRIPT}: the GPU preference entries of {install_type}/{install_mode} differ "
+                          f"from those of {first_type}/{first_mode}; contract 3.4 has one table for all variants")
+    seen = []
+    for no, row in rows:
+        name = plain(row["Value name"])
+        where = f"{CONTRACT}:{no} (3.4) {name}"
+        if name in seen:
+            errors.append(f"{where}: listed twice")
+            continue
+        seen.append(name)
+        info = script.get(name)
+        if info is None:
+            errors.append(f"{where}: {MAIN_SCRIPT} writes no GPU preference for this program")
+            continue
+        script_where = f"{MAIN_SCRIPT}:{info['line']}"
+        for column, key, contract_value in (
+                ("Component", "component", plain(row["Component"]).lower()),
+                ("Data", "data", plain(row["Data"])),
+                ("Windows versions", "version", " ".join(plain(row["Windows versions"]).split())),
+                ("Task", "task", " ".join(plain(row["Task"]).split()).lower())):
+            if contract_value != info[key]:
+                errors.append(f"{where}: {column.lower()} `{contract_value}` in the contract, "
+                              f"`{info[key]}` in {script_where}")
+    for name, info in script.items():
+        if name not in seen:
+            errors.append(f"{CONTRACT} (3.4): {name} is missing in the contract, {MAIN_SCRIPT}:{info['line']} "
+                          "writes a GPU preference for it")
+    return len(seen)
+
+
+# ---------------------------------------------------------------------------------------------
 # [Files] lint
 
 def own_include_closure(root):
@@ -1387,9 +1542,9 @@ def check(root):
     summary.append(f"2.4: {count} code extensions")
 
     variant_errors = {}
-    game_counts, compat_rows = set(), {}
+    game_counts, compat_rows, gpu_rows = set(), {}, {}
     flag_tasks = rule("3.7", lambda: compatibility_flag_tasks(root))
-    tasks = rule("3.7", lambda: script_tasks(root))
+    tasks = rule("3.4, 3.7", lambda: script_tasks(root))
     for install_type, install_mode in VARIANTS:
         variant = f"{install_type}/{install_mode}"
         try:
@@ -1403,6 +1558,11 @@ def check(root):
             game_counts.add(check_game_settings(contract_lines, settings, local))
         except CheckError as error:
             local.append(f"{error} [3.2]")
+        if tasks is not None:
+            try:
+                gpu_rows[(install_type, install_mode)] = script_gpu_preferences(entries, tasks)
+            except CheckError as error:
+                local.append(f"{error} [3.4]")
         if flag_tasks is not None and tasks is not None:
             try:
                 compat_rows[(install_type, install_mode)] = script_compatibility_rows(
@@ -1416,6 +1576,11 @@ def check(root):
         errors.append(message if variants == all_variants else f"{message} (variant {', '.join(variants)})")
     summary.append(f"3.2: {'/'.join(str(c) for c in sorted(game_counts if game_counts else {0}))} values "
                    f"of both games in {len(VARIANTS)} variants")
+    count = rule("3.3", lambda: check_window_limits(root, contract_lines, errors))
+    summary.append(f"3.3: {count} window size limits")
+    if gpu_rows and len(gpu_rows) == len(VARIANTS):
+        count = rule("3.4", lambda: check_gpu_preferences(contract_lines, gpu_rows, errors))
+        summary.append(f"3.4: {count} GPU preference values")
     if compat_rows and len(compat_rows) == len(VARIANTS):
         count = rule("3.7", lambda: check_compatibility(contract_lines, compat_rows, errors))
         summary.append(f"3.7: {count} rows")
@@ -1575,6 +1740,38 @@ def self_test(source_root):
          replace(contract, "| `Rasterizer Name` | REG_SZ | see [3.3](#33-computed-values) | D |",
                  "| `Rasterizer Name` | REG_SZ | `Direct3D` | D |"),
          "Rasterizer Name: Empire Earth: data 'Direct3D' in the contract, computed (see 3.3)"),
+        # 3.3
+        ("MaxGameWindowWidth 1920 -> 2560 in setup_is6.iss",
+         replace(main_script, "MaxGameWindowWidth = 1920;", "MaxGameWindowWidth = 2560;"),
+         "Game Window Width: maximum 1920 in the contract, 2560 in setup_is6.iss"),
+        ("minimum height 768 -> 720 in the contract",
+         replace(contract, "| `768` | `1080` |", "| `720` | `1080` |"),
+         "Game Window Height: minimum 720 in the contract, 768 in setup_is6.iss"),
+        ("row Game Window Height missing in the table of 3.3",
+         replace(contract, "| `Game Window Height` | height of the primary screen (`SM_CYSCREEN`) | `768` | `1080` |\n", ""),
+         "no row Game Window Height in the table of the window size limits"),
+        ("MinGameWindowWidth defined a second time (in utils.iss)",
+         replace(utils, "const\r\n  // Windows compatibility mode", "const\r\n  MinGameWindowWidth = 1024;\r\n  // Windows compatibility mode"),
+         "the constant MinGameWindowWidth must be defined exactly once"),
+        # 3.4
+        ("GpuPreference=2; -> GpuPreference=1; in setup_is6.iss",
+         replace(main_script, 'ValueData: "GpuPreference=2;"', 'ValueData: "GpuPreference=1;"', count=2),
+         "data `GpuPreference=2;` in the contract, `GpuPreference=1;`"),
+        ("task of a 3.4 row in the contract",
+         replace(contract, "| `GpuPreference=2;` | 10 and later | `compatibility_windows` |\n| `<root>\\Empire Earth - The Art",
+                 "| `GpuPreference=2;` | 10 and later | `compatibility` |\n| `<root>\\Empire Earth - The Art"),
+         "task `compatibility` in the contract, `compatibility_windows`"),
+        ("GPU preference from Windows 8 on in setup_is6.iss",
+         replace(main_script, 'Flags: uninsdeletevalue; MinVersion: {#Win10}; Tasks: compatibility_windows; Components: game',
+                 'Flags: uninsdeletevalue; MinVersion: {#Win8}; Tasks: compatibility_windows; Components: game'),
+         "windows versions `10 and later` in the contract, `8 and later`"),
+        ("AoC row missing in the table of 3.4",
+         replace(contract, "| `<root>\\Empire Earth - The Art of Conquest\\EE-AOC.exe` | `gameaoc` | `GpuPreference=2;` | 10 and later | `compatibility_windows` |\n", ""),
+         "EE-AOC.exe is missing in the contract"),
+        ("GPU preference without uninsdeletevalue",
+         replace(main_script, 'ValueData: "GpuPreference=2;"; \\\r\n  Flags: uninsdeletevalue; MinVersion: {#Win10}; Tasks: compatibility_windows; Components: game',
+                 'ValueData: "GpuPreference=2;"; \\\r\n  MinVersion: {#Win10}; Tasks: compatibility_windows; Components: game'),
+         "a GPU preference without the flag uninsdeletevalue"),
         # 3.7
         ("WIN7RTM -> WIN8RTM in setup_is6.iss", replace(main_script, '" WIN7RTM"', '" WIN8RTM"'),
          "compatibility_windows: values `WIN7RTM` in the contract, `WIN8RTM`"),
