@@ -42,7 +42,8 @@ silent installation (silent: log only).
 1. **Low resolution (R13):** if the height of the primary screen (`GetSystemMetrics(SM_CYSCREEN)`,
    physical pixels, see ARCHITECTURE O4) is below 768 (and above 0, which means unknown),
    `InitializeSetup` shows a notice after the
-   install-mode question: the menus of the game need 768 pixels, the window is set to 1024x768, the
+   install-mode question: the menus of the game need 768 pixels, the window is set to at least
+   1024 x 768 (width and height clamped separately, e.g. 1280 x 768 on a 1280 x 720 screen), the
    game may not fit or may crash after the intro; scaling in the graphics driver or a DirectX wrapper
    can help. The clamp of the window size (1024 to 1920 x 768 to 1080) stays. The predicate and the
    clamp become pure, unit-tested functions in `utils.iss` (`ClampGameWindowWidth/Height`,
