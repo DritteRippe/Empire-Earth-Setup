@@ -108,6 +108,15 @@ Refactoring and quality fixes (no new game content).
   setup installs anyway). The component is offered whenever downloads are possible, also by a
   setup built without the hash list, which then downloads no `Language.dll`. The notice after the
   download only lists files that really were not installed from it.
+- `docs/CONTRACT.md`, revision 2026-10-02 after the review of the v2 plan (still contract version
+  1, draft; the same text in the launcher repository): the setup writes `install.ini` and the
+  manifest as ASCII (manifest LF, `install.ini` CRLF) and no manifest if a path is not ASCII (O3);
+  optional `SetupBuild`; the value `Empire Earth Community: ContractVersion` in the uninstall key,
+  whose absence tells the launcher that an older setup ran later (state Unknown); the manifest
+  lists every file the run processed (installed or kept); portable setups write no defaults
+  marker; contract 3.7 has a table of the compatibility values (none on Windows Vista/7 except the
+  opt-in `~ RUNASADMIN`, O7); O4, O11 and O12 are answered. Documentation only, later packages
+  implement it.
 
 ### Removed
 - Entries for Windows XP and older: the WIN98 compatibility mode and the pre-Vista `netsh

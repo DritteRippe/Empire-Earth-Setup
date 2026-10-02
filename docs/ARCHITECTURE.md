@@ -229,13 +229,13 @@ plan.
 
 ## 10. Open points
 
-- **Contract O2, O6, O8, O9, O10, O12** are launcher or project questions; the setup is not
-  affected.
+- **Contract O2, O6, O8, O9, O10** are launcher or project questions; the setup is not affected.
 - **O3** (BOM of `SaveStringsToUTF8File`): answered from the 6.2.2 source, it writes a BOM and CRLF.
   `UTF8Encode` does not exist in 6.2.2's Pascal Script (probe compile), so the setup builds the
   manifest and `install.ini` as ASCII, checks that (`IsAsciiText`) and writes them with
   `SaveStringToFile` (no BOM, LF resp. CRLF); a non-ASCII path switches the manifest off instead of
-  corrupting it, see [ADR 0004](adr/0004-install-record-and-integrity-manifest.md).
+  corrupting it, see [ADR 0004](adr/0004-install-record-and-integrity-manifest.md). Contract 1.2, 2.2
+  and O3 say so since the contract revision (S-WP1).
 - **O4** (physical pixels): Setup 6.2.2 declares itself system-DPI-aware (`<dpiAware>true</dpiAware>`
   in the manifest of `Setup.e32`), so `GetSystemMetrics` returns physical pixels of the primary
   screen at the logon DPI; a changed scaling without signing out again is the known exception. To be
@@ -243,7 +243,8 @@ plan.
   `HIGHDPIAWARE`) and without it (the game is DPI-virtualized and sees logical pixels). If the window
   only fits with `HIGHDPIAWARE`, contract 3.3 says so.
 - **O7** (defaults under review): decided in [ADR 0005](adr/0005-compatibility-and-wrapper-defaults.md);
-  the contract revision (S-WP1) changes 3.7 in both repositories, S-WP4 implements it.
+  the contract revision (S-WP1) changed 3.7 in both repositories (a table of the values per task,
+  Windows version and root, which `ci/check_contract.py` reads), S-WP4 implements it.
 - **O11** (EE and NeoEE in one folder): the setup asks (S-WP8).
 - **O12** (copy check): answered locally, `ci/compare_contract.py` (S-WP1).
 - **Setup version:** `MySetupVersion` stays `1.7.2` until the maintainers release v2; the update API
