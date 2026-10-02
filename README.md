@@ -160,13 +160,13 @@ On Linux with Wine: `ISCC='<Windows path of ISCC.exe>' sh ci/tests/run_unit_test
 `ci\tests\build_helpers.tests.ps1` tests the helpers of the build script (`ci\build_helpers.ps1`: hash list, DER copy of PEM and DER certificates, test build number, the SHA-256 file of a setup: content, LF, no BOM, overwriting, and `sha256sum -c` where that program exists) with generated test certificates, and runs a copy of `ci\build.ps1` with a fake ISCC that records the switches it gets (e.g. `-TestID`) and checks the SHA-256 file next to every setup; it needs neither Inno Setup nor the game data and also runs with PowerShell 7 on Linux.
 
 ### Testing on Windows
-Installers are never run in CI. The manual tests on real Windows (a laptop and virtual machines) are described in German in [docs/TEST-PLAN.de.md](docs/TEST-PLAN.de.md): safety rules (placeholder builds only in a virtual machine or on a snapshot, only your own legally obtained game data, never delete `Software\Sierra\CDKeys`, never pass a test build on, where the setup log is), how to make a test build, the server pre-check `TP-00` and every test case with its id `TP-xy`, the build type, the starting state and the snapshot to use. Each work package of setup v2 adds the cases of its changes.
+Installers are never run in CI. The manual tests on real Windows (a laptop and virtual machines) are described in German in [docs/TEST-PLAN.de.md](docs/TEST-PLAN.de.md): safety rules (placeholder builds only in a virtual machine or on a snapshot, only your own legally obtained game data, never delete `Software\Sierra\CDKeys`, never pass a test build on, where the setup log is), how to make a test build, the server pre-check `TP-00` and every test case with its id `TP-xy`, its priority (`P1`: the short run before every release, `P2`: important, outside the short run, `P3`: optional, e.g. Windows 7 only), the build type, the starting state and the snapshot to use. Each work package of setup v2 adds the cases of its changes.
 
 - **Placeholder build** (way A, setup mechanics only): `ci\build.ps1 -Placeholders -TestID 1`. Copy the real `EEStatsSetup.dll` of your own installation to `data\Add-on\DLLs\EEStats\` first: the setup loads it at start, a placeholder stops it.
 - **Real build** (way B): your own data in `data\` (see [Assets](#assets)), the official AppIds read from the uninstall key `{<AppId>}_is1` of an existing installation (`reg query`), then `ci\build.ps1 -DownloadHashesOnly` and `ci\build.ps1 -EEAppID <GUID> -NeoEEAppID <GUID> -TestID 1`.
 - Test builds show their warning even in silent mode, so silent test runs need `/VERYSILENT /SUPPRESSMSGBOXES`; start every test run with `/LOG=<file>`.
 
-A new case gets the next free id of its block; `python ci/check_test_plan.py` checks the form of the plan (unique ids, every case with a valid status and the fields of the template, the forum test cases 1 to 22 assigned) and that every id named in the documentation exists.
+A new case gets the next free id of its block; `python ci/check_test_plan.py` checks the form of the plan (unique ids, every case with a valid status, a priority `P1`, `P2` or `P3` and the fields of the template, the forum test cases 1 to 22 assigned) and that every id named in the documentation exists.
 
 ### Verify
 Before a commit, run the checks that the change touches. The CI workflow runs all of them except the copy check of the contract:
@@ -177,7 +177,7 @@ Before a commit, run the checks that the change touches. The CI workflow runs al
 | Unit tests | `powershell -ExecutionPolicy Bypass -File ci\run_unit_tests.ps1` (Linux/Wine: see [Unit tests](#unit-tests)) |
 | Build script tests | `powershell -ExecutionPolicy Bypass -File ci\tests\build_helpers.tests.ps1` (also `pwsh` on Linux) |
 | All four variants compile | `powershell -ExecutionPolicy Bypass -File ci\build.ps1 -Placeholders` (see [Contributing without the game data](#contributing-without-the-game-data)) |
-| Test plan: unique test case ids, forum test cases 1 to 22 assigned, every id named in the documentation defined | `python ci/check_test_plan.py` (`--self-test` checks the check itself) |
+| Test plan: unique test case ids, a status and a priority per case, forum test cases 1 to 22 assigned, every id named in the documentation defined | `python ci/check_test_plan.py` (`--self-test` checks the check itself) |
 | The tables of the contract match the script; `[Files]` flags below `{app}` | `python ci/check_contract.py` (`--self-test` checks the check itself) |
 | Both copies of the contract are identical | `python ci/compare_contract.py <launcher clone>` |
 

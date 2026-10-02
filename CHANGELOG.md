@@ -157,6 +157,14 @@ Refactoring and quality fixes (no new game content).
   confirmed the elevation, so the log is in that account's `%TEMP%`. The uninstaller still writes a
   log only with `/LOG`. Nothing else in the compiled setups changes. README: "Support" (where to
   find the log, and to check it for user names in folder paths before posting it publicly).
+- `docs/TEST-PLAN.de.md`: every test case has a priority (new field `Priorität`, also for planned
+  cases): `P1` belongs to the short run before every release (at most about three hours on the
+  laptop, in Windows Sandbox or in a Windows 10/11 virtual machine; S-WP9 fixes its exact content
+  and the release criterion), `P2` is important but outside the short run, `P3` is optional
+  (Windows 7 or 8.1 only, a second computer, an original CD). 10 cases are `P1`, 18 `P2`, 4 `P3`.
+  `ci/check_test_plan.py` reports a missing or invalid priority (only `P1` to `P3`, optionally
+  with a remark in parentheses), and its self-test proves it with a case without the field and one
+  with `P4`.
 
 ### Changed
 - The hidden setup data folder (holds `EEStatsSetup.dll` for the uninstaller) is now

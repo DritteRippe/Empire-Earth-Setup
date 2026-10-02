@@ -8,7 +8,8 @@ Launcher hinterlässt, steht in [CONTRACT.md](CONTRACT.md).
 Stand: Gerüst aus Arbeitspaket S-WP2, Block 1 (Downloads, TP-10 bis TP-17) aus S-WP3, Block 2
 (Kompatibilität und Grafik, TP-20 bis TP-24) aus S-WP4. Ausgearbeitet sind die
 Server-Vorabprüfung [TP-00](#tp-00-server-vorabprüfung), die Fälle der Blöcke 1 und 2 und der
-Grundablauf [TP-70](#tp-70-grundablauf-installieren-starten-deinstallieren).
+Grundablauf [TP-70](#tp-70-grundablauf-installieren-starten-deinstallieren). Seit S-WP5 hat jeder
+Fall eine Priorität (P1 bis P3, [Abschnitt 4](#4-vorlage-je-fall)).
 Jedes weitere Arbeitspaket (S-WP5 bis S-WP8) arbeitet die Fälle seines Blocks aus, S-WP9
 vervollständigt den Plan. Fälle, die noch nicht ausgearbeitet sind, tragen den Status
 `geplant: S-WPx`. `ci/check_test_plan.py` prüft die Form dieses Dokuments (siehe
@@ -98,12 +99,13 @@ Nummer ihres Blocks.
 
 Jeder Fall ist eine Überschrift `#### TP-xy: <Titel>` im Block seines Pakets (Abschnitt 7) mit
 dieser Liste darunter. Ein ausgearbeiteter Fall hat alle Felder; ein geplanter Fall hat mindestens
-`Status`, `Bezug` und `Ziel`.
+`Status`, `Priorität`, `Bezug` und `Ziel`.
 
 ```markdown
 #### TP-xy: <Titel>
 
 - **Status:** ausgearbeitet | geplant: S-WPn | entfällt: <Grund>
+- **Priorität:** P1 | P2 | P3
 - **Bezug:** Anforderung (R…), ADR, Vertrag, Forum (§8 Nr., t=…/p=…)
 - **Ziel:** was der Fall zeigen soll (ein Satz)
 - **Build-Art:** A (Placeholder-Build) | B (echter Build) | A oder B | keine (kein Setup nötig)
@@ -127,6 +129,23 @@ Varianten werden als `EE-admin`, `EE-user`, `EE-portable`, `NeoEE-admin`, `NeoEE
 - **portable:** Portable-Setup (`EE_Portable_Setup_v…`, `NeoEE_Portable_v…_Setup_v…`), ohne
   Deinstallation und ohne Uninstall-Schlüssel; Ziel `<Ordner des Setups>\Empire Earth Portable`
   bzw. `…\Neo Empire Earth Portable`.
+
+`Priorität` sagt, wann ein Fall gebraucht wird; jeder Fall hat genau eine (Pflichtfeld, auch bei
+geplanten Fällen):
+
+- **P1:** gehört zum Kurzdurchlauf vor jeder Freigabe: zusammen höchstens etwa drei Stunden, auf
+  dem Laptop (Weg B), in der Windows-Sandbox oder in einer VM mit Windows 10/11. Welche Varianten
+  der P1-Fälle der Kurzdurchlauf genau enthält und das Freigabekriterium (alle P1-Fälle bestanden
+  oder mit Grund ausgenommen) legt S-WP9 fest.
+- **P2:** wichtig, aber außerhalb des Kurzdurchlaufs: braucht mehr Zeit, echte Spieldaten über
+  Weg A hinaus oder eine besondere Ausgangslage (zweites Konto, langsame Leitung, Grafikmatrix,
+  hohe Anzeigeskalierung). Vor einer Freigabe erwünscht; ein ausgelassener P2-Fall steht mit Grund
+  im Protokoll.
+- **P3:** optional: nur mit besonderer Umgebung (Windows 7 oder 8.1 in einer VM, ein zweiter
+  Rechner für Mehrspieler, eine Original-CD) oder für Befunde ohne Einfluss auf die Freigabe.
+
+Das Paket, das einen geplanten Fall ausarbeitet, darf seine Priorität mit Begründung ändern (im
+Feld selbst, z. B. `P2 (P1 bei Weg B)`, oder in der Commit-Nachricht).
 
 ## 5. Testumgebungen und Snapshots
 
@@ -319,6 +338,7 @@ Installationsmodus. Deinstallation:
 #### TP-00: Server-Vorabprüfung
 
 - **Status:** ausgearbeitet
+- **Priorität:** P1
 - **Bezug:** R16, ADR 0006 (Freigabekriterium: mindestens ein Dateiserver mit gültigem
   Zertifikat), ADR 0003; Forum §8 Nr. 15
 - **Ziel:** Vor allen Download-Tests klären, ob der Hauptserver und der Spiegel über HTTPS mit
@@ -429,6 +449,7 @@ Gemeinsam für alle Fälle dieses Blocks:
 #### TP-10: Hauptserver ungültig, Download vom Spiegel
 
 - **Status:** ausgearbeitet
+- **Priorität:** P1
 - **Bezug:** ADR 0003, ADR 0006, R16; Forum §8 Nr. 15 („nur mit Spiegel erreichbar“), Forum
   §8 Nr. 12 des Problemabgleichs (t=5741, t=3763: kaputte Downloads)
 - **Ziel:** Mit ungültigem Zertifikat des Hauptservers lädt das Setup die lokalisierten Dateien
@@ -471,6 +492,7 @@ Gemeinsam für alle Fälle dieses Blocks:
 #### TP-11: Keiner der Server erreichbar
 
 - **Status:** ausgearbeitet
+- **Priorität:** P1
 - **Bezug:** ADR 0006 (Hinweis `OnlineFilesUnreachable`); Forum §8 Nr. 15 („ohne Internet“)
 - **Ziel:** Ohne Netz bzw. ohne gültigen Server installiert das Setup seine eigenen Dateien und
   erklärt das verständlich: Server nicht erreichbar oder ohne gültiges Zertifikat, ein Problem der
@@ -507,6 +529,7 @@ Gemeinsam für alle Fälle dieses Blocks:
 #### TP-12: Stopp beim zuerst verwendeten Server
 
 - **Status:** ausgearbeitet
+- **Priorität:** P2
 - **Bezug:** ADR 0003 (Stopp-Knopf beendet alle Anfragen, nie der Spiegel), Review „Stopp vs
   Mirror“; Unit-Test `NextDownloadAction stop at the main server`
 - **Ziel:** Ein Stopp während des Downloads vom zuerst verwendeten Server beendet alle Downloads:
@@ -537,6 +560,7 @@ Gemeinsam für alle Fälle dieses Blocks:
 #### TP-13: Stopp beim zweiten Server
 
 - **Status:** ausgearbeitet
+- **Priorität:** P2
 - **Bezug:** ADR 0003 (Stopp-Knopf), Review „Stopp vs Mirror“; Unit-Test
   `NextDownloadAction stop at the mirror`
 - **Ziel:** Ein Stopp während des Versuchs am zweiten Server (nach einem Fehlschlag am ersten)
@@ -570,6 +594,7 @@ Gemeinsam für alle Fälle dieses Blocks:
 #### TP-14: Silent-Installation ohne Dialog
 
 - **Status:** ausgearbeitet
+- **Priorität:** P1
 - **Bezug:** ADR 0003; ARCHITECTURE Abschnitt 5 (Hinweise nicht im Silent-Modus und nicht mit
   `/SUPPRESSMSGBOXES`); Forum §8 Nr. 15
 - **Ziel:** Mit `/SILENT`, `/VERYSILENT` oder `/SUPPRESSMSGBOXES` erscheint wegen der Downloads
@@ -600,6 +625,7 @@ Gemeinsam für alle Fälle dieses Blocks:
 #### TP-15: Koreanisch
 
 - **Status:** ausgearbeitet
+- **Priorität:** P2
 - **Bezug:** ADR 0003 (Texte der Download-Seite), TRANSLATING.md („Korean (ko): texts of the
   download page“), R17
 - **Ziel:** Mit Koreanisch als Setup- und Spielsprache funktionieren die Downloads; die Texte der
@@ -626,6 +652,7 @@ Gemeinsam für alle Fälle dieses Blocks:
 #### TP-16: Manipulierter Download wird verworfen
 
 - **Status:** ausgearbeitet
+- **Priorität:** P2
 - **Bezug:** ADR 0003 (Pin direkt nach dem Download, `DownloadFileRejected`); Forum §8 Nr. 15
   („manipulierter Download“), Forum §8 Nr. 12 des Problemabgleichs (t=5741, t=3763)
 - **Ziel:** Eine heruntergeladene Datei, die nicht zu ihrem Pin passt, wird verworfen, auf dem
@@ -661,6 +688,7 @@ Gemeinsam für alle Fälle dieses Blocks:
 #### TP-17: TLS 1.2 unter Windows 7 SP1 ohne und mit KB3140245 (nur VM)
 
 - **Status:** ausgearbeitet
+- **Priorität:** P3
 - **Bezug:** R16, ADR 0006 (Hypothese: explizit angeforderte Protokolle genügen ohne KB3140245);
   README „Support“; SERVER-OPERATIONS.md Abschnitt 3.3
 - **Ziel:** Zeigen, ob Updateprüfung, Erreichbarkeitsprüfung und Downloads unter Windows 7 SP1
@@ -757,6 +785,7 @@ Gemeinsam für alle Fälle dieses Blocks:
 #### TP-20: Windows 7: Neuinstallation ohne Kompatibilitätswerte (nur VM)
 
 - **Status:** ausgearbeitet
+- **Priorität:** P3
 - **Bezug:** R15, ADR 0005, Vertrag 3.7; Forum §8 Nr. 5 (t=4280 p=30477 und p=30479, t=1827
   p=12147, t=5814)
 - **Ziel:** Unter Windows 7 bietet das Setup die beiden Kompatibilitätsaufgaben nicht an und schreibt
@@ -801,6 +830,7 @@ Gemeinsam für alle Fälle dieses Blocks:
 #### TP-21: Windows 7: Update entfernt nur die Werte früherer Setups (nur VM)
 
 - **Status:** ausgearbeitet
+- **Priorität:** P3
 - **Bezug:** R15, ADR 0005 (Bereinigung, `IsLegacyVistaCompatValue`), Vertrag 3.7; Forum §8 Nr. 5
   („Unter Windows 7 besonders den Standardfall WINXPSP3 prüfen“)
 - **Ziel:** Ein Update unter Windows 7 entfernt genau die Werte, die frühere Setups dort geschrieben
@@ -878,6 +908,7 @@ Gemeinsam für alle Fälle dieses Blocks:
 #### TP-22: Windows 10/11: Kompatibilitätswerte unverändert
 
 - **Status:** ausgearbeitet
+- **Priorität:** P1
 - **Bezug:** R15, ADR 0005 (ab Windows 8 unverändert), Vertrag 3.4 und 3.7; Forum §8 Nr. 5 (t=5842
   p=39349, t=5748 p=38768)
 - **Ziel:** Ab Windows 8 schreibt das Setup dieselben Werte wie vor S-WP4 (`WIN7RTM`, die Flags der
@@ -924,6 +955,7 @@ Gemeinsam für alle Fälle dieses Blocks:
 #### TP-23: Grafikmatrix mit und ohne DirectX-Wrapper
 
 - **Status:** ausgearbeitet
+- **Priorität:** P2
 - **Bezug:** ADR 0005 (Punkt 2: Wrapper-Vorauswahl bleibt, wählbar), Vertrag 3.3 (`Rasterizer Name`);
   Forum §8 Nr. 3 (t=5751, t=1862, t=1643, t=2884, t=5588, t=5887 p=39385; NeoEE-Einblendung
   t=10968 p=47345)
@@ -981,6 +1013,7 @@ Gemeinsam für alle Fälle dieses Blocks:
 #### TP-24: 150 % Anzeigeskalierung mit und ohne Aufgabe compatibility
 
 - **Status:** ausgearbeitet
+- **Priorität:** P2
 - **Bezug:** Vertrag O4 und 3.3 (`Game Window Width`, `Game Window Height` in physischen Pixeln),
   ADR 0005 (Folgen: ohne `HIGHDPIAWARE` unter Windows 7), R15
 - **Ziel:** Bei 150 % schreibt das Setup die Fenstergröße in physischen Pixeln, und es ist
@@ -1031,6 +1064,7 @@ mit `Get-FileHash`, Setup-Log ohne `/LOG` unter `%TEMP%`.
 #### TP-30: Prüfsumme des Setups und Setup-Log ohne Schalter
 
 - **Status:** geplant: S-WP5
+- **Priorität:** P1
 - **Bezug:** R14, ADR 0008
 - **Ziel:** Die veröffentlichte SHA-256 passt zur Setup-Datei, und jedes Setup schreibt ein Log,
   ohne dass der Spieler `/LOG` kennen muss.
@@ -1045,6 +1079,7 @@ einem älteren Setup.
 #### TP-40: Installationseintrag und install.ini je Variante
 
 - **Status:** geplant: S-WP6
+- **Priorität:** P1
 - **Bezug:** D5, ADR 0004, Vertrag 1.1 und 1.2
 - **Ziel:** Jede Variante hinterlässt genau den Eintrag und die `install.ini`, die der Vertrag
   beschreibt, und die Deinstallation entfernt sie wieder.
@@ -1052,6 +1087,7 @@ einem älteren Setup.
 #### TP-41: Spieleinstellungen für ein zweites Konto
 
 - **Status:** geplant: S-WP6
+- **Priorität:** P2
 - **Bezug:** R1, ADR 0004 (Defaults-Marker), Vertrag 3.5; Forum §8 Nr. 1 (zweites Konto,
   Over-the-Shoulder-Erhöhung)
 - **Ziel:** Zeigen, welche Spieleinstellungen das installierende Konto und welche ein zweites
@@ -1066,6 +1102,7 @@ Rückmeldung“), Dateien, die während der Installation verschwinden.
 #### TP-50: Von Antivirenprogrammen gelöschte Dateien
 
 - **Status:** geplant: S-WP7
+- **Priorität:** P1
 - **Bezug:** R2, R11, ADR 0004 (Punkt 7); Forum §8 Nr. 14 (t=11045, t=41147)
 - **Ziel:** Fehlen wichtige Dateien nach der Installation, nennt das Setup sie und rät zu einer
   Ausnahme im Virenscanner und zur Reparatur.
@@ -1079,6 +1116,7 @@ gefundene fremde oder alte Installationen, Fragen `ForeignFolderQuestion` und
 #### TP-60: Niedrige Bildschirmauflösung
 
 - **Status:** geplant: S-WP8
+- **Priorität:** P2
 - **Bezug:** R13, ADR 0007 (Punkt 1); Forum §8 Nr. 6 (t=3863, t=5831)
 - **Ziel:** Unter 768 Pixeln Höhe warnt das Setup; die Fenstergröße bleibt auf 1024 bis 1920 mal
   768 bis 1080 begrenzt.
@@ -1086,6 +1124,7 @@ gefundene fremde oder alte Installationen, Fragen `ForeignFolderQuestion` und
 #### TP-61: Alte Installation vorhanden
 
 - **Status:** geplant: S-WP8
+- **Priorität:** P2
 - **Bezug:** R12, ADR 0007 (Punkt 2); Forum §8 Nr. 8 (t=1036 p=4756, t=12082 p=49553)
 - **Ziel:** Das Setup meldet eine alte CD- oder GOG-Installation, ändert nichts an ihr und
   erwähnt, dass `Software\Sierra\CDKeys` beim Aufräumen bleiben muss.
@@ -1093,6 +1132,7 @@ gefundene fremde oder alte Installationen, Fragen `ForeignFolderQuestion` und
 #### TP-62: EE und NeoEE im selben Ordner
 
 - **Status:** geplant: S-WP8
+- **Priorität:** P2
 - **Bezug:** ADR 0007 (Punkt 3), Vertrag O11; Forum §8 Nr. 9
 - **Ziel:** Die Frage `SharedFolderQuestion` erscheint, und die Folgen (Integritätsprüfung,
   Deinstallation, Firewall-Regeln) treten wie beschrieben ein.
@@ -1100,6 +1140,7 @@ gefundene fremde oder alte Installationen, Fragen `ForeignFolderQuestion` und
 #### TP-63: Installation in den Ordner einer GOG- oder CD-Installation
 
 - **Status:** geplant: S-WP8
+- **Priorität:** P2
 - **Bezug:** ADR 0007 (Punkt 4); Forum §8 Nr. 21 (t=5733, t=5727, t=12082)
 - **Ziel:** Die Frage `ForeignFolderQuestion` erscheint mit „anderen Ordner wählen“ als Vorgabe;
   in einen eigenen Ordner installiert, laufen GOG- und Community-Version nebeneinander.
@@ -1109,6 +1150,7 @@ gefundene fremde oder alte Installationen, Fragen `ForeignFolderQuestion` und
 #### TP-70: Grundablauf: installieren, starten, deinstallieren
 
 - **Status:** ausgearbeitet
+- **Priorität:** P1
 - **Bezug:** Grundlage aller anderen Fälle; README „Build switches“ (`TestID`); Vertrag 1.3
   (Uninstall-Schlüssel); Forum §8 Nr. 2 (Version, nur Startbild)
 - **Ziel:** Ein Testbuild installiert sich vollständig, das Spiel startet (Weg B), und die
@@ -1167,6 +1209,7 @@ gefundene fremde oder alte Installationen, Fragen `ForeignFolderQuestion` und
 #### TP-71: Als Administrator installieren, als Standardbenutzer spielen
 
 - **Status:** geplant: S-WP9
+- **Priorität:** P2
 - **Bezug:** Forum §8 Nr. 1 (t=3001 p=22273, VirtualStore), Launcher R8
 - **Ziel:** Ob unter `%LOCALAPPDATA%\VirtualStore\…\Empire Earth` Dateien entstehen
   (`_won*`, `neoee.log`, `upnp_info.txt`) und ob die Version im Hauptmenü mit und ohne
@@ -1175,6 +1218,7 @@ gefundene fremde oder alte Installationen, Fragen `ForeignFolderQuestion` und
 #### TP-72: Versionsanzeige und Mehrspieler zwischen zwei Installationen
 
 - **Status:** geplant: S-WP9
+- **Priorität:** P3
 - **Bezug:** Forum §8 Nr. 2 (t=11034 p=47982), Forum 4.12
 - **Ziel:** EE und AoC zeigen den erwarteten NeoEE-Stand, und zwei Setup-Installationen treten
   einem Mehrspielerspiel ohne Versionskonflikt bei.
@@ -1182,6 +1226,7 @@ gefundene fremde oder alte Installationen, Fragen `ForeignFolderQuestion` und
 #### TP-73: Reparatur durch erneutes Ausführen des Setups
 
 - **Status:** geplant: S-WP9
+- **Priorität:** P1
 - **Bezug:** Forum §8 Nr. 4 (t=10931, 16 Bit) und Nr. 22 (t=5825, t=10915, t=11034),
   Vertrag 4
 - **Ziel:** Ein erneuter Lauf über eine veränderte oder teilweise beschädigte Installation stellt
@@ -1191,6 +1236,7 @@ gefundene fremde oder alte Installationen, Fragen `ForeignFolderQuestion` und
 #### TP-74: AoC ohne vorherigen Start von EE
 
 - **Status:** geplant: S-WP9
+- **Priorität:** P2
 - **Bezug:** Forum §8 Nr. 7 (t=2825), Forum 4.5
 - **Ziel:** The Art of Conquest startet direkt nach der Installation, weil das Setup
   `Installed From` setzt.
@@ -1198,6 +1244,7 @@ gefundene fremde oder alte Installationen, Fragen `ForeignFolderQuestion` und
 #### TP-75: EE und NeoEE in getrennten Ordnern, eines deinstallieren
 
 - **Status:** geplant: S-WP9
+- **Priorität:** P2
 - **Bezug:** Forum §8 Nr. 9
 - **Ziel:** Nach der Deinstallation eines Produkts bleiben Firewall-Regeln, CD-Keys und Registry
   des anderen erhalten.
@@ -1205,6 +1252,7 @@ gefundene fremde oder alte Installationen, Fragen `ForeignFolderQuestion` und
 #### TP-76: Firewall-Regeln beim Hosten
 
 - **Status:** geplant: S-WP9
+- **Priorität:** P2
 - **Bezug:** Forum §8 Nr. 10, Forum 4.9
 - **Ziel:** Mit der Aufgabe `firewallexception` kommen Mitspieler ohne Windows-Firewall-Dialog ins
   gehostete NeoEE-Spiel, im Netzwerkprofil „Öffentlich“ und „Privat“; Gegenprobe ohne Aufgabe.
@@ -1212,6 +1260,7 @@ gefundene fremde oder alte Installationen, Fragen `ForeignFolderQuestion` und
 #### TP-77: NeoEE-CD-Keys bei gesperrtem Server und in einer VM
 
 - **Status:** geplant: S-WP9
+- **Priorität:** P2
 - **Bezug:** Forum §8 Nr. 13 (t=10950), Forum 4.19
 - **Ziel:** Bei gesperrtem `neoee.net:10003` und in einer VM erscheint die passende verständliche
   Meldung; `CDKeyCheck` in `WONLobby.cfg` steht auf `true`; `Software\Sierra\CDKeys` wird nie
@@ -1220,6 +1269,7 @@ gefundene fremde oder alte Installationen, Fragen `ForeignFolderQuestion` und
 #### TP-78: Deutsche Sprachversion von EE und AoC
 
 - **Status:** geplant: S-WP9
+- **Priorität:** P2
 - **Bezug:** Forum §8 Nr. 16 (t=1610, t=4726, t=11041, t=1905) und Nr. 13 des Problemabgleichs
 - **Ziel:** Mit Deutsch sind Space Age und die Spezial-Zivilisationen von AoC wählbar und die
   deutschen Kampagnen starten.
@@ -1227,6 +1277,7 @@ gefundene fremde oder alte Installationen, Fragen `ForeignFolderQuestion` und
 #### TP-79: Setup bei laufendem Spiel
 
 - **Status:** geplant: S-WP9
+- **Priorität:** P2
 - **Bezug:** Forum §8 Nr. 18 (t=2815, t=5859)
 - **Ziel:** Läuft EE oder AoC, verhindert das Setup die Installation (`AppMutex`) mit einem
   verständlichen Hinweis.
@@ -1282,7 +1333,9 @@ Tabelle und den Logs der betroffenen Läufe (vorher auf persönliche Daten anseh
 
 - jede ID ist als Überschrift `#### TP-xy: …` genau einmal definiert,
 - jeder Fall hat einen gültigen Status; ein ausgearbeiteter Fall hat alle Felder der Vorlage,
-  ein geplanter mindestens `Bezug` und `Ziel`,
+  ein geplanter mindestens `Priorität`, `Bezug` und `Ziel`,
+- jeder Fall hat eine gültige Priorität: `P1`, `P2` oder `P3`, höchstens gefolgt von einer
+  Bemerkung in Klammern ([Abschnitt 4](#4-vorlage-je-fall)),
 - die Tabelle in [Abschnitt 8](#8-forum-testfälle-8) hat die Nummern 1 bis 22 je einmal, jede mit
   einer ID oder mit „Launcher“/„entfällt“ und Grund, und ihre Spalte „Stand“ passt zum Status der
   genannten Fälle,

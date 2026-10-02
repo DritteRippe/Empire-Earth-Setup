@@ -11,8 +11,10 @@ Errors (exit code 1):
     defined twice,
   - a test case has no valid status ("ausgearbeitet", "geplant: S-WP<n>" or "entfällt: <reason>"),
     an unknown or repeated field, or misses a field: a worked-out case ("ausgearbeitet") needs every
-    field of the template (section 4 of the plan), a planned or dropped one at least "Bezug" and
-    "Ziel",
+    field of the template (section 4 of the plan), a planned or dropped one at least "Priorität",
+    "Bezug" and "Ziel",
+  - a test case has no valid priority: "Priorität" is "P1", "P2" or "P3", optionally followed by a
+    remark in parentheses ("P2 (P1 mit Weg B)"),
   - the table of the forum test cases (section "Forum-Testfälle", report section 8) does not list
     the numbers 1 to 22 exactly once each; a row names neither a test case id nor "Launcher:" or
     "entfällt:" with a reason; or its column "Stand" does not match the status of the cases it
@@ -35,9 +37,12 @@ from pathlib import Path
 
 TEST_PLAN = "docs/TEST-PLAN.de.md"
 FORUM_NUMBERS = range(1, 23)
-FIELDS = ["Status", "Bezug", "Ziel", "Build-Art", "Ausgangszustand", "Snapshot", "Varianten",
-          "Schritte", "Erwartetes Ergebnis", "Log-Hinweis"]
-REQUIRED_PLANNED = ["Status", "Bezug", "Ziel"]
+FIELDS = ["Status", "Priorität", "Bezug", "Ziel", "Build-Art", "Ausgangszustand", "Snapshot",
+          "Varianten", "Schritte", "Erwartetes Ergebnis", "Log-Hinweis"]
+REQUIRED_PLANNED = ["Status", "Priorität", "Bezug", "Ziel"]
+# P1: short run before every release, P2: important, outside the short run, P3: optional (section 4)
+PRIORITIES = ("P1", "P2", "P3")
+PRIORITY = re.compile(r"(P\d+)(?:\s+\(.+\))?")
 CASE_HEADING = re.compile(r"^(#{2,6})\s+(TP-\S*?):?\s+(.*)$")
 VALID_ID = re.compile(r"^TP-\d\d$")
 FIELD_LINE = re.compile(r"^- \*\*([^*:]+):\*\*(.*)$")
@@ -119,6 +124,12 @@ def status_of(case):
     return None, None
 
 
+def priority_of(case):
+    """"P1" | "P2" | "P3", or None if the field is missing or not valid."""
+    match = PRIORITY.fullmatch(case["fields"].get("Priorität", ""))
+    return match.group(1) if match and match.group(1) in PRIORITIES else None
+
+
 def check_cases(cases, errors):
     for case_id, case in sorted(cases.items()):
         where = f"{TEST_PLAN}:{case['line']}: {case_id}"
@@ -132,6 +143,10 @@ def check_cases(cases, errors):
             if not case["fields"].get(name):
                 errors.append(f"{where}: field '{name}' is missing or empty "
                               f"(required for status '{kind}')")
+        priority = case["fields"].get("Priorität")
+        if priority and priority_of(case) is None:
+            errors.append(f"{where}: priority '{priority}' is not P1, P2 or P3 (optionally "
+                          "followed by a remark in parentheses)")
 
 
 def forum_table(lines, errors):
@@ -263,9 +278,12 @@ def check(root):
     check_forum_table(forum_table(lines, errors), cases, errors)
     references, files = check_references(root, cases, errors)
     kinds = [status_of(case)[0] for case in cases.values()]
+    priorities = [priority_of(case) for case in cases.values()]
     summary = (f"{TEST_PLAN}: OK ({len(cases)} test cases: {kinds.count('ausgearbeitet')} worked out, "
-               f"{kinds.count('geplant')} planned, {kinds.count('entfällt')} dropped; forum test "
-               f"cases 1 to 22 assigned; {references} id references in {files} Markdown files)")
+               f"{kinds.count('geplant')} planned, {kinds.count('entfällt')} dropped; "
+               + ", ".join(f"{priorities.count(p)} {p}" for p in PRIORITIES)
+               + f"; forum test cases 1 to 22 assigned; {references} id references in {files} "
+               "Markdown files)")
     return errors, summary
 
 
@@ -338,7 +356,7 @@ def self_test(source_root):
     adr = "docs/adr/0006-strict-tls-and-server-certificates.md"
     cases = [
         ("unmodified copy", None, None),
-        ("test case id defined twice", append(TEST_PLAN, "\n#### TP-00: copy\n\n- **Status:** geplant: S-WP9\n"),
+        ("test case id defined twice", append(TEST_PLAN, "\n#### TP-00: copy\n\n- **Status:** geplant: S-WP9\n- **Priorität:** P2\n"),
          "TP-00 is defined twice"),
         ("malformed test case heading", append(TEST_PLAN, "\n#### TP-7: one digit\n"),
          "malformed test case heading"),
@@ -362,11 +380,27 @@ def self_test(source_root):
          "TP-00: field 'Log-Hinweis' is missing"),
         # Appended cases, so that these two do not depend on which cases are still planned
         ("invalid status",
-         append(TEST_PLAN, "\n#### TP-90: x\n\n- **Status:** später\n- **Bezug:** x\n- **Ziel:** y\n"),
+         append(TEST_PLAN, "\n#### TP-90: x\n\n- **Status:** später\n- **Priorität:** P2\n- **Bezug:** x\n- **Ziel:** y\n"),
          "TP-90: status 'später' is not 'ausgearbeitet'"),
         ("planned case with a misspelled field instead of 'Ziel'",
-         append(TEST_PLAN, "\n#### TP-91: x\n\n- **Status:** geplant: S-WP9\n- **Bezug:** x\n- **Zweck:** y\n"),
+         append(TEST_PLAN, "\n#### TP-91: x\n\n- **Status:** geplant: S-WP9\n- **Priorität:** P2\n- **Bezug:** x\n- **Zweck:** y\n"),
          "TP-91: field 'Ziel' is missing"),
+        # Priority (section 4): required for every case, P1 to P3 only
+        ("worked-out case without 'Priorität'", edit(TEST_PLAN, "- **Status:** ausgearbeitet\n- **Priorität:** P1\n- **Bezug:** R16",
+                                                    "- **Status:** ausgearbeitet\n- **Bezug:** R16"),
+         "TP-00: field 'Priorität' is missing"),
+        ("worked-out case with priority 'P4'", edit(TEST_PLAN, "- **Status:** ausgearbeitet\n- **Priorität:** P1\n- **Bezug:** R16",
+                                                   "- **Status:** ausgearbeitet\n- **Priorität:** P4\n- **Bezug:** R16"),
+         "TP-00: priority 'P4' is not P1, P2 or P3"),
+        ("priority with text instead of a remark in parentheses",
+         append(TEST_PLAN, "\n#### TP-92: x\n\n- **Status:** geplant: S-WP9\n- **Priorität:** P1 wichtig\n- **Bezug:** x\n- **Ziel:** y\n"),
+         "TP-92: priority 'P1 wichtig' is not P1, P2 or P3"),
+        ("planned case without 'Priorität'",
+         append(TEST_PLAN, "\n#### TP-93: x\n\n- **Status:** geplant: S-WP9\n- **Bezug:** x\n- **Ziel:** y\n"),
+         "TP-93: field 'Priorität' is missing"),
+        ("priority with a remark in parentheses passes",
+         append(TEST_PLAN, "\n#### TP-94: x\n\n- **Status:** geplant: S-WP9\n- **Priorität:** P2 (P1 mit Weg B)\n- **Bezug:** x\n- **Ziel:** y\n"),
+         None),
         ("test plan missing", lambda root: (root / TEST_PLAN).unlink(), "not found"),
     ]
     failures = 0
