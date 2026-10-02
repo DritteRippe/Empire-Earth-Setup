@@ -534,6 +534,9 @@ begin
 end;
 
 const
+  // The state files in the setup data folder (contract 1.2, 2.1)
+  InstallIniFileName = 'install.ini';
+  ManifestFileName = 'files.sha256';
   // Suffix of the temporary file that ReplaceStateFile writes first (install.ini.tmp)
   StateFileTempSuffix = '.tmp';
 
@@ -827,4 +830,209 @@ begin
     Ms := 1;
   Result := 'Manifest: ' + IntToStr(FileCount) + ' files, ' + TenthsToStr((Bytes * 10 + 524288) div 1048576) + ' MB, ' +
     IntToStr(ElapsedMs) + ' ms, ' + TenthsToStr((Bytes * 10000 + Ms * 524288) div (Ms * 1048576)) + ' MB/s';
+end;
+
+// Milliseconds since system start (wraps after 49.7 days, see TicksSince)
+function GetTickCount: DWORD;
+  external 'GetTickCount@kernel32.dll stdcall';
+
+// Milliseconds since Started (a GetTickCount value), also across a wrap of GetTickCount
+function TicksSince(const Started: DWORD): Int64;
+var
+  Wrap: Int64;
+begin
+  Result := Int64(GetTickCount) - Int64(Started);
+  if Result < 0 then
+  begin
+    Wrap := 65536;
+    Result := Result + Wrap * 65536;
+  end;
+end;
+
+const
+  // Attempts to hash one file (HashFileWithRetries) and the pause before each further attempt: a
+  // virus scanner may hold a file it has just checked for a moment (ADR 0004 point 4)
+  ManifestHashAttempts = 3;
+  ManifestHashRetryDelayMs = 300;
+
+// SHA-256 of the file FileName in lowercase hex. GetSHA256OfFile raises an exception on every read
+// error (no access, a program holds the file open without sharing it for reading), so it is called
+// in try/except up to ManifestHashAttempts times, ManifestHashRetryDelayMs apart; every failed
+// attempt is logged with the exception. True and Hash if an attempt worked, else False with the
+// exception of the last attempt in Error. No exception escapes.
+function HashFileWithRetries(const FileName: String; var Hash, Error: String): Boolean;
+var
+  Attempt: Integer;
+begin
+  Result := False;
+  Hash := '';
+  Error := '';
+  Attempt := 0;
+  while (not Result) and (Attempt < ManifestHashAttempts) do
+  begin
+    Attempt := Attempt + 1;
+    if Attempt > 1 then
+      Sleep(ManifestHashRetryDelayMs);
+    try
+      Hash := LowerCase(GetSHA256OfFile(FileName));
+      Result := True;
+    except
+      Error := GetExceptionMessage;
+      Log('Unable to hash ' + FileName + ' (attempt ' + IntToStr(Attempt) + ' of ' + IntToStr(ManifestHashAttempts) + '): ' + Error);
+    end;
+  end;
+end;
+
+// Adds to Files the destination of every file that an external [Files] entry with the source
+// "<SourceDir>\*", DestDir DestDir and recursesubdirs installs, as Inno Setup's
+// RecurseExternalCopyFiles picks them (Install.pas): every file that is not hidden, in SourceDir and
+// in its subfolders that are not hidden, as DestDir + its path below SourceDir. Nothing if SourceDir
+// does not exist. Used for the verified online files in {tmp}\verified (ADR 0004 point 3).
+procedure CollectExternalFiles(const SourceDir, DestDir: String; const Files: TStringList);
+var
+  FindRec: TFindRec;
+begin
+  if FindFirst(SourceDir + '\*', FindRec) then
+  try
+    repeat
+      if (FindRec.Attributes and FILE_ATTRIBUTE_HIDDEN) = 0 then
+      begin
+        if (FindRec.Attributes and FILE_ATTRIBUTE_DIRECTORY) = 0 then
+          Files.Add(DestDir + '\' + FindRec.Name)
+        else if (FindRec.Name <> '.') and (FindRec.Name <> '..') then
+          CollectExternalFiles(SourceDir + '\' + FindRec.Name, DestDir + '\' + FindRec.Name, Files);
+      end;
+    until not FindNext(FindRec);
+  finally
+    FindClose(FindRec);
+  end;
+end;
+
+// The manifest paths of the recorded destinations Recorded (full paths in any order, duplicates
+// allowed): GetManifestPath below InstallRoot, without the paths IsManifestExcludedPath leaves out
+// (setup data folder SetupDataDir, uninstaller), sorted by MergeSortManifestPaths and without
+// duplicates (RemoveDuplicateManifestPaths). A path GetManifestPath refuses (outside the root, ':',
+// '..') is logged and left out.
+function GetManifestPaths(const InstallRoot, SetupDataDir: String; const Recorded: TStringList): TArrayOfString;
+var
+  I, Count: Integer;
+  RelPath: String;
+begin
+  SetArrayLength(Result, Recorded.Count);
+  Count := 0;
+  for I := 0 to Recorded.Count - 1 do
+  begin
+    if not GetManifestPath(InstallRoot, Recorded[I], RelPath) then
+      Log('Not in the manifest: ' + Recorded[I] + ' (not a valid path below ' + InstallRoot + ')')
+    else if not IsManifestExcludedPath(RelPath, SetupDataDir) then
+    begin
+      Result[Count] := RelPath;
+      Count := Count + 1;
+    end;
+  end;
+  SetArrayLength(Result, Count);
+  MergeSortManifestPaths(Result);
+  RemoveDuplicateManifestPaths(Result);
+end;
+
+// Hashes the files of Paths (manifest paths below InstallRoot, sorted and unique) for files.sha256
+// (contract 2.2): Text gets a ManifestLine for every file that exists, Missing the paths of the
+// files that do not exist (any more, e.g. deleted by a virus scanner; each one logged), FileCount
+// and Bytes the number and size of the hashed files. Returns False if the manifest must not be
+// written: a path is not ASCII (contract 2.2, logged), or a file could not be hashed after its
+// retries (HashFileWithRetries; the file and the exception are logged). After that the remaining
+// files are only checked for existence. ProgressPage, if not nil, shows Status, the file and the
+// progress per file (its SetProgress processes window messages, so Windows does not mark the wizard
+// as not responding while about 1.5 GB are read).
+function HashManifestFiles(const InstallRoot: String; const Paths: TArrayOfString;
+  const ProgressPage: TOutputProgressWizardPage; const Status: String;
+  var Text: String; var Missing: TArrayOfString; var FileCount: Integer; var Bytes: Int64): Boolean;
+var
+  I, MissingCount: Integer;
+  FullPath, Hash, Error: String;
+  Size: Int64;
+begin
+  Result := True;
+  Text := '';
+  FileCount := 0;
+  Bytes := 0;
+  MissingCount := 0;
+  SetArrayLength(Missing, GetArrayLength(Paths));
+  for I := 0 to GetArrayLength(Paths) - 1 do
+  begin
+    FullPath := AddBackslash(InstallRoot) + Paths[I];
+    StringChangeEx(FullPath, '/', '\', True);
+    if ProgressPage <> nil then
+    begin
+      ProgressPage.SetText(Status, FullPath);
+      ProgressPage.SetProgress(I, GetArrayLength(Paths));
+    end;
+    if Result and not IsAsciiText(Paths[I]) then
+    begin
+      Result := False;
+      Log('No manifest in this run: the path is not ASCII (contract 2.2): ' + FullPath);
+    end;
+    if not FileExists(FullPath) then
+    begin
+      Missing[MissingCount] := Paths[I];
+      MissingCount := MissingCount + 1;
+      Log('Installed file missing after the installation (deleted or moved, e.g. by an antivirus program): ' + FullPath);
+    end
+    else if Result then
+    begin
+      if HashFileWithRetries(FullPath, Hash, Error) then
+      begin
+        Text := Text + ManifestLine(Hash, Paths[I]);
+        FileCount := FileCount + 1;
+        if FileSize64(FullPath, Size) then
+          Bytes := Bytes + Size;
+      end
+      else
+      begin
+        Result := False;
+        Log('No manifest in this run: unable to hash ' + FullPath + ' after ' + IntToStr(ManifestHashAttempts) + ' attempts: ' + Error);
+      end;
+    end;
+  end;
+  SetArrayLength(Missing, MissingCount);
+  if (ProgressPage <> nil) and (GetArrayLength(Paths) > 0) then
+    ProgressPage.SetProgress(GetArrayLength(Paths), GetArrayLength(Paths));
+end;
+
+// Writes the state files of this run into the setup data folder InstallRoot\SetupDataDir
+// (contract 1.2, 2.1, 2.2; ADR 0004 point 4): hashes the files of Recorded (full paths of the
+// processed destinations, GetManifestPaths, HashManifestFiles) and logs FormatManifestSummary; then
+// files.sha256, if the manifest is complete, and install.ini with the text IniText (BuildInstallIniText)
+// and [MissingAfterInstall] for the files that are gone, both with ReplaceStateFile (ASCII check,
+// temporary file, the target deleted and gone before the rename). Returns True if install.ini was
+// written; ManifestWritten tells the same of files.sha256, Missing gives the manifest paths of the
+// files that are gone (also those that are not ASCII, for the notice). If the manifest is not
+// complete, no files.sha256 is written at all: the one of the previous run was deleted at
+// ssInstall (DeleteStateFile; if that failed, the uninstall key gets no contract version). Every
+// outcome is logged; nothing is shown.
+function WriteInstallStateFiles(const InstallRoot, SetupDataDir: String; const Recorded: TStringList;
+  const IniText: String; const ProgressPage: TOutputProgressWizardPage; const Status: String;
+  var ManifestWritten: Boolean; var Missing: TArrayOfString): Boolean;
+var
+  StateDir, Text: String;
+  Paths: TArrayOfString;
+  Complete: Boolean;
+  FileCount: Integer;
+  Bytes: Int64;
+  Started: DWORD;
+begin
+  ManifestWritten := False;
+  StateDir := AddBackslash(InstallRoot) + SetupDataDir + '\';
+  Paths := GetManifestPaths(InstallRoot, SetupDataDir, Recorded);
+  Started := GetTickCount;
+  Complete := HashManifestFiles(InstallRoot, Paths, ProgressPage, Status, Text, Missing, FileCount, Bytes);
+  Log(FormatManifestSummary(FileCount, Bytes, TicksSince(Started)));
+  if not Complete then
+    Log('Not writing ' + StateDir + ManifestFileName + ': the manifest of this run is not complete (see above)')
+  else if ReplaceStateFile(StateDir + ManifestFileName, Text) then
+  begin
+    ManifestWritten := True;
+    Log('Wrote ' + StateDir + ManifestFileName + ' (' + IntToStr(FileCount) + ' files, ' + IntToStr(GetArrayLength(Missing)) + ' missing)');
+  end;
+  Result := ReplaceStateFile(StateDir + InstallIniFileName, IniText + BuildMissingAfterInstallText(Missing));
 end;

@@ -23,12 +23,11 @@
 // The setup data folder {app}\{#SetupDataDir} is created by [Dirs]; only administrators (admin
 // mode) or the installing user (user and portable mode) can write to it.
 // Requires: utils.iss (InstallModeName, BuildInstallIniText, ShouldWriteContractVersionValue,
-// DeleteStateFile, ReplaceStateFile, StateFileTempSuffix, GetUninstallRegPath); ISPP:
+// DeleteStateFile, ReplaceStateFile, StateFileTempSuffix, InstallIniFileName, GetUninstallRegPath); ISPP:
 // ContractVersion, InstallType, InstallMode, AppID, MyAppVersion, MySetupVersion, SetupBuild,
 // SetupDataDir (setup_is6.iss, config_*.iss).
 
 const
-  InstallIniFileName = 'install.ini';
   // Value of the uninstall key (contract 1.3), REG_DWORD = ContractVersion
   ContractVersionValueName = 'Empire Earth Community: ContractVersion';
   // Variant of this build: Portable has no uninstall key and no install record

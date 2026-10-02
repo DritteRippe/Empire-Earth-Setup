@@ -6,7 +6,8 @@
 ; a text file and exits without installing anything (InitializeSetup returns False). It sends no
 ; request and needs no network: only functions that compute something are tested, plus one run-time
 ; test that sets the TLS protocol option on a WinHttpRequest object without sending anything, and
-; one file-level test that writes state files in a folder of its own temporary folder ({tmp}).
+; file-level tests that write state files (install.ini, files.sha256) for files they create in a
+; folder of their own temporary folder ({tmp}).
 ;
 ; Build and run (ci/run_unit_tests.ps1 does both and checks the result):
 ;   ISCC ci\tests\unit_tests.iss
@@ -34,6 +35,18 @@ CreateAppDir=no
 // Inno Setup's Pascal Script)
 function SetFileAttributes(lpFileName: String; dwFileAttributes: Cardinal): BOOL;
   external 'SetFileAttributesW@kernel32.dll stdcall';
+// For the file-level test of the manifest: a file held open without sharing, as a virus scanner may
+// hold a file it checks
+function CreateFile(lpFileName: String; dwDesiredAccess, dwShareMode, lpSecurityAttributes,
+  dwCreationDisposition, dwFlagsAndAttributes, hTemplateFile: Cardinal): Cardinal;
+  external 'CreateFileW@kernel32.dll stdcall';
+function CloseHandle(hObject: Cardinal): BOOL;
+  external 'CloseHandle@kernel32.dll stdcall';
+
+const
+  GENERIC_READ = $80000000;
+  OPEN_EXISTING = 3;
+  INVALID_HANDLE_VALUE = $FFFFFFFF;
 
 var
   Results: TStringList;
@@ -949,6 +962,182 @@ begin
     'Manifest: 1 files, 1.0 MB, 0 ms, 1000.0 MB/s');
 end;
 
+// The bytes of files.sha256 as contract 2.2 asks: no BOM, only ASCII, no CR, LF at the end (if not
+// empty)
+procedure CheckManifestBytes(const Name, FileName: String);
+var
+  Bytes: AnsiString;
+  I: Integer;
+  Ascii: Boolean;
+begin
+  if not LoadStringFromFile(FileName, Bytes) then
+  begin
+    CheckBool(Name + ': file readable', False, True);
+    Exit;
+  end;
+  CheckBool(Name + ': no UTF-8 BOM', Copy(Bytes, 1, 3) = #$EF#$BB#$BF, False);
+  Ascii := True;
+  for I := 1 to Length(Bytes) do
+    if Ord(Bytes[I]) > 127 then
+      Ascii := False;
+  CheckBool(Name + ': only ASCII bytes', Ascii, True);
+  Check(Name + ': no CR', IntToStr(Pos(#13, Bytes)), '0');
+  if Length(Bytes) > 0 then
+    Check(Name + ': LF at the end', IntToStr(Ord(Bytes[Length(Bytes)])), '10');
+end;
+
+// Creates the file Root\RelPath (Windows path) with Content
+procedure CreateTestFile(const Root, RelPath, Content: String);
+begin
+  ForceDirectories(ExtractFileDir(Root + '\' + RelPath));
+  if not SaveStringToFile(Root + '\' + RelPath, Content, False) then
+    CheckBool('test file ' + RelPath + ' created', False, True);
+end;
+
+// The expected manifest line of the file Root\<RelPath>, with GetSHA256OfFile as the reference
+function ExpectedLine(const Root, RelPath: String): String;
+var
+  FullPath: String;
+begin
+  FullPath := Root + '\' + RelPath;
+  StringChangeEx(FullPath, '/', '\', True);
+  Result := LowerCase(GetSHA256OfFile(FullPath)) + '  ' + RelPath + #10;
+end;
+
+// File level, in a folder of {tmp}: an installation of a few files, one of them deleted before the
+// manifest is written, others recorded twice, outside the root or in excluded places; the verified
+// online files of an external entry; a file that cannot be hashed; a path that is not ASCII
+procedure TestManifestFiles;
+var
+  Root, Verified, StateDir, Manifest, Ini, IniText, Expected, Hash, Error: String;
+  Recorded: TStringList;
+  Missing: TArrayOfString;
+  ManifestWritten, IniWritten: Boolean;
+  Handle: Cardinal;
+  Started: DWORD;
+  Elapsed: Int64;
+begin
+  Root := ExpandConstant('{tmp}\manifest_root');
+  Verified := ExpandConstant('{tmp}\manifest_verified');
+  StateDir := Root + '\_setupdata_EE';
+  Manifest := StateDir + '\files.sha256';
+  Ini := StateDir + '\install.ini';
+  Check('manifest: file name', ExtractFileName(Manifest), ManifestFileName);
+  CheckBool('manifest: setup data folder created', ForceDirectories(StateDir), True);
+  CreateTestFile(Root, 'Empire Earth\Empire Earth.exe', 'program');
+  CreateTestFile(Root, 'Empire Earth\DDraw.dll', 'wrapper');
+  CreateTestFile(Root, 'Empire Earth\Data\data.ssa', 'game data');
+  CreateTestFile(Root, 'Empire Earth\Data\empty.cfg', '');
+  CreateTestFile(Root, 'Empire Earth - The Art of Conquest\EE-AOC.exe', 'expansion');
+  CreateTestFile(Root, 'Tools\Diagnostic\EE-Diagnostic.exe', 'tool');
+  CreateTestFile(Root, '_setupdata_EE\EEStatsSetup.dll', 'setup data');
+  CreateTestFile(Root, 'unins000.exe', 'uninstaller');
+  // An online file verified into {tmp}\verified\EE and installed by the external entry, and a
+  // hidden file there that the entry does not pick
+  CreateTestFile(Verified, 'EE\Data\Campaigns\EELearningCampaign.ssa', 'campaign');
+  CreateTestFile(Root, 'Empire Earth\Data\Campaigns\EELearningCampaign.ssa', 'campaign');
+  CreateTestFile(Verified, 'EE\Data\hidden.ssa', 'hidden');
+  SetFileAttributes(Verified + '\EE\Data\hidden.ssa', FILE_ATTRIBUTE_HIDDEN);
+  IniText := BuildInstallIniText(1, 'EE', '00000000-0000-0000-0000-0000000000EE', 'admin', '2.0.0.0', '1.7.2', '',
+    'game,gameaoc,language,language\de,language\update', '', '2026-10-02 18:04:31');
+
+  Recorded := TStringList.Create;
+  try
+    // In the order of [Files], with a later entry that installs a file again in another case
+    Recorded.Add(Root + '\EMPIRE EARTH\EMPIRE EARTH.EXE');
+    Recorded.Add(Root + '\_setupdata_EE\EEStatsSetup.dll');
+    Recorded.Add(Root + '\Empire Earth\Data\data.ssa');
+    Recorded.Add(Root + '\Empire Earth\DDraw.dll');
+    Recorded.Add(Root + '\Empire Earth\Data\empty.cfg');
+    Recorded.Add(Root + '\Empire Earth - The Art of Conquest\EE-AOC.exe');
+    Recorded.Add(Root + '\Tools\Diagnostic\EE-Diagnostic.exe');
+    Recorded.Add(Root + '\Empire Earth\Empire Earth.exe');
+    Recorded.Add(Root + '\unins000.exe');
+    Recorded.Add(ExpandConstant('{tmp}') + '\outside.dll');
+    CollectExternalFiles(Verified + '\EE', Root + '\Empire Earth', Recorded);
+    CollectExternalFiles(Verified + '\AoC', Root + '\Empire Earth - The Art of Conquest', Recorded);
+    Check('CollectExternalFiles: the file that is not hidden', IntToStr(Recorded.Count) + ' ' + Recorded[Recorded.Count - 1],
+      '11 ' + Root + '\Empire Earth\Data\Campaigns\EELearningCampaign.ssa');
+
+    // The antivirus deletes one file during the installation
+    CheckBool('manifest: one installed file deleted', DeleteFile(Root + '\Empire Earth\DDraw.dll'), True);
+    SaveStringToFile(Manifest + StateFileTempSuffix, 'left by an aborted run', False);
+    IniWritten := WriteInstallStateFiles(Root, '_setupdata_EE', Recorded, IniText, nil, '', ManifestWritten, Missing);
+    CheckBool('WriteInstallStateFiles: install.ini written', IniWritten, True);
+    CheckBool('WriteInstallStateFiles: files.sha256 written', ManifestWritten, True);
+    Expected := ExpectedLine(Root, 'Empire Earth - The Art of Conquest/EE-AOC.exe') +
+      ExpectedLine(Root, 'Empire Earth/Data/Campaigns/EELearningCampaign.ssa') +
+      ExpectedLine(Root, 'Empire Earth/Data/data.ssa') +
+      ExpectedLine(Root, 'Empire Earth/Data/empty.cfg') +
+      ExpectedLine(Root, 'Empire Earth/Empire Earth.exe') +
+      ExpectedLine(Root, 'Tools/Diagnostic/EE-Diagnostic.exe');
+    Check('WriteInstallStateFiles: files.sha256 in order, hashes of GetSHA256OfFile, each file once, without the deleted, excluded and outside files',
+      FileText(Manifest), Expected);
+    Check('WriteInstallStateFiles: SHA-256 of the empty file',
+      Copy(ExpectedLine(Root, 'Empire Earth/Data/empty.cfg'), 1, 64), 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855');
+    CheckManifestBytes('WriteInstallStateFiles: files.sha256', Manifest);
+    CheckBool('WriteInstallStateFiles: no files.sha256.tmp left', FileExists(Manifest + StateFileTempSuffix), False);
+    CheckBool('WriteInstallStateFiles: no install.ini.tmp left', FileExists(Ini + StateFileTempSuffix), False);
+    Check('WriteInstallStateFiles: missing files', JoinedPaths(Missing), 'Empire Earth/DDraw.dll');
+    Check('WriteInstallStateFiles: install.ini with [MissingAfterInstall]', FileText(Ini),
+      IniText + #13#10 + '[MissingAfterInstall]' + #13#10 + '1=Empire Earth/DDraw.dll' + #13#10);
+    CheckStateFileBytes('WriteInstallStateFiles: install.ini', Ini);
+
+    // Everything there again: no [MissingAfterInstall]; an existing manifest is replaced
+    CreateTestFile(Root, 'Empire Earth\DDraw.dll', 'wrapper');
+    IniWritten := WriteInstallStateFiles(Root, '_setupdata_EE', Recorded, IniText, nil, '', ManifestWritten, Missing);
+    CheckBool('WriteInstallStateFiles over the old files: both written', IniWritten and ManifestWritten, True);
+    Check('WriteInstallStateFiles over the old files: nothing missing', IntToStr(GetArrayLength(Missing)), '0');
+    Check('WriteInstallStateFiles over the old files: install.ini without [MissingAfterInstall]', FileText(Ini), IniText);
+    Check('WriteInstallStateFiles over the old files: the file that is back is listed in its place', FileText(Manifest),
+      ExpectedLine(Root, 'Empire Earth - The Art of Conquest/EE-AOC.exe') +
+      ExpectedLine(Root, 'Empire Earth/Data/Campaigns/EELearningCampaign.ssa') +
+      ExpectedLine(Root, 'Empire Earth/Data/data.ssa') +
+      ExpectedLine(Root, 'Empire Earth/Data/empty.cfg') +
+      ExpectedLine(Root, 'Empire Earth/DDraw.dll') +
+      ExpectedLine(Root, 'Empire Earth/Empire Earth.exe') +
+      ExpectedLine(Root, 'Tools/Diagnostic/EE-Diagnostic.exe'));
+
+    // A file held open without sharing: retries, then no manifest (the old one was deleted at
+    // ssInstall), install.ini is still written
+    Handle := CreateFile(Root + '\Empire Earth\Data\data.ssa', GENERIC_READ, 0, 0, OPEN_EXISTING, 0, 0);
+    CheckBool('locked file: held open without sharing', Handle <> INVALID_HANDLE_VALUE, True);
+    Started := GetTickCount;
+    CheckBool('HashFileWithRetries of a locked file fails', HashFileWithRetries(Root + '\Empire Earth\Data\data.ssa', Hash, Error), False);
+    Elapsed := TicksSince(Started);
+    CheckBool('HashFileWithRetries of a locked file: the exception (' + Error + ')', Error <> '', True);
+    CheckBool('HashFileWithRetries of a locked file: two pauses of 300 ms (' + IntToStr(Elapsed) + ' ms)', Elapsed >= 550, True);
+    CheckBool('locked file: old manifest deleted (ssInstall)', DeleteStateFile(Manifest), True);
+    IniWritten := WriteInstallStateFiles(Root, '_setupdata_EE', Recorded, IniText, nil, '', ManifestWritten, Missing);
+    CheckBool('WriteInstallStateFiles with a locked file: no manifest', ManifestWritten, False);
+    CheckBool('WriteInstallStateFiles with a locked file: no files.sha256', FileExists(Manifest), False);
+    CheckBool('WriteInstallStateFiles with a locked file: no files.sha256.tmp', FileExists(Manifest + StateFileTempSuffix), False);
+    CheckBool('WriteInstallStateFiles with a locked file: install.ini written', IniWritten, True);
+    CloseHandle(Handle);
+    CheckBool('HashFileWithRetries after the file was closed', HashFileWithRetries(Root + '\Empire Earth\Data\data.ssa', Hash, Error), True);
+    Check('HashFileWithRetries after the file was closed: the hash', Hash, Copy(ExpectedLine(Root, 'Empire Earth/Data/data.ssa'), 1, 64));
+
+    // A path that is not ASCII (of a file that is gone; Wine here cannot create such a name): no
+    // manifest, the path is left out of install.ini but named in the notice
+    Recorded.Add(Root + '\Empire Earth\Data\Gone ' + #$FC + '.ssa');
+    IniWritten := WriteInstallStateFiles(Root, '_setupdata_EE', Recorded, IniText, nil, '', ManifestWritten, Missing);
+    CheckBool('WriteInstallStateFiles with a path that is not ASCII: no manifest', ManifestWritten or FileExists(Manifest), False);
+    CheckBool('WriteInstallStateFiles with a path that is not ASCII: install.ini written', IniWritten, True);
+    Check('WriteInstallStateFiles with a path that is not ASCII: missing for the notice', JoinedPaths(Missing), 'Empire Earth/Data/Gone ' + #$FC + '.ssa');
+    Check('WriteInstallStateFiles with a path that is not ASCII: install.ini without it', FileText(Ini), IniText);
+
+    // Nothing recorded: an empty manifest is valid
+    Recorded.Clear;
+    IniWritten := WriteInstallStateFiles(Root, '_setupdata_EE', Recorded, IniText, nil, '', ManifestWritten, Missing);
+    CheckBool('WriteInstallStateFiles with nothing recorded: both written', IniWritten and ManifestWritten, True);
+    Check('WriteInstallStateFiles with nothing recorded: empty manifest', FileText(Manifest), '');
+  finally
+    Recorded.Free;
+  end;
+  DelTree(Root, True, True, True);
+  DelTree(Verified, True, True, True);
+end;
+
 function InitializeSetup: Boolean;
 var
   Lines: TArrayOfString;
@@ -991,6 +1180,7 @@ begin
     TestBuildMissingAfterInstallText;
     TestFormatMissingFileList;
     TestFormatManifestSummary;
+    TestManifestFiles;
   except
     Failures := Failures + 1;
     Results.Add('FAIL exception: ' + GetExceptionMessage);
