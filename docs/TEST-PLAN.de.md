@@ -197,14 +197,15 @@ Datei starten:
 
 Gespeichert als `C:\EE-Test\EE-Test.wsb`; für Läufe ohne Netz eine Kopie `EE-Test-offline.wsb` mit
 der zusätzlichen Zeile `<Networking>Disable</Networking>` direkt unter `<Configuration>`. Die Setups
-liegen in `C:\EE-Test\setups` (vom Laptop dorthin kopiert) und werden in der Sandbox vom Desktop
-gestartet. In der Sandbox den Ordner `C:\EE-Test\logs` anlegen (Regel 6) und vor dem Schließen die
+liegen in den Unterordnern `A`, `A+` und `1.7.2` von `C:\EE-Test\setups` (vom Laptop dorthin
+kopiert; die Setups von Weg A, Weg A+ und 1.7.2 können gleich heißen) und werden in der Sandbox vom
+Desktop gestartet. In der Sandbox den Ordner `C:\EE-Test\logs` anlegen (Regel 6) und vor dem Schließen die
 Logs auf den freigegebenen Ordner kopieren:
 `xcopy C:\EE-Test\logs "%USERPROFILE%\Desktop\EE-Test\logs\" /y`.
 
 **`S-172-EE` in der Sandbox.** Für den Kurzdurchlauf lässt sich `S-172-EE` in einer frischen
 Sandbox-Sitzung herstellen: das offizielle EE-Setup 1.7.2 (selbst heruntergeladen, in
-`C:\EE-Test\setups`) als Administrator mit „Empfohlene Einstellungen“ und AoC installieren,
+`C:\EE-Test\setups\1.7.2`) als Administrator mit „Empfohlene Einstellungen“ und AoC installieren,
 Spielsprache Englisch (keine Downloads), Telemetrie aus. Das Spiel startet in der Sandbox nicht;
 der Schritt „einmal gestartet“ entfällt. Er ändert nichts, was die Update-Fälle prüfen (Registry
 des Setups, versteckter Setup-Ordner, Kompatibilitätswerte), nur Dateien, die das Spiel selbst
@@ -477,7 +478,7 @@ er einen neuen Kurzdurchlauf.
 **Vorbereitung** (einmal, nicht in den drei Stunden): Inno Setup 6.2.2, Python 3 und Git auf dem
 Laptop, eine Arbeitskopie des Branches ([6.1](#61-voraussetzungen-alle-wege)); die Windows-Sandbox
 mit den beiden `.wsb`-Dateien aus [Abschnitt 5](#5-testumgebungen-und-snapshots); das offizielle
-EE-Setup 1.7.2, selbst heruntergeladen, in `C:\EE-Test\setups`; `EEStatsSetup.dll` und die
+EE-Setup 1.7.2, selbst heruntergeladen, in `C:\EE-Test\setups\1.7.2`; `EEStatsSetup.dll` und die
 offiziellen AppIds ([6.4](#64-weg-a-placeholder-build-mit-den-offiziellen-appids) Schritte 1 und 2,
 ohne eigene Installation einmal in der Sandbox nach der Installation von 1.7.2). Unter Windows Home
 tritt eine VM mit dem Snapshot `S-Basis` an die Stelle der Sandbox; „Sandbox neu starten“ heißt dann
@@ -495,21 +496,23 @@ Downloads, und `install.ini` nennt `language\en` statt `language\de`.
 | Schritt | Umgebung | Inhalt | Fälle | Minuten |
 |---|---|---|---|---|
 | K1 | Laptop | Server-Vorabprüfung; ihr Ergebnis bestimmt K4 | TP-00 | 5 |
-| K2 | Laptop | Weg A bauen ([6.2](#62-weg-a-placeholder-build), alle vier Varianten) und Weg A+ (`-Variants EE/Regular -OutputDir out\aplus`), die Setups nach `C:\EE-Test\setups` kopieren | - | 10 |
+| K2 | Laptop | Weg A bauen ([6.2](#62-weg-a-placeholder-build), alle vier Varianten) und Weg A+ (`-Variants EE/Regular -OutputDir out\aplus`), die Setups aus `out` nach `C:\EE-Test\setups\A` und aus `out\aplus` nach `C:\EE-Test\setups\A+` kopieren (gleiche Dateinamen) | - | 10 |
 | K3 | Laptop | die SHA-256-Dateien der vier Setups von Weg A prüfen | TP-30 (a) | 5 |
 | K4 | Sandbox, Netz | EE-admin neu installieren (Deutsch, „Empfohlene Einstellungen“ mit EE und AoC, Telemetrie aus) und prüfen: TP-70 (a) Schritte 1 bis 5; derselbe Lauf belegt TP-10 (ist der Hauptserver laut K1 inzwischen gültig, vorher die `hosts`-Zeile aus TP-10 eintragen), TP-22 (a) (mit den empfohlenen Einstellungen sind beide Kompatibilitätsaufgaben gewählt; die Aufgabenseite entfällt), TP-40 (a) und TP-50 (a). Dann TP-40 (e) Teil a (schreibgeschützte `install.ini`), dann TP-73 (a) (die Reparatur nach dem Schaden ist zugleich die letzte Reparatur von TP-40 (e)). Dann NeoEE-admin: TP-70 (a), TP-40 (d), TP-50 (a); zum Schluss beide deinstallieren (TP-70 Schritt 7, TP-40 (d)) | TP-10, TP-22, TP-40, TP-50, TP-70, TP-73 | 43 |
 | K5 | Sandbox, Netz | EE-user mit der „Virenscanner“-Schleife: TP-50 (b) ohne den stillen Lauf; dieselbe Installation belegt TP-70 (a) EE-user (der Hinweis zu fehlenden Dateien ist hier erwartet) und TP-22 (d) (Werte in HKCU); nach der Reparatur ohne Schleife TP-40 (b); deinstallieren (TP-70 Schritt 7) | TP-22, TP-40, TP-50, TP-70 | 21 |
 | K6 | Sandbox, Netz | EE-portable: TP-70 (a), TP-40 (c), TP-50 (a); dann EE-admin still: TP-14 (a) | TP-14, TP-40, TP-50, TP-70 | 16 |
-| K7 | Sandbox, ohne Netz (`EE-Test-offline.wsb`) | EE-admin per Doppelklick ohne `/LOG`: TP-11 (a) und zugleich TP-30 (b) (das Log aus `%TEMP%` als `C:\EE-Test\logs\TP-11a_EE-admin.log` sichern); dann TP-14 (b) still, hier als Reparatur über diese Installation (ohne Netz verhält sie sich wie eine Neuinstallation) | TP-11, TP-14, TP-30 | 13 |
+| K7 | Sandbox, ohne Netz (`EE-Test-offline.wsb`) | EE-admin per Doppelklick ohne `/LOG`: TP-11 (a) und zugleich TP-30 (b) (das Log aus `%TEMP%` als `C:\EE-Test\logs\TP-11a_EE-admin.log` sichern); dann TP-14 (b) still, hier als Reparatur über diese Installation (die Downloads laufen ohne Netz bei einer Reparatur genauso ab) | TP-11, TP-14, TP-30 | 13 |
 | K8 | Sandbox, Netz | TP-61 (a) mit Installation, EE deinstallieren, (b) bis nach der Ordnerseite, (c) sichtbar und still; aufräumen | TP-61 | 23 |
-| K9 | Sandbox, Netz | das offizielle EE-Setup 1.7.2 installieren (Englisch, `S-172-EE` wie in [Abschnitt 5](#5-testumgebungen-und-snapshots)), die Werte für TP-22 (e) notieren, dann das A+-Setup aus `out\aplus` als Update: TP-70 (b) EE-admin und TP-22 (e) | TP-22, TP-70 | 19 |
+| K9 | Sandbox, Netz | das offizielle EE-Setup 1.7.2 installieren (Englisch, `S-172-EE` wie in [Abschnitt 5](#5-testumgebungen-und-snapshots)), die Werte für TP-22 (e) notieren, dann das A+-Setup aus `C:\EE-Test\setups\A+` als Update: TP-70 (b) EE-admin und TP-22 (e) | TP-22, TP-70 | 19 |
 | K10 | Laptop, nur Weg B | TP-50 (d): EE-admin mit allen Komponenten, Dauer der Seite „Installierte Dateien werden geprüft“; auf derselben Installation den Spielstart von TP-70 (a) Schritt 6; deinstallieren. Ohne Daten: „nicht durchgeführt: keine Daten“ | TP-50, TP-70 | 15 |
 | Summe | | | | 170 |
 
-Ohne Daten der Maintainer entfällt K10; der Kurzdurchlauf dauert dann etwa 155 Minuten. Die Zeiten
-sind Schätzungen aus den Schritten der Fälle (ein Lauf mit dem Assistenten etwa 5 Minuten, eine
-Reparatur 4, ein Neustart der Sandbox 2, die Abfragen eines Falls 2 bis 3); die tatsächliche Dauer
-gehört ins Protokoll (Bemerkung zu K1), damit der Plan nachgeschärft werden kann.
+Ohne Daten der Maintainer entfällt K10; der Kurzdurchlauf dauert dann etwa 155 Minuten. Danach
+`out` (mit `out\aplus`), `C:\EE-Test\setups\A` und `C:\EE-Test\setups\A+` löschen (Regel 4); die
+Sandbox verwirft ihre Kopien beim Schließen selbst. Die Zeiten sind Schätzungen aus den Schritten
+der Fälle (ein Lauf mit dem Assistenten etwa 5 Minuten, eine Reparatur 4, ein Neustart der Sandbox
+2, die Abfragen eines Falls 2 bis 3); die tatsächliche Dauer gehört ins Protokoll
+([Abschnitt 10](#10-protokoll)), damit der Plan nachgeschärft werden kann.
 `ci/check_test_plan.py` prüft, dass die Spalte „Fälle“ genau die P1-Fälle nennt und die Summe
 stimmt und höchstens 180 Minuten beträgt.
 
