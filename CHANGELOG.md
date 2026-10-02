@@ -54,6 +54,10 @@ Refactoring and quality fixes (no new game content).
   (Brazilian Portuguese beyond the language page, Traditional Chinese texts that are copies of the
   Simplified Chinese ones, and every text added after 1.7.2 in the languages other than English,
   German and French). These gaps are documented rather than machine translated.
+- `docs/CONTRACT.md` (contract version 1, draft): what the setup leaves on the computer for the
+  launcher (install record, `install.ini`, integrity manifest `files.sha256`, per-user default game
+  settings, defaults marker) and how the launcher sends the user back to the setup for a repair. The
+  same file is in the launcher repository. The setup does not implement it yet.
 
 ### Changed
 - The hidden setup data folder (holds `EEStatsSetup.dll` for the uninstaller) is now
