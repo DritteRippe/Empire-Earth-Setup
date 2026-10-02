@@ -201,6 +201,61 @@ Refactoring and quality fixes (no new game content).
   options user-selectable, and without `HIGHDPIAWARE` Windows 7 scales the game at 150 % display
   scaling (contract O4). Decision record 0010; README "Compatibility and graphics options"; test
   cases TP-20, TP-21 and TP-24 have variants with the task (virtual machine only, `P3`).
+- Install state for the Empire Earth Launcher (contract 1.1, 1.2, 1.3 and 3.5; ADR 0004 points 1,
+  2, 6, 9 and 10; README "Empire Earth Launcher"):
+  - install record `Software\Empire Earth Community\Installations\<EE|NeoEE>` in HKLM (64-bit
+    view on 64-bit Windows) for an installation for all users, in HKCU for one "just for me", with
+    `ContractVersion`, `InstallPath`, `InstallMode` (`admin`/`user`), `AppId` (without braces),
+    `GameVersion`, `SetupVersion` and `SetupBuild` (only if the build sets one); every run writes
+    it anew (`deletekey`), the uninstaller removes it and the parent keys if they are empty;
+  - defaults marker `HKCU\Software\Empire Earth Community\GameDefaults\<EE|NeoEE>`, dwords `EE`
+    (component `game`) and `AoC` (component `gameaoc`) = contract version, for the account that
+    runs the setup like the game settings (with over-the-shoulder elevation: the administrator
+    account); removed by the uninstaller for the account that uninstalls;
+  - `install.ini` in the setup data folder, in every variant including portable (`[Install]` with
+    `ContractVersion`, `Product`, `AppId`, `InstallMode` `admin`/`user`/`portable`, `GameVersion`,
+    `SetupVersion`, `SetupBuild`, `Components`, `Tasks`, `Written`): deleted at the start of the
+    installation step (with its temporary file), so that an aborted run leaves none, and written as
+    the last step after the NeoEE CD keys, as ASCII with CRLF and without BOM through
+    `install.ini.tmp`: the old file is deleted and must be gone before the rename, because
+    Inno Setup's `RenameFile` never overwrites;
+  - the dword `Empire Earth Community: ContractVersion` in the uninstall key, written by the regular
+    setups at the end, but only if no deletion at the start and no step of writing `install.ini`
+    failed (decision K4): a read-only `install.ini` or one that a program holds open without
+    `FILE_SHARE_DELETE` is logged with the cause and leaves the value out, so the launcher reports
+    the state Unknown instead of trusting an old file. Inno Setup recreates the uninstall key on
+    every run, so the value is also missing after a later run of a setup up to 1.7.2.
+  Portable setups write no record and no marker (they have no uninstaller) and no value. Failures
+  only go to the setup log, they never stop the installation, so there is no new message. The code
+  is in the new module `installstate.iss`; the decisions and the file handling are pure helpers in
+  `utils.iss` (`InstallModeName`, `IsAsciiText`, `BuildInstallIniText`,
+  `ShouldWriteContractVersionValue`, `DeleteStateFile`, `ReplaceStateFile`) with 73 new unit tests,
+  33 of them at file level (no BOM, ASCII, CRLF, `RenameFile` fails over an existing file and works
+  after deleting it, a read-only target or a folder of that name leaves the old state and no
+  temporary file). A probe setup under Wine with the real code showed every case: fresh
+  installation and repair write the value, a locked or read-only `install.ini` leaves it out with a
+  log line, admin, user and portable write what the contract says, the uninstaller removes record,
+  marker and folder and leaves `Software\Sierra\CDKeys` alone. The integrity manifest
+  `files.sha256` follows (S-WP7).
+- Build switch `SetupBuild` (ADR 0004 point 10): an optional build identifier of at most 64
+  characters `A-Z a-z 0-9 . _ -` (anything else stops the build), written into `install.ini` and the
+  install record, so that builds of the same setup version can be told apart. `ci/build.ps1` passes
+  `test<TestID>-<short commit>` for a test build (`test<TestID>` without Git), the short commit in
+  CI (GitHub Actions) and none for any other build; `-SetupBuild <text>` overrides it (`''` passes
+  none). Helpers `Get-SetupBuild`, `Assert-SetupBuild`, `Get-SetupBuildDefine`, `Get-GitShortCommit`
+  in `ci/build_helpers.ps1`, 40 new checks in `ci/tests/build_helpers.tests.ps1` (with a temporary
+  Git checkout and dry runs). `ci/check_contract.py --preprocessed` takes the `SetupBuild` that ISCC
+  got from the record of the preprocessed script, so the CI step stays exact. README: "Build
+  switches", "Build script".
+- The setup log starts with one line naming the product, the game and setup versions, install type
+  and mode, `SetupBuild`, `TestID` and the contract version.
+- `docs/TEST-PLAN.de.md`, block 4: the Windows cases of the install state: record, `install.ini`
+  (bytes checked in PowerShell), marker, `SetupBuild` and the value in the uninstall key for EE-admin,
+  EE-user, EE-portable and NeoEE next to EE, the value missing with a read-only or an open
+  `install.ini` and after the official setup 1.7.2 ran over the test build, and what the uninstaller
+  removes (TP-40, `P1`); the game settings and the marker of the installing account, a second
+  account and over-the-shoulder elevation (TP-41, `P2`). Section 6 says where a test build shows its
+  `SetupBuild`.
 
 ### Changed
 - The hidden setup data folder (holds `EEStatsSetup.dll` for the uninstaller) is now
