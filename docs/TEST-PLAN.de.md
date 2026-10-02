@@ -5,10 +5,11 @@ virtuelle Maschinen). Er gehört zur Architektur in [ARCHITECTURE.md](ARCHITECTU
 Teststrategie) und zu den Entscheidungen in [docs/adr](adr/README.md). Was das Setup für den
 Launcher hinterlässt, steht in [CONTRACT.md](CONTRACT.md).
 
-Stand: Gerüst aus Arbeitspaket S-WP2, Block 1 (Downloads, TP-10 bis TP-17) aus S-WP3.
-Ausgearbeitet sind die Server-Vorabprüfung [TP-00](#tp-00-server-vorabprüfung), die Download-Fälle
-und der Grundablauf [TP-70](#tp-70-grundablauf-installieren-starten-deinstallieren).
-Jedes weitere Arbeitspaket (S-WP4 bis S-WP8) arbeitet die Fälle seines Blocks aus, S-WP9
+Stand: Gerüst aus Arbeitspaket S-WP2, Block 1 (Downloads, TP-10 bis TP-17) aus S-WP3, Block 2
+(Kompatibilität und Grafik, TP-20 bis TP-24) aus S-WP4. Ausgearbeitet sind die
+Server-Vorabprüfung [TP-00](#tp-00-server-vorabprüfung), die Fälle der Blöcke 1 und 2 und der
+Grundablauf [TP-70](#tp-70-grundablauf-installieren-starten-deinstallieren).
+Jedes weitere Arbeitspaket (S-WP5 bis S-WP8) arbeitet die Fälle seines Blocks aus, S-WP9
 vervollständigt den Plan. Fälle, die noch nicht ausgearbeitet sind, tragen den Status
 `geplant: S-WPx`. `ci/check_test_plan.py` prüft die Form dieses Dokuments (siehe
 [Abschnitt 10](#10-automatische-prüfung-dieses-dokuments)).
@@ -73,15 +74,18 @@ Vor jedem Testtag lesen. Diese Regeln gehen jedem einzelnen Fall vor.
 
 Eine ID hat die Form `TP-` und zwei Ziffern. Die erste Ziffer ist der Block, also das
 Arbeitspaket, das den Fall einführt; `TP-1x` steht für alle zehn IDs von Block 1, auch die noch
-nicht vergebenen. IDs werden nie neu vergeben oder umnummeriert; ein Fall, der wegfällt, bleibt
-mit `Status: entfällt: <Grund>` stehen. Neue Fälle bekommen die nächste freie Nummer ihres
-Blocks.
+nicht vergebenen. Die ID eines ausgearbeiteten Falls wird nie neu vergeben oder umnummeriert
+(Protokolle verweisen auf sie); ein Fall, der wegfällt, bleibt mit `Status: entfällt: <Grund>`
+stehen. Ein geplanter Fall hat noch kein Protokoll: Das Paket seines Blocks darf ihn beim
+Ausarbeiten aufteilen und die geplanten IDs des Blocks neu ordnen (S-WP4: die Grafikmatrix steht
+jetzt unter TP-23, TP-21 ist das Update unter Windows 7). Neue Fälle bekommen die nächste freie
+Nummer ihres Blocks.
 
 | IDs | Block | Paket | Inhalt |
 |---|---|---|---|
 | TP-00 | Vorabprüfung | S-WP2 | Zustand der beiden Dateiserver vor jedem Testtag mit Downloads |
 | TP-1x | Downloads | S-WP3 | eingebaute Downloads statt IDP: Hauptserver ungültig und Spiegel (TP-10), offline (TP-11), Stopp-Knopf am ersten und am zweiten Server (TP-12, TP-13), Silent (TP-14), Koreanisch (TP-15), verworfener Download (TP-16), TLS 1.2 unter Windows 7 (TP-17) |
-| TP-2x | Kompatibilität und Grafik | S-WP4 | Kompatibilitätswerte je Windows-Version, Bereinigung unter Vista/7, DirectX-Wrapper-Matrix, 150 % DPI |
+| TP-2x | Kompatibilität und Grafik | S-WP4 | Windows 7 ohne Kompatibilitätswerte (TP-20), Bereinigung beim Update unter Windows 7 (TP-21), Windows 10/11 unverändert (TP-22), Grafikmatrix mit und ohne DirectX-Wrapper (TP-23), 150 % Anzeigeskalierung mit und ohne `compatibility` (TP-24) |
 | TP-3x | Build und Log | S-WP5 | SHA-256-Dateien der Setups, Setup-Log ohne `/LOG` |
 | TP-4x | Installationseintrag und `install.ini` | S-WP6 | Registry-Eintrag, `install.ini`, Defaults-Marker, `SetupBuild`, Wert `ContractVersion` im Uninstall-Schlüssel |
 | TP-5x | Integritätsmanifest | S-WP7 | `files.sha256`, Dateiprüfung nach der Installation, Dauer des Hashens |
@@ -130,6 +134,7 @@ Varianten werden als `EE-admin`, `EE-user`, `EE-portable`, `NeoEE-admin`, `NeoEE
 | `S-Sandbox` | Windows-Sandbox (Windows 10/11 Pro): startet jedes Mal frisch, ohne 3D-Beschleunigung | schnelle Läufe mit Weg A (das Spiel startet dort nicht) |
 | `S-172-EE`, `S-172-NeoEE` | `S-Basis` plus offizielles Setup 1.7.2 (EE bzw. NeoEE) als Administrator installiert, einmal gestartet | Update über 1.7.2, nur Weg B |
 | `S-Win7` | VM mit Windows 7 SP1 (64 Bit), ohne KB3140245 und ohne SChannel-Änderungen | TLS 1.2 und Kompatibilitätswerte unter Windows 7 (S-WP3, S-WP4) |
+| `S-Win7-172-EE` | `S-Win7` plus offizielles Setup 1.7.2 (EE) als Administrator mit „Empfohlene Einstellungen“ und AoC installiert, einmal gestartet | Update über 1.7.2 unter Windows 7 (TP-21), nur Weg B |
 | `S-Alt` | `S-Basis` plus eine alte Installation: Original-CD unter `C:\Sierra\Empire Earth` bzw. GOG-Version | fremde und alte Installationen (S-WP8) |
 | `Laptop` | das echte System des Testers, mit Wiederherstellungspunkt und Sicherung (Regel 1) | nur Weg B |
 
@@ -703,25 +708,318 @@ Gemeinsam für alle Fälle dieses Blocks:
 
 ### Block 2: Kompatibilität und Grafik (S-WP4)
 
-S-WP4 arbeitet hier aus, was ADR 0005 und Vertrag 3.7 verlangen: keine Kompatibilitätswerte unter
-Windows 7 (VM), Bereinigung der alten Werte bei einem Update unter Windows 7, unveränderte Werte
-unter Windows 8 und neuer, die Wrapper-Matrix und den Fall 150 % DPI zweimal (mit und ohne Aufgabe
-`compatibility`, Vertrag O4).
+Diese Fälle prüfen, was ADR 0005 und Vertrag 3.7 nur auf Windows zeigen können: Unter Windows 7
+schreibt das Setup keine Kompatibilitätswerte mehr (außer dem freiwilligen `~ RUNASADMIN`) und
+entfernt bei einem Update nur die Werte früherer Setups (TP-20, TP-21); unter Windows 10/11 bleibt
+alles wie bisher (TP-22). Dazu kommen die Grafikmatrix mit und ohne DirectX-Wrapper (TP-23) und der
+Fall 150 % Anzeigeskalierung mit und ohne Aufgabe `compatibility` (TP-24, Vertrag O4). Welche Werte
+als „Werte früherer Setups“ gelten, entscheidet `IsLegacyVistaCompatValue`; die Unit-Tests in
+`ci/tests/unit_tests.iss` decken alle Kombinationen ab.
 
-#### TP-20: Kompatibilitätswerte je Windows-Version
+Gemeinsam für alle Fälle dieses Blocks:
 
-- **Status:** geplant: S-WP4
-- **Bezug:** R15, ADR 0005, Vertrag 3.7; Forum §8 Nr. 5 (t=4280 p=30477, t=5814)
-- **Ziel:** Unter Windows 7 schreibt das Setup keine Kompatibilitätswerte und entfernt nur die
-  alten Werte früherer Setups; unter Windows 10/11 bleiben die Werte wie bisher, das Spiel startet
-  mit und ohne die Aufgaben.
+- Die Kompatibilitätswerte stehen unter `Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers`,
+  Wertname ist der volle Pfad der EXE (`…\Empire Earth\Empire Earth.exe`,
+  `…\Empire Earth - The Art of Conquest\EE-AOC.exe`). Im Modus „admin“ schreibt das Setup nach HKLM
+  (auf 64-Bit-Windows in die 64-Bit-Ansicht), in „user“ und „portable“ nach HKCU. Abfrage in der
+  Eingabeaufforderung (auf 32-Bit-Windows ohne `/reg:64`):
 
-#### TP-21: Grafikmatrix mit und ohne DirectX-Wrapper
+  ```bat
+  reg query "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers" /reg:64
+  reg query "HKCU\Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers"
+  ```
 
-- **Status:** geplant: S-WP4
-- **Bezug:** ADR 0005 (Wrapper-Vorauswahl bleibt); Forum §8 Nr. 3 (t=5751, t=1862, t=5887)
-- **Ziel:** Je Grafikhersteller mit nativem Renderer und mit Wrapper: Menütexte, HUD, Maus im
-  Spiel, NeoEE-Overlay.
+  Es zählen nur die Zeilen mit `Empire Earth.exe` und `EE-AOC.exe`; „Der angegebene
+  Registrierungsschlüssel bzw. Wert wurde nicht gefunden“ heißt: kein Wert. Die Ausgaben ins
+  Protokoll übernehmen.
+- Die Aufgaben „Kompatibilitätseinstellungen aktivieren“ (`compatibility`) und
+  „Kompatibilitätsmodus für ältere Windows-Versionen aktivieren“ (`compatibility_windows`) gibt es
+  nur ab Windows 8; dort sind sie vorausgewählt. Ihre Seite „Zusätzliche Aufgaben auswählen“
+  erscheint nur mit „Benutzerdefinierte Installationseinstellungen“. „Spiel immer als Administrator
+  ausführen, für alle Benutzer …“ (`everyoneadminstart`) gibt es nur im Modus „admin“, sie ist nie
+  vorausgewählt.
+- Log-Zeilen der Bereinigung (`setup_is6.iss`, `RemoveLegacyVistaCompatValues`), nur unter
+  Windows Vista/7 und nicht unter Wine:
+  `Windows 6.1: this setup writes no compatibility values on Windows Vista/7, checking HKLM for values of earlier setups`
+  (bzw. `HKCU`), danach je Spielprogramm eine der Zeilen `No compatibility value of <Pfad> (HKLM)`,
+  `Removed the old Windows Vista/7 compatibility value "<Wert>" of <Pfad> (HKLM)`,
+  `Kept the compatibility value "<Wert>" of <Pfad> (HKLM): not a value of an earlier setup` oder
+  `Unable to remove the old Windows Vista/7 compatibility value "<Wert>" of <Pfad> (HKLM)`. Den
+  alten Wert `~ RUNASADMIN` in HKCU (Modus „admin“, Setups bis 1.7.2) entfernt das Setup auf jeder
+  Windows-Version: `Removed the old per-user RUNASADMIN flag of <Pfad>`.
+- Spiel starten heißt in diesem Block: bis ins Hauptmenü, dann eine Zufallskarte gegen einen
+  Computergegner etwa zwei Minuten spielen und beenden. Abstürze, Runtime-Fehler und schwarze
+  Bildschirme mit Variante ins Protokoll (Forum t=4280 p=30477: „a long black screen and a runtime
+  error“ im Kompatibilitätsmodus).
+
+#### TP-20: Windows 7: Neuinstallation ohne Kompatibilitätswerte (nur VM)
+
+- **Status:** ausgearbeitet
+- **Bezug:** R15, ADR 0005, Vertrag 3.7; Forum §8 Nr. 5 (t=4280 p=30477 und p=30479, t=1827
+  p=12147, t=5814)
+- **Ziel:** Unter Windows 7 bietet das Setup die beiden Kompatibilitätsaufgaben nicht an und schreibt
+  keinen Kompatibilitätswert, außer `~ RUNASADMIN` mit der freiwilligen Aufgabe; das Spiel startet
+  ohne Werte.
+- **Build-Art:** A oder B (Schritt 5 nur B)
+- **Ausgangszustand:** Windows 7 SP1, kein Empire Earth, keine Werte für `Empire Earth.exe` und
+  `EE-AOC.exe` (Schritt 1), Anzeigeskalierung 100 % (150 % prüft TP-24).
+- **Snapshot:** `S-Win7` (nur VM, nie auf dem Laptop)
+- **Varianten:** (a) EE-admin mit den angebotenen Aufgaben, (b) EE-admin mit `everyoneadminstart`,
+  (c) EE-user. NeoEE und portable nutzen dieselben Einträge (portable wie user in HKCU) und werden
+  ausgelassen.
+- **Schritte:**
+  1. Die beiden `reg query`-Befehle (siehe oben) ausführen und die Ausgaben notieren.
+  2. (a) Setup mit `/LOG="C:\EE-Test\logs\TP-20a_EE-admin.log"` starten, „Für alle Benutzer
+     installieren“, Spielsprache Deutsch, „Benutzerdefinierte Installationseinstellungen“ mit
+     Empire Earth und AoC, Telemetrie aus. Auf der Seite „Zusätzliche Aufgaben auswählen“ die
+     angezeigten Aufgaben notieren und sie unverändert lassen (bei Weg A nur „DirectX-Endbenutzer-Runtime
+     installieren“ abwählen); installieren, fertigstellen.
+  3. Die `reg query`-Befehle wiederholen.
+  4. (b) Snapshot zurücksetzen, Schritt 2 mit `TP-20b` im Log-Namen, dazu „Spiel immer als
+     Administrator ausführen, für alle Benutzer …“ anhaken; dann Schritt 3.
+  5. Nur Weg B, nach (a): Empire Earth und AoC je starten (siehe oben).
+  6. (c) Snapshot zurücksetzen, Setup mit `/CURRENTUSER /LOG="C:\EE-Test\logs\TP-20c_EE-user.log"`
+     starten, sonst wie Schritt 2; dann Schritt 3.
+- **Erwartetes Ergebnis:**
+  - Die Aufgabenseite zeigt weder „Kompatibilitätseinstellungen aktivieren“ noch
+    „Kompatibilitätsmodus für ältere Windows-Versionen aktivieren“. „Spiel immer als Administrator
+    ausführen …“ steht in (a) und (b) da und ist nicht vorausgewählt, in (c) fehlt es.
+  - (a) und (c): Schritt 3 zeigt weder in HKLM noch in HKCU eine Zeile mit `Empire Earth.exe` oder
+    `EE-AOC.exe`.
+  - (b): In HKLM steht für beide Programme genau `~ RUNASADMIN`, z. B.
+    `C:\Program Files (x86)\Empire Earth\Empire Earth\Empire Earth.exe    REG_SZ    ~ RUNASADMIN`;
+    in HKCU nichts.
+  - Schritt 5: Beide Spiele starten ohne Fehlermeldung, Runtime-Fehler oder schwarzen Bildschirm.
+- **Log-Hinweis:** (a) `Windows 6.1: this setup writes no compatibility values on Windows Vista/7, checking HKLM for values of earlier setups`,
+  dann zweimal `No compatibility value of … (HKLM)`; (b) zweimal
+  `Kept the compatibility value "~ RUNASADMIN" of … (HKLM): not a value of an earlier setup` (der
+  Wert dieses Laufs bleibt); (c) wie (a) mit `HKCU`. In keinem Lauf eine Zeile
+  `Removed the old Windows Vista/7 compatibility value`.
+
+#### TP-21: Windows 7: Update entfernt nur die Werte früherer Setups (nur VM)
+
+- **Status:** ausgearbeitet
+- **Bezug:** R15, ADR 0005 (Bereinigung, `IsLegacyVistaCompatValue`), Vertrag 3.7; Forum §8 Nr. 5
+  („Unter Windows 7 besonders den Standardfall WINXPSP3 prüfen“)
+- **Ziel:** Ein Update unter Windows 7 entfernt genau die Werte, die frühere Setups dort geschrieben
+  haben (bei 1.7.2 der Wert von `EE-AOC.exe`), und lässt jeden anderen Wert stehen: einen, den der
+  Spieler selbst gesetzt hat, und `~ RUNASADMIN`.
+- **Build-Art:** (a) B; (b) A oder B
+- **Ausgangszustand:** (a) offizielles Setup 1.7.2 (EE) unter Windows 7 als Administrator mit
+  „Empfohlene Einstellungen“ und „Installiere Empire Earth und Die Kunst der Eroberungen -
+  Erweiterung“ installiert, einmal gestartet; dazu ein eigener Wert des Spielers für
+  `Empire Earth.exe` (Schritt 3). (b) Kein Empire Earth; die Werte früherer Setups werden mit
+  `reg add` nachgestellt, für Tests ohne die Daten von Weg B.
+- **Snapshot:** (a) `S-Win7-172-EE`; (b) `S-Win7` (nur VM, nie auf dem Laptop)
+- **Varianten:** (a) EE-admin als Update an Ort und Stelle (NeoEE nutzt denselben Code); (b)
+  EE-admin (HKLM) und EE-user (HKCU).
+- **Schritte:**
+  1. (a) Die `reg query`-Befehle ausführen. Nach 1.7.2 erwartet: in HKLM für `EE-AOC.exe`
+     `~ DWM8And16BitMitigation HIGHDPIAWARE HeapClearAllocation WINXPSP3`, für `Empire Earth.exe`
+     kein Wert (der Versionsfilter `0.6.2` von 1.7.2 hat ihn nie greifen lassen); in HKCU für beide
+     `~ RUNASADMIN`. Weicht das ab, die Ausgabe ins Protokoll und trotzdem weitermachen.
+  2. Nur Weg B: AoC mit dem Wert von 1.7.2 starten (siehe oben) und das Ergebnis notieren; das ist
+     der Vergleich für ADR 0005.
+  3. In einer Eingabeaufforderung als Administrator einen eigenen Wert des Spielers setzen (Pfad an
+     den Installationsordner anpassen):
+
+     ```bat
+     reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers" /v "C:\Program Files (x86)\Empire Earth\Empire Earth\Empire Earth.exe" /t REG_SZ /d "~ WINXPSP3 DISABLEDWM" /f /reg:64
+     ```
+
+  4. Den Testbuild (Weg B, offizielle AppIds) mit `/LOG="C:\EE-Test\logs\TP-21a_EE-admin.log"`
+     starten, „Aktuelle Installation aktualisieren“ bzw. „Vorhandene Installation reparieren“,
+     Telemetrie aus, installieren, fertigstellen. Die `reg query`-Befehle wiederholen und AoC wie in
+     Schritt 2 starten.
+  5. (b) admin: Auf `S-Win7` in einer Eingabeaufforderung als Administrator nachstellen, was ein
+     früheres Setup mit `everyoneadminstart` und beiden Kompatibilitätsaufgaben für Empire Earth
+     geschrieben hätte, und einen eigenen Wert für AoC setzen:
+
+     ```bat
+     set L=HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers
+     reg add "%L%" /v "C:\Program Files (x86)\Empire Earth\Empire Earth\Empire Earth.exe" /t REG_SZ /d "~ RUNASADMIN DWM8And16BitMitigation HIGHDPIAWARE HeapClearAllocation WINXPSP3" /f /reg:64
+     reg add "%L%" /v "C:\Program Files (x86)\Empire Earth\Empire Earth - The Art of Conquest\EE-AOC.exe" /t REG_SZ /d "~ WINXPSP3 DISABLEDWM" /f /reg:64
+     ```
+
+     Dann das Setup mit `/LOG="C:\EE-Test\logs\TP-21b_EE-admin.log"`, „Für alle Benutzer
+     installieren“, „Empfohlene Einstellungen“ mit Empire Earth und AoC, Zielordner unverändert
+     (`C:\Program Files (x86)\Empire Earth`), installieren; die `reg query`-Befehle wiederholen.
+  6. (b) user: Snapshot zurücksetzen, in einer Eingabeaufforderung ohne Administratorrechte:
+
+     ```bat
+     set L=HKCU\Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers
+     reg add "%L%" /v "%LOCALAPPDATA%\Programs\Empire Earth\Empire Earth\Empire Earth.exe" /t REG_SZ /d "~ WINXPSP3" /f
+     reg add "%L%" /v "%LOCALAPPDATA%\Programs\Empire Earth\Empire Earth - The Art of Conquest\EE-AOC.exe" /t REG_SZ /d "~ RUNASADMIN" /f
+     ```
+
+     Dann das Setup mit `/CURRENTUSER /LOG="C:\EE-Test\logs\TP-21b_EE-user.log"`, „Empfohlene
+     Einstellungen“ mit Empire Earth und AoC, Zielordner unverändert (er muss zu den Pfaden oben
+     passen), installieren; `reg query` für HKCU wiederholen.
+- **Erwartetes Ergebnis:**
+  - (a) nach dem Update: kein Wert mehr für `EE-AOC.exe` in HKLM; für `Empire Earth.exe` in HKLM
+    weiterhin `~ WINXPSP3 DISABLEDWM` (der Wert des Spielers); in HKCU keine der beiden
+    `~ RUNASADMIN`-Zeilen mehr. AoC startet nach dem Update ohne Fehler; das Ergebnis aus Schritt 2
+    steht zum Vergleich im Protokoll.
+  - (b) admin: der Wert von `Empire Earth.exe` ist entfernt, `EE-AOC.exe` behält
+    `~ WINXPSP3 DISABLEDWM`.
+  - (b) user: der Wert von `Empire Earth.exe` ist entfernt, `EE-AOC.exe` behält `~ RUNASADMIN`.
+  - Kein anderer Wert unter `AppCompatFlags\Layers` hat sich geändert (Ausgaben vorher und nachher
+    vergleichen).
+- **Log-Hinweis:** (a) `Removed the old Windows Vista/7 compatibility value "~ DWM8And16BitMitigation HIGHDPIAWARE HeapClearAllocation WINXPSP3" of …\EE-AOC.exe (HKLM)`,
+  `Kept the compatibility value "~ WINXPSP3 DISABLEDWM" of …\Empire Earth.exe (HKLM): not a value of an earlier setup`
+  und zweimal `Removed the old per-user RUNASADMIN flag of …`; (b) admin
+  `Removed the old Windows Vista/7 compatibility value "~ RUNASADMIN DWM8And16BitMitigation HIGHDPIAWARE HeapClearAllocation WINXPSP3" of …\Empire Earth.exe (HKLM)`
+  und `Kept the compatibility value "~ WINXPSP3 DISABLEDWM" of …\EE-AOC.exe (HKLM): …`; (b) user
+  `Removed the old Windows Vista/7 compatibility value "~ WINXPSP3" of …\Empire Earth.exe (HKCU)` und
+  `Kept the compatibility value "~ RUNASADMIN" of …\EE-AOC.exe (HKCU): …`.
+
+#### TP-22: Windows 10/11: Kompatibilitätswerte unverändert
+
+- **Status:** ausgearbeitet
+- **Bezug:** R15, ADR 0005 (ab Windows 8 unverändert), Vertrag 3.4 und 3.7; Forum §8 Nr. 5 (t=5842
+  p=39349, t=5748 p=38768)
+- **Ziel:** Ab Windows 8 schreibt das Setup dieselben Werte wie vor S-WP4 (`WIN7RTM`, die Flags der
+  Aufgabe `compatibility`, die GPU-Präferenz), ein Update entfernt keinen Kompatibilitätswert außer
+  dem alten `~ RUNASADMIN` in HKCU, und das Spiel startet mit allen Aufgaben, ohne
+  `compatibility_windows` und ohne beide.
+- **Build-Art:** A oder B (Schritt 5 und Variante (e) nur B)
+- **Ausgangszustand:** (a) bis (d) kein Empire Earth; (e) offizielles Setup 1.7.2 (EE) als
+  Administrator installiert, einmal gestartet.
+- **Snapshot:** (a) bis (d) `S-Basis`; (e) `S-172-EE`. Auf dem `Laptop` nur Weg B mit
+  Wiederherstellungspunkt.
+- **Varianten:** (a) EE-admin mit beiden Aufgaben, (b) EE-admin ohne `compatibility_windows`, (c)
+  EE-admin ohne beide, (d) EE-user mit beiden, (e) EE-admin als Update über 1.7.2. NeoEE nutzt
+  dieselben Einträge.
+- **Schritte:**
+  1. Die `reg query`-Befehle ausführen (vor (a) bis (d): keine Werte).
+  2. (a) Setup mit `/LOG="C:\EE-Test\logs\TP-22a_EE-admin.log"`, „Für alle Benutzer installieren“,
+     „Benutzerdefinierte Installationseinstellungen“ mit Empire Earth und AoC, Telemetrie aus; auf
+     der Aufgabenseite prüfen, dass beide Kompatibilitätsaufgaben angehakt sind, und installieren.
+     Danach die `reg query`-Befehle und
+     `reg query "HKCU\Software\Microsoft\DirectX\UserGpuPreferences"`.
+  3. Snapshot zurücksetzen und wie Schritt 2 mit (b) „Kompatibilitätsmodus für ältere
+     Windows-Versionen aktivieren“ abgewählt (`TP-22b`), (c) beide abgewählt (`TP-22c`), (d)
+     `/CURRENTUSER` mit beiden Aufgaben (`TP-22d_EE-user`).
+  4. (e) Auf `S-172-EE` die Ausgaben der `reg query`-Befehle notieren, den Testbuild (Weg B,
+     offizielle AppIds) mit `/LOG="C:\EE-Test\logs\TP-22e_EE-admin.log"` und „Aktuelle Installation
+     aktualisieren“ bzw. „Vorhandene Installation reparieren“ ausführen, danach dieselben Abfragen.
+  5. Nur Weg B: nach (a), (b) und (c) Empire Earth und AoC je starten (siehe oben).
+- **Erwartetes Ergebnis:**
+  - (a): in HKLM für beide Programme `~ DWM8And16BitMitigation HIGHDPIAWARE HeapClearAllocation WIN7RTM`,
+    in HKCU keine; unter `UserGpuPreferences` für beide `GpuPreference=2;`.
+  - (b): in HKLM für beide `~ DWM8And16BitMitigation HIGHDPIAWARE HeapClearAllocation`; keine
+    GPU-Präferenz.
+  - (c): weder Kompatibilitätswerte noch GPU-Präferenz.
+  - (d): in HKCU für beide `~ DWM8And16BitMitigation HIGHDPIAWARE HeapClearAllocation WIN7RTM`, in
+    HKLM keine; GPU-Präferenz wie (a).
+  - (e): nach dem Update in HKLM dieselben Werte wie vorher (1.7.2 schrieb unter Windows 10 schon
+    `… WIN7RTM`); in HKCU keine `~ RUNASADMIN`-Zeilen mehr.
+  - Schritt 5: Alle Varianten starten ohne Fehlermeldung, Runtime-Fehler oder schwarzen Bildschirm.
+- **Log-Hinweis:** Keine Zeile `… this setup writes no compatibility values on Windows Vista/7 …`
+  und keine Zeile `Removed the old Windows Vista/7 compatibility value`; bei (e) zweimal
+  `Removed the old per-user RUNASADMIN flag of …`.
+
+#### TP-23: Grafikmatrix mit und ohne DirectX-Wrapper
+
+- **Status:** ausgearbeitet
+- **Bezug:** ADR 0005 (Punkt 2: Wrapper-Vorauswahl bleibt, wählbar), Vertrag 3.3 (`Rasterizer Name`);
+  Forum §8 Nr. 3 (t=5751, t=1862, t=1643, t=2884, t=5588, t=5887 p=39385; NeoEE-Einblendung
+  t=10968 p=47345)
+- **Ziel:** Für den Grafikchip des Testrechners belegen, wie sich die Spiele ohne Wrapper und mit
+  jedem Wrapper verhalten (Menütexte, HUD, Einheiten, Flackern, Maus, NeoEE-Einblendung), und dass
+  der Weg zu „Nativ“ funktioniert. Das Ergebnis entscheidet, ob die Vorauswahl je Hersteller bleibt.
+- **Build-Art:** B
+- **Ausgangszustand:** Windows 10/11 mit echter 3D-Beschleunigung (der Laptop oder ein anderer
+  Rechner; eine VM ohne 3D-Beschleunigung zählt nicht), aktueller Grafiktreiber; Grafikchip und
+  Treiberversion ins Protokoll (Geräte-Manager › Grafikkarten). Kein Empire Earth installiert.
+- **Snapshot:** `Laptop` (mit Wiederherstellungspunkt, Regel 1)
+- **Varianten:** NeoEE-admin mit vier Einstellungen: DirectX 11 (Vorauswahl bei NVIDIA, AMD und
+  Intel), Nativ, DirectX 7 und DirectX 9; EE-admin nur DirectX 11 und Nativ (ohne
+  NeoEE-Einblendung). Weitere Rechner (NVIDIA, AMD, Intel HD 4000/4600, Hybrid-Laptop), soweit
+  vorhanden, je mit eigenen Protokollzeilen.
+- **Schritte:**
+  1. NeoEE-Setup mit `/LOG="C:\EE-Test\logs\TP-23_NeoEE-admin_dx11.log"`, „Empfohlene
+     Einstellungen“ mit Empire Earth und AoC, Telemetrie aus. Auf der Seite „Wählen Sie Ihren
+     Grafikkartenhersteller aus“ notieren, welche Option vorausgewählt ist, sie lassen und
+     installieren.
+  2. In `<Installationsordner>\Empire Earth` die Wrapper-Dateien notieren (DirectX 11/dgVoodoo:
+     `DDraw.dll`, `D3DImm.dll`, `dgVoodooCpl.exe`, `dgVoodoo.conf`; DirectX 7 und DirectX 9: nur
+     `DDraw.dll`; Nativ: keine davon) und
+     `reg query "HKCU\Software\Neo\Empire Earth" /v "Rasterizer Name"` ausführen (EE-Setup:
+     `HKCU\Software\SSSI\Empire Earth`).
+  3. Empire Earth starten: Sind im Hauptmenü alle Texte lesbar? Dann im Mehrspielermenü ein Spiel im
+     lokalen Netzwerk erstellen, einen Computergegner hinzufügen und starten (lässt das Spiel den
+     Start allein nicht zu, mit einem zweiten Rechner wie in TP-72): Erscheint die
+     NeoEE-Einblendung (Ball-Animation während der Initialisierung, `ShowGui: true` in
+     `NeoEE.cfg`) über dem Spiel? Drei Minuten spielen: HUD-Werte (Rohstoffe, Bevölkerung)
+     sichtbar, Einheiten und Gebäude sichtbar, kein Flackern, die Maus reagiert (Einheiten
+     auswählen, Bildlauf am Rand, Menüs). Dasselbe mit AoC.
+  4. Setup erneut starten (`…_native.log`), „Empfohlene Einstellungen“ mit Empire Earth und AoC
+     (nicht „reparieren“, sonst fehlt die Grafikkarten-Seite), dort „Nativ“; Schritte 2 und 3.
+  5. Setup erneut starten (`…_dx7.log`), „Benutzerdefinierte Installationseinstellungen“, auf der
+     Komponentenseite unter „DirectX-Wrapper“ „DirectX 7 [Am ressourcenschonendsten]“; Schritte 2
+     und 3. Dasselbe mit „DirectX 9 [Am kompatibelsten]“ (`…_dx9.log`).
+  6. Das EE-Setup (eigener Standardordner `Empire Earth`) mit der Vorauswahl und mit „Nativ“;
+     Schritte 2 und 3 ohne die NeoEE-Einblendung.
+- **Erwartetes Ergebnis:**
+  - Nach jedem Lauf liegen genau die Wrapper-Dateien der Einstellung im Spielordner (die Dateien der
+    vorigen Einstellung entfernt das Setup vorher); `Rasterizer Name` ist `Direct3D` mit Wrapper und
+    `Direct3D Hardware TnL` bei „Nativ“.
+  - Die Spiele erreichen in jeder Einstellung das Hauptmenü. Ob Menütexte, HUD, Einheiten, Maus und
+    NeoEE-Einblendung funktionieren, ist der Befund dieses Falls: je Einstellung und Spiel eine Zeile
+    im Protokoll mit „ok“ oder dem Fehlerbild (z. B. „Maus reagiert im Spiel nicht“, t=5887).
+    Funktioniert die Vorauswahl schlechter als „Nativ“ oder ein anderer Wrapper, geht das mit
+    Grafikchip und Treiber an die Maintainer (ADR 0005, Folgen: Die Wrapper-Frage bleibt für echte
+    Tests offen).
+- **Log-Hinweis:** `<Hersteller> GPU detected` bzw. `Unknown GPU detected` und
+  `Using <Hersteller> GPU settings: additional\directx_wrapper\dx11_lvl11` (bzw. `…\dx11_lvl10_1`,
+  `…\dx9`, `!additional\directx_wrapper` bei „Nativ“). Bei der benutzerdefinierten Installation
+  steht die Auswahl im Uninstall-Schlüssel: `reg query "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{<AppId>}_is1" /v "Inno Setup: Selected Components" /reg:64`.
+
+#### TP-24: 150 % Anzeigeskalierung mit und ohne Aufgabe compatibility
+
+- **Status:** ausgearbeitet
+- **Bezug:** Vertrag O4 und 3.3 (`Game Window Width`, `Game Window Height` in physischen Pixeln),
+  ADR 0005 (Folgen: ohne `HIGHDPIAWARE` unter Windows 7), R15
+- **Ziel:** Bei 150 % schreibt das Setup die Fenstergröße in physischen Pixeln, und es ist
+  festgehalten, ob das Spiel mit `HIGHDPIAWARE` (Aufgabe `compatibility`) und ohne auf den
+  Bildschirm passt, auch unter Windows 7, wo es die Aufgabe nicht mehr gibt.
+- **Build-Art:** B (Schritte 1 und 2 auch A)
+- **Ausgangszustand:** (a), (b) Windows 10/11, *Einstellungen › System › Anzeige › Skalierung* auf
+  150 %, danach ab- und wieder angemeldet; (c) Windows 7, *Systemsteuerung › Anzeige* „Größer –
+  150 %“, abgemeldet und wieder angemeldet. Physische Auflösung notieren (Windows 10/11:
+  „Bildschirmauflösung“ auf derselben Seite; Windows 7: *Bildschirmauflösung*). Kein Empire Earth.
+- **Snapshot:** (a), (b) `Laptop` (Weg B) oder `S-Basis`; (c) `S-Win7`
+- **Varianten:** (a) EE-admin mit beiden Aufgaben (`HIGHDPIAWARE`), (b) EE-admin ohne
+  „Kompatibilitätseinstellungen aktivieren“ (Wert `~ WIN7RTM`), (c) EE-admin unter Windows 7 (keine
+  Werte).
+- **Schritte:**
+  1. (a) Setup mit `/LOG="C:\EE-Test\logs\TP-24a_EE-admin.log"`, „Benutzerdefinierte
+     Installationseinstellungen“ mit Empire Earth und AoC, Aufgaben unverändert, installieren.
+  2. Abfragen:
+     `reg query "HKCU\Software\SSSI\Empire Earth" /v "Game Window Width"`,
+     `reg query "HKCU\Software\SSSI\Empire Earth" /v "Game Window Height"` (hexadezimal:
+     `0x780` = 1920, `0x438` = 1080, `0x500` = 1280, `0x2d0` = 720) und die `reg query`-Befehle der
+     Kompatibilitätswerte.
+  3. Nur Weg B: Empire Earth starten. Füllt das Bild den Bildschirm genau, ist es größer (Teile
+     abgeschnitten, z. B. die untere Leiste mit dem HUD) oder kleiner (schwarze Ränder)? Ein
+     Bildschirmfoto ins Protokoll. Dasselbe mit AoC (`HKCU\Software\Mad Doc Software\EE-AOC`).
+  4. (b) Deinstallieren bzw. Snapshot zurücksetzen, Schritt 1 mit `TP-24b` im Log-Namen und
+     abgewählter Aufgabe „Kompatibilitätseinstellungen aktivieren“; Schritte 2 und 3.
+  5. (c) Schritte 1 bis 3 auf `S-Win7` mit `TP-24c` (die Aufgabenseite zeigt keine
+     Kompatibilitätsaufgaben).
+- **Erwartetes Ergebnis:**
+  - Schritt 2, alle Varianten: `Game Window Width` und `Game Window Height` sind die physische
+    Auflösung, begrenzt auf 1024 bis 1920 bzw. 768 bis 1080 (bei 1920 × 1080: `0x780` und `0x438`,
+    nicht die logischen 1280 × 720). Logische Werte sind ein Befund zu Vertrag O4.
+  - Kompatibilitätswerte: (a) `~ DWM8And16BitMitigation HIGHDPIAWARE HeapClearAllocation WIN7RTM`,
+    (b) `~ WIN7RTM`, (c) keiner.
+  - Schritt 3 ist ein Befund, kein Bestanden/Nicht bestanden: je Variante und Spiel „passt“, „zu
+    groß“ oder „zu klein“. Passt das Bild nur in (a), bekommt Vertrag 3.3 den Hinweis, dass die
+    Fenstergröße nur mit `HIGHDPIAWARE` passt (Vertrag O4), und (c) ist die bekannte Folge von
+    ADR 0005 für Windows 7 (README).
+- **Log-Hinweis:** Das Setup schreibt die Bildschirmgröße nicht ins Log; maßgeblich sind die
+  Registry-Werte aus Schritt 2. Bei (c) zusätzlich die Zeilen aus [TP-20](#tp-20-windows-7-neuinstallation-ohne-kompatibilitätswerte-nur-vm) (a).
 
 ### Block 3: Build und Log (S-WP5)
 
@@ -942,9 +1240,9 @@ echtes Windows“). „Launcher“ heißt: Der Fall prüft den Launcher und geh�
 |---|---|---|---|
 | 1 | Frische Installation, Standardnutzer startet, zweites Konto, Over-the-Shoulder-Erhöhung | TP-41, TP-71; Launcher: Spielordner und Standardwerte für andere Konten (R1) | geplant: S-WP6, S-WP9 |
 | 2 | Versionsanzeige, MP-Beitritt ohne Versionskonflikt | TP-72, TP-70 (Version im Hauptmenü) | ausgearbeitet: TP-70; geplant: S-WP9 |
-| 3 | Grafikmatrix mit und ohne Wrapper | TP-21 | geplant: S-WP4 |
+| 3 | Grafikmatrix mit und ohne Wrapper | TP-23 | ausgearbeitet |
 | 4 | Farbtiefe 16 Bit, Reparatur stellt 32 Bit her | TP-73; Launcher: „Reset the Game“ (R4) | geplant: S-WP9 |
-| 5 | Kompatibilitätsflags, Windows 7 | TP-20 | geplant: S-WP4 |
+| 5 | Kompatibilitätsflags, Windows 7 | TP-20, TP-21 (Windows 7), TP-22 (alle Aufgaben, ohne `compatibility_windows`, ohne beide) | ausgearbeitet |
 | 6 | Auflösungsgrenzen, 1024x600 | TP-60 | geplant: S-WP8 |
 | 7 | AoC ohne vorherigen EE-Start | TP-74 | geplant: S-WP9 |
 | 8 | Alt-Installation (CD, GOG) vorhanden | TP-61; Launcher: welche Installation er erkennt (Vertrag 1.4) | geplant: S-WP8 |

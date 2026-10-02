@@ -113,6 +113,16 @@ Refactoring and quality fixes (no new game content).
   not match its pin (TP-16) and TLS 1.2 on Windows 7 SP1 without and with KB3140245 in a virtual
   machine (TP-17). The self-test of `ci/check_test_plan.py` no longer depends on which cases are
   still planned.
+- `docs/TEST-PLAN.de.md`, block 2: the Windows cases of the compatibility values and the graphics
+  options: a new installation on Windows 7 writes no compatibility value except the opt-in
+  `~ RUNASADMIN` (TP-20), an update on Windows 7 removes only the values of earlier setups (over
+  official 1.7.2: the value of `EE-AOC.exe`) and keeps a value the player set (TP-21), Windows
+  10/11 keep the values with all tasks, without `compatibility_windows` and without both (TP-22),
+  the graphics matrix native, DirectX 7, 9 and 11 with menu texts, HUD, mouse and the NeoEE
+  overlay (TP-23), and 150 % display scaling with and without the task `compatibility` (TP-24,
+  contract O4). Windows 7 cases run in a virtual machine only (snapshot `S-Win7-172-EE` for the
+  update). A planned case may be split and its block renumbered while it has no protocol; ids of
+  worked-out cases stay fixed.
 
 ### Changed
 - The hidden setup data folder (holds `EEStatsSetup.dll` for the uninstaller) is now
