@@ -162,6 +162,10 @@ Refactoring and quality fixes (no new game content).
 
 ### Fixed
 - English installation mode page: "Recommended settings" instead of "Recommanded settings".
+- Test builds (`TestID`): `/SUPPRESSMSGBOXES` now suppresses the test build warning (the log still
+  records it), so silent test runs with `/VERYSILENT /SUPPRESSMSGBOXES` no longer wait for a click.
+  The warning used Pascal Script's `MsgBox`, which ignores that switch; release builds are not
+  affected.
 - The build refuses empty, malformed or identical AppIds (an AppId must be 32 hex digits with
   four dashes). An empty AppId used to compile, turned the setup data folder into the install
   folder itself (hidden, and deleted completely on uninstall) and let EE and NeoEE share one

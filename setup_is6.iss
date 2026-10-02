@@ -1348,10 +1348,12 @@ begin
 end;
 
 #if TestID != 0
-// Test builds only, shown even in silent mode
+// Test builds only, shown even in silent mode; /SUPPRESSMSGBOXES suppresses it (the log still
+// names it), so that silent test runs need no click (docs/TEST-PLAN.de.md, 6.4). MsgBox would
+// ignore /SUPPRESSMSGBOXES.
 procedure ShowTestSetupWarning;
 begin
-  MsgBox(FmtMessage(CustomMessage('TestSetupWarning'), ['{#TestID}', '{#MySetupVersion}', '{#MyAppVersion}']), mbInformation, MB_OK);
+  SuppressibleMsgBox(FmtMessage(CustomMessage('TestSetupWarning'), ['{#TestID}', '{#MySetupVersion}', '{#MyAppVersion}']), mbInformation, MB_OK, IDOK);
 end;
 #endif
 
