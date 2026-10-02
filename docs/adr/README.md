@@ -20,7 +20,7 @@ the setup is [ARCHITECTURE.md](../ARCHITECTURE.md).
 | [0007](0007-environment-warnings.md) | Read-only warnings for low resolution, foreign installations and a shared EE/NeoEE folder | Accepted, implemented |
 | [0008](0008-release-checksums-and-contract-check.md) | SHA-256 files of the built setups, CI check of the contract, a log of every setup run | Accepted, implemented |
 | [0009](0009-no-installation-through-links.md) | No elevated installation through links in the folders all users can write to | Accepted, implemented |
-| [0010](0010-opt-in-compatibility-on-windows-7.md) | Opt-in compatibility flags on Windows 7; rules for the graphics and VirtualStore results | Accepted, implemented (points 1 to 3) |
+| [0010](0010-opt-in-compatibility-on-windows-7.md) | Opt-in compatibility flags on Windows 7; rules for the graphics and VirtualStore results | Accepted, implemented (the rules of points 4 and 5 wait for the results of TP-23 and TP-71) |
 
 Template for a new record (`NNNN-short-title.md`, next free number):
 

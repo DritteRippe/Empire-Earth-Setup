@@ -12,7 +12,12 @@ header.
 
 ## Unreleased
 
-Refactoring and quality fixes (no new game content).
+Setup v2: the refactoring and quality fixes of the base branch and the work packages of the v2
+plan (`docs/ARCHITECTURE.md`, "Plan", all done): built-in downloads instead of a plug-in, the
+compatibility defaults, a log of every run and checksums of the setups, the install record and the
+integrity manifest for the Empire Earth Launcher, hints before the installation, no elevated
+installation through links, and a complete German test plan for Windows. No new game content; the
+setup version stays 1.7.2 until the release.
 
 ### Added
 - Build switches can be set on the command line instead of editing the script:
@@ -57,15 +62,17 @@ Refactoring and quality fixes (no new game content).
 - `docs/CONTRACT.md` (contract version 1, draft): what the setup leaves on the computer for the
   launcher (install record, `install.ini`, integrity manifest `files.sha256`, per-user default game
   settings, defaults marker) and how the launcher sends the user back to the setup for a repair. The
-  same file is in the launcher repository. The setup does not implement it yet.
+  same file is in the launcher repository. The setup implements it with the install state and the
+  integrity manifest below; it stays a draft until a release.
 - `docs/ARCHITECTURE.md`: target architecture of setup v2 (module map, data flow of an
   installation, error handling, logging, localization, testing strategy, plan of the work packages)
   and architecture decision records in `docs/adr/`: keep Inno Setup and Pascal Script, stay on Inno
   Setup 6.2.2, replace the download plug-in IDP by Inno Setup's built-in downloads, how the install
   record and the integrity manifest are written, compatibility and DirectX wrapper defaults, strict
   TLS and the file server certificate, warnings before the installation, checksums of the setups
-  and a check of the contract. Documentation only, the setup does not change yet. Two more
-  records were added by a second plan review: no elevated installation through links in the
+  and a check of the contract. The entries below implement it, one work package after the other
+  (all done). Two more records were added by a second plan review: no elevated installation
+  through links in the
   folders all users can write to (0009), and opt-in compatibility flags on Windows 7 with rules for
   the graphics and VirtualStore test results (0010).
 - `ci/compare_contract.py`: checks locally that `docs/CONTRACT.md` is identical in this and in the
@@ -93,7 +100,7 @@ Refactoring and quality fixes (no new game content).
   tools that rebuilt the data from the official 1.7.2 setups stay outside the repository, with the
   reasons), silent test runs with `/SUPPRESSMSGBOXES`, the server pre-check `TP-00`, the basic run
   `TP-70`, and the forum test cases 1 to 22 mapped to test cases or excluded with a reason. The
-  other cases are placeholders that the following work packages work out. README: "Testing on
+  other cases were placeholders, worked out by the work packages below. README: "Testing on
   Windows".
 - `ci/check_test_plan.py` (also run by the workflow, with its `--self-test`): checks that every test
   case id of `docs/TEST-PLAN.de.md` is defined once with a valid status and the fields of the
@@ -159,9 +166,10 @@ Refactoring and quality fixes (no new game content).
   find the log, and to check it for user names in folder paths before posting it publicly).
 - `docs/TEST-PLAN.de.md`: every test case has a priority (new field `Priorität`, also for planned
   cases): `P1` belongs to the short run before every release (at most about three hours on the
-  laptop, in Windows Sandbox or in a Windows 10/11 virtual machine; S-WP9 fixes its exact content
-  and the release criterion), `P2` is important but outside the short run, `P3` is optional
-  (Windows 7 or 8.1 only, a second computer, an original CD). 10 cases are `P1`, 18 `P2`, 4 `P3`.
+  laptop, in Windows Sandbox or in a Windows 10/11 virtual machine; its content and the release
+  criterion: see the short run below), `P2` is important but outside the short run, `P3` is
+  optional (Windows 7 or 8.1 only, a second computer, an original CD). Then 10 cases were `P1`, 18
+  `P2`, 4 `P3` (now 11, 18 and 4 of 33).
   `ci/check_test_plan.py` reports a missing or invalid priority (only `P1` to `P3`, optionally
   with a remark in parentheses), and its self-test proves it with a case without the field and one
   with `P4`.
@@ -352,6 +360,34 @@ Refactoring and quality fixes (no new game content).
   folder the junction points to stays empty, after removing the link "Back" and "Install" run the
   installation; silent with exit code 7; a junction in the profile folder of a player stops it too;
   the user mode is not checked.
+- `docs/TEST-PLAN.de.md`, build type A+: a placeholder build with the official AppIds read from the
+  tester's own uninstall key (`ci\build.ps1 -Placeholders -EEAppID <GUID> -NeoEEAppID <GUID>
+  -TestID 1 -OutputDir out\aplus`), so that the update over the official setup 1.7.2 can be tested
+  without the game data of the maintainers: removal of the old folder `<game>\<AppId>`, the cleanup
+  of old compatibility values and of `RUNASADMIN`, record, `install.ini`, manifest and the contract
+  version after an update. Because such a setup updates a real installation in place and replaces
+  its files by placeholders, it runs only in a virtual machine or in Windows Sandbox where setup
+  1.7.2 was installed first (how: section 5), never on the laptop. TP-21 (a), TP-22 (e), TP-40 (f),
+  TP-62 (d) and TP-70 (b) take it.
+- `docs/TEST-PLAN.de.md`, block 7 complete: TP-71 standard user after an installation for all users
+  (VirtualStore, the version with and without administrator rights), TP-72 version and LAN game
+  between two installations, TP-73 repair (a deleted and a changed file, 16 bit, no uninstall key,
+  a broken NeoEE installation), TP-74 The Art of Conquest without a previous start of Empire Earth
+  (`Installed From`), TP-75 EE and NeoEE in separate folders with one uninstalled (firewall rules,
+  settings, CD keys of the other stay), TP-76 the firewall rules when hosting, TP-77 NeoEE CD keys
+  with the license server blocked and in a virtual machine, TP-78 the German version of both games,
+  TP-79 the setup and the uninstaller while a game runs (`AppMutex`; with way A a PowerShell holds
+  the game's mutex). TP-23 and TP-71 state the rules of ADR 0010 for their results (wrapper
+  preselection per vendor, VirtualStore), TP-22 has an optional Windows 8.1 variant (virtual machine
+  only, `P3`). All 33 cases are worked out; all forum test cases 1 to 22 are assigned.
+- `docs/TEST-PLAN.de.md`, section 7: the `P1` short run before every release, ten steps on the
+  laptop and in Windows Sandbox that combine cases with the same starting state, with minutes per
+  step (about 155 minutes with ways A and A+, 170 with the step that needs the game data), and the
+  release criterion: every `P1` case with all its `P1` parts passed or excepted with a reason. The
+  priority field of each `P1` case names its `P1` parts. `ci/check_test_plan.py` checks that the
+  short run names exactly the `P1` cases and takes at most 180 minutes (six new self-test cases, 28
+  in all). README: what is new in setup v2 (under "Features"), way A+ and the short run (under
+  "Testing on Windows").
 
 ### Changed
 - The hidden setup data folder (holds `EEStatsSetup.dll` for the uninstaller) is now
@@ -426,8 +462,7 @@ Refactoring and quality fixes (no new game content).
   whose absence tells the launcher that an older setup ran later (state Unknown); the manifest
   lists every file the run processed (installed or kept); portable setups write no defaults
   marker; contract 3.7 has a table of the compatibility values (none on Windows Vista/7 except the
-  opt-in `~ RUNASADMIN`, O7); O4, O11 and O12 are answered. Documentation only, later packages
-  implement it.
+  opt-in `~ RUNASADMIN`, O7); O4, O11 and O12 are answered. The entries below implement it.
 - `docs/CONTRACT.md`, revision 2 after the second review of the v2 plan (still contract version 1,
   draft, because every change is compatible by its section 5; the same text and commit subject in
   the launcher repository): tables of the window size limits (3.3) and of the GPU preference values

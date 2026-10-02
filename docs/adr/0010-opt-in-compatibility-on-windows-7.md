@@ -1,8 +1,8 @@
 # 0010. Opt-in compatibility flags on Windows 7; rules for the graphics and VirtualStore results
 
-- Status: Accepted, implemented: points 1 to 3 and the README part of point 6 by S-WP10 (see
-  [Implementation](#implementation)); points 4 and 5 are rules for the results of TP-23 and TP-71,
-  the Windows 8.1 variant of TP-22 (point 6) follows with S-WP9
+- Status: Accepted, implemented: points 1 to 3 and the README part of point 6 by S-WP10, the test
+  plan parts of points 4 to 6 by S-WP9 (see [Implementation](#implementation)); points 4 and 5 are
+  applied when TP-23 and TP-71 have results
 - Date: 2026-10-02
 - Requirements: R15 ("decide with evidence, document, keep user-selectable"), contract O7, forum
   report section 8 problem table item 2 (VirtualStore)
@@ -161,6 +161,14 @@ repository, same subject), the checks of the tables 3.3 and 3.4 (`921360a`), the
 - Not verified here: whether `DWM8And16BitMitigation` and `HeapClearAllocation` change anything on
   Windows 7, and the effect of `HIGHDPIAWARE` at 150 % there (TP-20 (d), TP-24 (d), virtual machine
   only).
+
+S-WP9, 2026-10-02 (`d3d1421`): TP-23 states the rule of point 4 as the consequence of the
+graphics matrix (a defect of the preselected level that "native" does not show on the same
+computer: a proposal to change the preselection for that vendor, as a follow-up package; equal
+results keep it), TP-71 (worked out then: an administrator installs, a standard user plays) states
+the rule of point 5 for the VirtualStore listing, and TP-22 has the optional Windows 8.1 variant (f)
+of point 6 (virtual machine `S-Win81` only, `P3`; without such a VM it is recorded as "untested").
+The rules were written into the cases before any of them was run; the setup itself does not change.
 
 ## Alternatives considered
 

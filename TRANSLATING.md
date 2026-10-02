@@ -68,6 +68,10 @@ texts `SoundCtrlButtonCaptionSoundOn/Off` stay English on purpose and are not co
 | Brazilian Portuguese `pt_BR` | 13 | 99: everything except the game language page (`LIQP_*`), see below |
 | Setup-only languages (`hy`, `bg`, `ca`, ...) | 0 | all; these languages only have Inno Setup's own texts |
 
+The numbers are those of `python ci/check_messages.py --coverage` for setup v2 (all work packages
+done). It also lists 20 `zh_TW` texts that are copies of the `zh_CN` ones; the table counts them as
+translated (see [Chinese Traditional](#chinese-traditional-zh_tw)).
+
 ## Help wanted
 
 ### Brazilian Portuguese (pt_BR)
