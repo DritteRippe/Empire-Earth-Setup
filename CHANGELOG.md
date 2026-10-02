@@ -105,6 +105,14 @@ Refactoring and quality fixes (no new game content).
   for the current certificate of `files.empireearth.eu` and the release criterion: at least one
   file server with a valid certificate. README: a "Support" section (setup log, missing localized
   files, Windows 7 and the update KB3140245).
+- `docs/TEST-PLAN.de.md`, block 1: the Windows cases of the built-in downloads, each with build
+  type, starting state, snapshot, steps, expected result and the log lines that prove it: main
+  server with an invalid certificate and download from the mirror (TP-10), no server reachable
+  (TP-11), stop button at the first and at the second server (TP-12, TP-13), `/VERYSILENT`,
+  `/SILENT` and `/SUPPRESSMSGBOXES` without any dialog (TP-14), Korean (TP-15), a download that does
+  not match its pin (TP-16) and TLS 1.2 on Windows 7 SP1 without and with KB3140245 in a virtual
+  machine (TP-17). The self-test of `ci/check_test_plan.py` no longer depends on which cases are
+  still planned.
 
 ### Changed
 - The hidden setup data folder (holds `EEStatsSetup.dll` for the uninstaller) is now

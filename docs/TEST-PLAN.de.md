@@ -5,9 +5,10 @@ virtuelle Maschinen). Er gehört zur Architektur in [ARCHITECTURE.md](ARCHITECTU
 Teststrategie) und zu den Entscheidungen in [docs/adr](adr/README.md). Was das Setup für den
 Launcher hinterlässt, steht in [CONTRACT.md](CONTRACT.md).
 
-Stand: Gerüst aus Arbeitspaket S-WP2. Ausgearbeitet sind die Server-Vorabprüfung
-[TP-00](#tp-00-server-vorabprüfung) und der Grundablauf [TP-70](#tp-70-grundablauf-installieren-starten-deinstallieren).
-Jedes weitere Arbeitspaket (S-WP3 bis S-WP8) arbeitet die Fälle seines Blocks aus, S-WP9
+Stand: Gerüst aus Arbeitspaket S-WP2, Block 1 (Downloads, TP-10 bis TP-17) aus S-WP3.
+Ausgearbeitet sind die Server-Vorabprüfung [TP-00](#tp-00-server-vorabprüfung), die Download-Fälle
+und der Grundablauf [TP-70](#tp-70-grundablauf-installieren-starten-deinstallieren).
+Jedes weitere Arbeitspaket (S-WP4 bis S-WP8) arbeitet die Fälle seines Blocks aus, S-WP9
 vervollständigt den Plan. Fälle, die noch nicht ausgearbeitet sind, tragen den Status
 `geplant: S-WPx`. `ci/check_test_plan.py` prüft die Form dieses Dokuments (siehe
 [Abschnitt 10](#10-automatische-prüfung-dieses-dokuments)).
@@ -79,7 +80,7 @@ Blocks.
 | IDs | Block | Paket | Inhalt |
 |---|---|---|---|
 | TP-00 | Vorabprüfung | S-WP2 | Zustand der beiden Dateiserver vor jedem Testtag mit Downloads |
-| TP-1x | Downloads | S-WP3 | eingebaute Downloads statt IDP: Hauptserver, Spiegel, offline, Pin, Stopp-Knopf, Silent, Koreanisch, TLS 1.2 unter Windows 7 |
+| TP-1x | Downloads | S-WP3 | eingebaute Downloads statt IDP: Hauptserver ungültig und Spiegel (TP-10), offline (TP-11), Stopp-Knopf am ersten und am zweiten Server (TP-12, TP-13), Silent (TP-14), Koreanisch (TP-15), verworfener Download (TP-16), TLS 1.2 unter Windows 7 (TP-17) |
 | TP-2x | Kompatibilität und Grafik | S-WP4 | Kompatibilitätswerte je Windows-Version, Bereinigung unter Vista/7, DirectX-Wrapper-Matrix, 150 % DPI |
 | TP-3x | Build und Log | S-WP5 | SHA-256-Dateien der Setups, Setup-Log ohne `/LOG` |
 | TP-4x | Installationseintrag und `install.ini` | S-WP6 | Registry-Eintrag, `install.ini`, Defaults-Marker, `SetupBuild`, Wert `ContractVersion` im Uninstall-Schlüssel |
@@ -372,38 +373,333 @@ Installationsmodus. Deinstallation:
   `files.empireearth.eu` lieferte das Standardzertifikat des Hosters
   (`CN=cluster131.hosting.ovh.net`), also **ungültig**; der Spiegel war von dort nicht erreichbar
   (Proxy-Fehler 502) und ist damit **unbekannt**.
-- **Log-Hinweis:** kein Setup-Log. In den Download-Fällen (TP-1x) zeigt das Setup-Log den
-  Serverwechsel, z. B. `Main online files server unreachable, downloading from the mirror first`
-  (`downloads.iss`); S-WP3 ergänzt die Ursache (Zertifikat, Zeitüberschreitung).
+- **Log-Hinweis:** kein Setup-Log. In den Download-Fällen (TP-1x) zeigt das Setup-Log die Ursache
+  (`HTTP GET https://files.empireearth.eu/localized failed: <Ursache>`) und den Serverwechsel
+  (`Main online files server unreachable or without a valid certificate (see the HTTP GET line above), downloading from the mirror first`,
+  `downloads.iss`); was die Betreiber prüfen, steht in [SERVER-OPERATIONS.md](SERVER-OPERATIONS.md).
 
 ### Block 1: Downloads (S-WP3)
 
-S-WP3 arbeitet hier aus, was ADR 0003 und ADR 0006 auf Windows verlangen: Hauptserver mit
-ungültigem Zertifikat und Spiegel, offline, verworfener Download, Stopp-Knopf am Hauptserver und
-am Spiegel (danach keine Anfrage mehr), `/VERYSILENT`, Koreanisch (Texte der Download-Seite
-englisch), TLS 1.2 unter Windows 7 ohne KB3140245 (Updateprüfung, Erreichbarkeitsprüfung und
-Download, mit Ursache im Log), Dateien ohne `Content-Length`.
+Diese Fälle prüfen, was ADR 0003 und ADR 0006 nur auf Windows zeigen können: die eingebauten
+Downloads von Inno Setup statt IDP (eine Datei nach der anderen, erst der zuerst gewählte Server,
+dann einmal der andere), den Stopp-Knopf, den Silent-Modus, Koreanisch und TLS 1.2 unter
+Windows 7. Die Entscheidung nach jedem Versuch ist zusätzlich als Unit-Test abgedeckt
+(`NextDownloadAction` in `ci/tests/unit_tests.iss`).
+
+Gemeinsam für alle Fälle dieses Blocks:
+
+- Vorher [TP-00](#tp-00-server-vorabprüfung) am selben Tag ausführen. Sein Ergebnis bestimmt, welche
+  Fälle durchführbar sind (jeder Fall nennt es unter „Ausgangszustand“).
+- Downloads gibt es nur mit einer anderen Spielsprache als Englisch und mit der Komponente
+  „Lokalisierte Sprachausgabe und Kampagnen herunterladen“ (in den empfohlenen Einstellungen und
+  in allen Installationsarten vorausgewählt). Wenn nicht anders gesagt: Spielsprache „Deutsch“.
+- Die Download-Seite heißt „Lokalisierte Dateien werden heruntergeladen“; unter dem
+  Fortschrittsbalken steht die URL der Datei, die gerade geladen wird, darunter der Knopf
+  „Download abbrechen“.
+- **Weg A:** Die Pins stammen aus Platzhaltern ([6.2](#62-weg-a-placeholder-build)). Jede gepinnte
+  Datei (mindestens `Language.dll`) passt deshalb nicht zum Server, wird auf beiden Servern
+  verworfen und im Hinweis als „nicht die Version, die dieses Setup kennt … verworfen“ gemeldet.
+  Das ist bei Weg A in jedem Fall dieses Blocks erwartet und genau der Inhalt von
+  [TP-16](#tp-16-manipulierter-download-wird-verworfen).
+- Langsame Leitung für die Stopp-Fälle: Damit man den Knopf rechtzeitig trifft, in der VM die
+  Bandbreite begrenzen (VirtualBox: *Netzwerk › Bandbreitengruppe*, etwa 1 MBit/s; Hyper-V:
+  *Netzwerkkarte › Bandbreitenverwaltung*) und die Komponente „Intro-Videos installieren“ wählen
+  (nur in der benutzerdefinierten Installation; das lokalisierte Video ist die größte Datei).
+- Log-Zeilen des Download-Teils (`downloads.iss`), die die Fälle zitieren:
+  `Downloading <n> online files, one at a time`; je Versuch
+  `Downloading temporary file from <URL>: <Ziel>` (Inno Setup) und danach
+  `Online file downloaded, SHA-256 pinned: <URL>`,
+  `Online file downloaded, TLS-verified, size checked: <URL>`,
+  `Online file downloaded, TLS-verified, accepted without size check (the server sent no Content-Length): <URL>`,
+  `Online file download failed from <URL>: <Ursache>` oder
+  `Online file rejected, SHA-256 mismatch: <URL> (got <SHA-256>)`; der Wechsel
+  `Online file: trying the other server, <URL>`; bei `ssInstall` je Datei
+  `Online file verified, SHA-256 pinned: …`, `Online file accepted, TLS-verified, not pinned: …`
+  oder `Online file not downloaded: …` und am Ende
+  `<k> of <n> selected online files are missing, the setup installs its own files instead:` mit der
+  Liste (bzw. `All <n> online files accepted`).
 
 #### TP-10: Hauptserver ungültig, Download vom Spiegel
 
-- **Status:** geplant: S-WP3
-- **Bezug:** ADR 0003, ADR 0006, R16; Forum §8 Nr. 15 („nur mit Spiegel erreichbar“)
+- **Status:** ausgearbeitet
+- **Bezug:** ADR 0003, ADR 0006, R16; Forum §8 Nr. 15 („nur mit Spiegel erreichbar“), Forum
+  §8 Nr. 12 des Problemabgleichs (t=5741, t=3763: kaputte Downloads)
 - **Ziel:** Mit ungültigem Zertifikat des Hauptservers lädt das Setup die lokalisierten Dateien
-  vom Spiegel und nennt die Ursache im Log.
+  vom Spiegel und nennt die Ursache im Log; ein ungültiges Zertifikat wird nie akzeptiert.
+- **Build-Art:** A oder B (B zeigt den Normalfall ohne verworfene Dateien)
+- **Ausgangszustand:** TP-00: Spiegel gültig. Ist der Hauptserver noch ungültig (Stand
+  2026-10-02), ist das der Fall selbst. Ist er inzwischen gültig, wird der Fehler nachgestellt:
+  in der VM als Administrator die Adresse des Spiegels ermitteln (`nslookup storage.ee.zocker-160.de`)
+  und in `C:\Windows\System32\drivers\etc\hosts` die Zeile `<diese IPv4-Adresse> files.empireearth.eu`
+  eintragen, dann `ipconfig /flushdns`. `curl.exe -sSI https://files.empireearth.eu/localized/`
+  muss jetzt mit einem Zertifikatsfehler scheitern.
+- **Snapshot:** `S-Basis` (die Zeile in `hosts` verschwindet mit dem Zurücksetzen)
+- **Varianten:** EE-admin; NeoEE-admin bei Weg B (lädt die NeoEE-Fassungen aus `Mods/NeoEE/`).
+  Die anderen Varianten nutzen denselben Code.
+- **Schritte:**
+  1. Setup mit `/LOG="C:\EE-Test\logs\TP-10_EE-admin.log"` starten (bei Weg A zusätzlich
+     `/MERGETASKS="!dxwebsetup"`), Spielsprache Deutsch, empfohlene Einstellungen mit „Empire
+     Earth und Die Kunst der Eroberungen“, Telemetrie aus.
+  2. Auf „Bereit zur Installation“ „Installieren“ klicken; die Download-Seite beobachten (die URLs
+     müssen mit `https://storage.ee.zocker-160.de/` beginnen) und die Installation fertigstellen.
+  3. `certutil -hashfile "C:\Program Files (x86)\Empire Earth\Empire Earth\Data\data.ssa" SHA256`
+     ausführen und mit der Zeile `Online file accepted, TLS-verified, not pinned: Game/de/EE/Data/data.ssa (SHA-256 …)`
+     im Log vergleichen.
+  4. Bei nachgestelltem Fehler die Zeile in `hosts` wieder entfernen (oder den Snapshot
+     zurücksetzen).
+- **Erwartetes Ergebnis:** Keine Fehlermeldung und kein Hinweis `OnlineFilesUnreachable`. Weg B:
+  kein Hinweis `DownloadIncomplete` (sofern der Spiegel vollständig ist); Weg A: der Hinweis listet
+  nur die gepinnten Dateien als verworfen. Die SHA-256 aus Schritt 3 gleicht der im Log. Keine
+  Anfrage an den Hauptserver lädt eine Datei.
+- **Log-Hinweis:** `HTTP GET https://files.empireearth.eu/localized failed: <Ursache>` (ein
+  Zertifikatsfehler, z. B. „Die Zertifizierungsstelle ist ungültig oder falsch“ oder „Der
+  Zertifikatsname ist ungültig oder stimmt nicht überein“), danach
+  `Main online files server unreachable or without a valid certificate (see the HTTP GET line above), downloading from the mirror first`
+  und `Downloading temporary file from https://storage.ee.zocker-160.de/localized/…`. Scheitert
+  eine Datei am Spiegel, folgt `Online file: trying the other server, https://files.empireearth.eu/…`
+  und `Online file download failed from https://files.empireearth.eu/…: <Zertifikatsfehler>`. Steht
+  bei einer ungepinnten Datei `accepted without size check`, sendet der Spiegel kein
+  `Content-Length`: ins Protokoll und an die Serverbetreiber (SERVER-OPERATIONS.md, Abschnitt 2).
 
 #### TP-11: Keiner der Server erreichbar
 
-- **Status:** geplant: S-WP3
+- **Status:** ausgearbeitet
 - **Bezug:** ADR 0006 (Hinweis `OnlineFilesUnreachable`); Forum §8 Nr. 15 („ohne Internet“)
 - **Ziel:** Ohne Netz bzw. ohne gültigen Server installiert das Setup seine eigenen Dateien und
-  erklärt das verständlich.
+  erklärt das verständlich: Server nicht erreichbar oder ohne gültiges Zertifikat, ein Problem der
+  Server, später erneut ausführen.
+- **Build-Art:** A oder B
+- **Ausgangszustand:** beliebiges Ergebnis von TP-00. (a) Netzwerk aus: in der VM die
+  Netzwerkkarte trennen. (b) Netz an, aber beide Dateiserver ohne gültiges Zertifikat: in
+  `C:\Windows\System32\drivers\etc\hosts` beide Namen auf einen fremden HTTPS-Server umleiten,
+  dessen Zertifikat nicht zu ihnen passt, z. B. `www.gog.com` (Adresse mit `nslookup www.gog.com`):
+  `<diese IPv4-Adresse> files.empireearth.eu` und `<diese IPv4-Adresse> storage.ee.zocker-160.de`,
+  dann `ipconfig /flushdns`. Nicht die Adresse von `empireearth.eu` nehmen: Deren
+  Wildcard-Zertifikat gilt auch für `files.empireearth.eu`.
+- **Snapshot:** `S-Basis`
+- **Varianten:** EE-admin (a und b), EE-user (a)
+- **Schritte:**
+  1. Ausgangszustand (a) herstellen, Setup mit `/LOG="C:\EE-Test\logs\TP-11a_EE-admin.log"`
+     starten, Spielsprache Deutsch, empfohlene Einstellungen, installieren.
+  2. Den Hinweis nach „Installieren“ lesen und mit OK bestätigen, die Installation fertigstellen.
+  3. Snapshot zurücksetzen, Ausgangszustand (b) herstellen, Schritte 1 und 2 mit `TP-11b` im
+     Log-Namen wiederholen.
+- **Erwartetes Ergebnis:** Nach „Installieren“ erscheint genau ein Hinweis (kein Fehler):
+  „Die Server der lokalisierten Dateien waren nicht erreichbar oder haben kein gültiges
+  Sicherheitszertifikat vorgelegt (ein Problem der Server, nicht Ihres Computers). Das Spiel wird
+  mit den Dateien installiert, die dieses Setup enthält, daher bleiben einige Inhalte (zum Beispiel
+  Stimmen und Kampagnen) möglicherweise englisch. Um die lokalisierten Dateien hinzuzufügen,
+  führen Sie dieses Setup später erneut aus.“ Die Download-Seite erscheint nicht, die Installation
+  läuft zu Ende, `Language.dll` und die Lobby-Dateien sind die des Setups (deutsch), Stimmen und
+  Kampagnen englisch.
+- **Log-Hinweis:** zwei Zeilen `HTTP GET https://…/localized failed: <Ursache>` (a: Name nicht
+  auflösbar bzw. keine Verbindung; b: Zertifikatsfehler), danach
+  `Unable to reach the online files server! The setup will only use local files...`; keine Zeile
+  `Downloading temporary file`.
 
-#### TP-12: Download passt nicht zum Pin
+#### TP-12: Stopp beim zuerst verwendeten Server
 
-- **Status:** geplant: S-WP3
-- **Bezug:** ADR 0003 (`DownloadFileRejected`); Forum §8 Nr. 15 („manipulierter Download“)
-- **Ziel:** Eine heruntergeladene Datei, die nicht zu ihrem Pin passt, wird verworfen, gemeldet
-  und durch die eigene Version ersetzt.
+- **Status:** ausgearbeitet
+- **Bezug:** ADR 0003 (Stopp-Knopf beendet alle Anfragen, nie der Spiegel), Review „Stopp vs
+  Mirror“; Unit-Test `NextDownloadAction stop at the main server`
+- **Ziel:** Ein Stopp während des Downloads vom zuerst verwendeten Server beendet alle Downloads:
+  keine Anfrage an den anderen Server, keine weitere Datei; die Installation läuft mit den
+  eigenen Dateien weiter und meldet die übersprungenen Dateien.
+- **Build-Art:** A oder B
+- **Ausgangszustand:** TP-00: mindestens ein Server gültig. Bandbreite begrenzt (siehe oben).
+- **Snapshot:** `S-Basis`
+- **Varianten:** EE-admin
+- **Schritte:**
+  1. Setup mit `/LOG="C:\EE-Test\logs\TP-12_EE-admin.log"` starten, Spielsprache Deutsch,
+     benutzerdefinierte Installation mit „Intro-Videos installieren“, Telemetrie aus.
+  2. „Installieren“ klicken. Sobald die Download-Seite eine URL mit `Data/data.ssa` oder
+     `Data/Movies/Empire Earth.bik` zeigt, „Download abbrechen“ klicken und die Frage „Sind Sie
+     sicher, dass Sie den Download abbrechen wollen?“ mit „Ja“ beantworten.
+  3. Den Hinweis lesen, bestätigen, die Installation fertigstellen.
+- **Erwartetes Ergebnis:** Die Download-Seite schließt sich sofort, ohne weitere Datei zu laden;
+  die Installation läuft weiter. Der Hinweis „Einige lokalisierte Dateien konnten nicht aus dem
+  Download installiert werden: …“ listet die abgebrochene und alle folgenden Dateien mit
+  „(Download abgebrochen, nicht heruntergeladen)“; vorher fertig geladene Dateien fehlen in der
+  Liste (bei Weg A stehen die gepinnten als verworfen darin). Kein Fehler.
+- **Log-Hinweis:** `Online file download stopped by the user: <URL>` und direkt danach
+  `Online files: downloads stopped by the user, no further request (neither the other server nor the remaining files)`,
+  dann je restlicher Datei `Online file skipped, downloads stopped by the user: <Pfad>`. **Nach**
+  der Stopp-Zeile gibt es keine Zeile `Downloading temporary file from` und keine Zeile
+  `Online file: trying the other server` mehr.
+
+#### TP-13: Stopp beim zweiten Server
+
+- **Status:** ausgearbeitet
+- **Bezug:** ADR 0003 (Stopp-Knopf), Review „Stopp vs Mirror“; Unit-Test
+  `NextDownloadAction stop at the mirror`
+- **Ziel:** Ein Stopp während des Versuchs am zweiten Server (nach einem Fehlschlag am ersten)
+  beendet ebenfalls alle Downloads.
+- **Build-Art:** A (mit dem Video-Pin aus Schritt 1)
+- **Ausgangszustand:** TP-00: **beide** Server gültig (sonst scheitert der zweite Versuch sofort
+  und der Fall ist nicht durchführbar: im Protokoll „nicht durchgeführt: nur ein gültiger Server“).
+  Bandbreite begrenzt.
+- **Snapshot:** `S-Basis`
+- **Varianten:** EE-admin
+- **Schritte:**
+  1. Vor dem Bauen eine beliebige kleine Datei als
+     `data\localized-text\Game\de\EE\Data\Movies\Empire Earth.bik` anlegen (z. B. eine Textdatei
+     mit dem Inhalt `x`), dann wie in [6.2](#62-weg-a-placeholder-build) bauen. Die Hashliste pinnt
+     das Video damit auf einen falschen Wert: Das echte Video wird am ersten Server verworfen, und
+     das Setup lädt es noch einmal vom zweiten. Die Datei nach dem Test wieder löschen.
+  2. Setup mit `/LOG="C:\EE-Test\logs\TP-13_EE-admin.log"` starten, Spielsprache Deutsch,
+     benutzerdefinierte Installation mit „Intro-Videos installieren“.
+  3. Warten, bis die Download-Seite das Video vom **zweiten** Server zeigt (die URL wechselt von
+     `files.empireearth.eu` zu `storage.ee.zocker-160.de` oder umgekehrt), dann „Download
+     abbrechen“ und „Ja“.
+  4. Hinweis bestätigen, Installation fertigstellen.
+- **Erwartetes Ergebnis:** wie [TP-12](#tp-12-stopp-beim-zuerst-verwendeten-server): Die Seite
+  schließt sich, die Installation läuft weiter, das Video und alle folgenden Dateien stehen mit
+  „(Download abgebrochen, nicht heruntergeladen)“ im Hinweis.
+- **Log-Hinweis:** `Online file rejected, SHA-256 mismatch: <URL des ersten Servers>/…/Empire Earth.bik (got …)`,
+  `Online file: trying the other server, <URL des zweiten Servers>`,
+  `Online file download stopped by the user: <URL des zweiten Servers>`, dann die Stopp-Zeile wie
+  in TP-12 und danach keine Zeile `Downloading temporary file from` mehr.
+
+#### TP-14: Silent-Installation ohne Dialog
+
+- **Status:** ausgearbeitet
+- **Bezug:** ADR 0003; ARCHITECTURE Abschnitt 5 (Hinweise nicht im Silent-Modus und nicht mit
+  `/SUPPRESSMSGBOXES`); Forum §8 Nr. 15
+- **Ziel:** Mit `/SILENT`, `/VERYSILENT` oder `/SUPPRESSMSGBOXES` erscheint wegen der Downloads
+  kein Dialog; alles, was sonst ein Hinweis wäre, steht im Log.
+- **Build-Art:** A oder B
+- **Ausgangszustand:** TP-00: mindestens ein Server gültig (für a und c). Für b und d Netzwerk
+  aus.
+- **Snapshot:** `S-Basis` (vor jedem Lauf)
+- **Varianten:** EE-admin, EE-portable (nur a)
+- **Schritte:**
+  1. (a) `EE_Setup_v1.7.2.exe /VERYSILENT /SUPPRESSMSGBOXES /ALLUSERS /LANG=de /LOG="C:\EE-Test\logs\TP-14a_EE-admin.log"`
+     (Weg A zusätzlich `/MERGETASKS="!dxwebsetup"`) in einer Eingabeaufforderung als
+     Administrator starten und warten, bis der Prozess endet (Task-Manager).
+  2. (b) wie (a) mit getrenntem Netzwerk, Log `TP-14b_…`.
+  3. (c) wie (a) mit `/SILENT` statt `/VERYSILENT`, Log `TP-14c_…`.
+  4. (d) interaktiv nur mit `/SUPPRESSMSGBOXES /LOG="C:\EE-Test\logs\TP-14d_EE-admin.log"` und
+     getrenntem Netzwerk durch den Assistenten klicken (Spielsprache Deutsch).
+  5. (a) für EE-portable mit `EE_Portable_Setup_v1.7.2.exe` wiederholen.
+- **Erwartetes Ergebnis:** In keinem Lauf erscheint ein Hinweis oder eine Frage (weder
+  `OnlineFilesUnreachable` noch `DownloadIncomplete` noch die Testwarnung). (a) und (c) zeigen
+  höchstens das Fortschrittsfenster (c) bzw. gar nichts (a), die Installation endet von selbst mit
+  den heruntergeladenen deutschen Dateien. (b) und (d) installieren mit den eigenen Dateien.
+- **Log-Hinweis:** (a), (c): die Download-Zeilen wie in TP-10 und `All <n> online files accepted`
+  bzw. bei Weg A die Liste `… selected online files are missing …`; (b), (d):
+  `Unable to reach the online files server! The setup will only use local files...`. In allen
+  Läufen `Installation process succeeded.`
+
+#### TP-15: Koreanisch
+
+- **Status:** ausgearbeitet
+- **Bezug:** ADR 0003 (Texte der Download-Seite), TRANSLATING.md („Korean (ko): texts of the
+  download page“), R17
+- **Ziel:** Mit Koreanisch als Setup- und Spielsprache funktionieren die Downloads; die Texte der
+  Download-Seite und die Hinweise dazu erscheinen englisch, weil die inoffizielle koreanische
+  Sprachdatei sie nicht hat (bekannte Lücke, kein Fehler).
+- **Build-Art:** A oder B
+- **Ausgangszustand:** TP-00: mindestens ein Server gültig.
+- **Snapshot:** `S-Basis`
+- **Varianten:** EE-admin
+- **Schritte:**
+  1. Setup mit `/LANG=ko /LOG="C:\EE-Test\logs\TP-15_EE-admin.log"` starten (Setup-Sprache
+     Koreanisch; die Spielsprache folgt ihr), empfohlene Einstellungen, Telemetrie aus.
+  2. Auf der Download-Seite die Texte notieren (ein Bildschirmfoto genügt), während des Downloads
+     „Stop download“ klicken und mit „Yes“ bestätigen.
+  3. Den Hinweis lesen, Installation fertigstellen.
+- **Erwartetes Ergebnis:** Der Assistent ist koreanisch; die Download-Seite zeigt englisch
+  „Downloading localized files“, „Downloading additional files...“ und den Knopf „Stop download“,
+  die Frage „Are you sure you want to stop the download?“, danach den englischen Hinweis „Some
+  localized files could not be installed from the download: …“ mit „(download stopped, not
+  downloaded)“. Keine Fehlermeldung, keine leeren Texte.
+- **Log-Hinweis:** `Downloading temporary file from https://…/localized/Game/ko/EE/…` (bzw.
+  `Lobby/ko/…`), die Stopp-Zeile wie in TP-12; keine Zeile mit `Exception`.
+
+#### TP-16: Manipulierter Download wird verworfen
+
+- **Status:** ausgearbeitet
+- **Bezug:** ADR 0003 (Pin direkt nach dem Download, `DownloadFileRejected`); Forum §8 Nr. 15
+  („manipulierter Download“), Forum §8 Nr. 12 des Problemabgleichs (t=5741, t=3763)
+- **Ziel:** Eine heruntergeladene Datei, die nicht zu ihrem Pin passt, wird verworfen, auf dem
+  anderen Server noch einmal versucht, gemeldet und durch die eigene Version ersetzt; sie wird nie
+  installiert.
+- **Build-Art:** A (die Platzhalter-Pins passen nie zu den Serverdateien). Mit Weg B nur, wenn
+  vor `ci\build.ps1 -DownloadHashesOnly` eine Datei in `data\localized-text` verändert wird (z. B.
+  ein Zeichen in `Lobby\de\EE\WONLobby.cfg`); danach die Originaldatei zurücklegen und neu bauen.
+- **Ausgangszustand:** TP-00: mindestens ein Server gültig (mit beiden gültigen wird zusätzlich der
+  zweite Versuch geprüft).
+- **Snapshot:** `S-Basis`
+- **Varianten:** EE-admin, NeoEE-admin (NeoEE pinnt die NeoEE-Fassungen aus `Mods\NeoEE`)
+- **Schritte:**
+  1. Setup mit `/LOG="C:\EE-Test\logs\TP-16_EE-admin.log"` starten, Spielsprache Deutsch,
+     empfohlene Einstellungen, installieren.
+  2. Den Hinweis lesen und bestätigen, Installation fertigstellen.
+  3. `certutil -hashfile "C:\Program Files (x86)\Empire Earth\Empire Earth\Language.dll" SHA256`
+     ausführen und mit `certutil -hashfile data\localized-text\Game\de\EE\Language.dll SHA256` in
+     der Arbeitskopie vergleichen (NeoEE: `data\localized-text\Mods\NeoEE\Game\de\EE\Language.dll`).
+- **Erwartetes Ergebnis:** Der Hinweis „Einige lokalisierte Dateien konnten nicht aus dem
+  Download installiert werden: …“ nennt `Empire Earth\Language.dll` (und die anderen gepinnten
+  Dateien) mit „(nicht die Version, die dieses Setup kennt: inzwischen auf dem Server
+  aktualisiert oder beschädigt, verworfen)“. Die installierte `Language.dll` hat die SHA-256 der
+  Datei des Setups (Schritt 3), nicht die der Serverdatei aus dem Log. Ungepinnte Dateien
+  (`data.ssa`, Kampagnen) sind installiert.
+- **Log-Hinweis:** je gepinnter Datei `Online file rejected, SHA-256 mismatch: <URL> (got <SHA-256>)`,
+  `Online file: trying the other server, <URL>`, ein zweites `rejected` (oder
+  `download failed` bei ungültigem zweiten Server) und
+  `Online file not downloaded, it failed on both servers: <Pfad>`; bei `ssInstall`
+  `Online file not downloaded: <Pfad>` und die Liste nach
+  `… selected online files are missing, the setup installs its own files instead:`.
+
+#### TP-17: TLS 1.2 unter Windows 7 SP1 ohne und mit KB3140245 (nur VM)
+
+- **Status:** ausgearbeitet
+- **Bezug:** R16, ADR 0006 (Hypothese: explizit angeforderte Protokolle genügen ohne KB3140245);
+  README „Support“; SERVER-OPERATIONS.md Abschnitt 3.3
+- **Ziel:** Zeigen, ob Updateprüfung, Erreichbarkeitsprüfung und Downloads unter Windows 7 SP1
+  ohne KB3140245 und ohne SChannel-Änderungen TLS 1.2 schaffen, und dass das Setup selbst nie
+  SChannel- oder WinHTTP-Werte schreibt.
+- **Build-Art:** A oder B
+- **Ausgangszustand:** TP-00: mindestens ein Dateiserver gültig, und die SSL-Labs-Simulation
+  „IE 11 / Win 7“ (SERVER-OPERATIONS.md 3.3) für `api.empireearth.eu` und diesen Server notiert
+  (scheitert sie dort, scheitert auch dieser Fall; das ist dann ein Serverbefund).
+  (a) `S-Win7` ohne KB3140245 und ohne SChannel-Werte; (b) dieselbe VM mit KB3140245 und den
+  Registry-Werten aus Microsofts Artikel (Schritt 4).
+- **Snapshot:** `S-Win7` (nur VM, nie auf dem Laptop)
+- **Varianten:** EE-admin
+- **Schritte:**
+  1. Zustand festhalten (Eingabeaufforderung als Administrator), Ausgaben ins Protokoll:
+     `wmic qfe get HotFixID | find "3140245"` (keine Ausgabe erwartet),
+     `reg query "HKLM\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols" /s`,
+     `reg query "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Internet Settings\WinHttp" /v DefaultSecureProtocols`,
+     `reg query "HKLM\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Internet Settings\WinHttp" /v DefaultSecureProtocols`.
+  2. (a) Setup **nicht** silent mit `/LOG="C:\EE-Test\logs\TP-17a_EE-admin.log"` starten (die
+     Updateprüfung läuft nur interaktiv), Spielsprache Deutsch, empfohlene Einstellungen,
+     installieren, fertigstellen.
+  3. Die `reg query`-Befehle aus Schritt 1 wiederholen: Die Ausgaben müssen gleich sein.
+  4. (b) KB3140245 aus dem Microsoft Update Catalog installieren und die Werte aus Microsofts
+     Artikel setzen: `DefaultSecureProtocols` = `0xA00` (DWORD) in beiden `WinHttp`-Schlüsseln aus
+     Schritt 1, `DisabledByDefault` = `0` (DWORD) unter `…\SCHANNEL\Protocols\TLS 1.1\Client` und
+     `…\TLS 1.2\Client`; neu starten. Das Setup deinstallieren und Schritt 2 mit `TP-17b` im
+     Log-Namen wiederholen.
+- **Erwartetes Ergebnis:** Das Setup läuft in (a) und (b) ohne Fehlermeldung zu Ende; Schritt 3
+  zeigt keine Änderung durch das Setup. Bestanden ist der Fall, wenn das gilt; das Ergebnis der
+  Hypothese steht zusätzlich in der Bemerkung des Protokolls:
+  - **Hypothese bestätigt**, wenn in (a) die Updateprüfung `status 200` meldet und die Dateien
+    heruntergeladen werden.
+  - **Hypothese widerlegt**, wenn (a) mit TLS- oder Verbindungsfehlern scheitert (dann erscheint
+    `OnlineFilesUnreachable` und das Spiel wird mit den eigenen Dateien installiert) und (b)
+    funktioniert. Dann gilt für Windows 7 der Weg aus der README („Support“: KB3140245), und
+    ADR 0006 wird angepasst.
+  - Scheitern (a) und (b) mit einem Zertifikatsfehler, fehlen der VM vermutlich aktuelle
+    Stammzertifikate (in `certmgr.msc` unter „Vertrauenswürdige Stammzertifizierungsstellen“
+    nachsehen); das ist kein Befund zum Setup.
+- **Log-Hinweis:** `HTTP GET https://api.empireearth.eu/setup/?product=…: TLS 1.0, 1.1 and 1.2 requested explicitly (Windows 6.1)`
+  (bzw. `unable to request TLS 1.0, 1.1 and 1.2 explicitly (Windows 6.1), …: <Ursache>`), danach
+  `HTTP GET …: status 200, …` oder `HTTP GET … failed: <Ursache>`; dasselbe für
+  `https://files.empireearth.eu/localized` bzw. den Spiegel; bei den Downloads
+  `Online file downloaded, …` oder `Online file download failed from <URL>: <Ursache>`. Die
+  Ursachen wörtlich ins Protokoll übernehmen.
 
 ### Block 2: Kompatibilität und Grafik (S-WP4)
 
@@ -658,7 +954,7 @@ echtes Windows“). „Launcher“ heißt: Der Fall prüft den Launcher und geh�
 | 12 | Netzwerkadapter (VPN, Hamachi) | Launcher: Vergleich der Adapter (R7); das Setup wählt keinen Adapter | Launcher |
 | 13 | CD-Keys: Server gesperrt, VM, `CDKeyCheck` | TP-77 | geplant: S-WP9 |
 | 14 | Antivirus löscht Dateien | TP-50 | geplant: S-WP7 |
-| 15 | Offline, nur Spiegel, manipulierter Download | TP-00, TP-10, TP-11, TP-12 | ausgearbeitet: TP-00; geplant: S-WP3 |
+| 15 | Offline, nur Spiegel, manipulierter Download | TP-00, TP-10, TP-11, TP-16 | ausgearbeitet |
 | 16 | Sprachen: Deutsch für EE und AoC | TP-78 | geplant: S-WP9 |
 | 17 | Spielstände im Mehrspieler, Namen mit Sonderzeichen | Launcher: Export und Import der Spielstände, Namensprüfung (R10); das Setup fasst Spielstände nicht an | Launcher |
 | 18 | Laufende Instanz | TP-79; Launcher: hängende Prozesse beim Start (R3) | geplant: S-WP9 |

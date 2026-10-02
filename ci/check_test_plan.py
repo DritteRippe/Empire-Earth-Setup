@@ -360,11 +360,13 @@ def self_test(source_root):
          "malformed test case id 'TP-100'"),
         ("worked-out case without 'Log-Hinweis'", edit(TEST_PLAN, "- **Log-Hinweis:** kein Setup-Log.", "Kein Setup-Log."),
          "TP-00: field 'Log-Hinweis' is missing"),
-        ("invalid status", edit(TEST_PLAN, "- **Status:** geplant: S-WP3", "- **Status:** später"),
-         "is not 'ausgearbeitet'"),
+        # Appended cases, so that these two do not depend on which cases are still planned
+        ("invalid status",
+         append(TEST_PLAN, "\n#### TP-90: x\n\n- **Status:** später\n- **Bezug:** x\n- **Ziel:** y\n"),
+         "TP-90: status 'später' is not 'ausgearbeitet'"),
         ("planned case with a misspelled field instead of 'Ziel'",
-         edit(TEST_PLAN, "- **Ziel:** Ohne Netz bzw. ohne gültigen Server", "- **Zweck:** Ohne Netz bzw. ohne gültigen Server"),
-         "TP-11: field 'Ziel' is missing"),
+         append(TEST_PLAN, "\n#### TP-91: x\n\n- **Status:** geplant: S-WP9\n- **Bezug:** x\n- **Zweck:** y\n"),
+         "TP-91: field 'Ziel' is missing"),
         ("test plan missing", lambda root: (root / TEST_PLAN).unlink(), "not found"),
     ]
     failures = 0
