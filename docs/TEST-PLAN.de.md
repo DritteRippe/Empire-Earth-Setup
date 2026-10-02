@@ -8,9 +8,10 @@ Launcher hinterlässt, steht in [CONTRACT.md](CONTRACT.md).
 Stand: Gerüst aus Arbeitspaket S-WP2, Block 1 (Downloads, TP-10 bis TP-17) aus S-WP3, Block 2
 (Kompatibilität und Grafik, TP-20 bis TP-24) aus S-WP4, Block 3 (Build und Log, TP-30) aus S-WP5,
 Block 4 (Installationseintrag und `install.ini`, TP-40 und TP-41) aus S-WP6, Block 5
-(Integritätsmanifest, TP-50) aus S-WP7, Block 6 (Umgebung, TP-60 bis TP-63) aus S-WP8.
+(Integritätsmanifest, TP-50) aus S-WP7, Block 6 (Umgebung, TP-60 bis TP-63) aus S-WP8, Block 8
+(Links in `Data` und `Users`, TP-80) aus S-WP11.
 Ausgearbeitet sind die Server-Vorabprüfung [TP-00](#tp-00-server-vorabprüfung), die Fälle der
-Blöcke 1 bis 6 und der Grundablauf
+Blöcke 1 bis 6 und 8 und der Grundablauf
 [TP-70](#tp-70-grundablauf-installieren-starten-deinstallieren). Seit S-WP5 hat jeder
 Fall eine Priorität (P1 bis P3, [Abschnitt 4](#4-vorlage-je-fall)).
 S-WP9 arbeitet die übrigen Fälle aus und vervollständigt den Plan. Fälle, die noch nicht ausgearbeitet sind, tragen den Status
@@ -84,7 +85,9 @@ nicht vergebenen. Die ID eines ausgearbeiteten Falls wird nie neu vergeben oder 
 stehen. Ein geplanter Fall hat noch kein Protokoll: Das Paket seines Blocks darf ihn beim
 Ausarbeiten aufteilen und die geplanten IDs des Blocks neu ordnen (S-WP4: die Grafikmatrix steht
 jetzt unter TP-23, TP-21 ist das Update unter Windows 7). Neue Fälle bekommen die nächste freie
-Nummer ihres Blocks.
+Nummer ihres Blocks. Ein neues Arbeitspaket mit eigenen Fällen bekommt den nächsten freien Block
+(S-WP11: Block 8, weil Block 7 schon die allgemeinen Abläufe enthält); die Blöcke stehen in
+[Abschnitt 7](#7-testfälle) in der Reihenfolge ihrer Nummern.
 
 | IDs | Block | Paket | Inhalt |
 |---|---|---|---|
@@ -96,6 +99,7 @@ Nummer ihres Blocks.
 | TP-5x | Integritätsmanifest | S-WP7 | `files.sha256` je Variante (Inhalt geprüft mit `Get-FileHash` bzw. `sha256sum -c`), von einem Virenscanner gelöschte Dateien mit Hinweis und `[MissingAfterInstall]`, eine gesperrte Datei, Dauer des Prüfens auf dem Laptop und auf HDD bzw. unter Windows 7 (TP-50) |
 | TP-6x | Umgebung | S-WP8 | Hinweis unter 768 Pixeln Höhe und Bildschirm, DPI und Spielfenster im Log (TP-60), fremde und alte Installationen: Schlüssel in HKLM, fremde Uninstall-Einträge, CD-Ordner, Wortlaut zu den CD-Keys (TP-61), EE und NeoEE in einem Ordner (TP-62), Installation in den Ordner einer GOG- oder CD-Installation (TP-63) |
 | TP-7x | Allgemeine Abläufe und Forumfälle | S-WP2, S-WP9 | Grundablauf, Standardnutzer, Version, Reparatur, Firewall, CD-Keys, Sprachen, laufendes Spiel |
+| TP-8x | Links in den für alle beschreibbaren Ordnern | S-WP11 | Ein Standardbenutzer ersetzt `Data\Movies` durch eine Junction; das Update als Administrator hält auf der Seite „Vorbereitung der Installation“ an, ändert nichts und läuft nach dem Entfernen des Links durch; still Exit-Code 7; ein Link im Spielerordner unter `Users` hält ebenfalls an (TP-80) |
 
 ## 4. Vorlage je Fall
 
@@ -2036,6 +2040,109 @@ Befehle unten lassen den abschließenden `\` deshalb weg.
 - **Bezug:** Forum §8 Nr. 18 (t=2815, t=5859)
 - **Ziel:** Läuft EE oder AoC, verhindert das Setup die Installation (`AppMutex`) mit einem
   verständlichen Hinweis.
+
+### Block 8: Links in den für alle beschreibbaren Ordnern (S-WP11)
+
+Was ADR 0009 verlangt und nur auf Windows prüfbar ist: Im Admin-Modus gibt das Setup allen
+angemeldeten Benutzern Schreibrechte auf `Data` und `Users` beider Spielordner, und ein Update oder
+eine Reparatur schreibt dort mit Administratorrechten. Vor jeder Änderung (`PrepareToInstall`, nach
+der Seite „Bereit zur Installation“ und den Downloads in den temporären Ordner) sucht das Setup
+deshalb in `Data`, `Users` und allen Ordnern darunter, in beiden vorhandenen Spielordnern, nach
+Junctions und symbolischen Links (`FILE_ATTRIBUTE_REPARSE_POINT`). Findet es einen, oder einen
+Ordner, den es nicht auflisten kann, hält es auf der Seite „Vorbereitung der Installation“ mit der
+Meldung `LinkInGameFolder` an; still endet es mit Exit-Code 7. Anders als ursprünglich geplant gehören
+die Spielerordner unter `Users` dazu: Die `[Files]`-Einträge, die die Schreibrechte der
+`*.cfg`/`*.ini`-Dateien setzen, kopieren jede solche Datei in jedem Unterordner auf sich selbst und
+folgen dabei Links (ADR 0009, „Revised“). Im Benutzer- und im portablen Modus prüft das Setup nicht.
+Die Logik prüfen zusätzlich die Unit-Tests (auf Windows auch mit echten Junctions) und eine
+Wine-Probe der Analyse (ADR 0009, „Implementation“).
+
+Junctions legt auch ein Standardbenutzer ohne Administratorrechte an (`mklink /J`). Eine Junction
+nur mit `rmdir <Link>` entfernen (ohne `/s`): Das löscht den Link, nicht den Ordner, auf den er zeigt.
+
+#### TP-80: Junction in Data als Standardbenutzer, Update als Administrator (nur VM)
+
+- **Status:** ausgearbeitet
+- **Priorität:** P2
+- **Bezug:** ADR 0009, ADR 0002 (Security-Bewertung, RedirectionGuard), R17; Inno-Setup-Quelltext
+  6.2.2 (`RecurseExternalCopyFiles`, `IsRecurseableDirectory`)
+- **Ziel:** Ein Link, den ein Standardbenutzer in `Data` oder `Users` anlegt, stoppt das Update im
+  Admin-Modus, bevor etwas geändert ist; der Ordner, auf den der Link zeigt, bleibt leer; nach dem
+  Entfernen des Links läuft das Update durch.
+- **Build-Art:** A oder B (nur VM bzw. Snapshot, nie auf dem Laptop)
+- **Ausgangszustand:** EE-admin mit AoC als Administrator installiert (Testbuild, „Empfohlene
+  Einstellungen“, Telemetrie aus) im Standardordner `C:\Program Files (x86)\Empire Earth`; Ordner
+  `C:\EE-Test\logs` und ein leerer Ordner `C:\EE-Test\scratch` (als Administrator angelegt). Das
+  Standardkonto „Spieler“ aus `S-Basis`.
+- **Snapshot:** `S-Basis` (nach der Installation einen Zwischenstand sichern, vor jedem Teil
+  zurücksetzen)
+- **Varianten:** (a) bis (d) EE-admin; (e) EE-user. NeoEE und portable nutzen denselben Code und
+  werden nicht wiederholt; portable prüft nicht (kein Admin-Modus).
+- **Schritte:**
+  1. Als „Spieler“ anmelden (oder `runas /user:Spieler cmd`) und in einer Eingabeaufforderung
+     **ohne** Administratorrechte:
+
+     ```bat
+     cd /d "C:\Program Files (x86)\Empire Earth\Empire Earth\Data"
+     ren Movies Movies.orig
+     mklink /J Movies C:\EE-Test\scratch
+     dir /AL
+     ```
+
+     `dir /AL` zeigt `<JUNCTION> Movies [C:\EE-Test\scratch]`. Gelingt `ren` oder `mklink` nicht, hat
+     das Setup keine Schreibrechte auf `Data` gesetzt (z. B. mit der Aufgabe „Spiel immer als
+     Administrator starten“): Befund notieren, Fall endet.
+  2. (a) Als „Spieler“ das Setup starten mit
+     `/LOG="C:\EE-Test\logs\TP-80a_EE-admin.log"`, die Erhöhung mit dem Kennwort des
+     Administratorkontos bestätigen (Over-the-Shoulder), falls gefragt „Installation für alle
+     Benutzer“, auf der Seite „Installationsmodus“ die angebotene Option für die vorhandene
+     Installation, bis „Bereit zur Installation“, „Installieren“. Die Seite „Vorbereitung der
+     Installation“ abfotografieren; „Weiter“ ist grau, „Zurück“ nicht. Noch **nicht** abbrechen.
+  3. (b) Als „Spieler“ in der Eingabeaufforderung den Link entfernen und den Ordner zurückholen:
+     `rmdir Movies` und `ren Movies.orig Movies`. Im Setup „Zurück“, dann wieder „Installieren“:
+     Die Downloads laufen noch einmal (falls gewählt), die Prüfung läuft erneut, die Installation
+     läuft durch, „Fertigstellen“.
+  4. (c) Snapshot-Zwischenstand zurücksetzen, Schritt 1 wiederholen, dann in einer
+     Eingabeaufforderung als Administrator:
+     `start "" /wait <Setup>.exe /VERYSILENT /SUPPRESSMSGBOXES /LOG="C:\EE-Test\logs\TP-80c_EE-admin.log"`
+     und danach `echo %ERRORLEVEL%`.
+  5. (d) Zwischenstand zurücksetzen. Als „Spieler“ einen Spielerordner anlegen und durch einen Link
+     ersetzen:
+     `cd /d "C:\Program Files (x86)\Empire Earth\Empire Earth - The Art of Conquest\Users"`,
+     `mklink /J Spieler C:\EE-Test\scratch`. Dann wie (c) still mit `TP-80d` im Log-Namen.
+  6. (e) Zwischenstand zurücksetzen. Als „Spieler“ EE für sich selbst installieren:
+     `<Setup>.exe /VERYSILENT /SUPPRESSMSGBOXES /CURRENTUSER /LOG="C:\EE-Test\logs\TP-80e_EE-user.log"`;
+     dann in `%LOCALAPPDATA%\Programs\Empire Earth\Empire Earth\Data` wie in Schritt 1 `Movies`
+     durch eine Junction auf einen eigenen Ordner ersetzen und denselben Befehl mit `TP-80e2` im
+     Log-Namen wiederholen.
+  7. Nach jedem Teil: `dir /a C:\EE-Test\scratch` und `findstr /c:"Link check" /c:"installation stops" /c:"PrepareToInstall" C:\EE-Test\logs\TP-80*.log`.
+  8. Nur Weg B, nach (b): die Dauer der Prüfung aus der Zeile `Link check: … examined in <ms> ms`
+     notieren (mit echten Daten etwa 30 Ordner je Spiel).
+- **Erwartetes Ergebnis:**
+  - (a) Rotes Fehlersymbol und „Das Setup hat angehalten, bevor es etwas geändert hat. Es läuft mit
+    Administratorrechten, und die Ordner Data und Users des Spiels kann jeder Benutzer ändern. Dort
+    hat es Links (Junctions oder symbolische Verknüpfungen) oder nicht lesbare Ordner gefunden, …“,
+    darunter `C:\Program Files (x86)\Empire Earth\Empire Earth\Data\Movies`, dann der Rat (Link
+    entfernen oder durch einen normalen Ordner ersetzen, oder „Installation nur für Sie“) und Inno
+    Setups Zeile „Das Setup kann nicht fortfahren …“. Der ganze Text ist lesbar (nichts
+    abgeschnitten). `C:\EE-Test\scratch` ist leer, `Data\Movies.orig` unverändert.
+  - (b) Nach „Zurück“ und „Installieren“ läuft die Installation ohne Meldung durch; die Filme liegen
+    wieder in `Data\Movies` (Weg B), `C:\EE-Test\scratch` bleibt leer.
+  - (c) Kein Fenster, `%ERRORLEVEL%` ist `7`, `C:\EE-Test\scratch` leer.
+  - (d) Exit-Code `7`, gefunden wird `…\Empire Earth - The Art of Conquest\Users\Spieler`
+    (Abweichung vom ursprünglichen Plan „ein Link in `Users\<Spieler>` blockiert nicht“, siehe
+    ADR 0009, „Revised“).
+  - (e) Beide Läufe installieren (Exit-Code `0`); die Prüfung läuft im Benutzermodus nicht, die
+    Dateien landen im eigenen Ordner, auf den die Junction zeigt (der Benutzer schreibt nur in seine
+    eigenen Ordner).
+- **Log-Hinweis:** (a) und (c) `Link check: C:\Program Files (x86)\Empire Earth\Empire Earth\Data\Movies
+  is a junction or symbolic link (reparse point)`, `Link check: <n> folders below Data and Users of
+  C:\Program Files (x86)\Empire Earth examined in <ms> ms, 1 links or unreadable folders found, 0 files
+  with a reparse point (allowed)`, `The installation stops before anything is changed (message
+  LinkInGameFolder on the Preparing to install page; silent installation: exit code 7)` und Inno
+  Setups `PrepareToInstall failed: …`; (b) danach ein zweites `Link check: …, 0 links or unreadable
+  folders found, …` und `Installation process succeeded.`; (d) wie (c) mit `…\Users\Spieler`; (e)
+  `Link check skipped: not the administrative install mode`.
 
 ## 8. Forum-Testfälle §8
 

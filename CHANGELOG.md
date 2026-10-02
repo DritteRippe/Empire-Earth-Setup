@@ -346,6 +346,12 @@ Refactoring and quality fixes (no new game content).
   removed again, with the exact wording of the notice and a check that a NeoEE installation with
   CD keys leaves no `Neo` key in HKLM (TP-61, `P1`), EE and NeoEE in one folder (TP-62), and the
   folder of a GOG or CD installation (TP-63). TP-24 now also reads the screen line of the log.
+- `docs/TEST-PLAN.de.md`, block 8 (the ID scheme gets the row `TP-8x`): TP-80, only in a virtual
+  machine: as a standard user replace `Data\Movies` by a junction (`mklink /J`), update as
+  administrator with over-the-shoulder elevation: the setup stops on "Preparing to install", the
+  folder the junction points to stays empty, after removing the link "Back" and "Install" run the
+  installation; silent with exit code 7; a junction in the profile folder of a player stops it too;
+  the user mode is not checked.
 
 ### Changed
 - The hidden setup data folder (holds `EEStatsSetup.dll` for the uninstaller) is now
@@ -577,6 +583,28 @@ Refactoring and quality fixes (no new game content).
 - Random map scripts: the elevated setup never follows junctions or symbolic links in the random
   map folders, which all users can write to. A user could otherwise have made it delete files or
   empty folders elsewhere, or loop through a link to a parent folder.
+- No elevated installation through links (ADR 0009): an installation for all users gives every
+  user modify rights on `Data` and `Users` of both games, and an update or repair writes there with
+  administrator rights. A standard user could replace such a folder by a junction or symbolic link
+  and redirect these writes outside the game; the worst case were the `[Files]` entries that set the
+  permissions of `*.cfg`, `*.config`, `*.conf` and `*.ini`: they copy every such file in every
+  folder below the game folders onto itself and give every user modify rights on it, and Inno Setup
+  6.2.2 follows links there, so a junction in the profile folder of a player could have given every
+  user write access to the configuration files of another program. Since setup v2, in the
+  administrative install mode, `PrepareToInstall` looks at `Data`, `Users` and every folder below
+  them in both game folders that exist (hidden ones too) before anything is changed. A folder that
+  is a junction or symbolic link (`FILE_ATTRIBUTE_REPARSE_POINT`), or that cannot be listed, stops
+  the setup with the new message `LinkInGameFolder` (English, German, French; 112 custom messages)
+  on the "Preparing to install" page: nothing changed, the folders (at most three, all in the log),
+  and the remedy (remove the link or replace it by a normal folder, then "Back" and "Install" or run
+  the setup again; or "Install for me only"). Silent installations end with exit code 7. The log
+  names every finding and `Link check: <n> folders below Data and Users of <app> examined in <ms>
+  ms, ...`. Players who moved a folder there with a link on purpose have to undo it before an
+  update. Not covered: a link created during the installation, the uninstaller, links to files,
+  user and portable setups run as administrator, an installation folder all users can write to;
+  RedirectionGuard of Inno Setup 6.7 would be the complete fix (ADR 0002). `IsReparsePoint` moved
+  from `randommaps.iss` to `utils.iss`; the new helpers `IsLinkGuardedFolder` and
+  `FindLinksInGameFolder` have 39 unit tests (582 in all), on Windows also with real junctions.
 - Update check: HTTPS only (it used to retry over plain HTTP after any error) and only HTTP 200
   answers count. The download link sent by the server is only opened if it is an https URL of
   empireearth.eu, neoee.net or github.com/EE-modders, otherwise https://empireearth.eu/download

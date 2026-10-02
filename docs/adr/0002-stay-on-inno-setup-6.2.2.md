@@ -7,7 +7,9 @@
   listed below is now proven by a probe compile); second plan review (the security changes of 6.6.0
   and 6.7.0 assessed against the trigger "relevant security fix", see
   [ADR 0009](0009-no-installation-through-links.md); the outdated `UTF8Encode` sentence of the
-  consequences corrected)
+  consequences corrected); implementation of S-WP11 (the impact in the RedirectionGuard point
+  understated the external permission entries of `[Files]`, which write below every folder of
+  `Users` and follow links; the decision is unchanged)
 
 ## Context
 
@@ -66,12 +68,15 @@ was checked against both entries of the vendor history (`evidence/is6-whatsnew.t
   authenticated users write access to `<game>\Data` and `<game>\Users` (`[Dirs]`
   `authusers-modify`, so that the unelevated game can write there), and an update or repair then
   writes into these folders elevated. A standard user who replaces a subfolder (e.g. `Data\Movies`)
-  by a junction redirects these writes. Impact today: the setup writes only files with fixed names
+  by a junction redirects these writes. Impact today: the setup writes mostly files with fixed names
   and its own content there (textures, sounds, movies, campaigns, civilizations; no program file),
   and Inno Setup's own `DelTree` does not descend into reparse points (`InstFunc.pas` 6.2.2,
   `IsDirectoryAndNotReparsePointRedir`); a `files` deletion of a fixed name through a linked
-  parent folder remains possible. RedirectionGuard would only protect Windows 10 22H2 and 11. The
-  risk existed since 1.0 and needs a local attacker on the same computer. **Decision:** no switch
+  parent folder remains possible. Worse (found during S-WP11): the external `[Files]` entries that
+  set the permissions of `*.cfg`, `*.config`, `*.conf` and `*.ini` recurse into every folder that is
+  not hidden, links included (`Install.pas` `RecurseExternalCopyFiles`), and give every user modify
+  rights on such files wherever a link points. RedirectionGuard would only protect Windows 10 22H2
+  and 11. The risk existed since 1.0 and needs a local attacker on the same computer. **Decision:** no switch
   for this; v2 closes the gap with its own check before the installation
   ([ADR 0009](0009-no-installation-through-links.md)), and the residual race between that check
   and the writes is accepted and documented. A switch to a version with RedirectionGuard stays the

@@ -57,15 +57,15 @@ has no translation for (they are shown in English) and the `zh_TW` texts that ar
 `zh_CN` ones. Its output is the current to-do list; the overview below is the state when this
 file was last updated.
 
-Custom messages to translate: 111 (14 of them only used by NeoEE setups; the Mute/Unmute button
+Custom messages to translate: 112 (14 of them only used by NeoEE setups; the Mute/Unmute button
 texts `SoundCtrlButtonCaptionSoundOn/Off` stay English on purpose and are not counted).
 
 | Language | Translated | Missing |
 |---|---|---|
-| English (default) | 111 | - |
-| German `de`, French `fr` | 111 | - |
-| Spanish `es`, Italian `it`, Polish `pl`, Russian `ru`, Korean `ko`, Chinese Simplified `zh_CN`, Chinese Traditional `zh_TW` | 35 | 76: the messages added after setup 1.7.2 |
-| Brazilian Portuguese `pt_BR` | 13 | 98: everything except the game language page (`LIQP_*`), see below |
+| English (default) | 112 | - |
+| German `de`, French `fr` | 112 | - |
+| Spanish `es`, Italian `it`, Polish `pl`, Russian `ru`, Korean `ko`, Chinese Simplified `zh_CN`, Chinese Traditional `zh_TW` | 35 | 77: the messages added after setup 1.7.2 |
+| Brazilian Portuguese `pt_BR` | 13 | 99: everything except the game language page (`LIQP_*`), see below |
 | Setup-only languages (`hy`, `bg`, `ca`, ...) | 0 | all; these languages only have Inno Setup's own texts |
 
 ## Help wanted
@@ -91,7 +91,11 @@ than 768 pixels, `LowScreenResolution`; traces of other or old Empire Earth inst
 delete registry keys by hand; the questions about the folder of another installation and about a
 folder that already holds the other community product, `ForeignFolderQuestion` and
 `SharedFolderQuestion`, where "Yes" must stay the answer that goes back to the folder page), the
-NeoEE CD key messages (NeoEE setups only) and the Wine notice of NeoEE setups. `TestSetupWarning` is
+message that stops an installation for all users because of a link in the folders `Data` or `Users`
+(`LinkInGameFolder`: it is shown on the "Preparing to install" page, which has no scroll bar, so
+keep it as short as the English text; `Data` and `Users` are folder names and stay; the name of the
+button "Install for me only" must be the one of Inno Setup's language file,
+`PrivilegesRequiredOverrideCurrentUser`), the NeoEE CD key messages (NeoEE setups only) and the Wine notice of NeoEE setups. `TestSetupWarning` is
 only shown by test builds and has low priority.
 
 ### Korean (ko): texts of the download page
