@@ -722,7 +722,8 @@ Source: "data\Add-on\Movies\EE\*"; DestDir: "{app}\{#EEDir}\Data\Movies"; Flags:
 
 ; EE Online Lang Any Based Content (only downloads that passed the checks of downloads.iss)
 ; RecordVerifiedOnlineFiles (installstate.iss) adds the files of the three {tmp}\verified entries to
-; the manifest with the same folders and components; change both together
+; the manifest with the same folders and components; change both together (ci/check_contract.py
+; compares both sides)
 Source: "{tmp}\verified\EE\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs external skipifsourcedoesntexist; Components: game and language\update;
 
 ; Add-on files (see GameAddOnFiles)

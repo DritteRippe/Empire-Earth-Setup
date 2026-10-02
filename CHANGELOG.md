@@ -349,6 +349,10 @@ setup version stays 1.7.2 until the release.
   `FormatHklmKeyName`, `IsForeignUninstallEntry`, `FormatFindingList`. `environment.iss` writes
   nothing: no registry or file function that changes anything, and no key below `Software\Sierra`
   is read.
+- `ci/check_contract.py` also checks that the external `[Files]` entries of `{tmp}\verified` and
+  `RecordVerifiedOnlineFiles` (`installstate.iss`), which adds the files they installed to the
+  manifest, name the same sources, destination folders and components (rule "2.3", six new
+  self-test cases, 70 in all): until now only a comment kept both sides together.
 - `ci/check_contract.py` also checks the row "Publisher in the uninstall key" of contract 0
   against `MyAppPublisher` of `config_ee.iss` and `config_neoee.iss` and against the constants
   `CommunityPublisherEE` and `CommunityPublisherNeoEE` of `utils.iss`, by which the environment

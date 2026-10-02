@@ -276,7 +276,10 @@ page, the notice and the messages (`4eafaed`), this documentation with test case
   hidden files, no hidden folders) under the components of the three entries: `{tmp}\verified\EE`
   to the EE folder (`game and language\update`), `{tmp}\verified\AoC` and the EE learning campaign
   to the AoC folder (`gameaoc and language\update`). `ci/check_contract.py` checks the rule in both
-  directions, as written and in the preprocessed scripts (five self-test cases).
+  directions, as written and in the preprocessed scripts (five self-test cases), and since the
+  review of v2 also that the `{tmp}\verified` entries and `RecordVerifiedOnlineFiles` name the same
+  sources, destination folders and components (rule "2.3", six self-test cases), so that a change
+  of one side cannot silently drop files from the manifest.
 - **Point 4:** `WriteInstallState`, the last step of `ssPostInstall`, shows the output progress page
   created in `InitializeWizard` (`CreateManifestProgressPage`, caption "Checking the installed
   files") and calls `WriteInstallStateFiles` (`utils.iss`): `GetManifestPaths` (`GetManifestPath`,

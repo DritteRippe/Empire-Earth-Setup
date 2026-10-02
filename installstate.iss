@@ -159,7 +159,8 @@ end;
 // {tmp}\verified installed, with the same folders and components as those entries (their
 // AfterInstall would only see the folder): {tmp}\verified\EE to the EE folder, {tmp}\verified\AoC
 // to the AoC folder, and the learning campaign of EE also to the AoC folder (setup_is6.iss, [Files];
-// change both together). The files are still in {tmp} at ssPostInstall.
+// change both together; ci/check_contract.py compares both sides, rule "2.3"). The files are
+// still in {tmp} at ssPostInstall.
 procedure RecordVerifiedOnlineFiles;
 var
   Campaign: String;

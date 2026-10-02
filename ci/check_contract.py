@@ -73,12 +73,23 @@ files with the folder as CurrentFileName; the verified online files are added by
 installstate.iss). The entries are read as written (also those in #sub blocks, with ISPP line
 continuations joined) in setup_is6.iss and in every file its #include "..." lines name.
 
+Verified online files (contract 2.3, ADR 0004 point 3): the external [Files] entries whose Source
+is below {tmp}\verified\ install the downloads, and RecordVerifiedOnlineFiles (installstate.iss)
+adds what they installed to the manifest with its own copy of their sources, folders and
+components. Both sides must name the same (Source, DestDir, Components) triples: from the code,
+the components of 'if not WizardIsComponentSelected(...) then Exit;' plus those of the
+'if WizardIsComponentSelected(...) then' block, CollectExternalFiles(ExpandConstant('<folder>'),
+ExpandConstant('<dest>'), ...) as Source <folder>\* and DestDir <dest>, and a single file
+(ExpandConstant('{tmp}\verified\...') and InstalledFiles.Add(ExpandConstant('<dest file>'))) as
+that Source and the folder of <dest file>, with the same file name; from [Files], Components may
+only join names with 'and'.
+
 --self-test runs the check against modified temporary copies of the repository (one changed
 value per rule, e.g. Music Volume $2C -> $2D, a missing extension, another publisher, a window
 limit 1920 -> 2560,
 GpuPreference=2; -> GpuPreference=1;, WIN7RTM -> WIN8RTM, a missing row compatibility_legacy, a
-[Files] entry without ignoreversion) that must fail with the expected message, and against copies
-that must pass.
+[Files] entry without ignoreversion, another component of a verified online file entry) that must
+fail with the expected message, and against copies that must pass.
 
 --preprocessed <folder> takes the scripts that ISCC itself preprocessed (ci/build.ps1
 -KeepPreprocessed <folder>: EE_Regular.iss, NeoEE_Regular.iss, EE_Portable.iss,
@@ -119,6 +130,9 @@ FILES_FORBIDDEN_FLAGS = ["onlyifdoesntexist", "promptifolder", "confirmoverwrite
 # AfterInstall of the compiled [Files] entries below {app} (installstate.iss, ADR 0004 point 3)
 FILES_RECORD_PROC = "RecordInstalledFile"
 SETUP_DATA_DIR = re.compile(r"^\{app\}\\(\{#SetupDataDir\}|_setupdata_[A-Za-z]+)$", re.I)
+# The external [Files] entries of the verified downloads and the code that records their files
+VERIFIED_SOURCE = "{tmp}\\verified\\"
+VERIFIED_RECORD_PROC = "RecordVerifiedOnlineFiles"
 INCLUDE_LINE = re.compile(r'^\s*#\s*include\s+"([^"]+)"\s*$')
 
 
@@ -1606,6 +1620,86 @@ def lint_lines(name, lines, errors):
     return checked, recording
 
 
+def verified_files_entries(root):
+    """{(source, destdir, components): "file:line"} of the [Files] entries whose Source is below
+    {tmp}\\verified\\, as written in setup_is6.iss and its #include files (lowercase paths,
+    components as a frozenset)."""
+    entries = {}
+    for rel in own_include_closure(root):
+        for no, text in logical_lines(read_text(root / rel)):
+            if not re.match(r"^\s*Source\s*:(?!=)", text):
+                continue
+            try:
+                params = parse_params(text)
+            except CheckError:
+                continue
+            source = params.get("source", "").strip()
+            if not source.lower().startswith(VERIFIED_SOURCE):
+                continue
+            where = f"{rel.as_posix()}:{no}"
+            if "external" not in params.get("flags", "").lower().split():
+                raise CheckError(f"{where}: [Files] Source \"{source}\" below {{tmp}}\\verified without the flag external")
+            components = params.get("components", "").strip()
+            names = [name.strip() for name in re.split(r"\s+and\s+", components)] if components else []
+            if not names or any(not re.fullmatch(r"[\w\\]+", name) for name in names):
+                raise CheckError(f"{where}: [Files] Source \"{source}\": Components '{components}' is not a list "
+                                 "of component names joined by 'and'")
+            key = (source.lower(), params.get("destdir", "").strip().lower(), frozenset(n.lower() for n in names))
+            entries[key] = where
+    return entries
+
+
+def verified_code_records(root):
+    """{(source, destdir, components): "file:line"} of what RecordVerifiedOnlineFiles adds to the
+    manifest (see the module documentation)."""
+    for rel in own_include_closure(root):
+        text = read_text(root / rel)
+        match = re.search(r"^procedure\s+" + VERIFIED_RECORD_PROC + r"\s*;.*?^begin\s*$(.*?)^end;", text, re.M | re.S | re.I)
+        if match:
+            break
+    else:
+        raise CheckError(f"procedure {VERIFIED_RECORD_PROC} not found in setup_is6.iss or its #include files")
+    body, first = match.group(1), text[:match.start(1)].count("\n") + 1
+    where = f"{rel.as_posix()}:{first}"
+    guard = {name.lower() for name in re.findall(
+        r"if\s+not\s+WizardIsComponentSelected\('([^']+)'\)\s+then\s+Exit\s*;", body, re.I)}
+    blocks = list(re.finditer(r"(?<!not )WizardIsComponentSelected\('([^']+)'\)\s+then", body, re.I))
+    records = {}
+    for index, block in enumerate(blocks):
+        end = blocks[index + 1].start() if index + 1 < len(blocks) else len(body)
+        part = body[block.end():end]
+        components = frozenset(guard | {block.group(1).lower()})
+        collect = r"CollectExternalFiles\(ExpandConstant\('([^']+)'\),\s*ExpandConstant\('([^']+)'\)"
+        for folder, dest in re.findall(collect, part, re.I):
+            records[((folder + "\\*").lower(), dest.lower(), components)] = where
+        sources = re.findall(r"ExpandConstant\('(\{tmp\}\\verified\\[^']+)'\)", re.sub(collect, "", part, flags=re.I), re.I)
+        targets = re.findall(r"InstalledFiles\.Add\(ExpandConstant\('([^']+)'\)\)", part, re.I)
+        if len(sources) != len(targets):
+            raise CheckError(f"{where}: {VERIFIED_RECORD_PROC}: {len(sources)} single files below {{tmp}}\\verified "
+                             f"but {len(targets)} InstalledFiles.Add calls in the block of '{block.group(1)}'")
+        for source, target in zip(sources, targets):
+            folder, _, name = target.rpartition("\\")
+            if name.lower() != source.rpartition("\\")[2].lower():
+                raise CheckError(f"{where}: {VERIFIED_RECORD_PROC}: records {target} for {source}, another file name")
+            records[(source.lower(), folder.lower(), components)] = where
+    return records
+
+
+def check_verified_online_files(root, errors):
+    """The [Files] entries of {tmp}\\verified and RecordVerifiedOnlineFiles name the same files;
+    returns the number of entries."""
+    entries, records = verified_files_entries(root), verified_code_records(root)
+    def show(key):
+        return f"Source {key[0]}, DestDir {key[1]}, Components {' and '.join(sorted(key[2]))}"
+    for key in sorted(set(entries) - set(records), key=str):
+        errors.append(f"{entries[key]}: [Files] installs verified online files ({show(key)}) that "
+                      f"{VERIFIED_RECORD_PROC} does not add to the manifest (contract 2.3) [2.3]")
+    for key in sorted(set(records) - set(entries), key=str):
+        errors.append(f"{records[key]}: {VERIFIED_RECORD_PROC} adds verified online files ({show(key)}) to the "
+                      "manifest that no [Files] entry installs (contract 2.3) [2.3]")
+    return len(entries)
+
+
 # ---------------------------------------------------------------------------------------------
 
 def check(root):
@@ -1679,6 +1773,8 @@ def check(root):
     summary.append(f"[Files]: {count} entries below {{app}} with {FILES_REQUIRED_FLAG} and without "
                    f"{', '.join(FILES_FORBIDDEN_FLAGS)}, {recording} of them with AfterInstall: "
                    f"{FILES_RECORD_PROC}")
+    count = rule("2.3", lambda: check_verified_online_files(root, errors))
+    summary.append(f"2.3: {count} [Files] entries of verified online files, the same in {VERIFIED_RECORD_PROC}")
     return errors, "; ".join(summary)
 
 
@@ -2011,6 +2107,26 @@ def self_test(source_root):
          replace(main_script, 'createallsubdirs; MinVersion: {#WinXP}' + crlf,
                  'createallsubdirs; MinVersion: {#WinXP}; AfterInstall: RecordInstalledFile' + crlf),
          "but it is the setup data folder"),
+        # 2.3, verified online files: [Files] and RecordVerifiedOnlineFiles
+        ("RecordVerifiedOnlineFiles records the learning campaign in the EE folder",
+         replace("installstate.iss", "InstalledFiles.Add(ExpandConstant('{app}\\{#AoCDir}\\Data\\Campaigns\\EELearningCampaign.ssa'));",
+                 "InstalledFiles.Add(ExpandConstant('{app}\\{#EEDir}\\Data\\Campaigns\\EELearningCampaign.ssa'));"),
+         "DestDir {app}\\{#eedir}\\data\\campaigns, Components gameaoc and language\\update) to the manifest that no [Files] entry installs"),
+        ("RecordVerifiedOnlineFiles without the AoC folder",
+         replace("installstate.iss", "    CollectExternalFiles(ExpandConstant('{tmp}\\verified\\AoC'), ExpandConstant('{app}\\{#AoCDir}'), InstalledFiles);\n", ""),
+         "Source {tmp}\\verified\\aoc\\*, DestDir {app}\\{#aocdir}, Components gameaoc and language\\update) that RecordVerifiedOnlineFiles does not add"),
+        ("RecordVerifiedOnlineFiles records another file name",
+         replace("installstate.iss", "InstalledFiles.Add(ExpandConstant('{app}\\{#AoCDir}\\Data\\Campaigns\\EELearningCampaign.ssa'));",
+                 "InstalledFiles.Add(ExpandConstant('{app}\\{#AoCDir}\\Data\\Campaigns\\EETutorial.ssa'));"),
+         "another file name"),
+        ("[Files] verified EE entry without the component language\\update",
+         replace(main_script, 'external skipifsourcedoesntexist; Components: game and language\\update;',
+                 'external skipifsourcedoesntexist; Components: game;'),
+         "Components game) that RecordVerifiedOnlineFiles does not add"),
+        ("[Files] verified EE entry with 'or' in Components",
+         replace(main_script, 'external skipifsourcedoesntexist; Components: game and language\\update;',
+                 'external skipifsourcedoesntexist; Components: game or language\\update;'),
+         "is not a list of component names joined by 'and'"),
     ]
     passing = [
         ("ISPP function in an unrelated [Registry] entry",
@@ -2025,6 +2141,9 @@ def self_test(source_root):
                       '#if InstallMode == "Regular" || InstallMode == "Portable"' + crlf
                       + "; Windows 10+: run the games on the high-performance graphics card"),
               replace(main_script, "Components:  gameaoc" + crlf, "Components:  gameaoc" + crlf + "#endif" + crlf))),
+        ("[Files] verified EE entry with its components in another order and case",
+         replace(main_script, 'external skipifsourcedoesntexist; Components: game and language\\update;',
+                 'external skipifsourcedoesntexist; Components: Language\\Update and game;')),
     ]
 
     files = [CONTRACT, MAIN_SCRIPT, UTILS_SCRIPT, "config_ee.iss", "config_neoee.iss"]
