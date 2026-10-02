@@ -6,12 +6,13 @@ Teststrategie) und zu den Entscheidungen in [docs/adr](adr/README.md). Was das S
 Launcher hinterlässt, steht in [CONTRACT.md](CONTRACT.md).
 
 Stand: Gerüst aus Arbeitspaket S-WP2, Block 1 (Downloads, TP-10 bis TP-17) aus S-WP3, Block 2
-(Kompatibilität und Grafik, TP-20 bis TP-24) aus S-WP4, Block 3 (Build und Log, TP-30) aus S-WP5.
+(Kompatibilität und Grafik, TP-20 bis TP-24) aus S-WP4, Block 3 (Build und Log, TP-30) aus S-WP5,
+Block 4 (Installationseintrag und `install.ini`, TP-40 und TP-41) aus S-WP6.
 Ausgearbeitet sind die Server-Vorabprüfung [TP-00](#tp-00-server-vorabprüfung), die Fälle der
-Blöcke 1 bis 3 und der Grundablauf
+Blöcke 1 bis 4 und der Grundablauf
 [TP-70](#tp-70-grundablauf-installieren-starten-deinstallieren). Seit S-WP5 hat jeder
 Fall eine Priorität (P1 bis P3, [Abschnitt 4](#4-vorlage-je-fall)).
-Jedes weitere Arbeitspaket (S-WP6 bis S-WP8) arbeitet die Fälle seines Blocks aus, S-WP9
+Jedes weitere Arbeitspaket (S-WP7, S-WP8) arbeitet die Fälle seines Blocks aus, S-WP9
 vervollständigt den Plan. Fälle, die noch nicht ausgearbeitet sind, tragen den Status
 `geplant: S-WPx`. `ci/check_test_plan.py` prüft die Form dieses Dokuments (siehe
 [Abschnitt 10](#10-automatische-prüfung-dieses-dokuments)).
@@ -91,7 +92,7 @@ Nummer ihres Blocks.
 | TP-1x | Downloads | S-WP3 | eingebaute Downloads statt IDP: Hauptserver ungültig und Spiegel (TP-10), offline (TP-11), Stopp-Knopf am ersten und am zweiten Server (TP-12, TP-13), Silent (TP-14), Koreanisch (TP-15), verworfener Download (TP-16), TLS 1.2 unter Windows 7 (TP-17) |
 | TP-2x | Kompatibilität und Grafik | S-WP4, S-WP10 | Windows 7 ohne Kompatibilitätswerte und mit der freiwilligen Aufgabe `compatibility_legacy` (TP-20), Bereinigung beim Update unter Windows 7, auch mit `compatibility_legacy` (TP-21), Windows 10/11 unverändert (TP-22), Grafikmatrix mit und ohne DirectX-Wrapper (TP-23), 150 % Anzeigeskalierung mit und ohne `compatibility` bzw. `compatibility_legacy` (TP-24) |
 | TP-3x | Build und Log | S-WP5 | SHA-256-Dateien der Setups und Setup-Log ohne `/LOG`, auch bei Over-the-Shoulder-Erhöhung (TP-30) |
-| TP-4x | Installationseintrag und `install.ini` | S-WP6 | Registry-Eintrag, `install.ini`, Defaults-Marker, `SetupBuild`, Wert `ContractVersion` im Uninstall-Schlüssel |
+| TP-4x | Installationseintrag und `install.ini` | S-WP6 | Installationseintrag, `install.ini`, Defaults-Marker, `SetupBuild` und der Wert `Empire Earth Community: ContractVersion` im Uninstall-Schlüssel je Variante, auch bei schreibgeschützter oder geöffneter `install.ini` und nach dem Setup 1.7.2, Deinstallation (TP-40); Spieleinstellungen und Marker beim installierenden und bei einem zweiten Konto, Over-the-Shoulder-Erhöhung (TP-41) |
 | TP-5x | Integritätsmanifest | S-WP7 | `files.sha256`, Dateiprüfung nach der Installation, Dauer des Hashens |
 | TP-6x | Umgebung | S-WP8 | niedrige Auflösung, fremde und alte Installationen, deren Ordner, EE und NeoEE in einem Ordner |
 | TP-7x | Allgemeine Abläufe und Forumfälle | S-WP2, S-WP9 | Grundablauf, Standardnutzer, Version, Reparatur, Firewall, CD-Keys, Sprachen, laufendes Spiel |
@@ -167,8 +168,11 @@ Browser, `TP-00` läuft deshalb auf dem Laptop.
 
 Ein Testbuild ist ein Setup mit `TestID > 0`: schnelle Kompression (`zip/1`) und beim Start die
 Warnung `TestSetupWarning` mit der Nummer. `MySetupVersion` bleibt `1.7.2`, damit die Update-API
-den Testbuild nicht als veraltet meldet; Testbuilds unterscheidet ab S-WP6 der Wert `SetupBuild`
-(`test<TestID>-<Commit>`).
+den Testbuild nicht als veraltet meldet; Testbuilds unterscheidet der Wert `SetupBuild`:
+`ci\build.ps1` setzt `test<TestID>-<Commit>` (der kurze Git-Commit der Arbeitskopie, ohne Git nur
+`test<TestID>`) und gibt ihn beim Bauen als `SetupBuild: …` aus. Er steht in `install.ini`, im
+Installationseintrag und in der ersten eigenen Zeile des Setup-Logs
+([TP-40](#tp-40-installationseintrag-und-installini-je-variante)).
 
 ### 6.1 Voraussetzungen (beide Wege)
 
@@ -303,7 +307,8 @@ Daten“.
    powershell -ExecutionPolicy Bypass -File ci\build.ps1 -EEAppID <EE-AppId> -NeoEEAppID <NeoEE-AppId> -TestID 1 -RequireVersion 6.2.2
    ```
 
-   Erwartet: die Warnung „Test build 1: … never distribute it“, dann `PASS EE/Regular -> …` für
+   Erwartet: die Warnung „Test build 1: … never distribute it“, `SetupBuild: test1-<Commit>`
+   (ins Protokoll), dann `PASS EE/Regular -> …` für
    alle vier Varianten und `All 4 variant(s) built into …\out`, also
    `out\EE_Regular\EE_Setup_v1.7.2.exe`, `out\NeoEE_Regular\NeoEE_v2.0.0.5_Setup_v1.7.2.exe`,
    `out\EE_Portable\EE_Portable_Setup_v1.7.2.exe` und
@@ -1225,27 +1230,207 @@ Die Form der SHA-256-Datei prüft zusätzlich `ci/tests/build_helpers.tests.ps1`
 
 ### Block 4: Installationseintrag und install.ini (S-WP6)
 
-S-WP6 arbeitet hier aus, was ADR 0004 (Punkte 2, 9, 10) und Vertrag 1.1, 1.2, 3.5 verlangen:
-Registry-Eintrag je Installationsmodus, `install.ini`, Defaults-Marker nur bei den regulären
-Varianten, `SetupBuild`, der Wert `Empire Earth Community: ContractVersion` und sein Fehlen nach
-einem älteren Setup.
+Was ADR 0004 (Punkte 1, 2, 6, 9, 10) und Vertrag 1.1, 1.2, 1.3 und 3.5 verlangen und nur auf
+Windows prüfbar ist: der Installationseintrag (`HKA\Software\Empire Earth Community\Installations\<Produkt>`,
+nur reguläre Varianten), `install.ini` im versteckten Ordner `_setupdata_<Produkt>` (alle Varianten,
+ASCII mit CRLF, ohne BOM), der Defaults-Marker (`HKCU\Software\Empire Earth Community\GameDefaults\<Produkt>`,
+nur reguläre Varianten, nur für das Konto, das das Setup ausführt), `SetupBuild`, der Wert
+`Empire Earth Community: ContractVersion` im Uninstall-Schlüssel und sein Fehlen, wenn das Setup
+`install.ini` nicht ersetzen konnte oder ein älteres Setup danach lief, und die Deinstallation.
+Die Logik prüfen zusätzlich die Unit-Tests (`BuildInstallIniText`, `IsAsciiText`,
+`ShouldWriteContractVersionValue`, `ReplaceStateFile` auf Dateiebene) und eine Wine-Probe der
+Analyse (ADR 0004, „Implementation“); hier geht es um das echte Windows (64-Bit-Registry-Ansicht,
+Benutzerkonten, Freigabemodi beim Löschen).
+
+Werte für die Prüfung (Weg A, `ci\build.ps1 -Placeholders -TestID 1`): AppId EE
+`00000000-0000-0000-0000-0000000000EE`, NeoEE `00000000-0000-0000-0000-000000000AEE`; Spielversion
+EE `2.0.0.0`, NeoEE `2.0.0.5`; Setup-Version `1.7.2`; `SetupBuild` ist `test1-<Commit>` mit dem
+kurzen Commit, den `ci\build.ps1` beim Bauen als `SetupBuild: …` ausgibt (ins Protokoll). Weg B:
+die offiziellen AppIds aus [6.3](#63-weg-b-echter-build-aus-eigenen-daten).
 
 #### TP-40: Installationseintrag und install.ini je Variante
 
-- **Status:** geplant: S-WP6
-- **Priorität:** P1
-- **Bezug:** D5, ADR 0004, Vertrag 1.1 und 1.2
-- **Ziel:** Jede Variante hinterlässt genau den Eintrag und die `install.ini`, die der Vertrag
-  beschreibt, und die Deinstallation entfernt sie wieder.
+- **Status:** ausgearbeitet
+- **Priorität:** P1 (Teil f mit dem offiziellen Setup 1.7.2: P2)
+- **Bezug:** D5, R1, ADR 0004 (Punkte 1, 2, 6, 9, 10), Vertrag 1.1, 1.2, 1.3, 2.5 und 3.5,
+  Entscheidung K4 der Planrevision (kein Wert im Uninstall-Schlüssel, wenn Löschen oder Umbenennen
+  scheitert)
+- **Ziel:** Jede Variante hinterlässt genau den Eintrag, die `install.ini` und den Marker, die der
+  Vertrag beschreibt; der Wert `Empire Earth Community: ContractVersion` steht nur nach einem Lauf,
+  der `install.ini` wirklich ersetzt hat; die Deinstallation entfernt Eintrag, Marker und Ordner und
+  lässt `Software\Sierra\CDKeys` stehen.
+- **Build-Art:** A oder B; Teil (f) nur B (offizielle AppIds, damit das Setup 1.7.2 dieselbe
+  Installation aktualisiert).
+- **Ausgangszustand:** kein Empire Earth installiert; für (f) das offizielle EE-Setup 1.7.2
+  (selbst heruntergeladen) in der VM.
+- **Snapshot:** `S-Basis` vor (a), (b), (c) und (f); (d) und (e) laufen direkt nach (a) auf
+  demselben Stand. `S-Sandbox` reicht für (a) bis (e), wenn sie in einer Sitzung nacheinander laufen.
+- **Varianten:** (a) EE-admin, (b) EE-user, (c) EE-portable, (d) NeoEE-admin zusätzlich zu (a) in
+  einem eigenen Ordner, (e) EE-admin mit schreibgeschützter bzw. geöffneter `install.ini`, (f)
+  EE-admin, danach das offizielle Setup 1.7.2. NeoEE-user und NeoEE-portable schreiben dieselben
+  Einträge mit `NeoEE` statt `EE` (derselbe Code, nur `InstallType` anders) und sind nicht eigens
+  aufgeführt.
+- **Schritte:**
+  1. Ordner `C:\EE-Test\logs` anlegen. Bei allen Läufen: Setup mit
+     `/LOG="C:\EE-Test\logs\TP-40<Teil>_<Variante>.log"` starten, Spielsprache Deutsch, empfohlene
+     Einstellungen mit Empire Earth und AoC, Telemetrie aus (Weg A: Grenzen in
+     [6.2](#62-weg-a-placeholder-build)).
+  2. (a) EE-admin installieren („Für alle Benutzer installieren“). Danach in der
+     Eingabeaufforderung:
+
+     ```bat
+     reg query "HKLM\SOFTWARE\Empire Earth Community\Installations\EE" /reg:64
+     reg query "HKCU\Software\Empire Earth Community\GameDefaults\EE"
+     reg query "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{<AppId>}_is1" /v "Empire Earth Community: ContractVersion" /reg:64
+     reg query "HKLM\SOFTWARE\WOW6432Node\Empire Earth Community"
+     ```
+
+     und in PowerShell (Pfad je Variante anpassen):
+
+     ```powershell
+     $p = 'C:\Program Files (x86)\Empire Earth\_setupdata_EE\install.ini'
+     $b = [IO.File]::ReadAllBytes($p)
+     'BOM: ' + ($b.Length -ge 3 -and $b[0] -eq 0xEF -and $b[1] -eq 0xBB -and $b[2] -eq 0xBF)
+     'Nicht-ASCII: ' + @($b | Where-Object { $_ -gt 127 }).Count
+     'LF ohne CR: ' + @(for ($i = 0; $i -lt $b.Length; $i++) { if ($b[$i] -eq 10 -and ($i -eq 0 -or $b[$i - 1] -ne 13)) { $i } }).Count
+     Get-Content $p
+     Get-ChildItem -Force (Split-Path $p) | Select-Object Name, Attributes
+     ```
+
+  3. (b) Snapshot zurücksetzen, EE-user installieren („Nur für mich installieren“), dieselben
+     Abfragen mit `HKCU\Software\Empire Earth Community\Installations\EE`,
+     `HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\{<AppId>}_is1` (ohne `/reg:64`) und
+     `$p = "$env:LOCALAPPDATA\Programs\Empire Earth\_setupdata_EE\install.ini"`.
+  4. (c) Snapshot zurücksetzen, das Portable-Setup in einen eigenen Ordner kopieren (z. B.
+     `C:\EE-Test\portable`) und dort ausführen; dieselben Abfragen,
+     `$p = 'C:\EE-Test\portable\Empire Earth Portable\_setupdata_EE\install.ini'`. Danach
+     `C:\EE-Test\portable\Empire Earth Portable` von Hand löschen (Portable hat keine
+     Deinstallation).
+  5. (d) Auf dem Stand nach (a): NeoEE-admin in seinen Standardordner (`…\Neo Empire Earth`)
+     installieren, `reg query "HKLM\SOFTWARE\Empire Earth Community\Installations" /s /reg:64` und
+     `reg query "HKCU\Software\Empire Earth Community\GameDefaults" /s`. Dann EE über
+     *Einstellungen › Apps* deinstallieren (mit `/LOG`: `"<Ordner>\unins000.exe" /LOG="…"`) und
+     dieselben zwei Abfragen wiederholen; danach NeoEE deinstallieren und noch einmal abfragen:
+     `reg query "HKLM\SOFTWARE\Empire Earth Community" /reg:64` und
+     `reg query "HKCU\Software\Empire Earth Community"`. Vorher und nachher
+     `reg query "HKLM\SOFTWARE\WOW6432Node\Sierra\CDKeys"` und `reg query "HKCU\Software\Sierra\CDKeys"`
+     notieren (bei Weg A gibt es dort nichts; der Inhalt geht nicht ins Protokoll, Regel 3).
+  6. (e) EE-admin wie in (a) installieren. Dann a) die Datei schreibgeschützt machen
+     (Eingabeaufforderung als Administrator: `attrib +r "C:\Program Files (x86)\Empire Earth\_setupdata_EE\install.ini"`),
+     das Setup erneut ausführen („Vorhandene Installation reparieren“), den Wert im
+     Uninstall-Schlüssel und `install.ini` abfragen, `attrib -r …` und noch einmal reparieren;
+     b) in einer PowerShell die Datei offen halten, ohne Löschen zu erlauben (wie ein Programm,
+     das sie ohne `FILE_SHARE_DELETE` liest):
+     `$f = [IO.File]::Open('C:\Program Files (x86)\Empire Earth\_setupdata_EE\install.ini', 'Open', 'Read', 'Read')`,
+     das Setup reparieren lassen (PowerShell dabei offen lassen), erst nach dem Ende des Setups
+     `$f.Close()`, abfragen, und noch einmal reparieren.
+  7. (f) Nur Weg B: Snapshot zurücksetzen, den Testbuild EE-admin installieren, dann das
+     offizielle Setup 1.7.2 über diese Installation laufen lassen („Aktuelle Installation
+     aktualisieren“ bzw. „reparieren“), danach den Wert im Uninstall-Schlüssel, den
+     Installationseintrag und `install.ini` abfragen; zum Schluss den Testbuild noch einmal laufen
+     lassen und erneut abfragen.
+- **Erwartetes Ergebnis:**
+  - (a) Der Eintrag `HKLM\SOFTWARE\Empire Earth Community\Installations\EE` (64-Bit-Ansicht, nicht
+    unter `WOW6432Node`: die vierte Abfrage findet nichts) hat genau `AppId` (die AppId ohne
+    Klammern), `ContractVersion` `0x1`, `GameVersion` `2.0.0.0`, `InstallMode` `admin`,
+    `InstallPath` (der Installationsordner ohne `\` am Ende), `SetupBuild` `test1-<Commit>`,
+    `SetupVersion` `1.7.2`. Der Marker hat `EE` `0x1` und `AoC` `0x1`. Der Uninstall-Schlüssel hat
+    `Empire Earth Community: ContractVersion    REG_DWORD    0x1`. PowerShell: `BOM: False`,
+    `Nicht-ASCII: 0`, `LF ohne CR: 0`, dann `[Install]` und die Schlüssel in dieser Reihenfolge:
+    `ContractVersion=1`, `Product=EE`, `AppId=…`, `InstallMode=admin`, `GameVersion=2.0.0.0`,
+    `SetupVersion=1.7.2`, `SetupBuild=test1-<Commit>`, `Components=…` (mit `game`, `gameaoc`,
+    `language\de`), `Tasks=…` (die gewählten Aufgaben), `Written=<Datum Uhrzeit>`; im Ordner liegt
+    keine `install.ini.tmp`.
+  - (b) Wie (a), aber Eintrag und Uninstall-Schlüssel in HKCU, `InstallMode` `user` (Eintrag und
+    `install.ini`), Marker in HKCU.
+  - (c) `install.ini` wie (a) mit `InstallMode=portable`; kein Installationseintrag, kein Marker
+    (beide Abfragen: Schlüssel nicht gefunden), kein Uninstall-Schlüssel.
+  - (d) Nach beiden Installationen gibt es `Installations\EE` und `Installations\NeoEE` (NeoEE:
+    `GameVersion` `2.0.0.5`) sowie `GameDefaults\EE` und `GameDefaults\NeoEE`. Nach der
+    Deinstallation von EE sind nur noch die NeoEE-Schlüssel da, nach der von NeoEE auch
+    `Software\Empire Earth Community` selbst nicht mehr (HKLM und HKCU), und die Ordner
+    `_setupdata_EE` bzw. `_setupdata_NeoEE` sind weg. `Software\Sierra\CDKeys` ist in beiden Ansichten
+    unverändert.
+  - (e) Schreibgeschützt bzw. offen: Die Reparatur läuft ohne Meldung zu Ende; der Uninstall-Schlüssel
+    hat danach **keinen** Wert `Empire Earth Community: ContractVersion` (der Launcher meldet dann
+    „Unbekannt“). `install.ini` ist in a) und b) die alte Datei (`Written` unverändert), denn das
+    Setup kann sie weder bei `ssInstall` noch am Ende löschen und überschreibt nie. Nach der letzten
+    Reparatur ohne Störung ist der Wert wieder da und `Written` neu. Nie bleibt eine
+    `install.ini.tmp` liegen.
+  - (f) Nach dem Setup 1.7.2 fehlt der Wert im Uninstall-Schlüssel (das alte Setup legt den
+    Schlüssel neu an), Eintrag und `install.ini` des Testbuilds sind noch da (Vertrag 1.5); den
+    alten versteckten Ordner `<Spielordner>\<AppId>` gibt es wieder. Nach dem erneuten Lauf des
+    Testbuilds ist der Wert wieder da.
+- **Log-Hinweis:** Erste eigene Zeile `Empire Earth 2.0.0.0, setup 1.7.2 (EE, Regular), SetupBuild
+  "test1-<Commit>", TestID 1, contract version 1` (Portable: `(EE, Portable)`). Bei `ssInstall`:
+  `Install state of the previous run deleted (or there was none): …\install.ini`; am Ende:
+  `Wrote …\install.ini (contract version 1, install mode admin)` und
+  `Wrote "Empire Earth Community: ContractVersion" = 1 into the uninstall key`, bei Portable
+  stattdessen `Portable setup: no uninstall key, …`. Die Registry-Einträge stehen als
+  `Key: HKEY_LOCAL_MACHINE\Software\Empire Earth Community\Installations\EE` (bzw.
+  `HKEY_CURRENT_USER`) mit `Value name: …`. (e) a): `Unable to delete …\install.ini: it is read-only`,
+  `The install state of the previous run could not be deleted: this run writes no …`,
+  `Not writing …\install.ini: the old file is still there` und `Not writing "Empire Earth Community:
+  ContractVersion" into the uninstall key: the install state of the previous run could not be
+  deleted at ssInstall; …`; b): dieselben Zeilen mit `it is held open by another program or access
+  is denied` statt `it is read-only`.
 
 #### TP-41: Spieleinstellungen für ein zweites Konto
 
-- **Status:** geplant: S-WP6
+- **Status:** ausgearbeitet
 - **Priorität:** P2
-- **Bezug:** R1, ADR 0004 (Defaults-Marker), Vertrag 3.5; Forum §8 Nr. 1 (zweites Konto,
-  Over-the-Shoulder-Erhöhung)
+- **Bezug:** R1, ADR 0004 (Punkt 2, Defaults-Marker; Konsequenzen: Over-the-Shoulder-Erhöhung),
+  Vertrag 3.1, 3.5 und 3.6; Forum §8 Nr. 1 (zweites Konto, Over-the-Shoulder-Erhöhung)
 - **Ziel:** Zeigen, welche Spieleinstellungen das installierende Konto und welche ein zweites
   Konto bekommt, und dass der Marker nur beim installierenden Konto steht.
+- **Build-Art:** A oder B
+- **Ausgangszustand:** kein Empire Earth installiert; ein Administratorkonto („Admin“) und das
+  Standardkonto „Spieler“, beide schon einmal angemeldet.
+- **Snapshot:** `S-Basis` vor (a), (c) und (e) (die Windows-Sandbox hat kein zweites Konto).
+- **Varianten:** EE-admin in (a) bis (d), EE-user in (e). NeoEE schreibt dieselben Werte unter
+  `Software\Neo\…` und `GameDefaults\NeoEE` und ist nicht eigens aufgeführt.
+- **Schritte:**
+  1. (a) Als „Admin“ anmelden, EE-admin wie in [TP-40](#tp-40-installationseintrag-und-installini-je-variante)
+     installieren, dann in der Eingabeaufforderung von „Admin“:
+
+     ```bat
+     reg query "HKCU\Software\SSSI\Empire Earth"
+     reg query "HKCU\Software\Mad Doc Software\EE-AOC"
+     reg query "HKCU\Software\Empire Earth Community\GameDefaults\EE"
+     reg query "HKLM\SOFTWARE\Empire Earth Community\Installations\EE" /reg:64
+     ```
+
+  2. (b) Abmelden, als „Spieler“ anmelden und dieselben vier Abfragen ausführen.
+  3. (c) Snapshot zurücksetzen, als „Spieler“ anmelden, das Setup starten, „Für alle Benutzer
+     installieren“ wählen und in der Benutzerkontensteuerung Name und Kennwort von „Admin“ eingeben
+     (Over-the-Shoulder-Erhöhung); wie in (a) installieren. Danach die vier Abfragen als „Spieler“,
+     dann abmelden und als „Admin“.
+  4. (d) Als „Admin“ über *Einstellungen › Apps* deinstallieren, dann die Abfragen von (a) als
+     „Admin“.
+  5. (e) Snapshot zurücksetzen, als „Spieler“ EE-user („Nur für mich installieren“, keine
+     Benutzerkontensteuerung) installieren; die Abfragen als „Spieler“ (Eintrag unter
+     `HKCU\Software\Empire Earth Community\Installations\EE`), dann als „Admin“.
+- **Erwartetes Ergebnis:**
+  - (a) Bei „Admin“ gibt es beide Spieleinstellungsschlüssel (z. B. `Wait for VSync` `0x0`,
+    `Game Bit Depth` `0x20`, `Installed From Directory`) und den Marker mit `EE` `0x1` und `AoC`
+    `0x1`; den Installationseintrag in HKLM.
+  - (b) Bei „Spieler“ fehlen beide Spieleinstellungsschlüssel und der Marker („Der angegebene
+    Registrierungsschlüssel bzw. Wert wurde nicht gefunden“); den Installationseintrag in HKLM
+    kann „Spieler“ lesen. Das ist der Fall, den der Launcher beim ersten Start für „Spieler“ löst
+    (R1, Vertrag 3.6, Testplan des Launchers).
+  - (c) Bei „Spieler“ wie (b): keine Spieleinstellungen, kein Marker, obwohl „Spieler“ das Setup
+    gestartet hat; bei „Admin“ wie (a). Das Setup schreibt beides in das HKCU des Kontos, das die
+    Erhöhung bestätigt hat (ADR 0004, Konsequenzen; README „Empire Earth Launcher“).
+  - (d) Installationseintrag und Marker von „Admin“ sind weg, `Software\Empire Earth Community`
+    gibt es in HKLM und im HKCU von „Admin“ nicht mehr. Die Spieleinstellungen von „Admin“ entfernt
+    die Deinstallation wie bisher (`uninsdeletekey`).
+  - (e) Bei „Spieler“ Spieleinstellungen, Marker und Installationseintrag in HKCU
+    (`InstallMode` `user`); bei „Admin“ nichts davon, auch kein Eintrag in HKLM.
+- **Log-Hinweis:** In (a) und (c) `Administrative install mode: Yes` und die Registry-Zeilen
+  `Key: HKEY_CURRENT_USER\Software\Empire Earth Community\GameDefaults\EE`; das Log von (c) liegt im
+  `%TEMP%` von „Admin“ ([TP-30](#tp-30-prüfsumme-des-setups-und-setup-log-ohne-schalter)). In (e)
+  `Administrative install mode: No` und
+  `Key: HKEY_CURRENT_USER\Software\Empire Earth Community\Installations\EE`.
 
 ### Block 5: Integritätsmanifest (S-WP7)
 
@@ -1445,7 +1630,7 @@ echtes Windows“). „Launcher“ heißt: Der Fall prüft den Launcher und geh�
 
 | Nr. | Forum-Testfall | Zuordnung | Stand |
 |---|---|---|---|
-| 1 | Frische Installation, Standardnutzer startet, zweites Konto, Over-the-Shoulder-Erhöhung | TP-41, TP-71; Launcher: Spielordner und Standardwerte für andere Konten (R1) | geplant: S-WP6, S-WP9 |
+| 1 | Frische Installation, Standardnutzer startet, zweites Konto, Over-the-Shoulder-Erhöhung | TP-41, TP-71; Launcher: Spielordner und Standardwerte für andere Konten (R1) | ausgearbeitet: TP-41; geplant: S-WP9 |
 | 2 | Versionsanzeige, MP-Beitritt ohne Versionskonflikt | TP-72, TP-70 (Version im Hauptmenü) | ausgearbeitet: TP-70; geplant: S-WP9 |
 | 3 | Grafikmatrix mit und ohne Wrapper | TP-23 | ausgearbeitet |
 | 4 | Farbtiefe 16 Bit, Reparatur stellt 32 Bit her | TP-73; Launcher: „Reset the Game“ (R4) | geplant: S-WP9 |
