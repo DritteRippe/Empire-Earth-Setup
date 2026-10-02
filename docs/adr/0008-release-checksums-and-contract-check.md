@@ -5,7 +5,8 @@
 - Requirements: R14, D5 ("the `GameSettings` block is the source of truth"), R18, contract O12
 - Revised: 2026-10-02, plan review before implementation (the check reads only tables of the
   contract; `[Files]` flag lint; local copy check of the contract; encoding and message checks of
-  every own script)
+  every own script); S-WP2: the source checks also cover `ci/tests/*.iss` (own scripts according
+  to `.editorconfig`) and report an `#include` of a missing file
 
 ## Context
 
@@ -47,10 +48,12 @@
    files and is part of the local verification of every package that touches the contract. Every
    contract change is one step that changes both copies in the same run, with the same commit
    subject, and runs the checks of both repositories.
-4. **Source checks** (S-WP2): every own top-level `*.iss` starts with the UTF-8 BOM and has only
+4. **Source checks** (S-WP2): every own `*.iss` starts with the UTF-8 BOM and has only
    CRLF line ends (Inno Setup 6.2 reads BOM-less files as ANSI); `check_messages.py` takes its list
-   of own scripts from the `#include` lines of `setup_is6.iss` plus the root `*.iss` files, minus
-   third-party code under `internal/`, so that a new module is checked from its first commit.
+   of own scripts from the `#include` lines of `setup_is6.iss` plus the root `*.iss` files and the
+   unit test setup in `ci/tests`, minus third-party code under `internal/` and the temporary build
+   copies, so that a new module is checked from its first commit; `--self-test` (CI workflow)
+   proves that a new module with an undefined message or without BOM fails the check.
 5. **Setup log:** `[Setup] SetupLogging=yes`: every run writes `Setup Log <date> #<n>.txt` to the
    user's temporary folder (the log lists no secrets, see ARCHITECTURE 6). The README and the test
    plan say where to find it.

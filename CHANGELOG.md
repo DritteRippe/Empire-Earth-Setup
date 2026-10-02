@@ -73,6 +73,14 @@ Refactoring and quality fixes (no new game content).
   every start) without calling ISCC directly; anything but a whole number >= 0 stops the script
   before ISCC runs. `ci/tests/build_helpers.tests.ps1` checks the switch with a dry run of the
   build script against a fake ISCC that records its arguments.
+- `ci/check_messages.py` also checks the encoding of the own scripts: every own `.iss` must start
+  with the UTF-8 BOM, be valid UTF-8 and have only CRLF line ends (Inno Setup 6.2 reads a file
+  without BOM as ANSI). It no longer has a fixed list of the own scripts: it takes every `*.iss` of
+  the root folder and of `ci/tests` and every file named by an `#include "..."` line of
+  `setup_is6.iss` (and of the files found that way), without third-party code under `internal/`
+  and the temporary build copies, so a new module is checked from its first commit; an `#include`
+  of a missing file is reported. `--self-test` (also in the workflow) runs the check against
+  modified copies, e.g. a new module with an undefined message or without BOM, which must fail.
 
 ### Changed
 - The hidden setup data folder (holds `EEStatsSetup.dll` for the uninstaller) is now

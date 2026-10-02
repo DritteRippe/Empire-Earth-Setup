@@ -1,13 +1,24 @@
 #!/usr/bin/env python3
-"""Checks messages.iss for mistakes Inno Setup compiles without a warning.
+"""Checks messages.iss and the own Inno Setup scripts for mistakes Inno Setup compiles without a
+warning.
 
   python ci/check_messages.py [--coverage] [--sort] [repo_dir]
+  python ci/check_messages.py --self-test
 
   --coverage  also prints, per game language, the custom messages that have no translation (they
               are shown in English) and the zh_TW texts that are copies of the zh_CN ones. This is
               a report for translators (see TRANSLATING.md), not an error.
   --sort      rewrites messages.iss with the translations of every message in the standard order
               (see below) and exits; the content of the messages does not change.
+  --self-test runs this check against modified temporary copies of the repository (a new module
+              with an undefined message, without BOM, with LF line ends, ...) that must fail, and
+              against an unmodified copy that must pass. Exit code 0 if all cases behave.
+
+The own scripts are found, not listed: every *.iss in the root folder and in ci/tests, plus every
+file that an #include line with a plain file name ("...") names in setup_is6.iss or in a script
+found that way, without third-party code under internal/ and without the temporary .iss files
+listed in .gitignore (build copies). So a new module is checked from its first commit. An #include
+built from an expression (config_<type>.iss) is covered by the root folder.
 
 Errors (exit code 1):
   - a message defined twice for the same language (the later one silently wins), unless the two
@@ -22,10 +33,19 @@ Errors (exit code 1):
   - translations not in the standard order: in every group of consecutive entries, the entries of
     a message stay together, the English default first, then the languages in alphabetical order
     of their prefix (de, es, fr, it, ko, pl, pt_BR, ru, zh_CN, zh_TW, then the setup-only
-    languages). Inno Setup does not care about the order; it keeps the file easy to compare.
+    languages). Inno Setup does not care about the order; it keeps the file easy to compare,
+  - an own script that does not start with the UTF-8 BOM (EF BB BF; Inno Setup 6.2 reads a file
+    without BOM with the ANSI code page and breaks every non-ASCII text), that is not valid UTF-8,
+    or that has a line end other than CRLF (a bare LF or CR),
+  - an #include of an own script that does not exist.
 """
+import fnmatch
+import os
 import re
+import shutil
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 # Custom messages of Inno Setup's own Default.isl, available without a definition in messages.iss
@@ -35,8 +55,12 @@ INNO_CUSTOM_MESSAGES = {
     "AssocingFileExtension", "AutoStartProgramGroupDescription", "AutoStartProgram",
     "AddonHostProgramNotFound",
 }
-OWN_SCRIPTS = ["setup_is6.iss", "config_ee.iss", "config_neoee.iss", "utils.iss", "extension.iss", "pages.iss",
-               "downloads.iss", "randommaps.iss", "eestats.iss", "telemetry.iss", "messages.iss"]
+# Where the own scripts start: the main script; ci/tests holds the unit test setup
+MAIN_SCRIPT = "setup_is6.iss"
+OWN_SCRIPT_FOLDERS = [".", "ci/tests"]
+# Third-party code (download plug-in, music library, language files) keeps its own format
+THIRD_PARTY_FOLDER = "internal"
+INCLUDE_LINE = re.compile(r'^\s*#\s*include\s+"([^"]+)"\s*$')
 # Messages that stay English in every language on purpose (see messages.iss), left out of --coverage
 ENGLISH_ON_PURPOSE = {"SoundCtrlButtonCaptionSoundOn", "SoundCtrlButtonCaptionSoundOff"}
 
@@ -103,14 +127,98 @@ def exclusive(path_a, path_b):
     return any(if_id in branches_b and branches_b[if_id] != branch for if_id, branch in path_a)
 
 
+def relative(root, path):
+    """Path relative to the repository with forward slashes, for messages and comparisons. Links
+    are not followed (a linked asset folder stays inside the repository); a path outside the
+    repository raises ValueError."""
+    rel = os.path.relpath(os.path.abspath(path), os.path.abspath(root))
+    if rel == os.pardir or rel.startswith(os.pardir + os.sep):
+        raise ValueError(rel)
+    return Path(rel).as_posix()
+
+
+def own_scripts(root, errors):
+    """The own scripts (see the module docstring) as sorted relative paths with forward slashes.
+    An #include of an own script that does not exist is added to errors."""
+    gitignore = root / ".gitignore"
+    temporary = []
+    if gitignore.is_file():
+        temporary = [line.strip() for line in gitignore.read_text(encoding="utf-8").splitlines()
+                     if line.strip().lower().endswith(".iss") and not line.lstrip().startswith("#")]
+
+    def is_own(rel):
+        name = rel.rsplit("/", 1)[-1]
+        return (rel.split("/", 1)[0].lower() != THIRD_PARTY_FOLDER
+                and not any(fnmatch.fnmatch(name, pattern) or fnmatch.fnmatch(rel, pattern)
+                            for pattern in temporary))
+
+    found = set()
+    for folder in OWN_SCRIPT_FOLDERS:
+        for path in (root / folder).glob("*.iss"):
+            rel = relative(root, path)
+            if is_own(rel):
+                found.add(rel)
+    todo = [MAIN_SCRIPT] + sorted(found - {MAIN_SCRIPT})
+    seen = set()
+    while todo:
+        rel = todo.pop(0)
+        if rel in seen:
+            continue
+        seen.add(rel)
+        path = root / rel
+        if not path.is_file():
+            continue
+        text = path.read_bytes().decode("utf-8-sig", errors="replace")
+        for no, line in enumerate(text.splitlines(), 1):
+            match = INCLUDE_LINE.match(line)
+            if not match:
+                continue
+            name = match.group(1).replace("\\", "/")
+            # ISPP looks next to the including file first, then next to the main script
+            candidates = [path.parent / name, root / name]
+            target = next((c for c in candidates if c.is_file()), candidates[0])
+            try:
+                target_rel = relative(root, target)
+            except ValueError:
+                errors.append(f"{rel}:{no}: #include \"{match.group(1)}\" is outside the repository")
+                continue
+            if not is_own(target_rel):
+                continue
+            if not target.is_file():
+                errors.append(f"{rel}:{no}: #include \"{match.group(1)}\": file not found")
+                continue
+            found.add(target_rel)
+            todo.append(target_rel)
+    return sorted(found)
+
+
+def check_encoding(root, rel, errors):
+    """UTF-8 with BOM and only CRLF line ends (see the module docstring)."""
+    raw = (root / rel).read_bytes()
+    if not raw.startswith(b"\xef\xbb\xbf"):
+        errors.append(f"{rel}: does not start with the UTF-8 BOM (EF BB BF); Inno Setup 6.2 would "
+                      "read it with the ANSI code page (see .editorconfig)")
+    try:
+        raw.decode("utf-8")
+    except UnicodeDecodeError as error:
+        errors.append(f"{rel}: not valid UTF-8 (byte {error.start})")
+    bare = [m.start() for m in re.finditer(rb"\r(?!\n)|(?<!\r)\n", raw)]
+    if bare:
+        line = raw.count(b"\n", 0, bare[0]) + 1
+        errors.append(f"{rel}:{line}: line end other than CRLF ({len(bare)} in the file; "
+                      "the own scripts use CRLF only, see .gitattributes)")
+
+
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     options = {a for a in sys.argv[1:] if a.startswith("--")}
-    unknown = options - {"--coverage", "--sort"}
+    unknown = options - {"--coverage", "--sort", "--self-test"}
     if unknown:
         print(f"unknown option(s): {', '.join(sorted(unknown))}")
         return 2
     root = Path(args[0]) if args else Path(__file__).resolve().parent.parent
+    if "--self-test" in options:
+        return self_test(root)
     errors = []
 
     setup_text = (root / "setup_is6.iss").read_text(encoding="utf-8-sig")
@@ -196,8 +304,10 @@ def main():
             if "LIQP_" + lang not in custom:
                 errors.append(f"setup_is6.iss: game language {lang} has no custom message LIQP_{lang}")
 
-    for script in OWN_SCRIPTS:
-        text = (root / script).read_text(encoding="utf-8-sig")
+    scripts = own_scripts(root, errors)
+    for script in scripts:
+        check_encoding(root, script, errors)
+        text = (root / script).read_bytes().decode("utf-8-sig", errors="replace")
         for name in sorted(set(re.findall(r"\{cm:(\w+)[,}]", text)) | set(re.findall(r"CustomMessage\('(\w+)'\)", text))):
             if name not in custom and name not in INNO_CUSTOM_MESSAGES:
                 errors.append(f"{script}: custom message {name} is used but not defined")
@@ -207,8 +317,113 @@ def main():
 
     for error in errors:
         print(error)
+    if not errors:
+        print(f"{len(scripts)} own scripts (UTF-8 BOM, CRLF, messages used): {', '.join(scripts)}")
     print(f"{len(errors)} problem(s) found" if errors else "messages.iss: OK")
     return 1 if errors else 0
+
+
+def self_test(source_root):
+    """Runs this script against temporary copies of the repository (own scripts and .gitignore):
+    the unmodified copy must pass, every modified copy must fail with the expected problem."""
+    crlf = b"\r\n"
+    bom = b"\xef\xbb\xbf"
+    module = bom + b"; self-test module" + crlf + b"[Code]" + crlf
+
+    def new_file(rel, content):
+        return lambda root: (root / rel).parent.mkdir(parents=True, exist_ok=True) or (root / rel).write_bytes(content)
+
+    def include(rel):
+        def apply(root):
+            main = root / MAIN_SCRIPT
+            main.write_bytes(main.read_bytes() + b'#include "' + rel.encode() + b'"' + crlf)
+        return apply
+
+    def both(*steps):
+        return lambda root: [step(root) for step in steps]
+
+    cases = [
+        ("unmodified copy", None, None),
+        ("new root module with an undefined {cm:...}",
+         new_file("selftest.iss", module + b"// {cm:SelfTestUndefinedFoo}" + crlf),
+         "selftest.iss: custom message SelfTestUndefinedFoo is used but not defined"),
+        ("new root module with an undefined CustomMessage('...')",
+         new_file("selftest.iss", module + b"S := CustomMessage('SelfTestUndefinedBar');" + crlf),
+         "selftest.iss: custom message SelfTestUndefinedBar is used but not defined"),
+        ("new root module without BOM",
+         new_file("selftest.iss", module[len(bom):]),
+         "selftest.iss: does not start with the UTF-8 BOM"),
+        ("new root module with an LF line end",
+         new_file("selftest.iss", module + b"// LF only\n"),
+         "selftest.iss:3: line end other than CRLF"),
+        ("new root module with a CR line end",
+         new_file("selftest.iss", module + b"// CR only\r"),
+         "selftest.iss:3: line end other than CRLF"),
+        ("new root module that is not UTF-8",
+         new_file("selftest.iss", module + b"// \xe9" + crlf),
+         "selftest.iss: not valid UTF-8"),
+        ("module in a subfolder, only reached by #include, with an undefined {cm:...}",
+         both(new_file("modules/selftest.iss", module + b"// {cm:SelfTestIncluded}" + crlf),
+              include("modules\\selftest.iss")),
+         "modules/selftest.iss: custom message SelfTestIncluded is used but not defined"),
+        ("module in a subfolder, only reached by #include, without BOM",
+         both(new_file("modules/selftest.iss", module[len(bom):]), include("modules\\selftest.iss")),
+         "modules/selftest.iss: does not start with the UTF-8 BOM"),
+        ("#include of a module that does not exist",
+         include("missing_selftest.iss"),
+         '#include "missing_selftest.iss": file not found'),
+        ("unit test setup with an LF line end",
+         lambda root: (root / "ci/tests/unit_tests.iss").write_bytes(
+             (root / "ci/tests/unit_tests.iss").read_bytes() + b"// LF only\n"),
+         "ci/tests/unit_tests.iss:"),
+        ("message used in setup_is6.iss but not defined",
+         lambda root: (root / MAIN_SCRIPT).write_bytes(
+             (root / MAIN_SCRIPT).read_bytes() + b"// {cm:SelfTestMain}" + crlf),
+         "setup_is6.iss: custom message SelfTestMain is used but not defined"),
+        ("'==' typo in messages.iss",
+         lambda root: (root / "messages.iss").write_bytes(
+             (root / "messages.iss").read_bytes() + crlf + b"[CustomMessages]" + crlf
+             + b"SelfTestTypo==text" + crlf),
+         "SelfTestTypo: value starts with '='"),
+    ]
+    # Must pass: third-party code below internal/ and the temporary build copies of .gitignore
+    passing = [
+        ("third-party module below internal/ without BOM, with LF and an unknown {cm:...}",
+         both(new_file("internal/lib/selftest/selftest.iss", b"// {cm:SelfTestThirdParty}\n"),
+              include("internal\\lib\\selftest\\selftest.iss"))),
+        ("temporary build copy (_pp_*.iss) without BOM, with LF",
+         new_file("_pp_EE_Regular.iss", b"// {cm:SelfTestTemporary}\n")),
+    ]
+    failures = 0
+    with tempfile.TemporaryDirectory(prefix="check_messages_selftest_") as temp:
+        for number, (name, change, expected) in enumerate(cases + [(n, c, None) for n, c in passing]):
+            root = Path(temp) / f"case{number}"
+            for folder in OWN_SCRIPT_FOLDERS:
+                (root / folder).mkdir(parents=True, exist_ok=True)
+                for path in (source_root / folder).glob("*.iss"):
+                    if not fnmatch.fnmatch(path.name, "_pp*_*.iss"):
+                        shutil.copy2(path, root / folder / path.name)
+            shutil.copy2(source_root / ".gitignore", root / ".gitignore")
+            if change:
+                change(root)
+            result = subprocess.run([sys.executable, str(Path(__file__).resolve()), str(root)],
+                                    capture_output=True, text=True, encoding="utf-8")
+            output = result.stdout + result.stderr
+            if expected is None:
+                ok = result.returncode == 0
+                want = "exit code 0"
+            else:
+                ok = result.returncode == 1 and expected in output
+                want = f"exit code 1 and '{expected}'"
+            print(f"{'PASS' if ok else 'FAIL'} {name}")
+            if not ok:
+                failures += 1
+                print(f"  expected {want}, got exit code {result.returncode}:")
+                print("  " + output.strip().replace("\n", "\n  "))
+            shutil.rmtree(root)
+    total = len(cases) + len(passing)
+    print(f"RESULT: {'PASS' if not failures else 'FAIL'} ({total - failures} of {total} cases)")
+    return 1 if failures else 0
 
 
 def print_coverage(runs, custom, game_lang_names):

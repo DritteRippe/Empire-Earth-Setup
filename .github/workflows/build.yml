@@ -24,11 +24,19 @@ jobs:
         shell: pwsh
         run: choco install innosetup --version=6.2.2 --allow-downgrade --no-progress -y
 
-      # Mistakes in messages.iss (duplicate keys, '==' typos, ...) compile without a warning.
-      # --coverage also prints the missing translations per language (a report, not an error).
-      - name: Check messages
+      # Mistakes in messages.iss (duplicate keys, '==' typos, ...), undefined messages in the own
+      # scripts and a missing BOM or a non-CRLF line end compile without a warning (or break
+      # non-ASCII text). --coverage also prints the missing translations per language (a report,
+      # not an error).
+      - name: Check messages and own scripts
         shell: pwsh
         run: python ci/check_messages.py --coverage
+
+      # Modified copies of the repository (e.g. a new module without BOM or with an undefined
+      # message) must fail the check above, an unmodified copy must pass.
+      - name: Check messages (self-test)
+        shell: pwsh
+        run: python ci/check_messages.py --self-test
 
       # docs/CONTRACT.md must be identical in the launcher repository, which CI cannot reach: the
       # copy check runs locally (README, "Verify"); here only its self-test.

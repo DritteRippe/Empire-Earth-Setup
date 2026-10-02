@@ -136,7 +136,7 @@ Before a commit, run the checks that the change touches. The CI workflow runs al
 
 | Check | Command |
 |---|---|
-| Messages and their use in the scripts | `python ci/check_messages.py` |
+| Messages, their use in the own scripts, BOM and CRLF of every own script | `python ci/check_messages.py` (`--self-test` checks the check itself) |
 | Unit tests | `powershell -ExecutionPolicy Bypass -File ci\run_unit_tests.ps1` (Linux/Wine: see [Unit tests](#unit-tests)) |
 | Build script tests | `powershell -ExecutionPolicy Bypass -File ci\tests\build_helpers.tests.ps1` (also `pwsh` on Linux) |
 | All four variants compile | `powershell -ExecutionPolicy Bypass -File ci\build.ps1 -Placeholders` (see [Contributing without the game data](#contributing-without-the-game-data)) |
@@ -145,10 +145,10 @@ Before a commit, run the checks that the change touches. The CI workflow runs al
 `docs/CONTRACT.md` exists in this repository and in the [launcher repository](https://github.com/EE-modders/Empire-Earth-Launcher) and must stay byte-identical; a change of the contract is one step in both repositories (same text, same commit subject). CI cannot reach the other repository, so after every change of the contract run the copy check against a local clone of the launcher, e.g. `python ci/compare_contract.py ../Empire-Earth-Launcher` (the clone's root folder or its `docs/CONTRACT.md`). Exit code 0: identical, the SHA-256 is printed; 1: different, both SHA-256 values and the first differing line are printed (and a hint if only the line endings differ, see `core.autocrlf`); 2: a file is missing. `python ci/compare_contract.py --self-test` checks the script itself.
 
 ### Continuous integration
-`.github/workflows/build.yml` checks the messages (`python ci/check_messages.py`), runs the self-test of the contract copy check (`python ci/compare_contract.py --self-test`), the unit tests and the build script tests, runs the placeholder build with Inno Setup 6.2.2 on `windows-latest` for every push and pull request and uploads the preprocessed script of every variant as an artifact.
+`.github/workflows/build.yml` checks the messages and the own scripts (`python ci/check_messages.py` and its `--self-test`), runs the self-test of the contract copy check (`python ci/compare_contract.py --self-test`), the unit tests and the build script tests, runs the placeholder build with Inno Setup 6.2.2 on `windows-latest` for every push and pull request and uploads the preprocessed script of every variant as an artifact.
 
 ### Conventions
-The own `.iss` files are UTF-8 **with BOM** and CRLF (see `.editorconfig` and `.gitattributes`): Inno Setup 6.2 reads files without BOM as ANSI and would break non-ASCII text. Release notes go into [CHANGELOG.md](CHANGELOG.md). After changing `messages.iss`, run `python ci/check_messages.py`: it reports duplicate messages, `==` typos, unknown language prefixes and messages that are used but not defined, which Inno Setup compiles without a warning, and translations out of the standard order (`--sort` fixes that). `--coverage` adds the list of missing translations per language (see [TRANSLATING.md](TRANSLATING.md)).
+The own `.iss` files are UTF-8 **with BOM** and CRLF (see `.editorconfig` and `.gitattributes`): Inno Setup 6.2 reads files without BOM as ANSI and would break non-ASCII text. Release notes go into [CHANGELOG.md](CHANGELOG.md). After changing `messages.iss` or any own script, run `python ci/check_messages.py`: it reports duplicate messages, `==` typos, unknown language prefixes and messages that are used but not defined, which Inno Setup compiles without a warning, translations out of the standard order (`--sort` fixes that), and every own script without the UTF-8 BOM or with a line end other than CRLF. It finds the own scripts itself (every `*.iss` in the root folder and in `ci/tests`, plus every file named by an `#include "..."` line of `setup_is6.iss` or of a script found that way, without `internal/`), so a new module is checked from its first commit. `--coverage` adds the list of missing translations per language (see [TRANSLATING.md](TRANSLATING.md)).
 
 ## License
 Consider setup_is6.iss, config_ee.iss, config_neoee.iss, utils.iss, pages.iss, messages.iss, extension.iss, downloads.iss, randommaps.iss, eestats.iss, telemetry.iss under **GPL-3.0 License**.
