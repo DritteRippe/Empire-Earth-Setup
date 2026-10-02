@@ -11,7 +11,8 @@
   folder counts for point 4 only if it exists and is not the root of a drive, and the
   `InstallLocation` of a foreign uninstall entry counts too; point 3 also finds the `<AppId>` setup
   data folder of a setup up to 1.7.2; notices and questions are not shown with `/SUPPRESSMSGBOXES`
-  either; a height of 0 is unknown and gives no notice)
+  either; a height of 0 is unknown and gives no notice); contract revision 3 (contract O11 names the
+  `<AppId>` setup data folder of point 3 too)
 
 ## Context
 
@@ -174,7 +175,9 @@ the community publishers (`82974d4`), the screen in the log and the notice for a
   folder with every existing folder of point 2 in both directions (`IsSameOrInside`);
   `IsOtherProductInFolder` looks for `_setupdata_<other product>`, `<OtherAppID>` and the
   `Inno Setup: App Path` of the other product's uninstall key in HKLM32, HKCU and HKLM64
-  (`IsSameFolder`). `AskForAnotherFolder` asks with `MB_YESNO` (Yes is the default button) and logs
+  (`IsSameFolder`). Contract O11 named only the first and the last of these triggers; contract
+  revision 3 (both repositories) added the `<AppId>` folder, so contract and code agree.
+  `AskForAnotherFolder` asks with `MB_YESNO` (Yes is the default button) and logs
   the answer; Yes keeps the wizard on the folder page, No continues. `ForeignFolderQuestion` comes
   before `SharedFolderQuestion`.
 - **Point 5:** silent and `/SUPPRESSMSGBOXES`: `Notice ... not shown` / `Question ... not asked ...,

@@ -486,6 +486,16 @@ setup version stays 1.7.2 until the release.
   `MinVersion` and `OnlyBelowVersion`, tasks joined by `or` in `GetCompatibilityFlags`, the opt-in
   marker and two entries that could write the value of one program in the same run (55 self-test
   cases).
+- `docs/CONTRACT.md`, revision 3 (still contract version 1, draft: only compatible clarifications
+  by its section 5; the same text and commit subject in the launcher repository; no change of the
+  setup's code): O11 names all three triggers of the question `SharedFolderQuestion`, also the
+  `<AppId>` setup data folder of setups up to 1.7.2 that `IsOtherProductInFolder` checks since S-WP8.
+  The launcher rules now say what the launcher v2 does: "Installed From" key before hive, the real
+  game folders of foreign installations, a registry record without `install.ini` (1.4); Modified
+  without a message or repair offer (2.5); at the launcher start class S only created and the first
+  run only for an unambiguous installation, the display question until it is answered, class S
+  while no other game runs (3.2, 3.5, 3.6); no answer of the update API is no statement about the
+  version, which is also what `CheckUpdate` does (4.5).
 - Compatibility values on Windows Vista/7: the setup writes none by default any more. The tasks
   "Enable compatibility flags" and "Enable earlier Windows compatibility mode" exist on Windows 8 and
   later only, where nothing changes (`WIN7RTM`, the flags `DWM8And16BitMitigation HIGHDPIAWARE

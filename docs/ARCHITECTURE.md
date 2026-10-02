@@ -342,7 +342,8 @@ plan.
   adds the opt-in task on Windows 7 with contract revision 2, S-WP10, done).
 - **O11** (EE and NeoEE in one folder): the setup asks (S-WP8, done: `SharedFolderQuestion`, found by
   the other product's setup data folder, its `<AppId>` folder of setups up to 1.7.2 or its uninstall
-  key; TP-62).
+  key; TP-62). Contract O11 names all three triggers since contract revision 3, a step in both
+  repositories without a change of the code.
 - **authtools.dll and `HKLM\Software\Neo`** (S-WP8): the community NeoEE setup writes its game keys
   only in HKCU, so an HKLM `Neo` key is reported as an old NeoEE installation. Whether the closed
   `authtools.dll` writes such a key when it registers the CD keys is unknown (contract O8); TP-61 (e)
