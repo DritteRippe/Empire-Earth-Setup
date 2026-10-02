@@ -15,6 +15,9 @@ Errors (exit code 1):
     "Bezug" and "Ziel",
   - a test case has no valid priority: "Priorität" is "P1", "P2" or "P3", optionally followed by a
     remark in parentheses ("P2 (P1 mit Weg B)"),
+  - the table of the P1 short run (section "Kurzdurchlauf") does not name exactly the cases with the
+    priority P1 in its column "Fälle", a step has no whole number in "Minuten", or the row "Summe"
+    is not the sum of the steps or more than 180 minutes (three hours),
   - the table of the forum test cases (section "Forum-Testfälle", report section 8) does not list
     the numbers 1 to 22 exactly once each; a row names neither a test case id nor "Launcher:" or
     "entfällt:" with a reason; or its column "Stand" does not match the status of the cases it
@@ -43,6 +46,8 @@ REQUIRED_PLANNED = ["Status", "Priorität", "Bezug", "Ziel"]
 # P1: short run before every release, P2: important, outside the short run, P3: optional (section 4)
 PRIORITIES = ("P1", "P2", "P3")
 PRIORITY = re.compile(r"(P\d+)(?:\s+\(.+\))?")
+# The P1 short run (section 7) takes at most three hours
+MAX_SHORT_RUN_MINUTES = 180
 CASE_HEADING = re.compile(r"^(#{2,6})\s+(TP-\S*?):?\s+(.*)$")
 VALID_ID = re.compile(r"^TP-\d\d$")
 FIELD_LINE = re.compile(r"^- \*\*([^*:]+):\*\*(.*)$")
@@ -149,16 +154,18 @@ def check_cases(cases, errors):
                           "followed by a remark in parentheses)")
 
 
-def forum_table(lines, errors):
-    """Rows of the first table after the heading "Forum-Testfälle": [(line, {column: text})]."""
+def section_table(lines, heading, errors):
+    """(heading line, header, rows) of the first table after the first heading (outside code blocks)
+    that contains `heading`, up to the next heading; rows are [(line, {column: text})]. Reports a
+    missing heading and returns (None, None, [])."""
     start = None
     for no, line in outside_code(lines):
-        if re.match(r"^#{2,6}\s.*Forum-Testfälle", line):
+        if re.match(r"^#{2,6}\s.*" + re.escape(heading), line):
             start = no
             break
     if start is None:
-        errors.append(f"{TEST_PLAN}: no section 'Forum-Testfälle' found")
-        return []
+        errors.append(f"{TEST_PLAN}: no section '{heading}' found")
+        return None, None, []
     header, rows = None, []
     for no, line in enumerate(lines[start:], start + 1):
         if line.startswith("#"):
@@ -174,11 +181,75 @@ def forum_table(lines, errors):
         if all(re.fullmatch(r":?-+:?", cell) for cell in cells):
             continue
         rows.append((no, dict(zip(header, cells))))
+    return start, header, rows
+
+
+def forum_table(lines, errors):
+    """Rows of the first table after the heading "Forum-Testfälle": [(line, {column: text})]."""
+    start, header, rows = section_table(lines, "Forum-Testfälle", errors)
+    if start is None:
+        return []
     if header is None or not {"Nr.", "Zuordnung", "Stand"} <= set(header):
         errors.append(f"{TEST_PLAN}:{start}: the forum table needs the columns 'Nr.', 'Zuordnung' "
                       "and 'Stand'")
         return []
     return rows
+
+
+def short_run_table(lines, errors):
+    """Rows of the first table after the heading "Kurzdurchlauf" (the P1 short run, section 7):
+    [(line, {column: text})]."""
+    start, header, rows = section_table(lines, "Kurzdurchlauf", errors)
+    if start is None:
+        return []
+    if header is None or not {"Schritt", "Fälle", "Minuten"} <= set(header) or not rows:
+        errors.append(f"{TEST_PLAN}:{start}: the short run needs a table with the columns "
+                      "'Schritt', 'Fälle' and 'Minuten' and at least one step")
+        return []
+    return rows
+
+
+def check_short_run(rows, cases, errors):
+    """The short run names exactly the P1 cases, and its minutes add up to the row "Summe", which
+    is at most MAX_SHORT_RUN_MINUTES. Returns the total (None if the table could not be read)."""
+    if not rows:
+        return None
+    named = {}
+    total = 0
+    summe = None
+    for no, row in rows:
+        where = f"{TEST_PLAN}:{no}"
+        step, minutes = row.get("Schritt", ""), row.get("Minuten", "")
+        if not re.fullmatch(r"\d+", minutes):
+            errors.append(f"{where}: short run step '{step}': 'Minuten' '{minutes}' is not a whole "
+                          "number")
+            continue
+        if step == "Summe":
+            if summe is not None:
+                errors.append(f"{where}: the short run table has a second row 'Summe'")
+            summe = (no, int(minutes))
+            continue
+        total += int(minutes)
+        for digits in ID_REFERENCE.findall(row.get("Fälle", "")):
+            named.setdefault("TP-" + digits, no)
+    p1 = {case_id for case_id, case in cases.items() if priority_of(case) == "P1"}
+    for case_id in sorted(p1 - set(named)):
+        errors.append(f"{TEST_PLAN}:{cases[case_id]['line']}: {case_id} has the priority P1 but is "
+                      "not in the short run table (section 'Kurzdurchlauf')")
+    for case_id in sorted(set(named) - p1):
+        if case_id in cases:
+            errors.append(f"{TEST_PLAN}:{named[case_id]}: {case_id} is in the short run table but "
+                          "its priority is not P1")
+    if summe is None:
+        errors.append(f"{TEST_PLAN}: the short run table has no row 'Summe'")
+    else:
+        if summe[1] != total:
+            errors.append(f"{TEST_PLAN}:{summe[0]}: the row 'Summe' of the short run says "
+                          f"{summe[1]} minutes, its steps add up to {total}")
+        if total > MAX_SHORT_RUN_MINUTES:
+            errors.append(f"{TEST_PLAN}:{summe[0]}: the short run takes {total} minutes, more than "
+                          f"{MAX_SHORT_RUN_MINUTES} (three hours)")
+    return total
 
 
 def check_forum_table(rows, cases, errors):
@@ -276,12 +347,14 @@ def check(root):
     cases = parse_cases(lines, errors)
     check_cases(cases, errors)
     check_forum_table(forum_table(lines, errors), cases, errors)
+    minutes = check_short_run(short_run_table(lines, errors), cases, errors)
     references, files = check_references(root, cases, errors)
     kinds = [status_of(case)[0] for case in cases.values()]
     priorities = [priority_of(case) for case in cases.values()]
     summary = (f"{TEST_PLAN}: OK ({len(cases)} test cases: {kinds.count('ausgearbeitet')} worked out, "
                f"{kinds.count('geplant')} planned, {kinds.count('entfällt')} dropped; "
                + ", ".join(f"{priorities.count(p)} {p}" for p in PRIORITIES)
+               + f"; short run: the {priorities.count('P1')} P1 cases in {minutes} minutes"
                + f"; forum test cases 1 to 22 assigned; {references} id references in {files} "
                "Markdown files)")
     return errors, summary
@@ -353,6 +426,28 @@ def self_test(source_root):
             path.write_text(text.replace(row, row + row, 1), encoding="utf-8")
         return apply
 
+    def short_run_row(step, change):
+        """Replaces the cells of the row `step` of the short run table by change(cells)."""
+        def apply(root):
+            path = root / TEST_PLAN
+            text = path.read_text(encoding="utf-8")
+            match = re.search(r"(?m)^\| " + re.escape(step) + r" \|.*$", text)
+            if not match:
+                raise AssertionError(f"self-test: short run row {step} not found")
+            cells = [cell.strip() for cell in match.group(0).strip().strip("|").split("|")]
+            row = "| " + " | ".join(change(cells)) + " |"
+            path.write_text(text[:match.start()] + row + text[match.end():], encoding="utf-8")
+        return apply
+
+    def add_minutes(cells, minutes):
+        return cells[:-1] + [str(int(cells[-1]) + minutes)]
+
+    def both(*changes):
+        def apply(root):
+            for change in changes:
+                change(root)
+        return apply
+
     adr = "docs/adr/0006-strict-tls-and-server-certificates.md"
     cases = [
         ("unmodified copy", None, None),
@@ -401,6 +496,22 @@ def self_test(source_root):
         ("priority with a remark in parentheses passes",
          append(TEST_PLAN, "\n#### TP-94: x\n\n- **Status:** geplant: S-WP9\n- **Priorität:** P2 (P1 mit Weg B)\n- **Bezug:** x\n- **Ziel:** y\n"),
          None),
+        # P1 short run (section 7): exactly the P1 cases, minutes that add up, at most three hours
+        ("P1 case missing in the short run",
+         append(TEST_PLAN, "\n#### TP-95: x\n\n- **Status:** geplant: S-WP9\n- **Priorität:** P1\n- **Bezug:** x\n- **Ziel:** y\n"),
+         "TP-95 has the priority P1 but is not in the short run table"),
+        ("P2 case in the short run", short_run_row("K1", lambda cells: cells[:3] + [cells[3] + ", TP-12"] + cells[4:]),
+         "TP-12 is in the short run table but its priority is not P1"),
+        ("short run sum does not match", short_run_row("Summe", lambda cells: add_minutes(cells, -1)),
+         "the row 'Summe' of the short run says"),
+        ("short run longer than three hours",
+         both(short_run_row("K1", lambda cells: add_minutes(cells, 200)),
+              short_run_row("Summe", lambda cells: add_minutes(cells, 200))),
+         "more than 180 (three hours)"),
+        ("short run minutes not a number", short_run_row("K1", lambda cells: cells[:-1] + ["5-10"]),
+         "is not a whole number"),
+        ("short run section missing", edit(TEST_PLAN, "## 7. Kurzdurchlauf", "## 7. Ablauf"),
+         "no section 'Kurzdurchlauf' found"),
         ("test plan missing", lambda root: (root / TEST_PLAN).unlink(), "not found"),
     ]
     failures = 0

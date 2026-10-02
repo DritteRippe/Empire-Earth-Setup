@@ -38,9 +38,9 @@ jobs:
         shell: pwsh
         run: python ci/check_messages.py --self-test
 
-      # docs/TEST-PLAN.de.md: unique test case ids, a status and a priority per case, forum test
-      # cases 1 to 22 assigned, every id named in the documentation defined; then the self-test of
-      # the check (modified copies).
+      # docs/TEST-PLAN.de.md: unique test case ids, a status and a priority per case, the P1 short
+      # run (exactly the P1 cases, at most three hours), forum test cases 1 to 22 assigned, every id
+      # named in the documentation defined; then the self-test of the check (modified copies).
       - name: Check the test plan
         shell: pwsh
         run: python ci/check_test_plan.py

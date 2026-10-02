@@ -14,14 +14,19 @@ Block 8 (Links in `Data` und `Users`, TP-80) aus S-WP11; S-WP9 hat die Build-Art
 Windows-8.1-Variante von TP-22 und die Entscheidungsregeln in TP-23 und TP-71 ergänzt. Alle Fälle
 sind ausgearbeitet; jeder hat eine Priorität (P1 bis P3, [Abschnitt 4](#4-vorlage-je-fall)).
 `ci/check_test_plan.py` prüft die Form dieses Dokuments (siehe
-[Abschnitt 10](#10-automatische-prüfung-dieses-dokuments)).
+[Abschnitt 11](#11-automatische-prüfung-dieses-dokuments)).
 
 Inhalt: [1. Zweck](#1-zweck) · [2. Sicherheitsregeln](#2-sicherheitsregeln) ·
 [3. ID-Schema](#3-id-schema) · [4. Vorlage je Fall](#4-vorlage-je-fall) ·
 [5. Testumgebungen und Snapshots](#5-testumgebungen-und-snapshots) ·
-[6. Testbuild herstellen](#6-testbuild-herstellen) · [7. Testfälle](#7-testfälle) ·
-[8. Forum-Testfälle §8](#8-forum-testfälle-8) · [9. Protokoll](#9-protokoll) ·
-[10. Automatische Prüfung](#10-automatische-prüfung-dieses-dokuments)
+[6. Testbuild herstellen](#6-testbuild-herstellen) ·
+[7. Kurzdurchlauf und Freigabe](#7-kurzdurchlauf-p1-und-freigabe) · [8. Testfälle](#8-testfälle) ·
+[9. Forum-Testfälle §8](#9-forum-testfälle-8) · [10. Protokoll](#10-protokoll) ·
+[11. Automatische Prüfung](#11-automatische-prüfung-dieses-dokuments)
+
+Wer den Plan zum ersten Mal benutzt: [Abschnitt 2](#2-sicherheitsregeln) lesen, dann den
+Kurzdurchlauf in [Abschnitt 7](#7-kurzdurchlauf-p1-und-freigabe); er führt durch die nötigen Teile
+von Abschnitt 5, 6 und 8.
 
 ## 1. Zweck
 
@@ -32,7 +37,7 @@ Inhalt: [1. Zweck](#1-zweck) · [2. Sicherheitsregeln](#2-sicherheitsregeln) ·
   (`TP-xy`). Abnahmekriterien der Arbeitspakete verweisen auf diese IDs, statt „auf Windows
   testen“ zu schreiben.
 - Die Testfälle für echtes Windows aus der Forumsstudie (save-ee.com, Bericht Abschnitt 8,
-  Nummern 1 bis 22) sind in [Abschnitt 8](#8-forum-testfälle-8) einer ID zugeordnet oder
+  Nummern 1 bis 22) sind in [Abschnitt 9](#9-forum-testfälle-8) einer ID zugeordnet oder
   begründet ausgenommen.
 - Nicht Teil dieses Plans: der Launcher (eigene Tests im Launcher-Repository) und der Betrieb der
   Dateiserver; nur deren Zustand prüft [TP-00](#tp-00-server-vorabprüfung) vorab.
@@ -89,7 +94,7 @@ Ausarbeiten aufteilen und die geplanten IDs des Blocks neu ordnen (S-WP4: die Gr
 jetzt unter TP-23, TP-21 ist das Update unter Windows 7). Neue Fälle bekommen die nächste freie
 Nummer ihres Blocks. Ein neues Arbeitspaket mit eigenen Fällen bekommt den nächsten freien Block
 (S-WP11: Block 8, weil Block 7 schon die allgemeinen Abläufe enthält); die Blöcke stehen in
-[Abschnitt 7](#7-testfälle) in der Reihenfolge ihrer Nummern.
+[Abschnitt 8](#8-testfälle) in der Reihenfolge ihrer Nummern.
 
 | IDs | Block | Paket | Inhalt |
 |---|---|---|---|
@@ -105,7 +110,7 @@ Nummer ihres Blocks. Ein neues Arbeitspaket mit eigenen Fällen bekommt den näc
 
 ## 4. Vorlage je Fall
 
-Jeder Fall ist eine Überschrift `#### TP-xy: <Titel>` im Block seines Pakets (Abschnitt 7) mit
+Jeder Fall ist eine Überschrift `#### TP-xy: <Titel>` im Block seines Pakets (Abschnitt 8) mit
 dieser Liste darunter. Ein ausgearbeiteter Fall hat alle Felder; ein geplanter Fall hat mindestens
 `Status`, `Priorität`, `Bezug` und `Ziel`.
 
@@ -141,10 +146,11 @@ Varianten werden als `EE-admin`, `EE-user`, `EE-portable`, `NeoEE-admin`, `NeoEE
 `Priorität` sagt, wann ein Fall gebraucht wird; jeder Fall hat genau eine (Pflichtfeld, auch bei
 geplanten Fällen):
 
-- **P1:** gehört zum Kurzdurchlauf vor jeder Freigabe: zusammen höchstens etwa drei Stunden, auf
-  dem Laptop (Weg B), in der Windows-Sandbox oder in einer VM mit Windows 10/11. Welche Varianten
-  der P1-Fälle der Kurzdurchlauf genau enthält und das Freigabekriterium (alle P1-Fälle bestanden
-  oder mit Grund ausgenommen) legt S-WP9 fest.
+- **P1:** gehört zum Kurzdurchlauf vor jeder Freigabe: zusammen höchstens drei Stunden, auf dem
+  Laptop, in der Windows-Sandbox oder in einer VM mit Windows 10/11. Welche Teile eines P1-Falls
+  dazugehören, sagt sein Feld `Priorität` (z. B. `P1 (Teile a und b; c: P2)`); den Ablauf und das
+  Freigabekriterium (alle P1-Fälle bestanden oder mit Grund ausgenommen) beschreibt
+  [Abschnitt 7](#7-kurzdurchlauf-p1-und-freigabe).
 - **P2:** wichtig, aber außerhalb des Kurzdurchlaufs: braucht mehr Zeit, echte Spieldaten über
   Weg A hinaus oder eine besondere Ausgangslage (zweites Konto, langsame Leitung, Grafikmatrix,
   hohe Anzeigeskalierung). Vor einer Freigabe erwünscht; ein ausgelassener P2-Fall steht mit Grund
@@ -442,7 +448,72 @@ Installationsmodus. Deinstallation:
 "<Installationsordner>\unins000.exe" /VERYSILENT /SUPPRESSMSGBOXES /LOG="C:\EE-Test\logs\TP-70_EE-admin_silent_uninstall.log"
 ```
 
-## 7. Testfälle
+## 7. Kurzdurchlauf (P1) und Freigabe
+
+Der Kurzdurchlauf ist der Test vor jeder Freigabe: alle P1-Fälle mit ihren P1-Teilen (das Feld
+`Priorität` jedes Falls nennt sie), zusammen höchstens drei Stunden auf dem Laptop und in der
+Windows-Sandbox ([Abschnitt 5](#5-testumgebungen-und-snapshots)). Er braucht keine Daten der
+Maintainer: Die Mechanik prüft Weg A, das Update über 1.7.2 Weg A+
+([6.4](#64-weg-a-placeholder-build-mit-den-offiziellen-appids)); nur der letzte Schritt braucht
+Weg B. Windows 7, Windows 8.1, Original-CD und GOG, zweite Konten und zweite Rechner sind P2 oder
+P3 und gehören nicht dazu.
+
+**Freigabekriterium.** Ein Stand (Commit) ist freigegeben, wenn jeder P1-Fall mit allen seinen
+P1-Teilen im Protokoll „bestanden“ hat oder mit Grund ausgenommen ist. Gültige Gründe sind:
+
+- „nicht durchgeführt: keine Daten“ für die Teile mit Weg B, wenn es keine Daten der Maintainer
+  gibt (Schritt K10 unten);
+- die Ausnahmen, die ein Fall selbst nennt (z. B. TP-10, wenn nach TP-00 nur der Hauptserver
+  gültig ist: „nicht durchgeführt: Spiegel ungültig“).
+
+Ein „Fehler“ in einem P1-Teil verhindert die Freigabe, bis eine Korrektur ihn in einem neuen
+Kurzdurchlauf behebt. Über eine „Abweichung“ entscheiden die Maintainer; die Entscheidung steht in
+der Bemerkung des Protokolls. Findet [TP-00](#tp-00-server-vorabprüfung) keinen Dateiserver mit
+gültigem Zertifikat, ist das ein Release-Blocker auf Serverseite (ADR 0006), keine Ausnahme. P2- und
+P3-Fälle verhindern die Freigabe nicht; ein ausgelassener P2-Fall steht mit Grund im Protokoll. Die
+Freigabe gilt für den getesteten Commit: Ändert ein späterer Commit das kompilierte Setup, braucht
+er einen neuen Kurzdurchlauf.
+
+**Vorbereitung** (einmal, nicht in den drei Stunden): Inno Setup 6.2.2, Python 3 und Git auf dem
+Laptop, eine Arbeitskopie des Branches ([6.1](#61-voraussetzungen-alle-wege)); die Windows-Sandbox
+mit den beiden `.wsb`-Dateien aus [Abschnitt 5](#5-testumgebungen-und-snapshots); das offizielle
+EE-Setup 1.7.2, selbst heruntergeladen, in `C:\EE-Test\setups`; `EEStatsSetup.dll` und die
+offiziellen AppIds ([6.4](#64-weg-a-placeholder-build-mit-den-offiziellen-appids) Schritte 1 und 2,
+ohne eigene Installation einmal in der Sandbox nach der Installation von 1.7.2). Unter Windows Home
+tritt eine VM mit dem Snapshot `S-Basis` an die Stelle der Sandbox; „Sandbox neu starten“ heißt dann
+„Snapshot zurücksetzen“.
+
+**Ablauf.** Die Schritte legen Fälle zusammen, die denselben Ausgangszustand brauchen: Ein Lauf
+belegt dann mehrere Fälle. Das Log heißt nach dem ersten Fall des Laufs (Regel 6), im Protokoll
+steht je Fall eine Zeile mit derselben Log-Datei. Jeder Schritt in der Sandbox beginnt mit einer
+frisch gestarteten Sandbox und endet mit dem Kopieren der Logs. Die Minuten gelten für eine Leitung
+mit etwa 50 Mbit/s: Jede Installation mit Spielsprache Deutsch lädt rund 0,5 GB (Stimmen und
+Kampagnen von EE und AoC). Ist die Leitung deutlich langsamer, in den Läufen, die keinen Download
+prüfen (alle außer TP-10, TP-11 und TP-14), Englisch als Spielsprache wählen: dann gibt es keine
+Downloads, und `install.ini` nennt `language\en` statt `language\de`.
+
+| Schritt | Umgebung | Inhalt | Fälle | Minuten |
+|---|---|---|---|---|
+| K1 | Laptop | Server-Vorabprüfung; ihr Ergebnis bestimmt K4 | TP-00 | 5 |
+| K2 | Laptop | Weg A bauen ([6.2](#62-weg-a-placeholder-build), alle vier Varianten) und Weg A+ (`-Variants EE/Regular -OutputDir out\aplus`), die Setups nach `C:\EE-Test\setups` kopieren | - | 10 |
+| K3 | Laptop | die SHA-256-Dateien der vier Setups von Weg A prüfen | TP-30 (a) | 5 |
+| K4 | Sandbox, Netz | EE-admin neu installieren (Deutsch, „Empfohlene Einstellungen“ mit EE und AoC, Telemetrie aus) und prüfen: TP-70 (a) Schritte 1 bis 5; derselbe Lauf belegt TP-10 (ist der Hauptserver laut K1 inzwischen gültig, vorher die `hosts`-Zeile aus TP-10 eintragen), TP-22 (a) (mit den empfohlenen Einstellungen sind beide Kompatibilitätsaufgaben gewählt; die Aufgabenseite entfällt), TP-40 (a) und TP-50 (a). Dann TP-40 (e) Teil a (schreibgeschützte `install.ini`), dann TP-73 (a) (die Reparatur nach dem Schaden ist zugleich die letzte Reparatur von TP-40 (e)). Dann NeoEE-admin: TP-70 (a), TP-40 (d), TP-50 (a); zum Schluss beide deinstallieren (TP-70 Schritt 7, TP-40 (d)) | TP-10, TP-22, TP-40, TP-50, TP-70, TP-73 | 43 |
+| K5 | Sandbox, Netz | EE-user mit der „Virenscanner“-Schleife: TP-50 (b) ohne den stillen Lauf; dieselbe Installation belegt TP-70 (a) EE-user (der Hinweis zu fehlenden Dateien ist hier erwartet) und TP-22 (d) (Werte in HKCU); nach der Reparatur ohne Schleife TP-40 (b); deinstallieren (TP-70 Schritt 7) | TP-22, TP-40, TP-50, TP-70 | 21 |
+| K6 | Sandbox, Netz | EE-portable: TP-70 (a), TP-40 (c), TP-50 (a); dann EE-admin still: TP-14 (a) | TP-14, TP-40, TP-50, TP-70 | 16 |
+| K7 | Sandbox, ohne Netz (`EE-Test-offline.wsb`) | EE-admin per Doppelklick ohne `/LOG`: TP-11 (a) und zugleich TP-30 (b) (das Log aus `%TEMP%` als `C:\EE-Test\logs\TP-11a_EE-admin.log` sichern); dann TP-14 (b) still, hier als Reparatur über diese Installation (ohne Netz verhält sie sich wie eine Neuinstallation) | TP-11, TP-14, TP-30 | 13 |
+| K8 | Sandbox, Netz | TP-61 (a) mit Installation, EE deinstallieren, (b) bis nach der Ordnerseite, (c) sichtbar und still; aufräumen | TP-61 | 23 |
+| K9 | Sandbox, Netz | das offizielle EE-Setup 1.7.2 installieren (Englisch, `S-172-EE` wie in [Abschnitt 5](#5-testumgebungen-und-snapshots)), die Werte für TP-22 (e) notieren, dann das A+-Setup aus `out\aplus` als Update: TP-70 (b) EE-admin und TP-22 (e) | TP-22, TP-70 | 19 |
+| K10 | Laptop, nur Weg B | TP-50 (d): EE-admin mit allen Komponenten, Dauer der Seite „Installierte Dateien werden geprüft“; auf derselben Installation den Spielstart von TP-70 (a) Schritt 6; deinstallieren. Ohne Daten: „nicht durchgeführt: keine Daten“ | TP-50, TP-70 | 15 |
+| Summe | | | | 170 |
+
+Ohne Daten der Maintainer entfällt K10; der Kurzdurchlauf dauert dann etwa 155 Minuten. Die Zeiten
+sind Schätzungen aus den Schritten der Fälle (ein Lauf mit dem Assistenten etwa 5 Minuten, eine
+Reparatur 4, ein Neustart der Sandbox 2, die Abfragen eines Falls 2 bis 3); die tatsächliche Dauer
+gehört ins Protokoll (Bemerkung zu K1), damit der Plan nachgeschärft werden kann.
+`ci/check_test_plan.py` prüft, dass die Spalte „Fälle“ genau die P1-Fälle nennt und die Summe
+stimmt und höchstens 180 Minuten beträgt.
+
+## 8. Testfälle
 
 ### Block 0: Vorabprüfung
 
@@ -560,7 +631,7 @@ Gemeinsam für alle Fälle dieses Blocks:
 #### TP-10: Hauptserver ungültig, Download vom Spiegel
 
 - **Status:** ausgearbeitet
-- **Priorität:** P1
+- **Priorität:** P1 (EE-admin; NeoEE-admin mit Weg B: P2)
 - **Bezug:** ADR 0003, ADR 0006, R16; Forum §8 Nr. 15 („nur mit Spiegel erreichbar“), Forum
   §8 Nr. 12 des Problemabgleichs (t=5741, t=3763: kaputte Downloads)
 - **Ziel:** Mit ungültigem Zertifikat des Hauptservers lädt das Setup die lokalisierten Dateien
@@ -603,7 +674,7 @@ Gemeinsam für alle Fälle dieses Blocks:
 #### TP-11: Keiner der Server erreichbar
 
 - **Status:** ausgearbeitet
-- **Priorität:** P1
+- **Priorität:** P1 (Teil a mit EE-admin; Teil b und EE-user: P2)
 - **Bezug:** ADR 0006 (Hinweis `OnlineFilesUnreachable`); Forum §8 Nr. 15 („ohne Internet“)
 - **Ziel:** Ohne Netz bzw. ohne gültigen Server installiert das Setup seine eigenen Dateien und
   erklärt das verständlich: Server nicht erreichbar oder ohne gültiges Zertifikat, ein Problem der
@@ -705,7 +776,7 @@ Gemeinsam für alle Fälle dieses Blocks:
 #### TP-14: Silent-Installation ohne Dialog
 
 - **Status:** ausgearbeitet
-- **Priorität:** P1
+- **Priorität:** P1 (Teile a und b; c, d und EE-portable: P2)
 - **Bezug:** ADR 0003; ARCHITECTURE Abschnitt 5 (Hinweise nicht im Silent-Modus und nicht mit
   `/SUPPRESSMSGBOXES`); Forum §8 Nr. 15
 - **Ziel:** Mit `/SILENT`, `/VERYSILENT` oder `/SUPPRESSMSGBOXES` erscheint wegen der Downloads
@@ -1091,7 +1162,8 @@ Gemeinsam für alle Fälle dieses Blocks:
 #### TP-22: Windows 10/11 und 8.1: Kompatibilitätswerte unverändert
 
 - **Status:** ausgearbeitet
-- **Priorität:** P1 (Variante f unter Windows 8.1: P3, nur VM)
+- **Priorität:** P1 (Varianten a, d und e; b und c: P2, sie sagen erst mit dem Spielstart von Weg B
+  mehr als die Contract-Prüfung; f unter Windows 8.1: P3, nur VM)
 - **Bezug:** R15, ADR 0005 (ab Windows 8 unverändert), ADR 0010 Punkt 6 (Windows 8 und 8.1 gegenüber
   1.7.2), Vertrag 3.4 und 3.7; Forum §8 Nr. 5 (t=5842 p=39349, t=5748 p=38768)
 - **Ziel:** Ab Windows 8 schreibt das Setup dieselben Werte wie vor S-WP4 (`WIN7RTM`, die Flags der
@@ -1279,7 +1351,7 @@ Die Form der SHA-256-Datei prüft zusätzlich `ci/tests/build_helpers.tests.ps1`
 #### TP-30: Prüfsumme des Setups und Setup-Log ohne Schalter
 
 - **Status:** ausgearbeitet
-- **Priorität:** P1
+- **Priorität:** P1 (Teile a und b; c bis e: P2, c braucht ein zweites Konto)
 - **Bezug:** R14, ADR 0008 (Punkte 1 und 5), README „Checksums of the setups“ und „Support“;
   Forum §8 Nr. 12 des Problemabgleichs (t=5741, t=3763: kaputte und umgepackte Downloads)
 - **Ziel:** Die SHA-256-Datei neben jedem Setup passt zur Setup-Datei und lässt sich mit
@@ -1383,7 +1455,8 @@ und B: die offiziellen AppIds aus [6.3](#63-weg-b-echter-build-aus-eigenen-daten
 #### TP-40: Installationseintrag und install.ini je Variante
 
 - **Status:** ausgearbeitet
-- **Priorität:** P1 (Teil f mit dem offiziellen Setup 1.7.2: P2)
+- **Priorität:** P1 (Teile a bis d und von e der Teil a mit schreibgeschützter Datei; von e der Teil b
+  mit geöffneter Datei und f mit dem offiziellen Setup 1.7.2: P2)
 - **Bezug:** D5, R1, ADR 0004 (Punkte 1, 2, 6, 9, 10), Vertrag 1.1, 1.2, 1.3, 2.5 und 3.5,
   Entscheidung K4 der Planrevision (kein Wert im Uninstall-Schlüssel, wenn Löschen oder Umbenennen
   scheitert)
@@ -1585,8 +1658,8 @@ Zeile mit `Get-FileHash`; wer Git für Windows installiert hat, kann im Installa
 #### TP-50: Von Antivirenprogrammen gelöschte Dateien
 
 - **Status:** ausgearbeitet
-- **Priorität:** P1 (Teil c mit gesperrter Datei: P2; Zeitmessung auf HDD bzw. in der
-  Windows-7-VM, Teil e: P3)
+- **Priorität:** P1 (Teile a, b ohne den stillen Lauf und d; c mit gesperrter Datei und der stille
+  Lauf von b: P2; Zeitmessung auf HDD bzw. in der Windows-7-VM, Teil e: P3)
 - **Bezug:** R2, R11, D5, ADR 0004 (Punkte 3 bis 8), Vertrag 1.2, 2.1 bis 2.3, Entscheidungen K4
   und K12 der Planrevision; Forum §8 Nr. 14 (t=11045 p=48037, t=41147 p=80317: Antivirenprogramme
   löschen Spieldateien)
@@ -1866,7 +1939,8 @@ Befehle unten lassen den abschließenden `\` deshalb weg.
      `reg query "HKLM\SOFTWARE\Neo\Empire Earth" /reg:32`,
      `reg query "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\EE-Test-GOG" /reg:32`,
      `dir "C:\Sierra"`.
-  3. (b) Snapshot zurücksetzen (bzw. die Testeinträge aus Schritt 5 entfernen). Nur Einträge, die
+  3. (b) Snapshot zurücksetzen (bzw. EE deinstallieren und die Testeinträge aus Schritt 5
+     entfernen; ohne Deinstallation überspringt das Setup die Ordnerseite). Nur Einträge, die
      **nicht** gemeldet werden dürfen: eine Community-Installation mit fremder AppId (Herausgeber der
      Community) und Empire Earth II (ein anderes Spiel):
 
@@ -1877,7 +1951,8 @@ Befehle unten lassen den abschließenden `\` deshalb weg.
      reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\EE-Test-EE2" /reg:32 /v Publisher /d "Sierra Entertainment" /f
      ```
 
-     EE-admin mit `TP-61b` im Log-Namen installieren.
+     EE-admin mit `TP-61b` im Log-Namen installieren (es genügt, bis nach der Ordnerseite zu gehen:
+     die Prüfung läuft beim Verlassen der Ordnerseite; danach abbrechen).
   4. (c) Die Einträge aus Schritt 1 wieder anlegen. NeoEE-user („Nur für mich installieren“) mit
      `TP-61c` im Log-Namen bis zur Ordnerseite und „Weiter“, dann abbrechen; danach still:
      `<NeoEE-Setup>.exe /VERYSILENT /SUPPRESSMSGBOXES /CURRENTUSER /LOG="C:\EE-Test\logs\TP-61c_NeoEE-user-silent.log"`.
@@ -2032,7 +2107,7 @@ Befehle unten lassen den abschließenden `\` deshalb weg.
 
 Fälle, die nicht zu einem Arbeitspaket gehören: der Grundablauf (TP-70, Grundlage aller anderen
 Fälle) und die Testfälle für echtes Windows aus der Forumsstudie, die kein anderer Block abdeckt
-(Zuordnung in [Abschnitt 8](#8-forum-testfälle-8)). Viele brauchen das laufende Spiel und damit
+(Zuordnung in [Abschnitt 9](#9-forum-testfälle-8)). Viele brauchen das laufende Spiel und damit
 Weg B; ohne Daten der Maintainer bleiben von ihnen die Teile mit Weg A bzw. A+, der Rest kommt als
 „nicht durchgeführt: keine Daten“ ins Protokoll. Abfragen von `Software\Sierra\CDKeys` prüfen
 nur, ob es den Schlüssel gibt, nie seine Werte (Regel 3).
@@ -2040,7 +2115,8 @@ nur, ob es den Schlüssel gibt, nie seine Werte (Regel 3).
 #### TP-70: Grundablauf: installieren, starten, deinstallieren
 
 - **Status:** ausgearbeitet
-- **Priorität:** P1
+- **Priorität:** P1 (a mit EE-admin, NeoEE-admin, EE-user und EE-portable, b mit EE-admin; a mit
+  NeoEE-user und NeoEE-portable und b mit NeoEE: P2)
 - **Bezug:** Grundlage aller anderen Fälle; README „Build switches“ (`TestID`); Vertrag 1.3
   (Uninstall-Schlüssel); Forum §8 Nr. 2 (Version, nur Startbild)
 - **Ziel:** Ein Testbuild installiert sich vollständig, das Spiel startet (Weg B), und die
@@ -2763,7 +2839,7 @@ nur mit `rmdir <Link>` entfernen (ohne `/s`): Das löscht den Link, nicht den Or
   folders found, …` und `Installation process succeeded.`; (d) wie (c) mit `…\Users\Spieler`; (e)
   `Link check skipped: not the administrative install mode`.
 
-## 8. Forum-Testfälle §8
+## 9. Forum-Testfälle §8
 
 Zuordnung der Testfälle für echtes Windows aus dem Forumsbericht (Abschnitt 8, „Testfälle für
 echtes Windows“). „Launcher“ heißt: Der Fall prüft den Launcher und gehört in dessen Testplan;
@@ -2795,7 +2871,7 @@ echtes Windows“). „Launcher“ heißt: Der Fall prüft den Launcher und geh�
 | 21 | GOG als Basis | TP-63 | ausgearbeitet |
 | 22 | NeoEE-Wartungsmodus über kaputter Installation | TP-73 (c: NeoEE ohne `EE-AOC.exe` und `install.ini`, b: ohne Uninstall-Schlüssel) | ausgearbeitet |
 
-## 9. Protokoll
+## 10. Protokoll
 
 Jeder Testlauf ist eine Zeile. Die Logs liegen unter `C:\EE-Test\logs` und heißen wie in
 [Regel 6](#2-sicherheitsregeln).
@@ -2808,7 +2884,13 @@ Jeder Testlauf ist eine Zeile. Die Logs liegen unter `C:\EE-Test\logs` und heiß
 ein anderer Text); in die Bemerkung gehört, was genau. Ergebnisse zurückmelden mit dieser
 Tabelle und den Logs der betroffenen Läufe (vorher auf persönliche Daten ansehen, Regel 6).
 
-## 10. Automatische Prüfung dieses Dokuments
+Beim Kurzdurchlauf ([Abschnitt 7](#7-kurzdurchlauf-p1-und-freigabe)) nennt die Bemerkung den
+Schritt (`K1` bis `K10`) und die P1-Teile, die die Zeile belegt; Beginn und Ende des Durchlaufs
+stehen in der Bemerkung der ersten und der letzten Zeile. Unter der Tabelle steht das Ergebnis:
+`Freigabe <Commit>: freigegeben` oder `nicht freigegeben: <TP-IDs mit Fehler>`, mit den
+ausgenommenen P1-Teilen und ihrem Grund.
+
+## 11. Automatische Prüfung dieses Dokuments
 
 `python ci/check_test_plan.py` (auch im CI-Workflow) prüft:
 
@@ -2817,9 +2899,13 @@ Tabelle und den Logs der betroffenen Läufe (vorher auf persönliche Daten anseh
   ein geplanter mindestens `Priorität`, `Bezug` und `Ziel`,
 - jeder Fall hat eine gültige Priorität: `P1`, `P2` oder `P3`, höchstens gefolgt von einer
   Bemerkung in Klammern ([Abschnitt 4](#4-vorlage-je-fall)),
-- die Tabelle in [Abschnitt 8](#8-forum-testfälle-8) hat die Nummern 1 bis 22 je einmal, jede mit
+- die Tabelle in [Abschnitt 9](#9-forum-testfälle-8) hat die Nummern 1 bis 22 je einmal, jede mit
   einer ID oder mit „Launcher“/„entfällt“ und Grund, und ihre Spalte „Stand“ passt zum Status der
   genannten Fälle,
+- die Tabelle des Kurzdurchlaufs in [Abschnitt 7](#7-kurzdurchlauf-p1-und-freigabe) nennt in der
+  Spalte „Fälle“ genau die Fälle mit der Priorität `P1` (keinen fehlt, keinen anderen), jede Zeile
+  hat eine ganze Zahl in der Spalte „Minuten“, und die Zeile „Summe“ ist ihre Summe und höchstens
+  180,
 - jede ID, die in diesem Dokument, in der README, in `docs/ARCHITECTURE.md`, in den ADRs oder in
   einer anderen Markdown-Datei des Repositorys (außer `ci/`, `.github/` und den Asset-Ordnern)
   genannt wird, ist hier definiert, und jede ID hat genau zwei Ziffern (`TP-1x` meint einen
