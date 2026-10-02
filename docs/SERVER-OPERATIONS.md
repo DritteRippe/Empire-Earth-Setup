@@ -66,11 +66,15 @@ Each file server (main server **and** mirror) must:
    file it has no SHA-256 for, accepts it unchecked and writes `accepted without size check` into
    its log. Do not compress `.ssa`, `.cfg`, `.bik` and `.dll` files on the fly.
 4. **Never redirect to `http://`.** A redirect from `https://` to `https://` is fine. The download
-   code of Inno Setup 6.2.2 follows redirects automatically, and nothing documents that it refuses
-   one to `http://`, so the setup has to assume it follows those too. Only the server operator can
-   send such a redirect (nobody else can inject one into a validated TLS connection), so the
-   guarantee "never over `http://`" depends on this rule. (The update check and the reachability
-   check use WinHTTP, which refuses redirects from `https://` to `http://`.)
+   code of Inno Setup 6.2.2 follows redirects itself, **also from `https://` to `http://`**: a
+   probe for setup v2 showed that it follows `301`, `302`, `307` and `308` to `http://` and that
+   the setup then accepts a file it has no SHA-256 of as "TLS-verified" (it cannot see the
+   redirect; [ADR 0008](adr/0008-release-checksums-and-contract-check.md), "Implementation"). Only
+   the server operator can send such a redirect (nobody else can inject one into a validated TLS
+   connection), so the guarantee "never over `http://`" for these files depends on this rule;
+   check 3.4 shows it, and [section 6](#6-pins-for-the-files-known-at-build-time) removes the
+   dependency for the files a build pins. (The update check and the reachability check use
+   WinHTTP, which refuses redirects from `https://` to `http://`.)
 5. **Serve identical files** on main server and mirror at the same paths. The setup checks a
    downloaded file against the SHA-256 compiled into it where it has one (always for
    `Language.dll`); a file that differs on one server is discarded there, and the setup tries the
@@ -186,3 +190,35 @@ setup: v2 would install no localized files at all (1.7.2 still downloaded them b
 the certificate), so fix the server first. The Windows test plan starts with the same check
 ([TP-00](TEST-PLAN.de.md#tp-00-server-vorabprüfung)) before any download test, and the download
 cases (`TP-1x`) cover the setup's side.
+
+## 6. Pins for the files known at build time
+
+A recommendation for every release, not a release criterion.
+
+**Why.** A setup accepts a file without a SHA-256 pin as the HTTPS server sends it. With the data
+of setup 1.7.2 that are 110 server paths per product: the voices (`data.ssa`), the campaigns and
+the localized movie of every language, which only exist on the servers. Because the downloads
+follow a redirect to `http://` (requirement 4), one misconfigured redirect on a file server is
+enough to deliver them over plain HTTP, where anyone on the network path can replace them, and
+the setup logs them as "TLS-verified" all the same. A pinned file is safe whatever path it took:
+the setup compares its SHA-256 and discards anything else.
+
+**What to do.** Before building a release, place every such file whose final content you have at
+its server path below `data\localized-text` (e.g. `data\localized-text\Game\de\EE\Data\data.ssa`).
+`ci\build.ps1` writes the hash list from that folder, so the file is pinned; files below
+`Game\<tag>\<game>\Data\` are only hashed, not packed into the setup (`[Files]` takes only
+`Language.dll` and the lobby folders from `data\localized-text`), so the setup does not grow. Take
+the files from your own master copy, not freshly from the servers: a pin of a downloaded file only
+freezes what the server served that day (if you have to download them, take them from both
+servers and compare, check 3.5). A release build (`TestID` 0) prints a warning that lists every
+file that is still downloaded without a pin, per product; the list comes from the code of the
+setup (`Get-OnlineFiles` in `ci\build_helpers.ps1`), so it is complete. A placeholder build only
+prints the number.
+
+**Trade-off.** A pinned file that later changes on the servers is discarded by every setup built
+before the change: those setups install their own (English) version and name the file in the
+notice `DownloadIncomplete` until a new setup is released (README, "Online localized files").
+Pin the files that are final; leave a file unpinned only if you expect to change it between
+releases, and then keep requirement 4 and run check 3.4 after every change of the server
+configuration. Whether to pin is the maintainers' choice, which is why the build warns instead of
+failing.

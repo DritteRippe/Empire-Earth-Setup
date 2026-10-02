@@ -10,7 +10,10 @@
        but that does not exist (ci/make_placeholder_assets.py). Existing files are never touched.
     3. Write data\localized-text.sha256, the SHA-256 list of data\localized-text: the setups only
        install a downloaded Language.dll whose hash is in this list, and a listed data file only
-       if it matches (see downloads.iss).
+       if it matches (see downloads.iss). A release build (TestID 0, also without -TestID) then
+       warns with every online file the setups would download without a pin: the built-in
+       downloads follow a redirect from https:// to http:// (ADR 0008), so these files are only
+       as safe as the configuration of the file servers (docs\SERVER-OPERATIONS.md, section 6).
     4. Compile every variant with ISCC /DInstallType /DInstallMode /DEE_AppID /DNeoEE_AppID
        [/DTestID] into its own output folder and check that the file name proves the variant took
        effect.
@@ -192,7 +195,7 @@ function Show-LogErrors([string]$LogFile) {
 }
 
 # Write-DownloadHashes, ConvertTo-DerCertificateFile, ConvertTo-Thumbprint, Get-TestIdDefine,
-# Write-FileSha256
+# Write-FileSha256, Get-OnlineFiles, Get-UnpinnedOnlineFiles
 . (Join-Path $PSScriptRoot 'build_helpers.ps1')
 
 $LocalizedFolder = Join-Path $Root 'data\localized-text'
@@ -293,6 +296,31 @@ try {
   foreach ($dump in $resolved) { Remove-Item -LiteralPath $dump }
 
   Write-DownloadHashes $LocalizedFolder $DownloadHashList
+
+  # Release builds list the online files the setups download without a pin, accepted as the HTTPS
+  # server sends them. Inno Setup's built-in downloads follow a redirect from https:// to http://
+  # (Wine probe, ADR 0008 "Implementation"), so these files are only as safe as the configuration
+  # of the file servers. A warning, not an error: whether to pin them is the maintainers' choice
+  # (docs\SERVER-OPERATIONS.md, section 6). The list comes from the code of RegisterOnlineFiles
+  # (Get-OnlineFiles); a change there that Get-OnlineFiles does not understand stops the build,
+  # also the placeholder build of CI, which only prints the number (its pins are placeholders).
+  if (-not $PSBoundParameters.ContainsKey('TestID') -or $TestID -eq 0) {
+    foreach ($type in @($Variants | ForEach-Object { ($_ -split '/')[0] } | Select-Object -Unique)) {
+      $unpinned = @(Get-UnpinnedOnlineFiles @(Get-OnlineFiles $Root $type) $DownloadHashList)
+      if ($unpinned.Count -eq 0) {
+        Write-Host "Online files of the $type setups: all pinned."
+        continue
+      }
+      if ($Placeholders) {
+        Write-Host "Online files of the $type setups without a SHA-256 pin: $($unpinned.Count) (placeholder pins; a release build with the real data lists them)."
+        continue
+      }
+      Write-Warning ("Release build: the $type setups download $($unpinned.Count) online file(s) without a SHA-256 pin. " +
+        'The downloads follow a redirect from https:// to http://, so a file server that redirects could deliver them unencrypted (ADR 0008). ' +
+        'Pin the files known at build time by placing them in data\localized-text at their server path (docs\SERVER-OPERATIONS.md, section 6):')
+      foreach ($path in $unpinned) { Write-Host "    $path" }
+    }
+  }
 
   # Pass 2: the real compile, one output folder per variant.
   foreach ($variant in $Variants) {

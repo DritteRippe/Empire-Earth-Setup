@@ -2,7 +2,7 @@
 .SYNOPSIS
   Helper functions of ci\build.ps1 that do not need Inno Setup: the SHA-256 list of the online
   localized files, the DER copy of the signing certificate, the ISCC switch of the test build
-  number and the SHA-256 file of every built setup.
+  number, the SHA-256 file of every built setup and the list of online files without a pin.
 
 .DESCRIPTION
   Dot-sourced by ci\build.ps1 and by ci\tests\build_helpers.tests.ps1. Kept free of ISCC and of
@@ -145,4 +145,298 @@ function Write-FileSha256([string]$Path, [string]$Destination) {
   }
   [System.IO.File]::WriteAllText($Destination, "$hash  $name`n", [System.Text.UTF8Encoding]::new($false))
   return [pscustomobject]@{ Hash = $hash; Path = $Destination }
+}
+
+# --- Online files without a pin (ci\build.ps1, release builds; ADR 0008 point 6)
+#
+# Inno Setup's built-in downloads follow a redirect from https:// to http:// (Wine probe of S-WP5,
+# ADR 0008 "Implementation"), so an online file without a SHA-256 pin is only as safe as the
+# configuration of the file servers. A release build lists these files. The list comes from the
+# same source as the setup's own list: the code of RegisterOnlineFiles and of the procedures it
+# calls in setup_is6.iss, the game languages there (GameLangs, GameLangLobbyDirs) and
+# CodeFileExtensions in utils.iss. Only the statement forms that code uses are understood; anything
+# else throws, so that a change of that code cannot silently change the list (the CI build is a
+# release build and runs it on every push).
+
+# Text of a Pascal Script source without "//" comments, quoted strings kept
+function Remove-PascalComment([string]$Line) {
+  $inString = $false
+  for ($i = 0; $i -lt $Line.Length; $i++) {
+    if ($Line[$i] -eq "'") { $inString = -not $inString; continue }
+    if (-not $inString -and $Line[$i] -eq '/' -and $i + 1 -lt $Line.Length -and $Line[$i + 1] -eq '/') {
+      return $Line.Substring(0, $i)
+    }
+  }
+  return $Line
+}
+
+# Splits $Text at $Separator outside quoted strings, brackets and parentheses; trims the parts
+function Split-PascalTopLevel([string]$Text, [char]$Separator) {
+  $parts = [System.Collections.Generic.List[string]]::new()
+  $depth = 0
+  $inString = $false
+  $start = 0
+  for ($i = 0; $i -lt $Text.Length; $i++) {
+    $c = $Text[$i]
+    if ($c -eq "'") { $inString = -not $inString; continue }
+    if ($inString) { continue }
+    if ($c -eq '(' -or $c -eq '[') { $depth++ }
+    elseif ($c -eq ')' -or $c -eq ']') { $depth-- }
+    elseif ($c -eq $Separator -and $depth -eq 0) {
+      $parts.Add($Text.Substring($start, $i - $start).Trim())
+      $start = $i + 1
+    }
+  }
+  if ($inString -or $depth -ne 0) { throw "Unbalanced quotes or brackets in: $Text" }
+  $parts.Add($Text.Substring($start).Trim())
+  return $parts.ToArray()
+}
+
+# The lines of $Lines that ISPP keeps for $InstallType. Only "#if InstallType == "X"",
+# "#if InstallType != "X"", "#else" and "#endif" are understood; any other directive throws.
+function Select-InstallTypeLines([string[]]$Lines, [string]$InstallType, [string]$Where) {
+  $kept = [System.Collections.Generic.List[string]]::new()
+  $stack = [System.Collections.Generic.List[object]]::new()
+  foreach ($line in $Lines) {
+    $trimmed = $line.Trim()
+    if ($trimmed.StartsWith('#')) {
+      if ($trimmed -match '^#if\s+InstallType\s*(==|!=)\s*"(\w+)"$') {
+        $match = ($Matches[2] -eq $InstallType)
+        if ($Matches[1] -eq '!=') { $match = -not $match }
+        $stack.Add(@{ Condition = $match; Else = $false })
+      } elseif ($trimmed -eq '#else' -and $stack.Count -gt 0 -and -not $stack[$stack.Count - 1].Else) {
+        $stack[$stack.Count - 1].Else = $true
+        $stack[$stack.Count - 1].Condition = -not $stack[$stack.Count - 1].Condition
+      } elseif ($trimmed -eq '#endif' -and $stack.Count -gt 0) {
+        $stack.RemoveAt($stack.Count - 1)
+      } else {
+        throw "${Where}: preprocessor line '$trimmed' is not understood by Get-OnlineFiles (ci\build_helpers.ps1)."
+      }
+      continue
+    }
+    if (@($stack | Where-Object { -not $_.Condition }).Count -eq 0) { $kept.Add($line) }
+  }
+  if ($stack.Count -ne 0) { throw "${Where}: #if without #endif." }
+  return $kept.ToArray()
+}
+
+# Parameter names and statements (comments removed, split at ";") of the procedure $Name in $Lines
+function Get-PascalProcedure([string[]]$Lines, [string]$Name, [string]$InstallType, [string]$File) {
+  $head = -1
+  for ($i = 0; $i -lt $Lines.Count; $i++) {
+    if ($Lines[$i] -match "^procedure\s+$Name\s*\(") {
+      if ($head -ge 0) { throw "${File}: procedure $Name is defined twice." }
+      $head = $i
+    }
+  }
+  if ($head -lt 0) { throw "${File}: procedure $Name not found." }
+  $begin = -1
+  for ($i = $head; $i -lt $Lines.Count; $i++) { if ($Lines[$i] -match '^begin\s*$') { $begin = $i; break } }
+  $end = -1
+  for ($i = $begin + 1; $begin -ge 0 -and $i -lt $Lines.Count; $i++) { if ($Lines[$i] -match '^end;\s*$') { $end = $i; break } }
+  if ($begin -lt 0 -or $end -lt 0) { throw "${File}: body of procedure $Name not found (begin/end; in the first column)." }
+
+  $header = ($Lines[$head..($begin - 1)] | ForEach-Object { Remove-PascalComment $_ }) -join ' '
+  if ($header -notmatch "^procedure\s+$Name\s*\((.*?)\)\s*;") { throw "${File}: parameter list of $Name not understood." }
+  $parameters = [System.Collections.Generic.List[string]]::new()
+  if ($Matches[1].Trim()) {
+    foreach ($group in ($Matches[1] -split ';')) {
+      $names = ($group -split ':')[0] -replace '^\s*(const|var)\s+', ''
+      foreach ($parameter in ($names -split ',')) { $parameters.Add($parameter.Trim()) }
+    }
+  }
+  $bodyLines = @()
+  if ($end -gt $begin + 1) { $bodyLines = $Lines[($begin + 1)..($end - 1)] }
+  $kept = @(Select-InstallTypeLines $bodyLines $InstallType "$File, $Name")
+  $body = @($kept | ForEach-Object { Remove-PascalComment $_ }) -join ' '
+  $statements = @(@(Split-PascalTopLevel $body ';') | ForEach-Object { ($_ -replace '\s+', ' ').Trim() } | Where-Object { $_ })
+  return [pscustomobject]@{ Name = $Name; Parameters = $parameters.ToArray(); Statements = $statements; Text = $body }
+}
+
+# Value of a string expression of these procedures: quoted strings, variables and "Array[I]"
+# joined with "+"
+function Get-PascalStringValue([string]$Expression, [hashtable]$Variables, [string]$Where) {
+  $value = ''
+  foreach ($term in @(Split-PascalTopLevel $Expression '+')) {
+    if ($term -match "^'((?:[^']|'')*)'$") { $value += $Matches[1].Replace("''", "'") }
+    elseif ($Variables.ContainsKey($term) -and $Variables[$term] -is [string]) { $value += $Variables[$term] }
+    else { throw "${Where}: '$term' in '$Expression' is not understood by Get-OnlineFiles (ci\build_helpers.ps1)." }
+  }
+  return $value
+}
+
+# Runs the statement $Statement of a download procedure with $Variables: assignments, calls of the
+# procedures in $Procedures, "for I := 0 to GetArrayLength(<array>) - 1 do <call>",
+# "if <Boolean parameter> then <call>", and AddOnlineFile (downloads.iss), which adds
+# RelPath/PinPath to $Found
+function Invoke-OnlineFileStatement([string]$Statement, [hashtable]$Variables, [hashtable]$Procedures, $Found, [string]$Where) {
+  if ($Statement -match '^for (\w+) := 0 to GetArrayLength\((\w+)\) - 1 do (.+)$') {
+    $index, $arrayName, $inner = $Matches[1], $Matches[2], $Matches[3]
+    if (-not $Variables.ContainsKey($arrayName) -or $Variables[$arrayName] -isnot [array]) { throw "${Where}: '$arrayName' is not an array parameter." }
+    foreach ($element in $Variables[$arrayName]) {
+      $loop = $Variables.Clone()
+      $loop["$arrayName[$index]"] = [string]$element
+      Invoke-OnlineFileStatement $inner $loop $Procedures $Found $Where
+    }
+    return
+  }
+  if ($Statement -match '^if (\w+) then (.+)$') {
+    $condition, $inner = $Matches[1], $Matches[2]
+    if (-not $Variables.ContainsKey($condition) -or $Variables[$condition] -isnot [bool]) { throw "${Where}: condition '$condition' is not a Boolean parameter." }
+    if ($Variables[$condition]) { Invoke-OnlineFileStatement $inner $Variables $Procedures $Found $Where }
+    return
+  }
+  if ($Statement -match '^(\w+) := (.+)$') {
+    $target, $expression = $Matches[1], $Matches[2]
+    $Variables[$target] = Get-PascalStringValue $expression $Variables $Where
+    return
+  }
+  if ($Statement -match '^(\w+)\((.*)\)$') {
+    $name, $argumentText = $Matches[1], $Matches[2]
+    $arguments = @(Split-PascalTopLevel $argumentText ',')
+    if ($name -eq 'AddOnlineFile') {
+      # AddOnlineFile(RelPath, PinPath, RelDest): the download target has the name of RelPath
+      if ($arguments.Count -ne 3) { throw "${Where}: AddOnlineFile needs 3 arguments: $Statement" }
+      $Found.Add([pscustomobject]@{
+        RelPath = Get-PascalStringValue $arguments[0] $Variables $Where
+        PinPath = Get-PascalStringValue $arguments[1] $Variables $Where
+      })
+      return
+    }
+    if ($Procedures.ContainsKey($name)) {
+      $procedure = $Procedures[$name]
+      if ($arguments.Count -ne $procedure.Parameters.Count) { throw "${Where}: $name needs $($procedure.Parameters.Count) arguments: $Statement" }
+      $local = @{}
+      for ($i = 0; $i -lt $arguments.Count; $i++) {
+        $local[$procedure.Parameters[$i]] = Get-PascalStringValue $arguments[$i] $Variables $Where
+      }
+      Invoke-OnlineFileProcedure $procedure $local $Procedures $Found
+      return
+    }
+  }
+  throw "${Where}: statement '$Statement' is not understood by Get-OnlineFiles (ci\build_helpers.ps1)."
+}
+
+function Invoke-OnlineFileProcedure($Procedure, [hashtable]$Variables, [hashtable]$Procedures, $Found) {
+  foreach ($statement in $Procedure.Statements) {
+    Invoke-OnlineFileStatement $statement $Variables $Procedures $Found "setup_is6.iss, $($Procedure.Name)"
+  }
+}
+
+# True if the download policy treats $Path as a file that can contain code (IsCodeFileName in
+# utils.iss): the extension of its last name without trailing dots and spaces is in
+# $CodeExtensions ("|dll|exe|...|"), or the path has a ':' or the extension a '|'
+function Test-CodeFileName([string]$Path, [string]$CodeExtensions) {
+  $name = ($Path -split '[\\/]')[-1].TrimEnd('.', ' ')
+  $dot = $name.LastIndexOf('.')
+  $extension = ''
+  if ($dot -ge 0) { $extension = $name.Substring($dot + 1).ToLowerInvariant() }
+  return ($Path.Contains(':') -or $extension.Contains('|') -or ($extension -ne '' -and $CodeExtensions.Contains("|$extension|")))
+}
+
+# The online files a setup of $InstallType (EE or NeoEE) built from the repository $Root can
+# register for download, for every game language except English and with every selectable
+# component (movie, AoC): one object per server path with RelPath, PinPath (its path in the
+# SHA-256 list) and IsCode (needs a pin, else it is never downloaded), sorted by RelPath (ordinal).
+function Get-OnlineFiles([string]$Root, [string]$InstallType) {
+  if ($InstallType -cnotin @('EE', 'NeoEE')) { throw "InstallType '$InstallType' is not EE or NeoEE." }
+  $setupFile = Join-Path $Root 'setup_is6.iss'
+  $utilsFile = Join-Path $Root 'utils.iss'
+  $setup = [System.IO.File]::ReadAllText($setupFile)
+  $utils = [System.IO.File]::ReadAllText($utilsFile)
+  $lines = $setup -split '\r?\n'
+
+  # Game languages (component language\<lang>, language tag with '-') and their lobby folders
+  $languages = @{}
+  foreach ($name in @('GameLangs', 'GameLangLobbyDirs')) {
+    $match = [regex]::Match($setup, "(?m)^#dim $name\[GameLangCount\]\s*\{([^}]*)\}")
+    if (-not $match.Success) { throw "${setupFile}: '#dim $name[GameLangCount] {...}' not found." }
+    $languages[$name] = @([regex]::Matches($match.Groups[1].Value, '"([^"]*)"') | ForEach-Object { $_.Groups[1].Value })
+  }
+  $count = [regex]::Match($setup, '(?m)^#define GameLangCount (\d+)\s*$')
+  if (-not $count.Success -or $languages.GameLangs.Count -ne [int]$count.Groups[1].Value -or $languages.GameLangLobbyDirs.Count -ne $languages.GameLangs.Count) {
+    throw "${setupFile}: GameLangs and GameLangLobbyDirs must both have GameLangCount entries."
+  }
+
+  $codeMatch = [regex]::Match($utils, "CodeFileExtensions = ((?:'[^']*'\s*\+?\s*)+);")
+  if (-not $codeMatch.Success) { throw "${utilsFile}: CodeFileExtensions not found." }
+  $codeExtensions = -join @([regex]::Matches($codeMatch.Groups[1].Value, "'([^']*)'") | ForEach-Object { $_.Groups[1].Value })
+
+  $procedures = @{}
+  foreach ($name in @('RegisterGameOnlineFiles', 'AddLocalizedGameOnlineFile', 'AddGameOnlineFile')) {
+    $procedures[$name] = Get-PascalProcedure $lines $name $InstallType $setupFile
+  }
+
+  # RegisterOnlineFiles itself: English registers nothing, then one RegisterGameOnlineFiles call
+  # per game with its campaigns and whether the movie can be selected
+  $register = Get-PascalProcedure $lines 'RegisterOnlineFiles' $InstallType $setupFile
+  if ($register.Text -notmatch "\(LangCode = 'en'\)") { throw "${setupFile}: RegisterOnlineFiles no longer skips English ((LangCode = 'en')); update Get-OnlineFiles." }
+  $calls = @()
+  $position = 0
+  while (($position = $register.Text.IndexOf('RegisterGameOnlineFiles(', $position)) -ge 0) {
+    $open = $position + 'RegisterGameOnlineFiles'.Length
+    $depth = 0
+    $inString = $false
+    $close = -1
+    for ($i = $open; $i -lt $register.Text.Length; $i++) {
+      $c = $register.Text[$i]
+      if ($c -eq "'") { $inString = -not $inString }
+      elseif (-not $inString -and $c -eq '(') { $depth++ }
+      elseif (-not $inString -and $c -eq ')') { $depth--; if ($depth -eq 0) { $close = $i; break } }
+    }
+    if ($close -lt 0) { throw "${setupFile}: unbalanced call of RegisterGameOnlineFiles in RegisterOnlineFiles." }
+    $arguments = @(Split-PascalTopLevel $register.Text.Substring($open + 1, $close - $open - 1) ',')
+    if ($arguments.Count -ne 5 -or $arguments[0] -ne 'LangCode' -or $arguments[1] -ne 'LobbyDir' -or
+        $arguments[2] -notmatch "^'(\w+)'$" -or $arguments[3] -notmatch '^\[(.*)\]$') {
+      throw "${setupFile}: call of RegisterGameOnlineFiles in RegisterOnlineFiles not understood: $($register.Text.Substring($position, $close - $position + 1))"
+    }
+    $game = $arguments[2].Trim("'")
+    $campaigns = @(@(Split-PascalTopLevel $arguments[3].Substring(1, $arguments[3].Length - 2) ',') |
+      Where-Object { $_ } | ForEach-Object { Get-PascalStringValue $_ @{} "$setupFile, RegisterOnlineFiles" })
+    # A component check (e.g. the movie) can be selected: the file can be registered
+    $calls += [pscustomobject]@{ Game = $game; Campaigns = $campaigns; WithMovie = ($arguments[4] -ne 'False') }
+    $position = $close
+  }
+  if ($calls.Count -eq 0) { throw "${setupFile}: RegisterOnlineFiles calls RegisterGameOnlineFiles nowhere." }
+
+  $found = [System.Collections.Generic.List[object]]::new()
+  for ($i = 0; $i -lt $languages.GameLangs.Count; $i++) {
+    $tag = $languages.GameLangs[$i]
+    $underscore = $tag.IndexOf('_')
+    if ($underscore -ge 0) { $tag = $tag.Substring(0, $underscore) + '-' + $tag.Substring($underscore + 1) }   # GetLanguageTag
+    if ($tag -eq 'en') { continue }
+    foreach ($call in $calls) {
+      $variables = @{ LangCode = $tag; LobbyDir = $languages.GameLangLobbyDirs[$i]; GameKey = $call.Game;
+                      Campaigns = [object[]]$call.Campaigns; WithMovie = [bool]$call.WithMovie }
+      Invoke-OnlineFileProcedure $procedures.RegisterGameOnlineFiles $variables $procedures $found
+    }
+  }
+
+  $seen = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+  $result = [System.Collections.Generic.List[object]]::new()
+  foreach ($file in $found) {
+    if ($seen.Add($file.RelPath + '|' + $file.PinPath)) {
+      $result.Add([pscustomobject]@{ RelPath = $file.RelPath; PinPath = $file.PinPath; IsCode = (Test-CodeFileName $file.RelPath $codeExtensions) })
+    }
+  }
+  $result.Sort([System.Comparison[object]] { param($a, $b) [string]::CompareOrdinal($a.RelPath, $b.RelPath) })
+  return $result.ToArray()
+}
+
+# RelPaths of the files of $Files (Get-OnlineFiles) that a setup downloads without a pin: no entry
+# for their PinPath in the SHA-256 list $HashList (sha256sum format, see Write-DownloadHashes;
+# a missing list pins nothing) and not a file with code (those are never downloaded without a
+# pin). Sorted ordinally, each path once.
+function Get-UnpinnedOnlineFiles([object[]]$Files, [string]$HashList) {
+  $pins = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+  if ($HashList -and (Test-Path -LiteralPath $HashList -PathType Leaf)) {
+    foreach ($line in [System.IO.File]::ReadAllLines($HashList)) {
+      if ($line -match '^[0-9a-fA-F]{64}  (.+)$') { [void]$pins.Add($Matches[1]) }
+    }
+  }
+  $paths = [System.Collections.Generic.SortedSet[string]]::new([System.StringComparer]::Ordinal)
+  foreach ($file in $Files) {
+    if (-not $file.IsCode -and -not $pins.Contains($file.PinPath)) { [void]$paths.Add($file.RelPath) }
+  }
+  return [string[]]@($paths)
 }

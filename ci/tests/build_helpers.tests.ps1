@@ -209,6 +209,83 @@ try {
     Write-Host 'SKIP sha256sum -c cross-check (no sha256sum on this system)'
   }
 
+  # --- Get-OnlineFiles: the online files of the real setup_is6.iss (same source as
+  # RegisterOnlineFiles), per product
+  $repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+  $byPath = @{}
+  foreach ($type in @('EE', 'NeoEE')) {
+    $list = @(Get-OnlineFiles $repoRoot $type)
+    $byPath[$type] = @{}
+    foreach ($file in $list) { $byPath[$type][$file.RelPath] = $file }
+    $paths = [string[]]@($list | ForEach-Object { $_.RelPath })
+    $sorted = [string[]]$paths.Clone()
+    [Array]::Sort($sorted, [System.StringComparer]::Ordinal)
+    Check "Get-OnlineFiles ${type}: sorted ordinally, each path once" (($paths -join '|') -ceq ($sorted -join '|') -and $byPath[$type].Count -eq $paths.Count) $true
+    Check "Get-OnlineFiles ${type}: no English files" @($paths | Where-Object { $_ -match '/en/' }).Count 0
+    Check "Get-OnlineFiles ${type}: no movie of AoC" @($paths | Where-Object { $_ -like 'Game/*/AoC/Data/Movies/*' }).Count 0
+  }
+  # 10 languages; EE: 12 files of EE and 6 more of AoC (the 3 shared lobby files once) per language
+  Check 'Get-OnlineFiles EE: 180 files' $byPath.EE.Count 180
+  Check 'Get-OnlineFiles EE: 20 with code (Language.dll)' @($byPath.EE.Values | Where-Object { $_.IsCode }).Count 20
+  Check 'Get-OnlineFiles EE: voices' $byPath.EE['Game/de/EE/Data/data.ssa'].PinPath 'Game/de/EE/Data/data.ssa'
+  Check 'Get-OnlineFiles EE: Language.dll is code' $byPath.EE['Game/de/EE/Language.dll'].IsCode $true
+  Check 'Get-OnlineFiles EE: language tag pt-BR, movie' $byPath.EE.ContainsKey('Game/pt-BR/EE/Data/Movies/Empire Earth.bik') $true
+  Check 'Get-OnlineFiles EE: AoC campaign' $byPath.EE.ContainsKey('Game/ko/AoC/Data/Campaigns/AOCRoman.ssa') $true
+  Check 'Get-OnlineFiles EE: zh-TW lobby pinned as Lobby/zh' $byPath.EE['Lobby/zh-TW/shared/Data/WONLobby Resources/_WONStatus.cfg'].PinPath 'Lobby/zh/shared/Data/WONLobby Resources/_WONStatus.cfg'
+  Check 'Get-OnlineFiles EE: no NeoEE files' @($byPath.EE.Keys | Where-Object { $_ -like 'Mods/*' }).Count 0
+  # NeoEE: the NeoEE versions of Language.dll and WONLobby.cfg, plus _NeoEEResource.cfg
+  Check 'Get-OnlineFiles NeoEE: 190 files' $byPath.NeoEE.Count 190
+  Check 'Get-OnlineFiles NeoEE: NeoEE Language.dll' $byPath.NeoEE['Mods/NeoEE/Game/de/EE/Language.dll'].IsCode $true
+  Check 'Get-OnlineFiles NeoEE: never the EE Language.dll' $byPath.NeoEE.ContainsKey('Game/de/EE/Language.dll') $false
+  Check 'Get-OnlineFiles NeoEE: NeoEE lobby of zh-CN' $byPath.NeoEE['Mods/NeoEE/Lobby/zh-CN/EE/WONLobby.cfg'].PinPath 'Mods/NeoEE/Lobby/zh/EE/WONLobby.cfg'
+  Check 'Get-OnlineFiles NeoEE: _NeoEEResource.cfg' $byPath.NeoEE.ContainsKey('Mods/NeoEE/Lobby/de/shared/Data/WONLobby Resources/_NeoEEResource.cfg') $true
+  Check 'Get-OnlineFiles NeoEE: shared lobby texts' $byPath.NeoEE.ContainsKey('Lobby/de/shared/Data/WONLobby Resources/_GameResource.cfg') $true
+  CheckThrows 'Get-OnlineFiles refuses an unknown product' { Get-OnlineFiles $repoRoot 'AoC' }
+
+  # --- Get-UnpinnedOnlineFiles: no pin in the list (exact paths), and never a file with code
+  $eeFiles = @(Get-OnlineFiles $repoRoot 'EE')
+  $pinList = Join-Path $temp 'pins.sha256'
+  $zero = '0' * 64
+  [System.IO.File]::WriteAllLines($pinList, [string[]]@(
+    "$zero  Game/de/EE/Language.dll", "$zero  Game/de/EE/Data/data.ssa",
+    "$zero  Lobby/zh/shared/Data/WONLobby Resources/_WONStatus.cfg", "$zero  game/de/AoC/Data/data.ssa"))
+  $unpinned = @(Get-UnpinnedOnlineFiles $eeFiles $pinList)
+  Check 'Get-UnpinnedOnlineFiles: count' $unpinned.Count 157
+  Check 'Get-UnpinnedOnlineFiles: a pinned data file is not listed' ($unpinned -ccontains 'Game/de/EE/Data/data.ssa') $false
+  Check 'Get-UnpinnedOnlineFiles: zh-CN and zh-TW pinned by Lobby/zh' @($unpinned | Where-Object { $_ -like 'Lobby/zh-*/shared/Data/WONLobby Resources/_WONStatus.cfg' }).Count 0
+  Check 'Get-UnpinnedOnlineFiles: pins are case-sensitive (CompareStr)' ($unpinned -ccontains 'Game/de/AoC/Data/data.ssa') $true
+  Check 'Get-UnpinnedOnlineFiles: never a file with code' @($unpinned | Where-Object { $_ -like '*.dll' }).Count 0
+  Check 'Get-UnpinnedOnlineFiles: sorted' ($unpinned[0]) 'Game/de/AoC/Data/Campaigns/AOCAsian.ssa'
+  Check 'Get-UnpinnedOnlineFiles without a list' @(Get-UnpinnedOnlineFiles $eeFiles (Join-Path $temp 'missing.sha256')).Count 160
+  Check 'Get-UnpinnedOnlineFiles NeoEE without a list' @(Get-UnpinnedOnlineFiles @(Get-OnlineFiles $repoRoot 'NeoEE') '').Count 170
+
+  # --- Get-OnlineFiles reads the code, not a copy of the list: changed copies of the script
+  $variantRoot = Join-Path $temp 'variant'
+  New-Item -ItemType Directory -Path $variantRoot | Out-Null
+  $setupText = [System.IO.File]::ReadAllText((Join-Path $repoRoot 'setup_is6.iss'))
+  Copy-Item -LiteralPath (Join-Path $repoRoot 'utils.iss') -Destination $variantRoot
+  function Set-SetupVariant([string]$Pattern, [string]$Replacement) {
+    $changed = [regex]::Replace($setupText, $Pattern, $Replacement)
+    if ($changed -ceq $setupText) { throw "test variant: '$Pattern' not found in setup_is6.iss" }
+    [System.IO.File]::WriteAllText((Join-Path $variantRoot 'setup_is6.iss'), $changed, [System.Text.UTF8Encoding]::new($true))
+  }
+  Set-SetupVariant "'EETheGreeks\.ssa'\]" "'EETheGreeks.ssa', 'EETheNew.ssa']"
+  Check 'Get-OnlineFiles: a campaign added to RegisterOnlineFiles is listed' (@(Get-OnlineFiles $variantRoot 'EE') | Where-Object { $_.RelPath -ceq 'Game/fr/EE/Data/Campaigns/EETheNew.ssa' } | Measure-Object).Count 1
+  Set-SetupVariant "(  AddGameOnlineFile\(Game, Game, GameKey, 'Data/data\.ssa'\);)" "`$1 AddGameOnlineFile(Game, Game, GameKey, 'Data/Extra.ssa');"
+  Check 'Get-OnlineFiles: a file added to RegisterGameOnlineFiles is listed' (@(Get-OnlineFiles $variantRoot 'NeoEE') | Where-Object { $_.RelPath -ceq 'Game/it/AoC/Data/Extra.ssa' } | Measure-Object).Count 1
+  $unknown = [ordered]@{
+    'an unknown statement' = @("(  AddGameOnlineFile\(Game, Game, GameKey, 'Data/data\.ssa'\);)", "  Log('x');`$1")
+    'an unknown directive' = @('(?m)(^procedure AddLocalizedGameOnlineFile\(.*\r?\nbegin\r?\n)', "`$1#ifdef Foo`r`n#endif`r`n")
+    'English no longer skipped' = @("\(LangCode = 'en'\)", "(LangCode = 'xx')")
+    'a game that is not a literal' = @("RegisterGameOnlineFiles\(LangCode, LobbyDir, 'AoC'", 'RegisterGameOnlineFiles(LangCode, LobbyDir, GameName')
+    'no RegisterGameOnlineFiles call' = @('RegisterGameOnlineFiles\(LangCode', 'RegisterOtherOnlineFiles(LangCode')
+    'GameLangCount not the number of languages' = @('(?m)^#define GameLangCount 11', '#define GameLangCount 12')
+  }
+  foreach ($name in $unknown.Keys) {
+    Set-SetupVariant $unknown[$name][0] $unknown[$name][1]
+    CheckThrows "Get-OnlineFiles refuses $name" { Get-OnlineFiles $variantRoot 'EE' }
+  }
+
   # --- ci\build.ps1 -TestID: dry run of a copy of the script with a fake ISCC. The fake records
   # its arguments, answers the version probe, writes the resolved script of pass 1 and an empty
   # setup in pass 2, so the script runs completely without Inno Setup and game data.
@@ -219,7 +296,11 @@ try {
   foreach ($name in @('build.ps1', 'build_helpers.ps1')) {
     Copy-Item -LiteralPath (Join-Path $ciDir $name) -Destination $repoCi
   }
-  [System.IO.File]::WriteAllText((Join-Path $repo 'setup_is6.iss'), "; dry run`r`n")
+  # The real scripts: the release build reads the online file list from them (the fake ISCC
+  # ignores their content)
+  foreach ($name in @('setup_is6.iss', 'utils.iss')) {
+    Copy-Item -LiteralPath (Join-Path $repoRoot $name) -Destination $repo
+  }
   $calls = Join-Path $temp 'iscc_calls.txt'
   $fakeIscc = Join-Path $temp 'fake_iscc.ps1'
   $fake = @'
@@ -270,14 +351,40 @@ exit 0
   }
   Check 'dry run: only setups and SHA-256 files in out' @(Get-ChildItem -LiteralPath (Join-Path $repo 'out') -Recurse -File | Where-Object { $_.Name -notlike '*.exe' -and $_.Name -notlike '*.exe.sha256' }).Count 0
 
+  # A test build does not list the online files without a pin
+  Check 'dry run -TestID 1: no list of online files without a pin' @($buildOutput | Where-Object { $_ -like '*without a SHA-256 pin*' }).Count 0
+
+  # A release build warns with every online file without a pin, per product (ADR 0008 point 6);
+  # without data\localized-text there is no hash list, so every data file is listed
   Remove-Item -LiteralPath $calls
-  & $build @common 3>$null 6>$null
+  $buildOutput = @(& $build @common 3>&1 6>&1 | ForEach-Object { "$_" })
   Check 'dry run without -TestID: exit code' $LASTEXITCODE 0
   Check 'dry run without -TestID: no /DTestID (default of setup_is6.iss)' @(Get-Content -LiteralPath $calls | Where-Object { $_ -like '*/DTestID*' }).Count 0
+  Check 'dry run release: warning for EE' @($buildOutput | Where-Object { $_ -like 'Release build: the EE setups download 160 online file(s) without a SHA-256 pin.*' }).Count 1
+  Check 'dry run release: warning for NeoEE' @($buildOutput | Where-Object { $_ -like 'Release build: the NeoEE setups download 170 online file(s) without a SHA-256 pin.*' }).Count 1
+  Check 'dry run release: the files are listed' @($buildOutput | Where-Object { $_ -ceq '    Game/de/EE/Data/Movies/Empire Earth.bik' }).Count 2
+  Check 'dry run release: listed lines (160 + 170)' @($buildOutput | Where-Object { $_ -like '    *' }).Count 330
 
+  # With data\localized-text the list written in the same run counts: a file placed there is pinned
+  $pinned = Join-Path $repo 'data\localized-text\Game\de\EE\Data\data.ssa'
+  New-Item -ItemType Directory -Path (Split-Path -Parent $pinned) -Force | Out-Null
+  [System.IO.File]::WriteAllText($pinned, 'voices')
   Remove-Item -LiteralPath $calls
-  & $build @common -TestID 0 3>$null 6>$null
+  $buildOutput = @(& $build @common -TestID 0 3>&1 6>&1 | ForEach-Object { "$_" })
   Check 'dry run -TestID 0: /DTestID=0 in every compile' @(Get-Content -LiteralPath $calls | Where-Object { " $_ " -like '* /DTestID=0 *' }).Count 4
+  Check 'dry run -TestID 0: warning without the pinned file' @($buildOutput | Where-Object { $_ -like 'Release build: the EE setups download 159 online file(s)*' }).Count 1
+  Check 'dry run -TestID 0: the pinned file is not listed' @($buildOutput | Where-Object { $_ -ceq '    Game/de/EE/Data/data.ssa' }).Count 0
+  Remove-Item -LiteralPath (Join-Path $repo 'data') -Recurse -Force
+
+  # A placeholder build (CI) computes the list too, but only prints the number: its pins are
+  # placeholders. The fake Python stands in for the placeholder generator.
+  $fakePython = Join-Path $temp 'fake_python.ps1'
+  [System.IO.File]::WriteAllText($fakePython, 'exit 0')
+  Remove-Item -LiteralPath $calls
+  $buildOutput = @(& $build -Iscc $fakeIscc -Variants @('EE/Regular') -Placeholders -Python $fakePython 3>&1 6>&1 | ForEach-Object { "$_" })
+  Check 'dry run -Placeholders: exit code' $LASTEXITCODE 0
+  Check 'dry run -Placeholders: number of online files without a pin' @($buildOutput | Where-Object { $_ -like 'Online files of the EE setups without a SHA-256 pin: 160 (placeholder pins;*' }).Count 1
+  Check 'dry run -Placeholders: no list' @($buildOutput | Where-Object { $_ -like '    *' -or $_ -like 'Release build:*' }).Count 0
 
   Remove-Item -LiteralPath $calls
   CheckThrows 'build.ps1 refuses -TestID -1' { & $build @common -TestID -1 3>$null 6>$null }

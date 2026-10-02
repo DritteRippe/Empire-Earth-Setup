@@ -171,6 +171,20 @@ Refactoring and quality fixes (no new game content).
   standard user after over-the-shoulder elevation (in the administrator's `%TEMP%`, not in the
   user's), of a "just for me" installation; `/LOG=<file>` instead of the `%TEMP%` log; no log of
   the uninstaller without `/LOG`; user names in the paths of the log.
+- Release builds of `ci/build.ps1` (without `-TestID` or with `-TestID 0`) warn with every online
+  file the setups download without a SHA-256 pin, per product (with the 1.7.2 data: the voices,
+  campaigns and movies, 110 server paths each). A loopback probe under Wine showed that Inno
+  Setup's downloads follow a redirect from `https://` to `http://` and that the setup then
+  accepts such a file as "TLS-verified", so these files are only as safe as the configuration of
+  the file servers. The list is read from the code of `RegisterOnlineFiles` and the procedures it
+  calls (`Get-OnlineFiles` in `ci/build_helpers.ps1`: the game languages, the files per game, the
+  NeoEE versions, the shared lobby folder of zh-CN and zh-TW) and the hash list of the same build;
+  a change of that code it does not understand stops the build. Placeholder builds (CI) only
+  print the number. Tested by `ci/tests/build_helpers.tests.ps1` (the real script, changed copies,
+  the dry run). `docs/SERVER-OPERATIONS.md`: requirement 4 states the probe result, and a new
+  section 6 recommends pinning the files known at build time, with its trade-off (a pinned file
+  that changes on the servers is discarded until the next setup). README: "Online localized
+  files", "Build script".
 
 ### Changed
 - The hidden setup data folder (holds `EEStatsSetup.dll` for the uninstaller) is now
@@ -376,11 +390,13 @@ Refactoring and quality fixes (no new game content).
   full/offline setup.
 - The downloads use Inno Setup's own download code instead of a third-party DLL from 2014 that
   could not be rebuilt. It validates TLS certificates and has no way to ignore an invalid one. It
-  follows redirects automatically, and nothing documents that it refuses one from `https://` to
-  `http://`: only the operator of a validated server can send such a redirect, pinned files are
-  unaffected (their SHA-256 decides), and `docs/SERVER-OPERATIONS.md` requires that the file
-  servers never redirect to `http://`. The update check and the reachability check (WinHTTP)
-  refuse such redirects.
+  follows redirects automatically, also from `https://` to `http://` (a loopback probe under Wine
+  showed it for `301`, `302`, `307` and `308`, see `docs/adr/0008-release-checksums-and-contract-check.md`):
+  only the operator of a validated server can send such a redirect, pinned files are unaffected
+  (their SHA-256 decides), `docs/SERVER-OPERATIONS.md` requires that the file servers never
+  redirect to `http://` and recommends pinning the files known at build time, and a release build
+  lists the files without a pin. The update check and the reachability check (WinHTTP) refuse such
+  redirects.
 - Random map scripts: the elevated setup never follows junctions or symbolic links in the random
   map folders, which all users can write to. A user could otherwise have made it delete files or
   empty folders elsewhere, or loop through a link to a parent folder.
