@@ -321,7 +321,10 @@ begin
     Result := '';
   end
   else
+  begin
     Log('Unable to move the verified file ' + Source + ' to ' + Target);
+    Result := 'DownloadFileUnsaved';
+  end;
 
   if (Result <> '') and FileExists(Source) and not DeleteFile(Source) then
     Log('Unable to delete ' + Source + ' (it is not installed anyway)');
@@ -360,7 +363,7 @@ begin
            not FileCopy(ExpandConstant('{tmp}\verified\' + OnlineFiles[OnlineFiles[I].CopyOf].RelDest), Target, False) then
         begin
           Log('Unable to copy the verified file to ' + Target);
-          Problem[I] := 'DownloadFileRejected';
+          Problem[I] := 'DownloadFileUnsaved';
         end;
     end;
 

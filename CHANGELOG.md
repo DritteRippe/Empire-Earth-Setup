@@ -169,14 +169,17 @@ Refactoring and quality fixes (no new game content).
 - Online localized files: downloads use HTTPS only, from both servers, and TLS certificates are
   validated (invalid certificates used to be ignored). Files that can contain code (`Language.dll`;
   `.dll`, `.exe`, `.asi`, `.ocx`, `.sys`, `.scr`, `.bat`, `.cmd`, `.com`, `.ps1`, `.vbs`, `.js`,
-  `.msi`, `.cpl` and similar, listed once in `utils.iss`) are only installed if their SHA-256
+  `.msi`, `.cpl`, the Miles Sound System plug-ins `.flt`/`.m3d` and similar, listed once in
+  `utils.iss`) are only installed if their SHA-256
   matches a hash compiled into the setup, and not downloaded at all without one: the elevated
   setup puts them into the game folder, where they run whenever the game starts, so trusting the
   server and its certificate is not enough for them. Data files (`data.ssa` with the voices, the
   campaigns, the localized movie, the lobby files) must match their hash if the setup has one;
   without one they are accepted over HTTPS with a validated certificate ("TLS-verified, not
   pinned" in the log), never over HTTP. Most of them only exist on the servers and change there,
-  so the build can rarely know their hashes. Files that do not match their hash are deleted,
+  so the build can rarely know their hashes. This trusts the server operators: TLS only shows
+  where a file comes from, and a crafted data or movie file could still attack the old game and
+  Bink parsers, so a file that must be ruled out has to be pinned. Files that do not match their hash are deleted,
   logged and reported, and the setup installs its own files instead. The hashes come from
   `data\localized-text.sha256`, which `ci/build.ps1` writes from `data\localized-text` (see
   README, "Online localized files"). The Chinese lobby files, requested from `Lobby/zh-CN/` and

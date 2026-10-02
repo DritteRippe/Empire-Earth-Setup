@@ -250,11 +250,12 @@ end;
 
 const
   // Extensions (lowercase, each between '|') of files that can contain code which Windows, the game
-  // or a mod loader runs: programs, libraries and plug-ins (Language.dll, ASI mods), drivers,
+  // or a mod loader runs: programs, libraries and plug-ins (Language.dll, ASI mods, the Miles Sound
+  // System plug-ins .flt/.m3d that Mss32.dll loads), drivers,
   // scripts, installers and packages, shortcuts, registry and setup information files, compiled
   // help. A downloaded file of these types is only installed if its SHA-256 is compiled into the
   // setup (GetOnlineFileCheck).
-  CodeFileExtensions = '|exe|dll|asi|ocx|sys|drv|scr|com|pif|cpl|efi|ax|acm|mui|' +
+  CodeFileExtensions = '|exe|dll|asi|ocx|sys|drv|scr|com|pif|cpl|efi|ax|acm|mui|flt|m3d|' +
     'bat|cmd|ps1|psm1|psd1|vbs|vbe|js|jse|wsf|wsh|wsc|sct|hta|' +
     'msi|msp|mst|msc|appx|msix|jar|' +
     'lnk|url|scf|reg|inf|chm|hlp|';

@@ -197,6 +197,8 @@ begin
   CheckBool('IsCodeFileName cpl', IsCodeFileName('x.cpl'), True);
   CheckBool('IsCodeFileName lnk', IsCodeFileName('x.lnk'), True);
   CheckBool('IsCodeFileName reg', IsCodeFileName('x.reg'), True);
+  CheckBool('IsCodeFileName Miles filter', IsCodeFileName('redist\win32\Parmeq.flt'), True);
+  CheckBool('IsCodeFileName Miles 3D provider', IsCodeFileName('redist\win32\Mssds3d.M3D'), True);
   CheckBool('IsCodeFileName alternate data stream', IsCodeFileName('EE\WONLobby.cfg:x.exe'), True);
   CheckBool('IsCodeFileName separator in extension', IsCodeFileName('x.exe|dll'), True);
   CheckBool('IsCodeFileName data.ssa', IsCodeFileName('Game/de/EE/Data/data.ssa'), False);
