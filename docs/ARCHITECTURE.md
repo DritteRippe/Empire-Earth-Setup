@@ -53,14 +53,14 @@ requires.
 
 | File | Responsibility | Pure helpers (unit-tested) | v2 change |
 |---|---|---|---|
-| `setup_is6.iss` | Build switches and their checks, `[Setup]`, `[Languages]`, `[Types]`, `[Tasks]`, `[Components]`, `[Files]`, `[Dirs]`, `[Registry]`, `[Icons]`, `[InstallDelete]`, `[UninstallDelete]`, `[Run]`, `[UninstallRun]`; the event functions (`InitializeSetup`, `InitializeWizard`, `NextButtonClick`, `CurStepChanged`, ...) only dispatch to the modules | - | download wiring (S-WP3), compatibility defaults (S-WP4), `SetupLogging` and `ContractVersion` define (S-WP5), install record, defaults marker and `SetupBuild` (S-WP6), `AfterInstall: RecordInstalledFile` on the file entries (S-WP7) |
+| `setup_is6.iss` | Build switches and their checks, `[Setup]`, `[Languages]`, `[Types]`, `[Tasks]`, `[Components]`, `[Files]`, `[Dirs]`, `[Registry]`, `[Icons]`, `[InstallDelete]`, `[UninstallDelete]`, `[Run]`, `[UninstallRun]`; the event functions (`InitializeSetup`, `InitializeWizard`, `NextButtonClick`, `CurStepChanged`, ...) only dispatch to the modules | - | download wiring (S-WP3, done), compatibility defaults (S-WP4), `SetupLogging` and `ContractVersion` define (S-WP5), install record, defaults marker and `SetupBuild` (S-WP6), `AfterInstall: RecordInstalledFile` on the file entries (S-WP7) |
 | `config_ee.iss`, `config_neoee.iss` | Product configuration | - | - |
-| `utils.iss` | URL constants, string helpers, language tag, compatibility flags, uninstall keys, the single HTTP implementation (`HttpGet`), URL allow-list of the update API, download policy (`GetOnlineFileCheck`, `CodeFileExtensions`) | yes, all functions without wizard access | TLS 1.2 for `HttpGet` on Windows 7, `NextDownloadAction` (S-WP3); `IsLegacyVistaCompatValue` (S-WP4); INI text, `IsAsciiText` (S-WP6); manifest/path helpers, ordinal sort (S-WP7); screen size clamp, low-resolution predicate, `IsSameOrInside` (S-WP8) |
+| `utils.iss` | URL constants, string helpers, language tag, compatibility flags, uninstall keys, the single HTTP implementation (`HttpGet`), URL allow-list of the update API, download policy (`GetOnlineFileCheck`, `CodeFileExtensions`) | yes, all functions without wizard access | TLS 1.2 for `HttpGet` on Windows 7 (`NeedsExplicitTlsProtocols`, `ApplyTlsProtocols`), `NextDownloadAction` (S-WP3, done); `IsLegacyVistaCompatValue` (S-WP4); INI text, `IsAsciiText` (S-WP6); manifest/path helpers, ordinal sort (S-WP7); screen size clamp, low-resolution predicate, `IsSameOrInside` (S-WP8) |
 | `messages.iss` | `[CustomMessages]` in all languages, `[Messages]` overrides | `ci/check_messages.py` | new texts in en/de/fr per package |
 | `eestats.iss` | Wrapper of `EEStatsSetup.dll` (Wine, GPU vendor, statistics values) | - | - |
 | `extension.iss` | Command line switches, previous installation (uninstall key), Windows version | - | - |
 | `pages.iss` | Custom wizard pages (game language, installation mode, graphics card) | - | - |
-| `downloads.iss` | Online localized files: pins, policy application, server selection, **download engine** (built-in `TDownloadWizardPage`/`DownloadTemporaryFile`), verification into `{tmp}\verified` | policy, pins and the decision after each attempt via `utils.iss` | engine replaced (S-WP3) |
+| `downloads.iss` | Online localized files: pins, policy application, server selection, **download engine** (built-in `TDownloadWizardPage`/`DownloadTemporaryFile`), verification into `{tmp}\verified` | policy, pins and the decision after each attempt via `utils.iss` | engine replaced (S-WP3, done) |
 | `randommaps.iss` | Random map scripts: list-based cleanup, migration of 1.7.2 folders, restore on abort | - | - |
 | `telemetry.iss` | Setup statistics, only with consent | - | - |
 | `installstate.iss` (new) | Contract writer: records installed files, deletes stale state at `ssInstall`, writes `install.ini` and `files.sha256` (ASCII) at the end of `ssPostInstall`, the contract version into the uninstall key, reports files that disappeared | via `utils.iss` | new (S-WP6, S-WP7) |
@@ -256,8 +256,14 @@ plan.
   server with a valid certificate ([ADR 0006](adr/0006-strict-tls-and-server-certificates.md),
   release criterion in [SERVER-OPERATIONS.md](SERVER-OPERATIONS.md)); the test plan checks both
   servers first (TP-00).
-- **TLS 1.2 on Windows 7** without KB3140245: a hypothesis, tested in a Windows 7 VM
-  ([ADR 0006](adr/0006-strict-tls-and-server-certificates.md)).
+- **TLS 1.2 on Windows 7** without KB3140245: a hypothesis, tested in a Windows 7 VM (TP-17,
+  [ADR 0006](adr/0006-strict-tls-and-server-certificates.md)). The README (Support) names the
+  update for players on whose system it fails; the setup never changes SChannel or WinHTTP
+  settings.
+- **Timeouts of the downloads** cannot be set from Pascal Script in Inno Setup 6.2.2; the short
+  reachability check before the downloads covers a server that is down, a server that accepts
+  connections and then stalls costs Inno Setup's own timeout once per file
+  ([ADR 0003](adr/0003-built-in-downloads-instead-of-idp.md)).
 
 ## Plan
 

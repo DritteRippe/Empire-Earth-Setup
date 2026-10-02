@@ -1,9 +1,12 @@
 ﻿[Code]
-// Online localized files: download policy, SHA-256 pins and verification
+// Online localized files: download policy, SHA-256 pins, the downloads and their verification
 //
-// RegisterOnlineFiles (setup_is6.iss) downloads localized files from the community file servers
-// with IDP. Both servers are https URLs, and IDP never accepts an invalid TLS certificate
-// (InvalidCert=Stop, InitOnlineFilesDownload). Which files are accepted (GetOnlineFileCheck,
+// RegisterOnlineFiles (setup_is6.iss) registers the selected localized files of the community
+// file servers, DownloadOnlineFiles downloads them with Inno Setup's built-in downloads (one
+// download page, CreateOnlineFilesDownloadPage), one file at a time, from the server chosen by
+// SelectOnlineFilesServer and, if that fails, once from the other one. Both servers are https
+// URLs; Inno Setup's downloads never accept an invalid TLS certificate (no option to ignore one,
+// no fallback to http; docs/adr, ADR 0003). Which files are accepted (GetOnlineFileCheck,
 // utils.iss):
 //  - A file that can contain code (Language.dll; the types are listed once, CodeFileExtensions in
 //    utils.iss) only with its SHA-256 compiled into this setup ("pin"). Without a pin it is not
@@ -15,12 +18,17 @@
 //    "TLS-verified, not pinned". Most of these files (data.ssa, the campaigns, the localized
 //    intro movie) only exist on the servers, so a build can rarely pin them; requiring a pin made
 //    the download component useless.
-// AddOnlineFile registers a file only under these conditions. VerifyDownloadedFiles (ssInstall,
-// before any file is installed) checks every downloaded file and moves the accepted ones to
-// {tmp}\verified\, the only folder [Files] installs them from; a file that does not match its pin
-// is deleted. Every selected file that does not arrive there (code file without pin, download
-// failed or skipped, pin mismatch) is logged and reported as a notice, and the setup installs the
-// file it contains itself.
+// AddOnlineFile registers a file only under these conditions. DownloadOnlineFiles checks the pin
+// right after each download (a mismatch is deleted and the other server tried), and the pure
+// helper NextDownloadAction (utils.iss) decides what happens after each attempt: keep the file,
+// try the other server once (only if GetOnlineFileCheck gives the same result for its URL, so a
+// file without pin never comes over http), give up on the file, or, after the stop button of the
+// download page, stop all downloads (no further request at all). VerifyDownloadedFiles (ssInstall,
+// before any file is installed) checks every downloaded file again and moves the accepted ones to
+// {tmp}\verified\, the only folder [Files] installs them from. Every selected file that does not
+// arrive there (code file without pin, download failed, skipped after a stop, pin mismatch) is
+// logged and reported as a notice, and the setup installs the file it contains itself. Nothing of
+// this stops the installation.
 //
 // The pins come from a list in sha256sum format ("<SHA-256 in hex>  <path>", one file per line,
 // paths relative to data\localized-text, whose layout the "localized" folder of the file servers
@@ -31,8 +39,9 @@
 // files". Without the list the setup compiles with a warning, and no Language.dll is downloaded.
 //
 // Requires: EEDir, AoCDir (ISPP, setup_is6.iss), OnlineFilesURL, OnlineFilesMirrorURL,
-// GetHttpStatus, GetOnlineFileCheck, IsHttpsUrl (utils.iss), SilentInstall, SuppressMsgBoxes
-// (extension.iss), the IDP functions (idp.iss), the Download* messages (messages.iss).
+// GetHttpStatus, GetOnlineFileCheck, IsHttpsUrl, NextDownloadAction and the DownloadOutcome* and
+// DownloadAction* constants (utils.iss), SilentInstall, SuppressMsgBoxes (extension.iss), the
+// Download* messages (messages.iss).
 
 // DownloadHashFile: the hash list, relative to setup_is6.iss unless absolute (ISCC /DDownloadHashFile=...)
 #ifndef DownloadHashFile
@@ -88,11 +97,16 @@ type
   end;
 
   TOnlineFile = record
-    Url: String;
+    Url: String;           // on the server tried first (SelectOnlineFilesServer)
+    SecondaryUrl: String;  // the same file on the other server, '' if the policy does not allow it there
     RelPath: String;
     RelDest: String;  // download target relative to {tmp}, e.g. EE\Language.dll
     SHA256: String;   // the pin, '' for a data file accepted without one (TLS-verified only)
     CopyOf: Integer;  // -1, or the entry with the same URL: its verified file is copied to RelDest
+    // Result of DownloadOnlineFiles: '' if downloaded (and matching its pin), else the custom
+    // message that describes the problem (DownloadFileMissing, DownloadFileRejected,
+    // DownloadFileSkipped)
+    DownloadProblem: String;
   end;
 
   TRefusedOnlineFile = record
@@ -107,6 +121,14 @@ var
   RefusedOnlineFiles: array of TRefusedOnlineFile;
   // Server tried first and mirror, see SelectOnlineFilesServer
   OnlineFilesPrimaryURL, OnlineFilesSecondaryURL: String;
+  // The download page (CreateOnlineFilesDownloadPage, InitializeWizard)
+  OnlineFilesDownloadPage: TDownloadWizardPage;
+  // Set right after a Download call that the user stopped (TDownloadWizardPage.AbortedByUser is
+  // reset by every Download call, so it is copied at once): then no further URL is requested
+  DownloadsStoppedByUser, DownloadsStopLogged: Boolean;
+  // Set by the progress callback if the server announced the size of the current download
+  // (Content-Length); Inno Setup only checks the size of a download with such an announcement
+  DownloadSizeAnnounced: Boolean;
 
 procedure AddDownloadPin(const RelPath, SHA256: String);
 var
@@ -158,10 +180,11 @@ begin
 end;
 
 // Chooses the server the files are downloaded from (OnlineFilesURL and OnlineFilesMirrorURL,
-// utils.iss): the main server, or the mirror if only the mirror answers (the other one stays
-// registered as IDP mirror). With realistic timeouts, an unreachable main server would otherwise
-// delay every single file. Any HTTP answer counts (GetHttpStatus, utils.iss). False if neither
-// answers.
+// utils.iss): the main server, or the mirror if only the mirror answers (the other one is still
+// tried for a file that fails). With realistic timeouts, an unreachable main server would
+// otherwise delay every single file. Any HTTP answer over validated TLS counts (GetHttpStatus,
+// utils.iss; its log line names the cause of a failure, e.g. an invalid certificate). False if
+// neither answers.
 function SelectOnlineFilesServer: Boolean;
 begin
   Result := True;
@@ -172,7 +195,7 @@ begin
   end
   else if GetHttpStatus(OnlineFilesMirrorURL) <> HttpRequestFailed then
   begin
-    Log('Main online files server unreachable, downloading from the mirror first');
+    Log('Main online files server unreachable or without a valid certificate (see the HTTP GET line above), downloading from the mirror first');
     OnlineFilesPrimaryURL := OnlineFilesMirrorURL;
     OnlineFilesSecondaryURL := OnlineFilesURL;
   end
@@ -182,7 +205,6 @@ end;
 
 procedure ClearOnlineFiles;
 begin
-  idpClearFiles();
   SetArrayLength(OnlineFiles, 0);
   SetArrayLength(RefusedOnlineFiles, 0);
 end;
@@ -205,8 +227,8 @@ end;
 // Registers the download of <server>/RelPath to {tmp}\RelDest if GetOnlineFileCheck (utils.iss)
 // accepts it with the pin of PinPath (the path of the file in the hash list, usually RelPath);
 // otherwise the file is noted for the report (NoteRefusedOnlineFile). Only one file per RelDest.
-// The caller registers only what is selected (IDP would download a file if any one of its
-// components is selected). Call SelectOnlineFilesServer first.
+// The caller registers only what is selected. Call SelectOnlineFilesServer first; the file is
+// downloaded by DownloadOnlineFiles.
 procedure AddOnlineFile(const RelPath, PinPath, RelDest: String);
 var
   I, N, CopyOf, Check: Integer;
@@ -242,33 +264,203 @@ begin
     MirrorUrl := '';
   end;
 
+  // A file needed in both game folders (the lobby files shared by EE and AoC) is downloaded once,
+  // VerifyDownloadedFiles copies it
   CopyOf := -1;
   for I := 0 to GetArrayLength(OnlineFiles) - 1 do
     if (OnlineFiles[I].RelPath = RelPath) and (OnlineFiles[I].CopyOf < 0) then
       CopyOf := I;
-
-  if CopyOf < 0 then
+  if CopyOf >= 0 then
   begin
-    idpAddFile(Url, ExpandConstant('{tmp}\' + RelDest));
-    if MirrorUrl <> '' then
-      idpAddMirror(Url, MirrorUrl);
-  end
-  else
-    // IDP downloads a URL only once and ignores a second target for it (checked with idp.dll
-    // 1.6.0), so a file needed in both game folders is downloaded once and copied
     Url := OnlineFiles[CopyOf].Url;
+    MirrorUrl := OnlineFiles[CopyOf].SecondaryUrl;
+  end;
 
   N := GetArrayLength(OnlineFiles);
   SetArrayLength(OnlineFiles, N + 1);
   OnlineFiles[N].Url := Url;
+  OnlineFiles[N].SecondaryUrl := MirrorUrl;
   OnlineFiles[N].RelPath := RelPath;
   OnlineFiles[N].RelDest := RelDest;
   OnlineFiles[N].SHA256 := Hash;
   OnlineFiles[N].CopyOf := CopyOf;
+  OnlineFiles[N].DownloadProblem := 'DownloadFileMissing';
   if Hash <> '' then
     Log('Online file registered, SHA-256 pinned: ' + RelPath)
   else
     Log('Online file registered, TLS-verified, not pinned: ' + RelPath);
+end;
+
+// Progress callback of the download page: notes whether the server announced the size of the
+// current download (Content-Length). The page itself logs the progress and processes the stop
+// button. True: go on.
+function OnOnlineFileDownloadProgress(const Url, FileName: String; const Progress, ProgressMax: Int64): Boolean;
+begin
+  if ProgressMax > 0 then
+    DownloadSizeAnnounced := True;
+  Result := True;
+end;
+
+// The one download page of the setup (InitializeWizard). Its labels, its stop button and the
+// question after the stop button are Inno Setup's own messages (DownloadingLabel,
+// ButtonStopDownload, StopDownload).
+procedure CreateOnlineFilesDownloadPage;
+begin
+  OnlineFilesDownloadPage := CreateDownloadPage(CustomMessage('DownloadPageCaption'), CustomMessage('DownloadPageDescription'), @OnOnlineFileDownloadProgress);
+end;
+
+// Logged once when the user has stopped the downloads
+procedure NoteDownloadsStopped;
+begin
+  if DownloadsStopLogged then
+    Exit;
+  DownloadsStopLogged := True;
+  Log('Online files: downloads stopped by the user, no further request (neither the other server nor the remaining files)');
+end;
+
+// One download attempt of OnlineFiles[Index] from Url to {tmp}\<RelDest>: DownloadOutcomeSuccess,
+// DownloadOutcomeFailure or DownloadOutcomePinMismatch. Sets DownloadsStoppedByUser if the user
+// stopped it. No exception escapes.
+function DownloadOnlineFileFrom(const Index: Integer; const Url: String): Integer;
+var
+  Target, Hash: String;
+begin
+  Target := ExpandConstant('{tmp}\' + OnlineFiles[Index].RelDest);
+  OnlineFilesDownloadPage.Clear;
+  // No SHA-256 for Inno Setup: the pin is checked below, so that a mismatch is told apart from a
+  // network error. Without one Inno Setup compares the received size with Content-Length, if the
+  // server sent it. Download writes to a temporary name, renames it to Target only when complete
+  // and deletes an older Target first, so after a failure there is no Target.
+  OnlineFilesDownloadPage.Add(Url, OnlineFiles[Index].RelDest, '');
+  DownloadSizeAnnounced := False;
+  try
+    OnlineFilesDownloadPage.Download;
+    Result := DownloadOutcomeSuccess;
+  except
+    // Download resets AbortedByUser at its start and reports a stop like any other error
+    if OnlineFilesDownloadPage.AbortedByUser then
+      DownloadsStoppedByUser := True;
+    Result := DownloadOutcomeFailure;
+    if DownloadsStoppedByUser then
+      Log('Online file download stopped by the user: ' + Url)
+    else
+      Log('Online file download failed from ' + Url + ': ' + GetExceptionMessage);
+  end;
+  if Result <> DownloadOutcomeSuccess then
+    Exit;
+  // The stop came too late to cancel this file: it is complete and kept, but nothing follows
+  if OnlineFilesDownloadPage.AbortedByUser then
+    DownloadsStoppedByUser := True;
+
+  if OnlineFiles[Index].SHA256 <> '' then
+  begin
+    try
+      Hash := LowerCase(GetSHA256OfFile(Target));
+    except
+      Hash := '';
+      Log('Unable to hash ' + Target + ': ' + GetExceptionMessage);
+    end;
+    if Hash = OnlineFiles[Index].SHA256 then
+      Log('Online file downloaded, SHA-256 pinned: ' + Url)
+    else
+    begin
+      Log('Online file rejected, SHA-256 mismatch: ' + Url + ' (got ' + Hash + ')');
+      if not DeleteFile(Target) then
+        Log('Unable to delete ' + Target + ' (it is not installed anyway)');
+      Result := DownloadOutcomePinMismatch;
+    end;
+  end
+  else if DownloadSizeAnnounced then
+    Log('Online file downloaded, TLS-verified, size checked: ' + Url)
+  else
+    Log('Online file downloaded, TLS-verified, accepted without size check (the server sent no Content-Length): ' + Url);
+end;
+
+// Downloads OnlineFiles[Index]: from its server, then, if NextDownloadAction (utils.iss) says so,
+// once from the other server; sets its DownloadProblem
+procedure DownloadOnlineFile(const Index: Integer);
+var
+  Url: String;
+  Outcome, Action: Integer;
+  OtherTried, Rejected: Boolean;
+begin
+  Url := OnlineFiles[Index].Url;
+  OtherTried := False;
+  Rejected := False;
+  repeat
+    Outcome := DownloadOnlineFileFrom(Index, Url);
+    if Outcome = DownloadOutcomePinMismatch then
+      Rejected := True;
+    Action := NextDownloadAction(Outcome, OnlineFiles[Index].SecondaryUrl <> '', OtherTried, DownloadsStoppedByUser);
+    case Action of
+      DownloadActionAccept:
+        OnlineFiles[Index].DownloadProblem := '';
+      DownloadActionTryMirror:
+        begin
+          Url := OnlineFiles[Index].SecondaryUrl;
+          OtherTried := True;
+          Log('Online file: trying the other server, ' + Url);
+        end;
+      DownloadActionStopAll:
+        begin
+          OnlineFiles[Index].DownloadProblem := 'DownloadFileSkipped';
+          NoteDownloadsStopped;
+        end;
+    else
+      begin
+        if Rejected then
+          OnlineFiles[Index].DownloadProblem := 'DownloadFileRejected'
+        else
+          OnlineFiles[Index].DownloadProblem := 'DownloadFileMissing';
+        if OtherTried then
+          Log('Online file not downloaded, it failed on both servers: ' + OnlineFiles[Index].RelPath)
+        else
+          Log('Online file not downloaded, not retried: the other server is not https and the file has no SHA-256 (' + OnlineFiles[Index].RelPath + ')');
+      end;
+    end;
+  until Action <> DownloadActionTryMirror;
+end;
+
+// Downloads every registered file (RegisterOnlineFiles) on the download page, one at a time; a
+// file needed in both game folders only once (CopyOf). After a stop every remaining file is
+// skipped without a request. The installation goes on in every case: VerifyDownloadedFiles reports
+// what is missing and the setup installs its own files instead. Called by NextButtonClick(wpReady).
+procedure DownloadOnlineFiles;
+var
+  I, Count: Integer;
+begin
+  DownloadsStoppedByUser := False;
+  DownloadsStopLogged := False;
+  Count := 0;
+  for I := 0 to GetArrayLength(OnlineFiles) - 1 do
+    if OnlineFiles[I].CopyOf < 0 then
+      Count := Count + 1;
+  if Count = 0 then
+    Exit;
+
+  Log('Downloading ' + IntToStr(Count) + ' online files, one at a time');
+  OnlineFilesDownloadPage.Show;
+  try
+    for I := 0 to GetArrayLength(OnlineFiles) - 1 do
+      if OnlineFiles[I].CopyOf < 0 then
+      begin
+        if DownloadsStoppedByUser then
+        begin
+          NoteDownloadsStopped;
+          OnlineFiles[I].DownloadProblem := 'DownloadFileSkipped';
+          Log('Online file skipped, downloads stopped by the user: ' + OnlineFiles[I].RelPath);
+        end
+        else
+          try
+            DownloadOnlineFile(I);
+          except
+            OnlineFiles[I].DownloadProblem := 'DownloadFileMissing';
+            Log('Online file not downloaded, unexpected error: ' + GetExceptionMessage);
+          end;
+      end;
+  finally
+    OnlineFilesDownloadPage.Hide;
+  end;
 end;
 
 // RelDest as the player sees it: the game folder instead of EE/AoC
@@ -291,10 +483,12 @@ begin
   Source := ExpandConstant('{tmp}\' + OnlineFile.RelDest);
   Target := ExpandConstant('{tmp}\verified\' + OnlineFile.RelDest);
 
-  if not idpFileDownloaded(OnlineFile.Url) or not FileExists(Source) then
+  if (OnlineFile.DownloadProblem <> '') or not FileExists(Source) then
   begin
     Log('Online file not downloaded: ' + OnlineFile.RelPath);
-    Result := 'DownloadFileMissing';
+    Result := OnlineFile.DownloadProblem;
+    if Result = '' then
+      Result := 'DownloadFileMissing';
     // A partial download must not stay next to the verified files
     DeleteFile(Source);
     Exit;

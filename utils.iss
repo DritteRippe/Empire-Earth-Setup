@@ -350,7 +350,7 @@ begin
     ((Ext <> '') and (Pos('|' + Ext + '|', CodeFileExtensions) > 0));
 end;
 
-// True if Url uses the https scheme (IDP validates the certificate then, see InvalidCert)
+// True if Url uses the https scheme (the downloads and HttpGet validate the certificate then)
 function IsHttpsUrl(const Url: String): Boolean;
 begin
   Result := (Length(Url) > 8) and (CompareText(Copy(Url, 1, 8), 'https://') = 0);

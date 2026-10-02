@@ -1095,7 +1095,8 @@ Filename: "{tmp}\directx\dxwebsetup.exe"; Parameters: "/Q"; Flags: runhidden; Ta
 //   eestats.iss     EEStatsSetup.dll: IsWine, GetWineVersion, GetGpuVendorId, statistics values
 //   extension.iss   command line switches, previous installation, Windows version (needs utils.iss)
 //   pages.iss       the custom wizard pages (needs Langs below, extension.iss, eestats.iss)
-//   downloads.iss   online localized files (needs utils.iss, extension.iss, idp.iss)
+//   downloads.iss   online localized files: policy, download page, downloads, verification
+//                   (needs utils.iss, extension.iss)
 //   randommaps.iss  random map scripts of the previous setup (needs extension.iss)
 //   telemetry.iss   setup statistics, included further down after the language functions it uses
 #include "eestats.iss"
@@ -1697,8 +1698,9 @@ begin
   // AddOnlineFile (downloads.iss) registers the file on both servers (same path on the mirror),
   // if the download policy allows it: files with code only with a known SHA-256, data files
   // without one only over https; every download is checked before it is installed.
-  // Only selected content is registered: IDP downloads a file if any one of the components given
-  // to it is selected, so 'game' (always selected) used to make every file download.
+  // Only selected content is registered (setups up to 1.7.2 gave the download plug-in the
+  // condition 'game or ...', and 'game' is always selected, so every file was downloaded).
+  // DownloadOnlineFiles (downloads.iss) downloads what is registered here.
 
   // Clears files if the user have the bad idea of going back to component to change them
   Log('Clear download file list');
@@ -1878,8 +1880,12 @@ begin
   else if (CurPageID = LanguageInstallQuestionPage.ID) then
     OnLanguagePageNext()
   else if (CurPageID = wpReady) then
-    // The components are final now: register the downloads (IDP downloads after wpReady)
-    RegisterOnlineFiles()
+  begin
+    // The components are final now: register the localized files and download them on the
+    // download page; a failed or stopped download never keeps the wizard on this page
+    RegisterOnlineFiles();
+    DownloadOnlineFiles();
+  end
   else if (CurPageID = wpFinished) then
     OnFinishedPageNext();
   Result := True;
@@ -1897,9 +1903,6 @@ const
   // Setup background: the 16:9 image if the window is wider than this (width / height), else the
   // 4:3 one (16:9 = 1.78, 4:3 = 1.33)
   WideBackgroundMinRatio = 1.55;
-  // IDP download timeouts in milliseconds, per connection attempt and per network operation
-  IdpConnectTimeoutMs = 15000;
-  IdpTransferTimeoutMs = 30000;
 
 // Setup background behind the wizard: the 16:9 or the 4:3 image, whichever fits the window
 procedure CreateSetupBackground;
@@ -1933,37 +1936,6 @@ begin
   end;
 end;
 
-// Download folders in {tmp} and IDP options of the online localized files (RegisterOnlineFiles)
-procedure InitOnlineFilesDownload;
-begin
-  CreateDir(ExpandConstant('{tmp}\EE'));
-  CreateDir(ExpandConstant('{tmp}\EE\Data'));
-  CreateDir(ExpandConstant('{tmp}\EE\Data\Campaigns'));
-  CreateDir(ExpandConstant('{tmp}\EE\Data\Movies'));
-  CreateDir(ExpandConstant('{tmp}\EE\Data\WONLobby Resources'));
-  CreateDir(ExpandConstant('{tmp}\AoC'));
-  CreateDir(ExpandConstant('{tmp}\AoC\Data'));
-  CreateDir(ExpandConstant('{tmp}\AoC\Data\Campaigns'));
-  CreateDir(ExpandConstant('{tmp}\AoC\Data\WONLobby Resources'));
-
-  idpSetOption('DetailedMode', '1');
-  // Timeouts in milliseconds, per connection attempt and per network operation (not for a whole
-  // file, so large files like the intro video are fine): 0.5 s used to make slow, mobile or VPN
-  // connections fail. RegisterOnlineFiles only uses a server that answered.
-  idpSetOption('ConnectTimeout', IntToStr(IdpConnectTimeoutMs));
-  idpSetOption('SendTimeout', IntToStr(IdpTransferTimeoutMs));
-  idpSetOption('ReceiveTimeout', IntToStr(IdpTransferTimeoutMs));
-  idpSetOption('ErrorDialog', 'UrlList');
-  // Never accept an invalid TLS certificate (the IDP default would let the user ignore it): data
-  // files without a SHA-256 pin are accepted because they come over validated TLS, files with a
-  // pin are also checked against it (downloads.iss).
-  idpSetOption('InvalidCert', 'Stop');
-  // Failed downloads can be skipped: VerifyDownloadedFiles reports every file that is missing then
-  idpSetOption('AllowContinue', '1');
-
-  idpDownloadAfter(wpReady);
-end;
-
 procedure InitializeWizard;
 begin
   if (not SilentInstall and not IsWine) then
@@ -1983,7 +1955,8 @@ begin
   if (not SilentInstall and not IsWine) then
     bassPlay();
 
-  InitOnlineFilesDownload();
+  // The download page of the online localized files (shown by DownloadOnlineFiles)
+  CreateOnlineFilesDownloadPage();
 end;
 
 procedure DeinitializeSetup;

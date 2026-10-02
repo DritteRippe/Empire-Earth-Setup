@@ -1,6 +1,6 @@
 # 0006. Strict TLS everywhere, TLS 1.2 on Windows 7, operator guide for the file server certificate
 
-- Status: Accepted (implemented by S-WP3)
+- Status: Accepted, implemented (S-WP3, see [Implementation](#implementation))
 - Date: 2026-10-02
 - Requirements: R16, D3
 - Revised: 2026-10-02, plan review before implementation (TLS 1.2 on Windows 7 is a hypothesis to
@@ -98,6 +98,32 @@ setup v2 installs no localized files at all, while 1.7.2 still downloaded them f
 - Windows 11 keeps TLS 1.3 for `HttpGet` because the option is only set on old Windows.
 - Until the server certificate is fixed, every download comes from the mirror; the test plan checks
   this path on purpose.
+
+## Implementation
+
+S-WP3, 2026-10-02:
+
+- `utils.iss`: `NeedsExplicitTlsProtocols(Major, Minor)` (pure, tests for 6.0, 6.1, 6.2, 6.3 and
+  10.0) and `ApplyTlsProtocols(WinHttpRequest, Major, Minor)`, which sets option 9 to `$A80` inside
+  `try ... except` and returns the outcome; `HttpGet` calls it with the version from
+  `GetWindowsVersionEx` and logs the outcome
+  (`HTTP GET <URL>: TLS 1.0, 1.1 and 1.2 requested explicitly (Windows 6.1)`). A run-time unit test
+  passes a real `WinHttpRequest` object through `ApplyTlsProtocols` as on Windows 6.1 without
+  sending anything: Wine answers "Not implemented", the exception is caught, the request would go
+  on with the defaults, and the test logs that outcome. A mutation that sets the option outside
+  the `try` block makes the test fail.
+- No SChannel or WinHTTP registry value is written: the own scripts mention `DisabledByDefault`
+  and `DefaultSecureProtocols` only in the comment of `ApplyTlsProtocols` (`git grep`).
+- `OnlineFilesUnreachable` (English, German, French) names both causes, says that it is a problem
+  of the servers, that the game is installed with the included files and that running the setup
+  again later adds the localized files. The log names the cause of a failed probe or download.
+- [SERVER-OPERATIONS.md](../SERVER-OPERATIONS.md) is the operator guide of point 4 with the
+  release criterion of point 5; the README has a "Support" section that names KB3140245.
+- Test plan: TP-00 (both servers, before every download test), TP-10 (invalid main server), TP-11
+  (no server) and TP-17 (Windows 7 SP1 without and with KB3140245, VM only).
+- A run-time probe under Wine (not in the repository: it needs local test servers) refused a
+  self-signed certificate of a local HTTPS server in `HttpGet` and in the downloads (`Error sending
+  data: (12157)`); no request reached the server, and the setup used the other server.
 
 ## Alternatives considered
 

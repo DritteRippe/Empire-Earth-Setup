@@ -57,15 +57,15 @@ has no translation for (they are shown in English) and the `zh_TW` texts that ar
 `zh_CN` ones. Its output is the current to-do list; the overview below is the state when this
 file was last updated.
 
-Custom messages to translate: 97 (14 of them only used by NeoEE setups; the Mute/Unmute button
+Custom messages to translate: 101 (14 of them only used by NeoEE setups; the Mute/Unmute button
 texts `SoundCtrlButtonCaptionSoundOn/Off` stay English on purpose and are not counted).
 
 | Language | Translated | Missing |
 |---|---|---|
-| English (default) | 97 | - |
-| German `de`, French `fr` | 97 | - |
-| Spanish `es`, Italian `it`, Polish `pl`, Russian `ru`, Korean `ko`, Chinese Simplified `zh_CN`, Chinese Traditional `zh_TW` | 35 | 62: the messages added after setup 1.7.2 |
-| Brazilian Portuguese `pt_BR` | 13 | 84: everything except the game language page (`LIQP_*`), see below |
+| English (default) | 101 | - |
+| German `de`, French `fr` | 101 | - |
+| Spanish `es`, Italian `it`, Polish `pl`, Russian `ru`, Korean `ko`, Chinese Simplified `zh_CN`, Chinese Traditional `zh_TW` | 35 | 66: the messages added after setup 1.7.2 |
+| Brazilian Portuguese `pt_BR` | 13 | 88: everything except the game language page (`LIQP_*`), see below |
 | Setup-only languages (`hy`, `bg`, `ca`, ...) | 0 | all; these languages only have Inno Setup's own texts |
 
 ## Help wanted
@@ -82,9 +82,21 @@ texts of the installation mode page and the `GPUIQP_*` texts of the graphics car
 
 These exist in English, German and French only (`--coverage` lists them by name): installation
 types, task and component descriptions, the DirectX wrapper part of the graphics card page,
-status texts, the reports about online localized files and random map scripts, the NeoEE CD key
-messages (NeoEE setups only) and the Wine notice of NeoEE setups. `TestSetupWarning` is only shown
-by test builds and has low priority.
+status texts, the title and description of the download page, the reports about online
+localized files and random map scripts, the NeoEE CD key messages (NeoEE setups only) and the Wine
+notice of NeoEE setups. `TestSetupWarning` is only shown by test builds and has low priority.
+
+### Korean (ko): texts of the download page
+
+The download page of the localized files also shows texts of Inno Setup itself: the progress
+label, the stop button, the question after it and the error texts that the setup log quotes
+(`DownloadingLabel`, `ButtonStopDownload`, `StopDownload`, `ErrorDownloadAborted`,
+`ErrorDownloadFailed`, `ErrorDownloadSizeFailed`, `ErrorFileHash1`, `ErrorFileHash2`,
+`ErrorProgress`, `ErrorFileSize`). Every official language file of Inno Setup 6.2.2 and the
+unofficial Chinese files in `internal\unofficial_isl\IS6` have them; the unofficial Korean file
+`internal\unofficial_isl\IS6\korean.isl` was made for Inno Setup 6.0 and lacks them, so a Korean
+setup shows these texts in English. A Korean translation can be added to that file, or as
+`ko.<name>=...` lines in the `[Messages]` section of `messages.iss`.
 
 ### Chinese Traditional (zh_TW)
 

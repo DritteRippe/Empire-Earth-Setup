@@ -143,6 +143,34 @@ Refactoring and quality fixes (no new game content).
   `certutil` reads both). Builds with ISCC directly need a DER file; a PEM file stops them with a
   hint (see README, "Signed builds").
 - The Wine notice of NeoEE setups is worded as a proper sentence (same content).
+- Online localized files are downloaded with Inno Setup's built-in download support instead of the
+  Inno Download Plugin (IDP): one download page ("Downloading localized files", title and
+  description in English, German and French), one file at a time, from the server chosen before
+  (main server, or the mirror if only the mirror answers) and, if a file fails there, once from the
+  other server, under the same download policy as before (a file without SHA-256 never over
+  `http://`). A file needed in both game folders is still downloaded once. What happens after each
+  attempt is decided by `NextDownloadAction` (`utils.iss`, unit-tested). The SHA-256 of a pinned
+  file is checked right after its download, so that a mismatch is told apart from a network error:
+  the file is deleted and the other server is tried. Without a pin, Inno Setup compares the size of
+  the file with the `Content-Length` the server sends; a file without one is accepted unchecked and
+  the log says `accepted without size check`. Every failure is logged with its cause (HTTP status,
+  certificate or network error), the server switch too. The verification at the start of the
+  installation (`VerifyDownloadedFiles`) is unchanged and still installs only from
+  `{tmp}\verified`.
+- The stop button of the download page ("Stop download") ends all downloads: neither the other
+  server nor any further file is requested. The installation continues with the files included in
+  the setup, and the notice lists the stopped and skipped files ("download stopped, not
+  downloaded"). IDP's detailed view and its error dialog with the list of URLs are gone; the notice
+  after the download lists the files. In silent mode and with `/SUPPRESSMSGBOXES` nothing of this
+  shows a dialog, everything is in the log.
+- The timeouts of the downloads are those of Inno Setup's download code, which a script cannot set
+  (IDP used 15 s to connect and 30 s per network operation). The reachability check before the
+  downloads keeps its short timeouts, so a server that is down is still noticed before any file.
+- The notice shown when neither file server can be used (`OnlineFilesUnreachable`) says that the
+  servers could not be reached or did not present a valid security certificate (a problem of the
+  servers, not of the player's computer), that the game is installed with the files included in
+  the setup (some voices and campaigns may stay in English) and that running the setup again later
+  adds the localized files. The log names the cause of the server switch.
 - Online localized files: a downloaded `Language.dll` (or any other file with code) is only
   installed if the setup knows its SHA-256; with the official data it knows those of every
   language. Voices, campaigns, the localized movie and the lobby files are still downloaded
@@ -216,7 +244,8 @@ Refactoring and quality fixes (no new game content).
 - Localized downloads: deselecting "Download localized voices and campaigns" now also stops the
   Empire Earth downloads (the condition was "game or download", and `game` is always selected),
   and AoC files are only downloaded with AoC (the NeoEE AoC `Language.dll` was downloaded without
-  it). Timeouts are 15/30 s instead of 0.5 s, which made slow, mobile or VPN connections fail.
+  it). The downloads no longer use timeouts of 0.5 s, which made slow, mobile or VPN connections
+  fail (see Changed for the built-in downloads).
   The servers are no longer contacted for English or with the download deselected, and if only
   the mirror answers, the files are downloaded from it first. After the download the setup lists
   every selected localized file it did not install from the download (not downloaded, discarded
@@ -261,6 +290,13 @@ Refactoring and quality fixes (no new game content).
   installations without updated root certificates can no longer download these files and continue
   with the files included in the setup; they should install the Windows updates or use the
   full/offline setup.
+- The downloads use Inno Setup's own download code instead of a third-party DLL from 2014 that
+  could not be rebuilt. It validates TLS certificates and has no way to ignore an invalid one. It
+  follows redirects automatically, and nothing documents that it refuses one from `https://` to
+  `http://`: only the operator of a validated server can send such a redirect, pinned files are
+  unaffected (their SHA-256 decides), and `docs/SERVER-OPERATIONS.md` requires that the file
+  servers never redirect to `http://`. The update check and the reachability check (WinHTTP)
+  refuse such redirects.
 - Random map scripts: the elevated setup never follows junctions or symbolic links in the random
   map folders, which all users can write to. A user could otherwise have made it delete files or
   empty folders elsewhere, or loop through a link to a parent folder.

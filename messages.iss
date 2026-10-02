@@ -143,9 +143,18 @@ zh_TW.UserInstallMode=你使用的是用户模式安装，这意味着你不需�
 %n如果你在机器上有管理员权限，请选择管理员模式。
 
 ; Online files (RegisterOnlineFiles, downloads.iss)
-OnlineFilesUnreachable=Unable to reach the servers of the localized files. The setup only uses its own files, so some content may not be translated.
-de.OnlineFilesUnreachable=Die Server der lokalisierten Dateien sind nicht erreichbar. Das Setup verwendet nur seine eigenen Dateien, daher sind einige Inhalte möglicherweise nicht übersetzt.
-fr.OnlineFilesUnreachable=Impossible de joindre les serveurs des fichiers traduits. L'installation utilise uniquement ses propres fichiers, certains contenus pourraient donc ne pas être traduits.
+; Neither file server answered over https with a valid certificate (SelectOnlineFilesServer)
+OnlineFilesUnreachable=The servers of the localized files could not be reached, or they did not present a valid security certificate (a problem of the servers, not of your computer).%n%nThe game is installed with the files included in this setup, so some content (for example voices and campaigns) may stay in English. To add the localized files, run this setup again later.
+de.OnlineFilesUnreachable=Die Server der lokalisierten Dateien waren nicht erreichbar oder haben kein gültiges Sicherheitszertifikat vorgelegt (ein Problem der Server, nicht Ihres Computers).%n%nDas Spiel wird mit den Dateien installiert, die dieses Setup enthält, daher bleiben einige Inhalte (zum Beispiel Stimmen und Kampagnen) möglicherweise englisch. Um die lokalisierten Dateien hinzuzufügen, führen Sie dieses Setup später erneut aus.
+fr.OnlineFilesUnreachable=Les serveurs des fichiers traduits sont injoignables ou n'ont pas présenté de certificat de sécurité valide (un problème des serveurs, pas de votre ordinateur).%n%nLe jeu est installé avec les fichiers inclus dans ce programme d'installation, certains contenus (par exemple les voix et les campagnes) pourraient donc rester en anglais. Pour ajouter les fichiers traduits, relancez ce programme d'installation plus tard.
+; Title and description of the download page (CreateOnlineFilesDownloadPage); its other texts
+; (progress label, stop button, the question after it) are Inno Setup's own messages
+DownloadPageCaption=Downloading localized files
+de.DownloadPageCaption=Lokalisierte Dateien werden heruntergeladen
+fr.DownloadPageCaption=Téléchargement des fichiers traduits
+DownloadPageDescription=Please wait while the setup downloads the voices, campaigns and texts of the selected language. If you stop the download, the game is installed with the files included in this setup.
+de.DownloadPageDescription=Bitte warten Sie, während das Setup die Stimmen, Kampagnen und Texte der gewählten Sprache herunterlädt. Wenn Sie den Download abbrechen, wird das Spiel mit den Dateien installiert, die dieses Setup enthält.
+fr.DownloadPageDescription=Veuillez patienter pendant que l'installation télécharge les voix, campagnes et textes de la langue choisie. Si vous arrêtez le téléchargement, le jeu est installé avec les fichiers inclus dans ce programme d'installation.
 ; Localized files that are not installed from the download: %1 = list, one "DownloadFile..." line per file
 DownloadIncomplete=Some localized files could not be installed from the download:%1%n%nThe setup installs its own versions of these files instead, so some content may not be translated.
 de.DownloadIncomplete=Einige lokalisierte Dateien konnten nicht aus dem Download installiert werden:%1%n%nDas Setup installiert stattdessen seine eigenen Versionen dieser Dateien, daher sind einige Inhalte möglicherweise nicht übersetzt.
@@ -157,6 +166,9 @@ fr.DownloadFileMissing=%1 (non téléchargé)
 DownloadFileRejected=%1 (not the version this setup knows: updated on the server since or damaged, discarded)
 de.DownloadFileRejected=%1 (nicht die Version, die dieses Setup kennt: inzwischen auf dem Server aktualisiert oder beschädigt, verworfen)
 fr.DownloadFileRejected=%1 (pas la version connue de ce programme d'installation : mise à jour depuis sur le serveur ou endommagée, rejeté)
+DownloadFileSkipped=%1 (download stopped, not downloaded)
+de.DownloadFileSkipped=%1 (Download abgebrochen, nicht heruntergeladen)
+fr.DownloadFileSkipped=%1 (téléchargement arrêté, non téléchargé)
 DownloadFileUnsaved=%1 (downloaded, but it could not be stored for the installation)
 de.DownloadFileUnsaved=%1 (heruntergeladen, konnte aber nicht für die Installation abgelegt werden)
 fr.DownloadFileUnsaved=%1 (téléchargé, mais impossible de le stocker pour l'installation)
