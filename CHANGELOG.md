@@ -325,9 +325,13 @@ setup version stays 1.7.2 until the release.
     uninstall entries of HKLM (both views) whose name contains Empire Earth or NeoEE, except those
     of the two community setups (by AppId and publisher) and Empire Earth II and III. What it finds
     is logged and shown once in the notice `ForeignInstallFound`, which changes nothing and offers
-    nothing for deletion: "Please do not delete registry keys by hand: Software\Sierra\CDKeys holds
-    the NeoEE CD keys. The Empire Earth Launcher offers a cleanup with a backup." (deleting
-    `Software\Sierra` by hand lost the CD keys in t=10950 and t=11021);
+    nothing for deletion: "Never delete the registry key Software\Sierra or one of its parent keys:
+    Software\Sierra\CDKeys holds the NeoEE CD keys. To remove the other installation, use its own
+    uninstaller (Windows "Apps" or "Programs and Features"), if it has one. The Empire Earth Launcher
+    removes old game settings of your user account with a backup. If you are unsure, ask the
+    community and attach the setup log." (deleting `Software\Sierra` by hand lost the CD keys in
+    t=10950 and t=11021; the notice promises no cleanup of the HKLM keys, uninstall entries and
+    folders it lists, which the launcher does not offer, ADR 0007 point 2);
   - the question `ForeignFolderQuestion` if the chosen folder is, contains or lies in the folder of
     such an installation (e.g. `C:\Sierra` or the GOG folder; `C:\Sierra2` is not inside
     `C:\Sierra`), and the question `SharedFolderQuestion` if it already holds the other community

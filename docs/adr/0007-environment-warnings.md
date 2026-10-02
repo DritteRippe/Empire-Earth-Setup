@@ -78,11 +78,23 @@ silent installation (silent: log only).
      installations).
 
    Findings are shown once as a notice: what was found, that the community setup installs its own
-   copy and does not change the other one, and then, without approving any manual cleanup: "Please
-   do not delete registry keys by hand; `Software\Sierra\CDKeys` holds the NeoEE CD keys. The Empire
-   Earth Launcher offers a cleanup with a backup." (deleting `Software\Sierra` by hand is what lost
-   the CD keys in t=10950 and t=11021). Nothing is offered for deletion. Community installations
-   (uninstall keys with the community AppIds or publishers) are not reported.
+   copy and does not change the other one, and then, without approving any manual cleanup: "Never
+   delete the registry key `Software\Sierra` or one of its parent keys: `Software\Sierra\CDKeys`
+   holds the NeoEE CD keys. To remove the other installation, use its own uninstaller (Windows "Apps"
+   or "Programs and Features"), if it has one. The Empire Earth Launcher removes old game settings
+   of your user account with a backup. If you are unsure, ask the community and attach the setup
+   log." (deleting `Software\Sierra` by hand is what lost the CD keys in t=10950 and t=11021).
+   Nothing is offered for deletion. Community installations (uninstall keys with the community
+   AppIds or publishers) are not reported. The notice promises only what the launcher does
+   (launcher `CleanupCandidates` and `CleanupAdvice`, L-WP8): it removes stale game keys of HKCU
+   and their VirtualStore copies with a `.reg` backup, lists only `Software\SSSI\Empire Earth` and
+   `Software\Mad Doc Software\EE-AOC` of HKLM, with the advice for a stale one to export it in the
+   Registry Editor before deleting it, and knows neither the HKLM `Neo` keys nor the uninstall
+   entries nor the retail folders. The first wording
+   ("Please do not delete registry keys by hand ... The Empire Earth Launcher offers a cleanup with a
+   backup", decision K15 of the plan revision) promised a cleanup of exactly these findings and
+   contradicted the launcher's advice for the SSSI and Mad Doc keys; the review with real data
+   replaced it.
 3. **Shared folder (O11):** when the user leaves the folder page and the chosen folder already holds
    the other product (`_setupdata_<other product>` exists, or `<AppId of the other product>`, the
    setup data folder of setups up to 1.7.2, or the other product's uninstall key in HKLM (both
@@ -194,10 +206,10 @@ the community publishers (`82974d4`), the screen in the log and the notice for a
   French) differ; `[Files]`, `[Registry]`, `[Run]`, `[UninstallRun]`, `[InstallDelete]` and all
   other sections and the data are identical.
 - **Open:** whether `authtools.dll` writes `HKLM\Software\Neo` when it registers the CD keys is unknown
-  (contract O8); TP-61 (e) checks it before a release. The launcher's cleanup (launcher
-  ARCHITECTURE 4.6, L-WP8) removes HKCU entries with a `.reg` backup and only lists HKLM entries
-  with advice; if that advice keeps telling players to remove HKLM keys with the Registry Editor,
-  the two texts should be aligned (export first, never `Software\Sierra` or one of its parents).
+  (contract O8); TP-61 (e) checks it before a release. Whether the launcher should also list the
+  HKLM `Neo` keys with the advice it gives for the SSSI and Mad Doc keys (export first, never
+  `Software\Sierra` or one of its parents) is a question for the launcher; the notice of the setup
+  does not depend on it (point 2).
 
 ## Alternatives considered
 

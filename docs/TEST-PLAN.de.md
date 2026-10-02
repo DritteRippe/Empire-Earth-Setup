@@ -1903,15 +1903,16 @@ Befehle unten lassen den abschließenden `\` deshalb weg.
 - **Priorität:** P1 (Teile a bis c mit `reg add`, je wenige Minuten in der Windows-Sandbox, weil
   der Hinweis die NeoEE-CD-Keys nennt und vor jeder Freigabe stimmen muss; Teil d mit einer echten
   CD- oder GOG-Installation: P3; Teil e: P2)
-- **Bezug:** R12, ADR 0007 (Punkt 2), Entscheidungen K3 und K15 der Planrevision, Vertrag 0
+- **Bezug:** R12, ADR 0007 (Punkt 2), Entscheidungen K3 und K15 der Planrevision (der Wortlaut von K15 ist nach dem Review mit Echtdaten ersetzt, ADR 0007 Punkt 2), Vertrag 0
   (Herausgeber) und 1.4; Forum §8 Nr. 8 (t=1036 p=4756, t=12082 p=49553), Bericht 4.7 und 4.8
   (t=2847 p=19589: verwaiste Einträge, Setups bieten nur „Reparieren/Entfernen“), t=10577 p=46302
   (der störende Schlüssel lag „in a "Neo" directory“), Bericht 4.19 (t=10950, t=11021: CD-Keys weg
   nach Löschen von `Software\Sierra`)
 - **Ziel:** Das Setup meldet Schlüssel alter Installationen in HKLM (auch alte NeoEE-Schlüssel),
-  fremde Uninstall-Einträge und den Ordner der CD-Version einmal je Lauf, rät davon ab,
-  Registry-Schlüssel von Hand zu löschen, nennt die NeoEE-CD-Keys und den Launcher, ändert nichts
-  und meldet keine Community-Installationen.
+  fremde Uninstall-Einträge und den Ordner der CD-Version einmal je Lauf, warnt davor,
+  `Software\Sierra` zu löschen (NeoEE-CD-Keys), verweist auf das Deinstallationsprogramm der anderen
+  Installation und verspricht vom Launcher nur, was er tut (alte Spieleinstellungen des eigenen
+  Kontos mit Sicherung entfernen), ändert nichts und meldet keine Community-Installationen.
 - **Build-Art:** A oder B (Teil e nur B)
 - **Ausgangszustand:** (a) bis (c): kein Empire Earth installiert, keine Schlüssel
   `HKLM\SOFTWARE\SSSI`, `HKLM\SOFTWARE\Mad Doc Software`, `HKLM\SOFTWARE\Neo` (in beiden Ansichten:
@@ -1984,8 +1985,12 @@ Befehle unten lassen den abschließenden `\` deshalb weg.
     `HKLM\Software\WOW6432Node\Neo\Empire Earth: C:\SIERRA\EMPIRE EARTH` (32-Bit-Windows: ohne
     `WOW6432Node`) und `Empire Earth Gold Edition: C:\GOG Games\Empire Earth Gold`, dann „Das
     Community-Setup installiert eine eigene Kopie und ändert nichts an der anderen Installation. …“
-    und wörtlich: „Bitte keine Registry-Schlüssel von Hand löschen; Software\Sierra\CDKeys enthält
-    die NeoEE-CD-Keys. Der Empire Earth Launcher bietet eine Bereinigung mit Sicherung an.“ Keine
+    und wörtlich: „Bitte nie den Registry-Schlüssel Software\Sierra oder einen übergeordneten
+    Schlüssel löschen: Software\Sierra\CDKeys enthält die NeoEE-CD-Keys. Um die andere Installation
+    zu entfernen, verwenden Sie ihr eigenes Deinstallationsprogramm (Windows „Apps“ bzw. „Programme
+    und Features“), falls sie eines hat. Der Empire Earth Launcher entfernt alte Spieleinstellungen
+    Ihres Benutzerkontos mit Sicherung. Im Zweifel fragen Sie die Community und hängen das Setup-Log
+    an.“ Keine
     Frage (der Standardordner gehört keiner fremden Installation). Kein zweiter Hinweis nach
     „Zurück“/„Weiter“. Schritt 2: Schlüssel, Eintrag und Ordner unverändert.
   - (b) Kein Hinweis.
