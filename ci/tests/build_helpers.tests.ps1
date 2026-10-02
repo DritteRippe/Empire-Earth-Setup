@@ -1,12 +1,14 @@
 <#
 .SYNOPSIS
-  Tests of ci\build_helpers.ps1 (SHA-256 list of the online files, DER copy of the certificate).
+  Tests of ci\build_helpers.ps1 (SHA-256 list of the online files, DER copy of the certificate,
+  test build number) and a dry run of ci\build.ps1.
 
 .DESCRIPTION
   Needs neither Inno Setup nor the game data: the test certificates are generated (self-signed,
-  thrown away afterwards) and the files live in a temporary folder. Runs with Windows PowerShell
-  5.1 and PowerShell 7 (also on Linux). Prints the failed checks and exits with 0 if every check
-  passed, else 1.
+  thrown away afterwards) and the files live in a temporary folder. The dry run calls a copy of
+  ci\build.ps1 with a fake ISCC that only records its arguments, and checks what the script passes
+  to ISCC. Runs with Windows PowerShell 5.1 and PowerShell 7 (also on Linux). Prints the failed
+  checks and exits with 0 if every check passed, else 1.
 
   Optional: -CertFile <file> -CertHashSHA1 <hash> also converts a real certificate (DER or PEM)
   and checks that its DER copy has that thumbprint, e.g. the community certificate before a
@@ -131,6 +133,77 @@ try {
   CheckThrows 'Read-CertificateDer refuses DER with trailing bytes' { Read-CertificateDer $file }
 
   Check 'ConvertTo-Thumbprint' (ConvertTo-Thumbprint 'F8 73 8C 35 49 EF 13 8F 6F 3B 17 77 D4 CC 1A CF 23 3D CD 47') 'f8738c3549ef138f6f3b1777d4cc1acf233dcd47'
+
+  # --- Get-TestIdDefine
+  Check 'Get-TestIdDefine 1' (Get-TestIdDefine 1) '/DTestID=1'
+  Check 'Get-TestIdDefine 0' (Get-TestIdDefine 0) '/DTestID=0'
+  Check 'Get-TestIdDefine of a string' (Get-TestIdDefine '42') '/DTestID=42'
+  foreach ($bad in @(-1, '-1', '+1', '1.5', ' 1', '1e3', 'abc', '', $null, '2147483648')) {
+    CheckThrows "Get-TestIdDefine refuses '$bad'" { Get-TestIdDefine $bad }
+  }
+
+  # --- ci\build.ps1 -TestID: dry run of a copy of the script with a fake ISCC. The fake records
+  # its arguments, answers the version probe, writes the resolved script of pass 1 and an empty
+  # setup in pass 2, so the script runs completely without Inno Setup and game data.
+  $repo = Join-Path $temp 'repo'
+  $repoCi = Join-Path $repo 'ci'
+  New-Item -ItemType Directory -Path $repoCi | Out-Null
+  $ciDir = Split-Path -Parent $PSScriptRoot
+  foreach ($name in @('build.ps1', 'build_helpers.ps1')) {
+    Copy-Item -LiteralPath (Join-Path $ciDir $name) -Destination $repoCi
+  }
+  [System.IO.File]::WriteAllText((Join-Path $repo 'setup_is6.iss'), "; dry run`r`n")
+  $calls = Join-Path $temp 'iscc_calls.txt'
+  $fakeIscc = Join-Path $temp 'fake_iscc.ps1'
+  $fake = @'
+$script = (Resolve-Path -LiteralPath ([string]$args[-1])).ProviderPath
+Add-Content -LiteralPath '%CALLS%' -Value ($args -join ' ')
+if ($script -like '*version_probe.iss') { 'ISCC_VERSION=6.2.2'; exit 0 }
+$match = [regex]::Match([System.IO.File]::ReadAllText($script), 'SaveToFile\(AddBackslash\(SourcePath\) \+ "([^"]+)"\)')
+if ($match.Success) {
+  [System.IO.File]::WriteAllText((Join-Path (Split-Path -Parent $script) $match.Groups[1].Value), '; resolved')
+  exit 0
+}
+$out = ''; $type = ''; $mode = ''
+foreach ($arg in $args) {
+  if ($arg -like '/O*') { $out = $arg.Substring(2) }
+  if ($arg -like '/DInstallType=*') { $type = $arg -replace '^/DInstallType=', '' }
+  if ($arg -like '/DInstallMode=*') { $mode = $arg -replace '^/DInstallMode=', '' }
+}
+[System.IO.File]::WriteAllText((Join-Path $out "${type}_${mode}_dry_run.exe"), '')
+exit 0
+'@
+  [System.IO.File]::WriteAllText($fakeIscc, $fake.Replace('%CALLS%', $calls))
+  $build = Join-Path $repoCi 'build.ps1'
+  $common = @{
+    Iscc = $fakeIscc
+    EEAppID = '00000000-0000-0000-0000-0000000000EE'
+    NeoEEAppID = '00000000-0000-0000-0000-000000000AEE'
+    Variants = @('EE/Regular', 'NeoEE/Portable')
+  }
+
+  & $build @common -TestID 1 3>$null 6>$null
+  Check 'dry run -TestID 1: exit code' $LASTEXITCODE 0
+  $lines = @(Get-Content -LiteralPath $calls)
+  Check 'dry run -TestID 1: ISCC calls (version probe, 2 x pass 1, 2 x pass 2)' $lines.Count 5
+  Check 'dry run -TestID 1: version probe without TestID' ($lines[0] -like '*/DTestID*') $false
+  Check 'dry run -TestID 1: /DTestID=1 in every compile' @($lines | Where-Object { " $_ " -like '* /DTestID=1 *' }).Count 4
+  Check 'dry run -TestID 1: AppIds in every compile' @($lines | Where-Object { $_ -like '*/DEE_AppID=00000000-0000-0000-0000-0000000000EE /DNeoEE_AppID=00000000-0000-0000-0000-000000000AEE*' }).Count 4
+  Check 'dry run -TestID 1: setups' @(Get-ChildItem -LiteralPath (Join-Path $repo 'out') -Recurse -Filter '*.exe').Count 2
+
+  Remove-Item -LiteralPath $calls
+  & $build @common 3>$null 6>$null
+  Check 'dry run without -TestID: exit code' $LASTEXITCODE 0
+  Check 'dry run without -TestID: no /DTestID (default of setup_is6.iss)' @(Get-Content -LiteralPath $calls | Where-Object { $_ -like '*/DTestID*' }).Count 0
+
+  Remove-Item -LiteralPath $calls
+  & $build @common -TestID 0 3>$null 6>$null
+  Check 'dry run -TestID 0: /DTestID=0 in every compile' @(Get-Content -LiteralPath $calls | Where-Object { " $_ " -like '* /DTestID=0 *' }).Count 4
+
+  Remove-Item -LiteralPath $calls
+  CheckThrows 'build.ps1 refuses -TestID -1' { & $build @common -TestID -1 3>$null 6>$null }
+  CheckThrows 'build.ps1 refuses -TestID abc' { & $build @common -TestID abc 3>$null 6>$null }
+  Check 'build.ps1 calls no ISCC for an invalid -TestID' (Test-Path -LiteralPath $calls) $false
 
   # --- Optional: a real certificate
   if ($CertFile) {

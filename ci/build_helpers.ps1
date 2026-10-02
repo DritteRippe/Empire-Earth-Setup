@@ -1,7 +1,8 @@
 <#
 .SYNOPSIS
   Helper functions of ci\build.ps1 that do not need Inno Setup: the SHA-256 list of the online
-  localized files and the DER copy of the signing certificate.
+  localized files, the DER copy of the signing certificate and the ISCC switch of the test build
+  number.
 
 .DESCRIPTION
   Dot-sourced by ci\build.ps1 and by ci\tests\build_helpers.tests.ps1. Kept free of ISCC and of
@@ -108,4 +109,16 @@ function ConvertTo-DerCertificateFile([string]$Path, [string]$Destination) {
 # certificate dialog)
 function ConvertTo-Thumbprint([string]$Value) {
   return ($Value -replace '\s', '').ToLowerInvariant()
+}
+
+# ISCC switch of the test build number (ci\build.ps1 -TestID): "/DTestID=<n>". Only a whole number
+# >= 0 written with digits is accepted (0 = release build, > 0 = test build, see setup_is6.iss);
+# anything else (negative, fraction, sign, text, empty) throws, so ISCC never sees it.
+function Get-TestIdDefine($TestID) {
+  $number = 0
+  $style = [System.Globalization.NumberStyles]::None
+  if (-not [int]::TryParse("$TestID", $style, [System.Globalization.CultureInfo]::InvariantCulture, [ref]$number)) {
+    throw "TestID '$TestID' is not a whole number >= 0 (0 = release build, > 0 = test build)."
+  }
+  return "/DTestID=$number"
 }

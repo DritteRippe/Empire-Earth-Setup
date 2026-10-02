@@ -69,6 +69,10 @@ Refactoring and quality fixes (no new game content).
   launcher repository (CI cannot reach the other repository): exit code 0 if the SHA-256 of both
   copies is the same, 1 with both hashes and the first differing line if not, 2 if a file is
   missing. Its `--self-test` runs in the workflow. See README, "Verify".
+- `ci/build.ps1 -TestID <n>` builds test setups (`/DTestID=<n>`: fast compression and a warning on
+  every start) without calling ISCC directly; anything but a whole number >= 0 stops the script
+  before ISCC runs. `ci/tests/build_helpers.tests.ps1` checks the switch with a dry run of the
+  build script against a fake ISCC that records its arguments.
 
 ### Changed
 - The hidden setup data folder (holds `EEStatsSetup.dll` for the uninstaller) is now

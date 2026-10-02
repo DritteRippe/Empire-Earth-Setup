@@ -11,8 +11,9 @@
     3. Write data\localized-text.sha256, the SHA-256 list of data\localized-text: the setups only
        install a downloaded Language.dll whose hash is in this list, and a listed data file only
        if it matches (see downloads.iss).
-    4. Compile every variant with ISCC /DInstallType /DInstallMode /DEE_AppID /DNeoEE_AppID into
-       its own output folder and check that the file name proves the variant took effect.
+    4. Compile every variant with ISCC /DInstallType /DInstallMode /DEE_AppID /DNeoEE_AppID
+       [/DTestID] into its own output folder and check that the file name proves the variant took
+       effect.
   With -SignSetup the certificate internal\misc\<CertFileName> (DER or PEM) is first converted to
   a DER copy in the temporary build folder, checked against -CertHashSHA1 and passed to ISCC as
   /DCertDerFile, see README.md "Signed builds".
@@ -32,6 +33,13 @@
 
 .PARAMETER NeoEEAppID
   AppId GUID of the NeoEE setup, without braces. Default: the NeoEE_AppID define in setup_is6.iss.
+
+.PARAMETER TestID
+  Test build number, passed to ISCC as /DTestID=<n> (a whole number >= 0, anything else stops the
+  script before ISCC runs). 0 is a release build; a number > 0 makes a test build: fast
+  compression (zip/1) and a warning with the number on every start, also in silent mode (silent
+  test runs need /SUPPRESSMSGBOXES). Default: the TestID define in setup_is6.iss (0). Test builds
+  are for testing only and must never be distributed.
 
 .PARAMETER Variants
   Variants to build, any of EE/Regular, NeoEE/Regular, EE/Portable, NeoEE/Portable (default: all).
@@ -82,6 +90,9 @@
   .\ci\build.ps1 -Variants NeoEE/Portable -EEAppID <GUID> -NeoEEAppID <GUID>
 
 .EXAMPLE
+  .\ci\build.ps1 -EEAppID <GUID> -NeoEEAppID <GUID> -TestID 1
+
+.EXAMPLE
   .\ci\build.ps1 -EEAppID <GUID> -NeoEEAppID <GUID> -SignSetup -CertFileName Empire_Earth_Community.crt -CertHashSHA1 <thumbprint> -SignTool 'signtool.exe sign /a /fd sha256 $f'
 #>
 #Requires -Version 5.1
@@ -90,6 +101,8 @@ param(
   [switch]$Placeholders,
   [string]$EEAppID,
   [string]$NeoEEAppID,
+  [ValidateRange(0, 2147483647)]
+  [int]$TestID,
   [ValidateSet('EE/Regular', 'NeoEE/Regular', 'EE/Portable', 'NeoEE/Portable')]
   [string[]]$Variants = @('EE/Regular', 'NeoEE/Regular', 'EE/Portable', 'NeoEE/Portable'),
   [string]$OutputDir,
@@ -173,7 +186,7 @@ function Show-LogErrors([string]$LogFile) {
     ForEach-Object { Write-Host "    $_" }
 }
 
-# Write-DownloadHashes, ConvertTo-DerCertificateFile, ConvertTo-Thumbprint
+# Write-DownloadHashes, ConvertTo-DerCertificateFile, ConvertTo-Thumbprint, Get-TestIdDefine
 . (Join-Path $PSScriptRoot 'build_helpers.ps1')
 
 $LocalizedFolder = Join-Path $Root 'data\localized-text'
@@ -211,10 +224,17 @@ try {
     if (-not $NeoEEAppID) { $NeoEEAppID = $DummyNeoEEAppID }
     Write-Warning 'Placeholder build: the installers only prove that the script compiles. Never distribute them.'
   }
-  # ISCC defines and options of both passes: AppIds, signing
+  # ISCC defines and options of both passes: AppIds, test build number, signing
   $defines = @()
   if ($EEAppID) { $defines += "/DEE_AppID=$EEAppID" }
   if ($NeoEEAppID) { $defines += "/DNeoEE_AppID=$NeoEEAppID" }
+  # Without -TestID the default of setup_is6.iss applies (0, release build)
+  if ($PSBoundParameters.ContainsKey('TestID')) {
+    $defines += Get-TestIdDefine $TestID
+    if ($TestID -gt 0) {
+      Write-Warning "Test build ${TestID}: fast compression and a warning on every start. For testing only, never distribute it."
+    }
+  }
 
   # Signed builds ship a DER copy of the certificate: setup_is6.iss compares its SHA-1 with
   # CertHashSHA1, and the community certificate is PEM, which ISPP cannot decode.
