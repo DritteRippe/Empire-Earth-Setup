@@ -475,6 +475,14 @@ P3-Fälle verhindern die Freigabe nicht; ein ausgelassener P2-Fall steht mit Gru
 Freigabe gilt für den getesteten Commit: Ändert ein späterer Commit das kompilierte Setup, braucht
 er einen neuen Kurzdurchlauf.
 
+Kein Teil des Kriteriums, sondern eine bewusste Entscheidung der Maintainer (Planentscheidung K6,
+ADR 0008 Punkt 6): Online-Dateien ohne Pin. Ein Release-Build listet sie als Warnung (mit den Daten
+von 1.7.2 je Produkt 110 Pfade: Stimmen, Kampagnen, Filme). Das Setup prüft vor jedem ihrer
+Downloads die Weiterleitungen mit `HEAD`; einen Server, der `HEAD` und `GET` verschieden beantwortet
+und `GET` auf `http://` umleitet, erkennt es nicht. Die Maintainer entscheiden vor der Freigabe, ob
+sie die Dateien pinnen, die sie kennen (SERVER-OPERATIONS.md, Abschnitt 6), und vermerken die
+Entscheidung im Protokoll.
+
 **Vorbereitung** (einmal, nicht in den drei Stunden): Inno Setup 6.2.2, Python 3 und Git auf dem
 Laptop, eine Arbeitskopie des Branches ([6.1](#61-voraussetzungen-alle-wege)); die Windows-Sandbox
 mit den beiden `.wsb`-Dateien aus [Abschnitt 5](#5-testumgebungen-und-snapshots); das offizielle
