@@ -106,7 +106,7 @@ Nummer ihres Blocks. Ein neues Arbeitspaket mit eigenen Fällen bekommt den näc
 | TP-5x | Integritätsmanifest | S-WP7 | `files.sha256` je Variante (Inhalt geprüft mit `Get-FileHash` bzw. `sha256sum -c`), von einem Virenscanner gelöschte Dateien mit Hinweis und `[MissingAfterInstall]`, eine gesperrte Datei, Dauer des Prüfens auf dem Laptop und auf HDD bzw. unter Windows 7 (TP-50) |
 | TP-6x | Umgebung | S-WP8 | Hinweis unter 768 Pixeln Höhe und Bildschirm, DPI und Spielfenster im Log (TP-60), fremde und alte Installationen: Schlüssel in HKLM, fremde Uninstall-Einträge, CD-Ordner, Wortlaut zu den CD-Keys (TP-61), EE und NeoEE in einem Ordner (TP-62), Installation in den Ordner einer GOG- oder CD-Installation (TP-63) |
 | TP-7x | Allgemeine Abläufe und Forumfälle | S-WP2, S-WP9 | Grundablauf mit Update über 1.7.2 (TP-70), Standardnutzer und VirtualStore (TP-71), Version und Mehrspieler (TP-72), Reparatur (TP-73), AoC ohne EE-Start (TP-74), EE und NeoEE getrennt, eines deinstalliert (TP-75), Firewall beim Hosten (TP-76), CD-Keys (TP-77), Deutsch (TP-78), laufendes Spiel (TP-79) |
-| TP-8x | Links in den für alle beschreibbaren Ordnern | S-WP11 | Ein Standardbenutzer ersetzt `Data\Movies` durch eine Junction; das Update als Administrator hält auf der Seite „Vorbereitung der Installation“ an, ändert nichts und läuft nach dem Entfernen des Links durch; still Exit-Code 7; ein Link im Spielerordner unter `Users` hält ebenfalls an (TP-80) |
+| TP-8x | Links in den für alle beschreibbaren Ordnern | S-WP11 | Ein Standardbenutzer ersetzt `Data\Movies` durch eine Junction; das Update als Administrator hält auf der Seite „Vorbereitung der Installation“ an, ändert nichts und läuft nach dem Entfernen des Links durch; still Exit-Code 7; ein Link im Spielerordner unter `Users` und eine feste Verknüpfung (Hardlink) dort halten ebenfalls an (TP-80) |
 
 ## 4. Vorlage je Fall
 
@@ -2770,9 +2770,9 @@ nur mit `rmdir <Link>` entfernen (ohne `/s`): Das löscht den Link, nicht den Or
 - **Priorität:** P2
 - **Bezug:** ADR 0009, ADR 0002 (Security-Bewertung, RedirectionGuard), R17; Inno-Setup-Quelltext
   6.2.2 (`RecurseExternalCopyFiles`, `IsRecurseableDirectory`)
-- **Ziel:** Ein Link, den ein Standardbenutzer in `Data` oder `Users` anlegt, stoppt das Update im
-  Admin-Modus, bevor etwas geändert ist; der Ordner, auf den der Link zeigt, bleibt leer; nach dem
-  Entfernen des Links läuft das Update durch.
+- **Ziel:** Ein Link, den ein Standardbenutzer in `Data` oder `Users` anlegt (Junction oder feste
+  Verknüpfung), stoppt das Update im Admin-Modus, bevor etwas geändert ist; der Ordner, auf den der
+  Link zeigt, bleibt leer; nach dem Entfernen des Links läuft das Update durch.
 - **Build-Art:** A oder B (nur VM bzw. Snapshot, nie auf dem Laptop)
 - **Ausgangszustand:** EE-admin mit AoC als Administrator installiert (Testbuild, „Empfohlene
   Einstellungen“, Telemetrie aus) im Standardordner `C:\Program Files (x86)\Empire Earth`; Ordner
@@ -2780,8 +2780,8 @@ nur mit `rmdir <Link>` entfernen (ohne `/s`): Das löscht den Link, nicht den Or
   Standardkonto „Spieler“ aus `S-Basis`.
 - **Snapshot:** `S-Basis` (nach der Installation einen Zwischenstand sichern, vor jedem Teil
   zurücksetzen)
-- **Varianten:** (a) bis (d) EE-admin; (e) EE-user. NeoEE und portable nutzen denselben Code und
-  werden nicht wiederholt; portable prüft nicht (kein Admin-Modus).
+- **Varianten:** (a) bis (d) und (f) EE-admin; (e) EE-user. NeoEE und portable nutzen denselben
+  Code und werden nicht wiederholt; portable prüft nicht (kein Admin-Modus).
 - **Schritte:**
   1. Als „Spieler“ anmelden (oder `runas /user:Spieler cmd`) und in einer Eingabeaufforderung
      **ohne** Administratorrechte:
@@ -2819,15 +2819,28 @@ nur mit `rmdir <Link>` entfernen (ohne `/s`): Das löscht den Link, nicht den Or
      dann in `%LOCALAPPDATA%\Programs\Empire Earth\Empire Earth\Data` wie in Schritt 1 `Movies`
      durch eine Junction auf einen eigenen Ordner ersetzen und denselben Befehl mit `TP-80e2` im
      Log-Namen wiederholen.
-  7. Nach jedem Teil: `dir /a C:\EE-Test\scratch` und `findstr /c:"Link check" /c:"installation stops" /c:"PrepareToInstall" C:\EE-Test\logs\TP-80*.log`.
-  8. Nur Weg B, nach (b): die Dauer der Prüfung aus der Zeile `Link check: … examined in <ms> ms`
-     notieren (mit echten Daten etwa 30 Ordner je Spiel).
+  7. (f) Zwischenstand zurücksetzen. Als „Spieler“ eine Datei im eigenen Profil anlegen und eine
+     feste Verknüpfung (Hardlink) darauf im Spielerordner (beides auf Laufwerk `C:`):
+
+     ```bat
+     echo geheim> "%USERPROFILE%\tp80f.txt"
+     mkdir "C:\Program Files (x86)\Empire Earth\Empire Earth\Users\Spieler"
+     mklink /H "C:\Program Files (x86)\Empire Earth\Empire Earth\Users\Spieler\tp80f.ini" "%USERPROFILE%\tp80f.txt"
+     ```
+
+     Dann wie (c) still mit `TP-80f` im Log-Namen. Danach als „Spieler“
+     `del "C:\Program Files (x86)\Empire Earth\Empire Earth\Users\Spieler\tp80f.ini"` und denselben
+     Befehl mit `TP-80f2` im Log-Namen wiederholen.
+  8. Nach jedem Teil: `dir /a C:\EE-Test\scratch` und `findstr /c:"Link check" /c:"installation stops" /c:"PrepareToInstall" C:\EE-Test\logs\TP-80*.log`.
+  9. Nur Weg B, nach (b): die Dauer der Prüfung aus der Zeile `Link check: … examined in <ms> ms`
+     notieren (mit echten Daten etwa 30 Ordner und 240 Dateien je Spiel).
 - **Erwartetes Ergebnis:**
   - (a) Rotes Fehlersymbol und „Das Setup hat angehalten, bevor es etwas geändert hat. Es läuft mit
     Administratorrechten, und die Ordner Data und Users des Spiels kann jeder Benutzer ändern. Dort
-    hat es Links (Junctions oder symbolische Verknüpfungen) oder nicht lesbare Ordner gefunden, …“,
-    darunter `C:\Program Files (x86)\Empire Earth\Empire Earth\Data\Movies`, dann der Rat (Link
-    entfernen oder durch einen normalen Ordner ersetzen, oder „Installation nur für Sie“) und Inno
+    hat es Links (Junctions, symbolische oder feste Verknüpfungen) oder nicht prüfbare Ordner und
+    Dateien gefunden, …“, darunter `C:\Program Files (x86)\Empire Earth\Empire Earth\Data\Movies`,
+    dann der Rat (Link entfernen oder durch einen normalen Ordner bzw. eine normale Datei ersetzen,
+    oder „Installation nur für Sie“) und Inno
     Setups Zeile „Das Setup kann nicht fortfahren …“. Der ganze Text ist lesbar (nichts
     abgeschnitten). `C:\EE-Test\scratch` ist leer, `Data\Movies.orig` unverändert.
   - (b) Nach „Zurück“ und „Installieren“ läuft die Installation ohne Meldung durch; die Filme liegen
@@ -2839,14 +2852,19 @@ nur mit `rmdir <Link>` entfernen (ohne `/s`): Das löscht den Link, nicht den Or
   - (e) Beide Läufe installieren (Exit-Code `0`); die Prüfung läuft im Benutzermodus nicht, die
     Dateien landen im eigenen Ordner, auf den die Junction zeigt (der Benutzer schreibt nur in seine
     eigenen Ordner).
+  - (f) Gelingt `mklink /H` nicht (Windows 10/11 können das Anlegen einschränken), Befund notieren,
+    der Teil endet. Sonst: `TP-80f` Exit-Code `7`, gefunden wird
+    `…\Empire Earth\Users\Spieler\tp80f.ini`; `TP-80f2` installiert (Exit-Code `0`), und
+    `%USERPROFILE%\tp80f.txt` enthält weiter nur `geheim`.
 - **Log-Hinweis:** (a) und (c) `Link check: C:\Program Files (x86)\Empire Earth\Empire Earth\Data\Movies
-  is a junction or symbolic link (reparse point)`, `Link check: <n> folders below Data and Users of
-  C:\Program Files (x86)\Empire Earth examined in <ms> ms, 1 links or unreadable folders found, 0 files
-  with a reparse point (allowed)`, `The installation stops before anything is changed (message
-  LinkInGameFolder on the Preparing to install page; silent installation: exit code 7)` und Inno
-  Setups `PrepareToInstall failed: …`; (b) danach ein zweites `Link check: …, 0 links or unreadable
-  folders found, …` und `Installation process succeeded.`; (d) wie (c) mit `…\Users\Spieler`; (e)
-  `Link check skipped: not the administrative install mode`.
+  is a junction or symbolic link (reparse point)`, `Link check: <n> folders and <m> files below Data
+  and Users of C:\Program Files (x86)\Empire Earth examined in <ms> ms, 1 links or unreadable folders
+  or files found, 0 files with a reparse point (allowed)`, `The installation stops before anything is
+  changed (message LinkInGameFolder on the Preparing to install page; silent installation: exit code
+  7)` und Inno Setups `PrepareToInstall failed: …`; (b) danach ein zweites `Link check: …, 0 links or
+  unreadable folders or files found, …` und `Installation process succeeded.`; (d) wie (c) mit
+  `…\Users\Spieler`; (e) `Link check skipped: not the administrative install mode`; (f) `Link check:
+  …\Users\Spieler\tp80f.ini is a hard link (the file has 2 names)`, in `TP-80f2` keine solche Zeile.
 
 ## 9. Forum-Testfälle §8
 

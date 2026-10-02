@@ -11,6 +11,9 @@
   Context); both game folders that exist are checked, also when AoC is not selected
   (`[InstallDelete]` has no component for the AoC folder); a folder that cannot be listed counts as
   a finding; a file with a reparse point does not; the message names at most three folders
+- Revised: 2026-10-02, security review of v2: a file below `Data` or `Users` with more than one name
+  (a hard link) is a finding, and so is a file whose number of names cannot be read (point 1, point
+  5, Implementation "Hard links")
 
 ## Context
 
@@ -58,7 +61,15 @@ e.g. the `.config` file of a .NET service. The risk existed since 1.0.
    listed is a finding too: what is in it cannot be checked. Hidden folders are checked as well.
    Files with a reparse point are counted in the log but are no finding: Windows compression (WOF)
    and deduplication mark files the same way, and the setup replaces a file instead of writing
-   through it. `{app}` and the game folders themselves are chosen by the administrator and are not
+   through it. A **file with more than one name (a hard link)** is a finding, and so is a file
+   whose number of names cannot be read: a hard link is no reparse point, a standard user can make
+   one in `Data` or `Users` to any file of the same volume (on Windows 7 SP1 and 8.1 without write
+   access to it, through `NtSetInformationFile(FileLinkInformation)`), and the external permission
+   entries read such a file and write what they read into a new file in `Data` or `Users` that
+   every user can read and change, e.g. a copy of `C:\Windows\Panther\Unattend.xml`. Every file is
+   checked, not only `*.cfg`, `*.config`, `*.conf` and `*.ini`: the wildcards of the external
+   entries also match 8.3 short names (`x.cfgold` is `X~1.CFG`), and a later entry must not open the
+   gap again. `{app}` and the game folders themselves are chosen by the administrator and are not
    checked; nor are their other folders (`redist`, `Manual`, ...), which standard users cannot write.
 2. **Stop with a clear message.** If one is found, `PrepareToInstall` returns a localized message
    (`LinkInGameFolder`, English, German, French): that nothing has been changed, why (the setup runs
@@ -85,9 +96,10 @@ e.g. the `.config` file of a .NET service. The risk existed since 1.0.
    - a link created between the check and the writes (a race) is not caught;
    - the uninstaller is not covered: it deletes the files the installation recorded, also through a
      link created after the installation;
-   - a link to a file is not a finding (creating one needs the symbolic link privilege:
+   - a symbolic link to a file is not a finding (creating one needs the symbolic link privilege:
      administrators, or Developer Mode on Windows 10 and 11); the setup replaces such a file, an
-     external permission entry reads the file it points to;
+     external permission entry reads the file it points to (hard links, which need no privilege,
+     are findings, point 1);
    - a user or portable setup that someone runs as administrator in a folder other users can write
      to, and an installation folder that the administrator chose in a place where all users can
      write (e.g. a new folder directly below `C:\`), are not covered.
@@ -144,7 +156,8 @@ test case TP-80 and this documentation.
   list is `FormatFindingList` of ADR 0007. Log: one line per finding (`Link check: <folder> is a
   junction or symbolic link (reparse point)` or `... cannot be listed, so the folders in it cannot
   be checked`), then `Link check: <n> folders below Data and Users of <app> examined in <ms> ms,
-  <k> links or unreadable folders found, <f> files with a reparse point (allowed)` and `The
+  <k> links or unreadable folders found, <f> files with a reparse point (allowed)` (since the hard
+  links: `<n> folders and <m> files ...`, see below) and `The
   installation stops before anything is changed (message LinkInGameFolder on the Preparing to
   install page; silent installation: exit code 7)`; Inno Setup adds `PrepareToInstall failed: ...`.
 - **Tests:** 39 unit tests: the scope cases of point 3 and their negatives, `IsReparsePoint` of a
@@ -173,6 +186,24 @@ test case TP-80 and this documentation.
   and the installation succeeds; English and French: Cancel ends without a question, exit code 7.
   Wine does not report a link to a file or a link whose target is missing (on Windows the walk sees
   a junction whose target is missing, see the unit test).
+- **Hard links** (security review of v2, `434b573`): `GetFileLinkCount` (`utils.iss`) opens a file
+  with `CreateFileW` for `FILE_READ_ATTRIBUTES` only (all sharing modes, so a program that holds the
+  file open does not prevent it; `FILE_FLAG_OPEN_REPARSE_POINT`, so a symbolic link is not
+  followed) and returns `nNumberOfLinks` of `GetFileInformationByHandle`, or -1.
+  `FindLinksInGameFolder` calls it for every file below `Data` and `Users` and counts the files; a
+  result other than 1 is a finding (`Link check: <file> is a hard link (the file has <n> names)`,
+  or `... the number of names of <file> cannot be read ...`), and the summary line reads `Link
+  check: <n> folders and <m> files below Data and Users of <app> examined in <ms> ms, <k> links or
+  unreadable folders or files found, <f> files with a reparse point (allowed)`. `LinkInGameFolder`
+  names hard links and files in English, German and French. Unit tests (596 in all, also under
+  Wine, which makes hard links with `CreateHardLinkW`): the number of names of a file, of a missing
+  path and of a folder (-1), a hard link in `Users\Bob` found and one in `redist` not, the file
+  they point to unchanged, nothing found after they are deleted, the number of files examined. Wine
+  probe (as above, hard links made with `ln` from outside): a hard link in `Users\Bob` and two in
+  `Data\Textures` (a `.cfg` and a `.tga`) end with exit code 7, nothing installed; one in `redist`
+  and one in user mode (`/CURRENTUSER`) do not block; the wizard in German, French and English with
+  four folder links and a hard link below `Program Files (x86)`: the message is complete, as before
+  Inno Setup's own last line is cut off with three long AoC paths.
 - **Real-data comparison** (local only, nothing committed): EE and NeoEE built from the reconstructed
   1.7.2 data at `5b840a9` against the S-WP8 builds at `1e1e8ee`: only the compiled code (EE 170389 ->
   175277 bytes, NeoEE 175116 -> 180004 bytes) and the 3 new messages (`LinkInGameFolder` in
@@ -197,3 +228,11 @@ test case TP-80 and this documentation.
 - **Stop at `ssInstall` instead of `PrepareToInstall`:** the setup cannot stop cleanly there.
 - **Report files with a reparse point as well:** would block players whose game folder Windows
   compressed (WOF), for little gain: the setup does not write through a link to a file.
+- **Check only the files that match the external permission entries for hard links:** fewer files
+  to open, but the wildcards also match 8.3 short names, and a new external entry would need the
+  same change; opening every file of `Data` and `Users` costs a few milliseconds with the official
+  data (about 480 files).
+- **Narrow the external permission entries** (known files, no `recursesubdirs`): the robust fix of
+  their part of the risk, but it changes which files get the permissions, needs a list of every
+  configuration file the game and the mods write, and is a change of behaviour for the real-data
+  comparison; it stays a follow-up. The check covers the gap until then.

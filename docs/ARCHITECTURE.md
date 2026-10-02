@@ -111,7 +111,8 @@ NextButtonClick(wpReady)
                                (NextDownloadAction decides; a stop ends all requests)
 PrepareToInstall (S-WP11, done; admin mode only, user and portable: a log line)
   Data, Users and every folder below them, both game folders that exist: a junction, a symbolic
-  link or a folder that cannot be listed? -> stop with LinkInGameFolder on the Preparing page,
+  link or a folder that cannot be listed, a file with more than one name (hard link) or one whose
+  number of names cannot be read? -> stop with LinkInGameFolder on the Preparing page,
   nothing changed yet (Back: Ready page, Install runs the downloads and the check again;
   silent: exit code 7)
 CurStepChanged(ssInstall)
@@ -180,7 +181,7 @@ finds a link or cannot examine a folder (S-WP11, [ADR 0009](adr/0009-no-installa
 | Verification at `ssInstall` | pin mismatch, move failed | file discarded, reported, local version installed |
 | `[Files]` | file locked, disk full | Inno Setup's own retry/abort dialog (unchanged) |
 | NeoEE CD keys | `authtools.dll` missing, network, VM, ... | specific `CDKeys*` message, installation completes (repair = run the setup again) |
-| Link check before an elevated installation (S-WP11, done) | a junction or symbolic link at or below `Data` or `Users` (the folders of the players included), a folder there that cannot be listed, an exception during the check | stop on the "Preparing to install" page with `LinkInGameFolder` (remove the link or replace it by a normal folder, or install for the own account only); silent: exit code 7, every folder in the log; nothing changed. The only check that fails closed: a folder it cannot examine counts as a finding |
+| Link check before an elevated installation (S-WP11, done) | a junction or symbolic link at or below `Data` or `Users` (the folders of the players included), a folder there that cannot be listed, a file there with more than one name (hard link) or whose number of names cannot be read, an exception during the check | stop on the "Preparing to install" page with `LinkInGameFolder` (remove the link or replace it by a normal folder or file, or install for the own account only); silent: exit code 7, every folder in the log; nothing changed. The only check that fails closed: a folder it cannot examine counts as a finding |
 | Deleting `install.ini`/`files.sha256` at `ssInstall` (S-WP6/7) | file held open by another program without `FILE_SHARE_DELETE`, or read-only | logged with the cause; this run writes no `Empire Earth Community: ContractVersion`, so the launcher reports "Unknown" instead of trusting an old manifest (portable: not detectable, logged) |
 | Recording a destination (S-WP7) | exception in `RecordInstalledFile` (`AfterInstall`) | caught and counted, never escapes (it would abort the installation); no manifest in this run |
 | Hashing one file (S-WP7) | read error (file briefly locked) | two retries after 300 ms; still failing: file and cause logged, no manifest |
@@ -211,8 +212,9 @@ installation loop (an exception in `AfterInstall` would abort the installation, 
   the time, every question and its answer; S-WP8, done), the screen
   (`Screen: <w> x <h> pixels (primary screen, SM_CXSCREEN x SM_CYSCREEN), <dpi> DPI (LOGPIXELSX,
   <p> % scaling), game window <w> x <h>`, on every run; S-WP8, done), the link check in `admin` mode
-  (one line per finding, then `Link check: <n> folders below Data and Users of <app> examined in
-  <ms> ms, <k> links or unreadable folders found, <f> files with a reparse point (allowed)`; in user
+  (one line per finding, then `Link check: <n> folders and <m> files below Data and Users of <app>
+  examined in <ms> ms, <k> links or unreadable folders or files found, <f> files with a reparse point
+  (allowed)`; in user
   and portable mode `Link check skipped: not the administrative install mode`; S-WP11, done), the manifest (S-WP7: the number of recorded destinations, every hashing
   attempt that failed with its exception, every installed file that is missing, a path refused or
   not ASCII, `Manifest: <n> files, <MB> MB, <ms> ms, <MB/s> MB/s`, why no manifest was written), the
@@ -247,7 +249,7 @@ installation loop (an exception in `AfterInstall` would abort the installation, 
 
 | Level | What | Where | Command |
 |---|---|---|---|
-| Unit | Pure `[Code]` helpers (`utils.iss`): strings, URLs, download policy, `NextDownloadAction`, compatibility flags, legacy compatibility values, the Windows versions of their cleanup and its exception for `compatibility_legacy`, the install mode name, the text of `install.ini`, `IsAsciiText` and the rule of the contract version value (S-WP6), manifest path (outside, `..`, `:` refused), exclusions, manifest lines, ordinal comparison, merge sort with 2000 paths in mixed case and duplicates, `[MissingAfterInstall]`, the list of the notice, the log line (S-WP7), the clamp of the game window (equal to the old inline code for every size from -10 to 4000), the low-screen predicate and the screen log line, folder normalization, `IsSameOrInside` (`C:\Sierra2` is not inside `C:\Sierra`), the "Installed From" folder, the regedit names of HKLM keys, the uninstall entry rule (community AppIds and publishers, Empire Earth II/III) and the finding list (S-WP8), which folders the link check examines (`IsLinkGuardedFolder`: `Data`, `Users` and below, not `Data2`, `redist`, `..`; S-WP11) | `ci/tests/unit_tests.iss` (tiny setup, no network) | `ci/run_unit_tests.ps1`; Linux: `ISCC=... sh ci/tests/run_unit_tests.sh` |
+| Unit | Pure `[Code]` helpers (`utils.iss`): strings, URLs, download policy, `NextDownloadAction`, compatibility flags, legacy compatibility values, the Windows versions of their cleanup and its exception for `compatibility_legacy`, the install mode name, the text of `install.ini`, `IsAsciiText` and the rule of the contract version value (S-WP6), manifest path (outside, `..`, `:` refused), exclusions, manifest lines, ordinal comparison, merge sort with 2000 paths in mixed case and duplicates, `[MissingAfterInstall]`, the list of the notice, the log line (S-WP7), the clamp of the game window (equal to the old inline code for every size from -10 to 4000), the low-screen predicate and the screen log line, folder normalization, `IsSameOrInside` (`C:\Sierra2` is not inside `C:\Sierra`), the "Installed From" folder, the regedit names of HKLM keys, the uninstall entry rule (community AppIds and publishers, Empire Earth II/III) and the finding list (S-WP8), which folders the link check examines (`IsLinkGuardedFolder`: `Data`, `Users` and below, not `Data2`, `redist`, `..`; S-WP11), the number of names of a file (`GetFileLinkCount`) and the walk with hard links (`CreateHardLinkW`, also under Wine) | `ci/tests/unit_tests.iss` (tiny setup, no network) | `ci/run_unit_tests.ps1`; Linux: `ISCC=... sh ci/tests/run_unit_tests.sh` |
 | Unit (file) | Writing `install.ini` with `ReplaceStateFile` in `{tmp}` (bytes: no BOM, ASCII, CRLF; over an existing file and a leftover `.tmp`; `RenameFile` fails over an existing file and works after deleting it; a non-ASCII text, a read-only target and a folder of that name leave the old state and no `.tmp`; S-WP6) and the manifest with `install.ini` for files the test creates, one of them deleted (no BOM, only LF, order, hashes equal to `GetSHA256OfFile`, each file once, no `.tmp`, `[MissingAfterInstall]`), a verified online file next to a hidden one, a file held open without sharing (two retries of 300 ms, no manifest), a path that is not ASCII, an incomplete recording, nothing recorded (S-WP7); the walk of the link check over a tree in `{tmp}` (folders examined, hidden ones too, none found, a missing game folder; S-WP11) | `ci/tests/unit_tests.iss` | as above |
 | Unit (run time) | Setting the TLS protocol option on a `WinHttpRequest` object without a request (proves the run-time call, not only its compilation); on Windows only, junctions made with `cmd /c mklink /J` in `{tmp}`: found, not entered, the target unchanged, also a junction whose target is gone (S-WP11; Wine cannot make junctions, there it is a `SKIP` line and the result line says `<n> tests, <s> skipped`) | `ci/tests/unit_tests.iss` | as above |
 | Build | All four variants compile against placeholder assets, output names prove the variant | `ci/build.ps1 -Placeholders`; locally `verify_setup.sh` | CI workflow |
@@ -279,14 +281,17 @@ plan.
 - **Links in the folders all users can write to** (`admin` mode grants `authusers-modify` on `Data`
   and `Users`): before an elevated installation (`PrepareToInstall`, before anything is changed) the
   setup refuses to run if `Data`, `Users` or any folder below them in either game folder is a
-  junction or symbolic link, or cannot be listed, so that it does not write through it
+  junction or symbolic link, or cannot be listed, so that it does not write through it, and if a
+  file there has more than one name (a hard link, which needs no privilege on Windows 7 and 8.1 and
+  through which the external permission entries below would copy a file from outside into one every
+  user can read), or its number of names cannot be read
   ([ADR 0009](adr/0009-no-installation-through-links.md), S-WP11, done). The folders of the players
   below `Users` are included: the external `[Files]` entries that set the permissions of `*.cfg`,
   `*.config`, `*.conf` and `*.ini` copy such files in every folder that is not hidden onto
   themselves and give every user modify rights on them, and Inno Setup 6.2.2 follows links there.
   Residual risks: a link created between the check and the writes (a race); the uninstaller, which
-  deletes the recorded files also through a link created later; a link to a file (needs the symbolic
-  link privilege; the setup replaces such a file); a user or portable setup run as administrator,
+  deletes the recorded files also through a link created later; a symbolic link to a file (needs the
+  symbolic link privilege; the setup replaces such a file); a user or portable setup run as administrator,
   and an installation folder the administrator chose where all users can write. The complete fix
   would be RedirectionGuard of Inno Setup 6.7 for Windows 10 22H2 and 11
   ([ADR 0002](adr/0002-stay-on-inno-setup-6.2.2.md), security assessment).

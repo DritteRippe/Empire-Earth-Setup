@@ -362,8 +362,8 @@ setup version stays 1.7.2 until the release.
   machine: as a standard user replace `Data\Movies` by a junction (`mklink /J`), update as
   administrator with over-the-shoulder elevation: the setup stops on "Preparing to install", the
   folder the junction points to stays empty, after removing the link "Back" and "Install" run the
-  installation; silent with exit code 7; a junction in the profile folder of a player stops it too;
-  the user mode is not checked.
+  installation; silent with exit code 7; a junction in the profile folder of a player stops it too,
+  and so does a hard link there (`mklink /H`, part f); the user mode is not checked.
 - `docs/TEST-PLAN.de.md`, build type A+: a placeholder build with the official AppIds read from the
   tester's own uninstall key (`ci\build.ps1 -Placeholders -EEAppID <GUID> -NeoEEAppID <GUID>
   -TestID 1 -OutputDir out\aplus`), so that the update over the official setup 1.7.2 can be tested
@@ -629,21 +629,26 @@ setup version stays 1.7.2 until the release.
   permissions of `*.cfg`, `*.config`, `*.conf` and `*.ini`: they copy every such file in every
   folder below the game folders onto itself and give every user modify rights on it, and Inno Setup
   6.2.2 follows links there, so a junction in the profile folder of a player could have given every
-  user write access to the configuration files of another program. Since setup v2, in the
+  user write access to the configuration files of another program; through a hard link (no
+  privilege needed on Windows 7 and 8.1) the same entries could copy a file from outside the game
+  that only administrators may read into one every user can read. Since setup v2, in the
   administrative install mode, `PrepareToInstall` looks at `Data`, `Users` and every folder below
   them in both game folders that exist (hidden ones too) before anything is changed. A folder that
-  is a junction or symbolic link (`FILE_ATTRIBUTE_REPARSE_POINT`), or that cannot be listed, stops
-  the setup with the new message `LinkInGameFolder` (English, German, French; 112 custom messages)
-  on the "Preparing to install" page: nothing changed, the folders (at most three, all in the log),
-  and the remedy (remove the link or replace it by a normal folder, then "Back" and "Install" or run
-  the setup again; or "Install for me only"). Silent installations end with exit code 7. The log
-  names every finding and `Link check: <n> folders below Data and Users of <app> examined in <ms>
-  ms, ...`. Players who moved a folder there with a link on purpose have to undo it before an
-  update. Not covered: a link created during the installation, the uninstaller, links to files,
-  user and portable setups run as administrator, an installation folder all users can write to;
-  RedirectionGuard of Inno Setup 6.7 would be the complete fix (ADR 0002). `IsReparsePoint` moved
-  from `randommaps.iss` to `utils.iss`; the new helpers `IsLinkGuardedFolder` and
-  `FindLinksInGameFolder` have 39 unit tests (582 in all), on Windows also with real junctions.
+  is a junction or symbolic link (`FILE_ATTRIBUTE_REPARSE_POINT`), or that cannot be listed, and a
+  file there with more than one name (a hard link, `nNumberOfLinks` of
+  `GetFileInformationByHandle`), or whose number of names cannot be read, stop the setup with the
+  new message `LinkInGameFolder` (English, German, French; 112 custom messages) on the "Preparing
+  to install" page: nothing changed, the folders and files (at most three, all in the log), and the
+  remedy (remove the link or replace it by a normal folder or file, then "Back" and "Install" or
+  run the setup again; or "Install for me only"). Silent installations end with exit code 7. The
+  log names every finding and `Link check: <n> folders and <m> files below Data and Users of <app>
+  examined in <ms> ms, ...`. Players who moved a folder there with a link on purpose have to undo
+  it before an update. Not covered: a link created during the installation, the uninstaller,
+  symbolic links to files, user and portable setups run as administrator, an installation folder
+  all users can write to; RedirectionGuard of Inno Setup 6.7 would be the complete fix (ADR 0002).
+  `IsReparsePoint` moved from `randommaps.iss` to `utils.iss`; the new helpers
+  `IsLinkGuardedFolder`, `GetFileLinkCount` and `FindLinksInGameFolder` have 53 unit tests (596 in
+  all), on Windows also with real junctions, everywhere with real hard links.
 - Update check: HTTPS only (it used to retry over plain HTTP after any error) and only HTTP 200
   answers count. The download link sent by the server is only opened if it is an https URL of
   empireearth.eu, neoee.net or github.com/EE-modders, otherwise https://empireearth.eu/download
