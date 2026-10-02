@@ -40,18 +40,14 @@ CreateAppDir=no
 // Inno Setup's Pascal Script)
 function SetFileAttributes(lpFileName: String; dwFileAttributes: Cardinal): BOOL;
   external 'SetFileAttributesW@kernel32.dll stdcall';
-// For the file-level test of the manifest: a file held open without sharing, as a virus scanner may
-// hold a file it checks
-function CreateFile(lpFileName: String; dwDesiredAccess, dwShareMode, lpSecurityAttributes,
-  dwCreationDisposition, dwFlagsAndAttributes, hTemplateFile: Cardinal): Cardinal;
-  external 'CreateFileW@kernel32.dll stdcall';
-function CloseHandle(hObject: Cardinal): BOOL;
-  external 'CloseHandle@kernel32.dll stdcall';
+// CreateFile and CloseHandle are declared in utils.iss (the link check uses them); the file-level
+// test of the manifest uses them for a file held open without sharing, as a virus scanner may hold a
+// file it checks. A hard link for the test of the link check:
+function CreateHardLink(lpFileName, lpExistingFileName: String; lpSecurityAttributes: Cardinal): BOOL;
+  external 'CreateHardLinkW@kernel32.dll stdcall';
 
 const
   GENERIC_READ = $80000000;
-  OPEN_EXISTING = 3;
-  INVALID_HANDLE_VALUE = $FFFFFFFF;
 
 var
   Results: TStringList;
@@ -1448,7 +1444,7 @@ end;
 procedure CheckFindLinksWithJunctions(const Game, Scratch: String; const Findings: TStringList);
 var
   Found, Gone: String;
-  Folders, ReparseFiles, I: Integer;
+  Folders, Files, ReparseFiles, I: Integer;
 begin
   RemoveDir(Game + '\Data\Movies');
   CheckBool('mklink /J Data\Movies', MakeJunction(Game + '\Data\Movies', Scratch), True);
@@ -1457,8 +1453,9 @@ begin
   CheckBool('IsReparsePoint junction', IsReparsePoint(Game + '\Data\Movies'), True);
   Findings.Clear;
   Folders := 0;
+  Files := 0;
   ReparseFiles := 0;
-  FindLinksInGameFolder(Game, '', Findings, Folders, ReparseFiles);
+  FindLinksInGameFolder(Game, '', Findings, Folders, Files, ReparseFiles);
   Found := '';
   for I := 0 to Findings.Count - 1 do
     Found := Found + '[' + Findings[I] + ']';
@@ -1477,8 +1474,9 @@ begin
   CheckBool('target of Data\Sounds deleted', RemoveDir(Gone) and not DirExists(Gone), True);
   Findings.Clear;
   Folders := 0;
+  Files := 0;
   ReparseFiles := 0;
-  FindLinksInGameFolder(Game, '', Findings, Folders, ReparseFiles);
+  FindLinksInGameFolder(Game, '', Findings, Folders, Files, ReparseFiles);
   Found := '';
   for I := 0 to Findings.Count - 1 do
     Found := Found + '[' + Findings[I] + ']';
@@ -1486,13 +1484,47 @@ begin
   RemoveDir(Game + '\Data\Sounds');
 end;
 
-// The walk of the link check over a folder tree in {tmp}: without links, then (Windows only) with
-// junctions (CheckFindLinksWithJunctions)
+// The walk of TestFindLinksInGameFolder with hard links: one in the folder of a player (the
+// external permission entries would copy what it points to into a file every user can read), one
+// in redist (not examined); the file they point to keeps its content. After the links are deleted
+// the walk finds nothing.
+procedure CheckFindLinksWithHardLinks(const Game, Scratch: String; const Findings: TStringList);
+var
+  Found: String;
+  Folders, Files, ReparseFiles, I: Integer;
+  Content: AnsiString;
+begin
+  Check('GetFileLinkCount of a file with one name', IntToStr(GetFileLinkCount(Scratch + '\Deep\target.txt')), '1');
+  CheckBool('hard link Users\Bob\hard.ini', CreateHardLink(Game + '\Users\Bob\hard.ini', Scratch + '\Deep\target.txt', 0), True);
+  CheckBool('hard link redist\hard.ini', CreateHardLink(Game + '\redist\hard.ini', Scratch + '\Deep\target.txt', 0), True);
+  Check('GetFileLinkCount of a file with three names', IntToStr(GetFileLinkCount(Scratch + '\Deep\target.txt')), '3');
+  Check('GetFileLinkCount of the hard link', IntToStr(GetFileLinkCount(Game + '\Users\Bob\hard.ini')), '3');
+  Findings.Clear;
+  Folders := 0;
+  Files := 0;
+  ReparseFiles := 0;
+  FindLinksInGameFolder(Game, '', Findings, Folders, Files, ReparseFiles);
+  Found := '';
+  for I := 0 to Findings.Count - 1 do
+    Found := Found + '[' + Findings[I] + ']';
+  Check('FindLinksInGameFolder with hard links: findings', Found, '[' + Game + '\Users\Bob\hard.ini]');
+  Check('FindLinksInGameFolder with hard links: folders and files examined', IntToStr(Folders) + ' ' + IntToStr(Files), '12 5');
+  CheckBool('FindLinksInGameFolder with hard links: target unchanged',
+    LoadStringFromFile(Scratch + '\Deep\target.txt', Content) and (Content = 'scratch'), True);
+  CheckBool('hard links deleted', DeleteFile(Game + '\Users\Bob\hard.ini') and DeleteFile(Game + '\redist\hard.ini'), True);
+  Check('GetFileLinkCount after the hard links are deleted', IntToStr(GetFileLinkCount(Scratch + '\Deep\target.txt')), '1');
+  Findings.Clear;
+  FindLinksInGameFolder(Game, '', Findings, Folders, Files, ReparseFiles);
+  Check('FindLinksInGameFolder after the hard links are deleted: findings', IntToStr(Findings.Count), '0');
+end;
+
+// The walk of the link check over a folder tree in {tmp}: without links, with hard links
+// (CheckFindLinksWithHardLinks), then (Windows only) with junctions (CheckFindLinksWithJunctions)
 procedure TestFindLinksInGameFolder;
 var
   Game, Scratch: String;
   Findings: TStringList;
-  Folders, ReparseFiles: Integer;
+  Folders, Files, ReparseFiles: Integer;
 begin
   Game := ExpandConstant('{tmp}\link_check\Empire Earth');
   Scratch := ExpandConstant('{tmp}\link_scratch');
@@ -1513,21 +1545,29 @@ begin
   Findings := TStringList.Create;
   try
     Folders := 0;
+    Files := 0;
     ReparseFiles := 0;
-    FindLinksInGameFolder(Game, '', Findings, Folders, ReparseFiles);
+    FindLinksInGameFolder(Game, '', Findings, Folders, Files, ReparseFiles);
     Check('FindLinksInGameFolder without links: findings', IntToStr(Findings.Count), '0');
     // Data, Textures, Random Map Scripts, Common, Movies, Saved Games, Hidden (hidden folders too),
     // Users, default, Civilizations, Bob, Saved; not the game folder, redist, win32, Manual
     Check('FindLinksInGameFolder without links: folders examined', IntToStr(Folders), '12');
+    // a.tga, x.rms, c.civ, bob.cfg; not Empire Earth.exe, x.dll, manual.pdf
+    Check('FindLinksInGameFolder without links: files examined', IntToStr(Files), '4');
     Check('FindLinksInGameFolder without links: files with a reparse point', IntToStr(ReparseFiles), '0');
     CheckBool('IsReparsePoint folder', IsReparsePoint(Game + '\Data\Movies'), False);
     CheckBool('IsReparsePoint file', IsReparsePoint(Game + '\Empire Earth.exe'), False);
     CheckBool('IsReparsePoint missing', IsReparsePoint(Game + '\Data\Missing'), False);
+    Check('GetFileLinkCount missing', IntToStr(GetFileLinkCount(Game + '\Data\Missing')), '-1');
+    Check('GetFileLinkCount folder', IntToStr(GetFileLinkCount(Game + '\Data\Movies')), '-1');
 
     // A game folder that does not exist (AoC not installed): nothing examined, nothing found
     Folders := 0;
-    FindLinksInGameFolder(ExpandConstant('{tmp}\link_check\Empire Earth - The Art of Conquest'), '', Findings, Folders, ReparseFiles);
-    Check('FindLinksInGameFolder missing game folder', IntToStr(Findings.Count) + ' ' + IntToStr(Folders), '0 0');
+    Files := 0;
+    FindLinksInGameFolder(ExpandConstant('{tmp}\link_check\Empire Earth - The Art of Conquest'), '', Findings, Folders, Files, ReparseFiles);
+    Check('FindLinksInGameFolder missing game folder', IntToStr(Findings.Count) + ' ' + IntToStr(Folders) + ' ' + IntToStr(Files), '0 0 0');
+
+    CheckFindLinksWithHardLinks(Game, Scratch, Findings);
 
     // Junctions: Windows only
     if RegKeyExists(HKCU, 'Software\Wine') then

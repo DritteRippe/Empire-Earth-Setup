@@ -1276,6 +1276,58 @@ begin
   end;
 end;
 
+// For GetFileLinkCount: BY_HANDLE_FILE_INFORMATION of kernel32 (every FILETIME as its two DWORDs)
+type
+  TByHandleFileInformation = record
+    dwFileAttributes: DWORD;
+    ftCreationTimeLow, ftCreationTimeHigh: DWORD;
+    ftLastAccessTimeLow, ftLastAccessTimeHigh: DWORD;
+    ftLastWriteTimeLow, ftLastWriteTimeHigh: DWORD;
+    dwVolumeSerialNumber: DWORD;
+    nFileSizeHigh, nFileSizeLow: DWORD;
+    nNumberOfLinks: DWORD;
+    nFileIndexHigh, nFileIndexLow: DWORD;
+  end;
+
+const
+  FILE_READ_ATTRIBUTES = $80;
+  FILE_SHARE_READ = 1;
+  FILE_SHARE_WRITE = 2;
+  FILE_SHARE_DELETE = 4;
+  OPEN_EXISTING = 3;
+  FILE_FLAG_OPEN_REPARSE_POINT = $200000;
+  INVALID_HANDLE_VALUE = $FFFFFFFF;
+
+function CreateFile(lpFileName: String; dwDesiredAccess, dwShareMode, lpSecurityAttributes,
+  dwCreationDisposition, dwFlagsAndAttributes, hTemplateFile: Cardinal): Cardinal;
+  external 'CreateFileW@kernel32.dll stdcall';
+function CloseHandle(hObject: Cardinal): BOOL;
+  external 'CloseHandle@kernel32.dll stdcall';
+function GetFileInformationByHandle(hFile: Cardinal; var lpFileInformation: TByHandleFileInformation): BOOL;
+  external 'GetFileInformationByHandle@kernel32.dll stdcall';
+
+// Number of names of the file Path (more than 1: it is a hard link, another name of the same data
+// somewhere on the same volume), or -1 if the file cannot be opened or its information cannot be
+// read. The file is opened only to read its attributes, which no sharing mode of another program
+// prevents, and a symbolic link is opened itself, not followed (FILE_FLAG_OPEN_REPARSE_POINT).
+function GetFileLinkCount(const Path: String): Integer;
+var
+  Handle: Cardinal;
+  Info: TByHandleFileInformation;
+begin
+  Result := -1;
+  Handle := CreateFile(Path, FILE_READ_ATTRIBUTES, FILE_SHARE_READ or FILE_SHARE_WRITE or FILE_SHARE_DELETE, 0,
+    OPEN_EXISTING, FILE_FLAG_OPEN_REPARSE_POINT, 0);
+  if Handle = INVALID_HANDLE_VALUE then
+    Exit;
+  try
+    if GetFileInformationByHandle(Handle, Info) then
+      Result := Info.nNumberOfLinks;
+  finally
+    CloseHandle(Handle);
+  end;
+end;
+
 // True if the folder RelPath below a game folder is one the link check examines: Data, Users and
 // every folder below them (ADR 0009, revised). In administrative install mode [Dirs] gives every
 // user modify rights on Data and Users, and the elevated setup writes below them: [Files] (Data,
@@ -1308,14 +1360,20 @@ end;
 // is not examined, else '<folder>\'). A folder with a reparse point (FILE_ATTRIBUTE_REPARSE_POINT of
 // FindFirst: a junction, a symbolic link to a folder, a mount point) is a finding and is not
 // entered, so the walk never leaves the game folder and cannot loop. A folder that exists but cannot
-// be listed is a finding as well: what is in it cannot be checked. Every finding is added to
-// Findings as a full path and logged with its reason. Folders counts the folders examined,
-// ReparseFiles the files with a reparse point below them (a file compressed by Windows or a link to
-// a file: no finding, ADR 0009). Hidden folders are examined as well.
-procedure FindLinksInGameFolder(const GameDir, RelDir: String; const Findings: TStringList; var Folders, ReparseFiles: Integer);
+// be listed is a finding as well: what is in it cannot be checked. A file with more than one name
+// (a hard link, GetFileLinkCount) is a finding, and so is a file whose number of names cannot be
+// read: the external [Files] entries that set the permissions of *.cfg, *.config, *.conf and *.ini
+// read such a file and write what they read into a new file every user can read and change, and a
+// standard user can make a hard link to a file he cannot read himself (Windows 7 and 8.1: without
+// any privilege). Every finding is added to Findings as a full path and logged with its reason.
+// Folders counts the folders examined, Files the files in them, ReparseFiles those with a reparse
+// point (a file compressed by Windows or a symbolic link to a file: no finding, ADR 0009). Hidden
+// folders and files are examined as well.
+procedure FindLinksInGameFolder(const GameDir, RelDir: String; const Findings: TStringList; var Folders, Files, ReparseFiles: Integer);
 var
   FindRec: TFindRec;
   Folder, RelPath: String;
+  Links: Integer;
 begin
   Folder := RemoveBackslashUnlessRoot(GameDir + '\' + RelDir);
   if not FindFirst(GameDir + '\' + RelDir + '*', FindRec) then
@@ -1336,8 +1394,20 @@ begin
         begin
           if (FindRec.Attributes and FILE_ATTRIBUTE_DIRECTORY) = 0 then
           begin
+            Files := Files + 1;
             if (FindRec.Attributes and FILE_ATTRIBUTE_REPARSE_POINT) <> 0 then
               ReparseFiles := ReparseFiles + 1;
+            Links := GetFileLinkCount(GameDir + '\' + RelPath);
+            if Links > 1 then
+            begin
+              Log('Link check: ' + GameDir + '\' + RelPath + ' is a hard link (the file has ' + IntToStr(Links) + ' names)');
+              Findings.Add(GameDir + '\' + RelPath);
+            end
+            else if Links < 1 then
+            begin
+              Log('Link check: the number of names of ' + GameDir + '\' + RelPath + ' cannot be read, so it cannot be checked for a hard link');
+              Findings.Add(GameDir + '\' + RelPath);
+            end;
           end
           else
           begin
@@ -1348,7 +1418,7 @@ begin
               Findings.Add(GameDir + '\' + RelPath);
             end
             else
-              FindLinksInGameFolder(GameDir, RelPath + '\', Findings, Folders, ReparseFiles);
+              FindLinksInGameFolder(GameDir, RelPath + '\', Findings, Folders, Files, ReparseFiles);
           end;
         end;
       end;

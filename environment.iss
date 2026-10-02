@@ -29,10 +29,12 @@
 //  - PrepareToInstall, administrative install mode only (CheckGameFoldersForLinks): links in the
 //    folders all users can write to (ADR 0009). [Dirs] gives every user modify rights on Data and
 //    Users of both games, and the elevated setup writes below them; a junction or symbolic link
-//    there could redirect those writes outside the installation. If Data, Users or a folder below
-//    them is a link (or cannot be listed), the setup stops on the "Preparing to install" page with
-//    the message LinkInGameFolder before anything is changed (silent: exit code 7). Not in user and
-//    portable mode: there the setup does not elevate itself.
+//    there could redirect those writes outside the installation, and a hard link could make the
+//    external permission entries copy a file outside the installation into one every user can read.
+//    If Data, Users or a folder below them is a link (or cannot be listed), or a file there is a
+//    hard link (or its number of names cannot be read), the setup stops on the "Preparing to
+//    install" page with the message LinkInGameFolder before anything is changed (silent: exit code
+//    7). Not in user and portable mode: there the setup does not elevate itself.
 //
 // Nothing here writes to the registry or the file system, and no key below Software\Sierra is read
 // (the NeoEE CD keys are there).
@@ -403,25 +405,26 @@ end;
 function CheckGameFoldersForLinks: String;
 var
   Findings: TStringList;
-  Folders, ReparseFiles: Integer;
+  Folders, Files, ReparseFiles: Integer;
   Started: DWORD;
 begin
   Result := '';
   Findings := TStringList.Create;
   try
     Folders := 0;
+    Files := 0;
     ReparseFiles := 0;
     Started := GetTickCount;
     try
-      FindLinksInGameFolder(ExpandConstant('{app}\{#EEDir}'), '', Findings, Folders, ReparseFiles);
-      FindLinksInGameFolder(ExpandConstant('{app}\{#AoCDir}'), '', Findings, Folders, ReparseFiles);
+      FindLinksInGameFolder(ExpandConstant('{app}\{#EEDir}'), '', Findings, Folders, Files, ReparseFiles);
+      FindLinksInGameFolder(ExpandConstant('{app}\{#AoCDir}'), '', Findings, Folders, Files, ReparseFiles);
     except
       Log('The link check stopped: ' + GetExceptionMessage + ' (the folders count as not checked)');
       Findings.Add(ExpandConstant('{app}'));
     end;
-    Log('Link check: ' + IntToStr(Folders) + ' folders below Data and Users of ' + ExpandConstant('{app}') + ' examined in ' +
-      IntToStr(TicksSince(Started)) + ' ms, ' + IntToStr(Findings.Count) + ' links or unreadable folders found, ' +
-      IntToStr(ReparseFiles) + ' files with a reparse point (allowed)');
+    Log('Link check: ' + IntToStr(Folders) + ' folders and ' + IntToStr(Files) + ' files below Data and Users of ' +
+      ExpandConstant('{app}') + ' examined in ' + IntToStr(TicksSince(Started)) + ' ms, ' + IntToStr(Findings.Count) +
+      ' links or unreadable folders or files found, ' + IntToStr(ReparseFiles) + ' files with a reparse point (allowed)');
     if Findings.Count > 0 then
     begin
       Log('The installation stops before anything is changed (message LinkInGameFolder on the Preparing to install page; ' +
