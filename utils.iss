@@ -158,6 +158,9 @@ const
   // 6.2.2 uses for its own downloads
   WinHttpRequestOptionSecureProtocols = 9;
   WinHttpSecureProtocolsTls10To12 = $A80;
+  // WinHttpRequestOption_EnableRedirects (WinHttpRequest.Option): False makes WinHTTP return a
+  // redirect to the caller instead of following it
+  WinHttpRequestOptionEnableRedirects = 6;
 
 // True on Windows older than 8.1 (NT 6.3): there WinHTTP does not offer TLS 1.1 and 1.2 to an
 // application that relies on the default protocols (Windows 7 SP1 and 8 without KB3140245 and
@@ -191,10 +194,20 @@ begin
   end;
 end;
 
-// The one HTTP implementation of the setup: a GET request with WinHTTP that returns the HTTP
-// status code, or HttpRequestFailed if no answer arrived (offline, timeout, invalid TLS
+// True for the HTTP status codes of a redirect that clients follow with the Location header: 301,
+// 302, 303, 307, 308
+function IsRedirectStatus(const Status: Integer): Boolean;
+begin
+  Result := (Status = 301) or (Status = 302) or (Status = 303) or (Status = 307) or (Status = 308);
+end;
+
+// The one HTTP implementation of the setup: a request (Method GET or HEAD) with WinHTTP that returns
+// the HTTP status code, or HttpRequestFailed if no answer arrived (offline, timeout, invalid TLS
 // certificate, ...). Response is the body if ReadBody is set, else ''. HideQuery logs the URL
-// without its query (telemetry requests carry the anonymous user id there).
+// without its query (telemetry requests carry the anonymous user id there). FollowRedirects False
+// switches WinHTTP's own redirects off: then a redirect is the result itself, and Location is its
+// Location header ('' if there is none; always '' otherwise), see CheckOnlineFileRedirects
+// (downloads.iss).
 // The request is synchronous: Open(..., False) makes Send return only when the answer has arrived
 // or a timeout has expired, so the wizard does not react meanwhile, at worst for
 // ResolveTimeoutMs + 3 * HttpTimeoutMs. It is not made asynchronous on purpose: the request
@@ -204,37 +217,62 @@ end;
 // it must come over validated TLS. WinHTTP refuses redirects from https to http by default
 // (WinHttpRequestOption_EnableHttpsToHttpRedirects is left off). On Windows older than 8.1 the
 // request asks for TLS 1.0 to 1.2 explicitly (ApplyTlsProtocols).
-function HttpGet(const URL: String; const ResolveTimeoutMs: Integer; const ReadBody, HideQuery: Boolean; var Response: String): Integer;
+function HttpRequest(const Method, URL: String; const ResolveTimeoutMs: Integer; const ReadBody, HideQuery, FollowRedirects: Boolean;
+  var Response, Location: String): Integer;
 var
   WinHttpRequest: Variant;
-  LogURL, TlsNote: String;
+  LogURL, TlsNote, LocationNote: String;
   Version: TWindowsVersion;
 begin
   Result := HttpRequestFailed;
   Response := '';
+  Location := '';
   LogURL := URL;
   if HideQuery and (Pos('?', LogURL) > 0) then
     LogURL := Copy(LogURL, 1, Pos('?', LogURL)) + '...';
-  Log('HTTP GET ' + LogURL);
+  Log('HTTP ' + Method + ' ' + LogURL);
 
   try
     WinHttpRequest := CreateOleObject('WinHttp.WinHttpRequest.5.1');
     GetWindowsVersionEx(Version);
     TlsNote := ApplyTlsProtocols(WinHttpRequest, Version.Major, Version.Minor);
     if TlsNote <> '' then
-      Log('HTTP GET ' + LogURL + ': ' + TlsNote);
+      Log('HTTP ' + Method + ' ' + LogURL + ': ' + TlsNote);
     WinHttpRequest.SetTimeouts(ResolveTimeoutMs, HttpTimeoutMs, HttpTimeoutMs, HttpTimeoutMs);
-    WinHttpRequest.Open('GET', URL, False);
+    WinHttpRequest.Open(Method, URL, False);
+    // Windows: WinHTTP returns a redirect instead of following it. Wine 9.0 ignores this option and
+    // follows redirects itself, refusing one from https to http with an error (no answer).
+    if not FollowRedirects then
+      WinHttpRequest.Option[WinHttpRequestOptionEnableRedirects] := False;
     WinHttpRequest.Send;
     Result := WinHttpRequest.Status;
     if ReadBody then
       Response := WinHttpRequest.ResponseText;
-    Log('HTTP GET ' + LogURL + ': status ' + IntToStr(Result) + ', ' + IntToStr(Length(Response)) + ' characters read');
+    LocationNote := '';
+    if not FollowRedirects and IsRedirectStatus(Result) then
+    begin
+      try
+        Location := WinHttpRequest.GetResponseHeader('Location');
+      except
+        Location := '';
+      end;
+      LocationNote := ', Location "' + Location + '"';
+    end;
+    Log('HTTP ' + Method + ' ' + LogURL + ': status ' + IntToStr(Result) + ', ' + IntToStr(Length(Response)) + ' characters read' + LocationNote);
   except
-    Log('HTTP GET ' + LogURL + ' failed: ' + GetExceptionMessage);
+    Log('HTTP ' + Method + ' ' + LogURL + ' failed: ' + GetExceptionMessage);
     Result := HttpRequestFailed;
     Response := '';
+    Location := '';
   end;
+end;
+
+// GET request with WinHTTP's own redirects (HttpRequest)
+function HttpGet(const URL: String; const ResolveTimeoutMs: Integer; const ReadBody, HideQuery: Boolean; var Response: String): Integer;
+var
+  Ignored: String;
+begin
+  Result := HttpRequest('GET', URL, ResolveTimeoutMs, ReadBody, HideQuery, True, Response, Ignored);
 end;
 
 // HTTP status of URL, or HttpRequestFailed (reachability check of the file servers, setup
@@ -411,6 +449,68 @@ end;
 function IsHttpsUrl(const Url: String): Boolean;
 begin
   Result := (Length(Url) > 8) and (CompareText(Copy(Url, 1, 8), 'https://') = 0);
+end;
+
+// The URL that a redirect from Url (an absolute URL) with the Location header Location leads to, as
+// far as its scheme and server matter (RFC 3986 section 5.2; dot segments are kept, they cannot
+// change either): Location itself if it has a scheme (a ':' before any '/', '?', '#' or '\': http:,
+// https:, file:, ...), the scheme of Url before a network-path reference ('//server/path'), the
+// scheme and server of Url before an absolute path ('/path'), Url without its query and fragment
+// before a query ('?q') or fragment, else the folder of Url before a relative path. '' if Location is
+// empty or Url has no '://'. Leading and trailing spaces of Location are ignored.
+function ResolveRedirectUrl(const Url, Location: String): String;
+var
+  L, Base: String;
+  I, SchemeEnd, PathStart: Integer;
+begin
+  Result := '';
+  L := Trim(Location);
+  SchemeEnd := Pos('://', Url);
+  if (L = '') or (SchemeEnd = 0) then
+    Exit;
+  for I := 1 to Length(L) do
+  begin
+    if L[I] = ':' then
+    begin
+      Result := L;
+      Exit;
+    end;
+    if (L[I] = '/') or (L[I] = '?') or (L[I] = '#') or (L[I] = '\') then
+      Break;
+  end;
+  if Copy(L, 1, 2) = '//' then
+  begin
+    Result := Copy(Url, 1, SchemeEnd) + L;
+    Exit;
+  end;
+  // Url without query and fragment, and where its path starts (after the server)
+  Base := Url;
+  for I := SchemeEnd + 3 to Length(Base) do
+    if (Base[I] = '?') or (Base[I] = '#') then
+    begin
+      Base := Copy(Base, 1, I - 1);
+      Break;
+    end;
+  PathStart := Length(Base) + 1;
+  for I := SchemeEnd + 3 to Length(Base) do
+    if Base[I] = '/' then
+    begin
+      PathStart := I;
+      Break;
+    end;
+  if Copy(L, 1, 1) = '/' then
+    Result := Copy(Base, 1, PathStart - 1) + L
+  else if (Copy(L, 1, 1) = '?') or (Copy(L, 1, 1) = '#') then
+    Result := Base + L
+  else
+  begin
+    if PathStart > Length(Base) then
+      Base := Base + '/';
+    I := Length(Base);
+    while Base[I] <> '/' do
+      I := I - 1;
+    Result := Copy(Base, 1, I) + L;
+  end;
 end;
 
 // How the online file FileName (its download target) from Url is accepted, see the Online* results:

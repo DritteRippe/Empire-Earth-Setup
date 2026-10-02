@@ -15,7 +15,11 @@
 //  - A data file (voices, campaigns, movies, lobby texts) with a pin only if it matches the pin.
 //    Without a pin it is accepted as the server sends it, but only over https with a validated
 //    certificate, never from an http URL (main server and mirror alike); the log calls it
-//    "TLS-verified, not pinned". Most of these files (data.ssa, the campaigns, the localized
+//    "TLS-verified, not pinned". Inno Setup's downloads follow a redirect from https to http
+//    (docs/adr/0008-release-checksums-and-contract-check.md, point 6), so right before such a file
+//    is downloaded, CheckOnlineFileRedirects asks its URL with HEAD requests that follow no
+//    redirect themselves: a redirect to anything but https refuses the file on that server, like
+//    no answer at all. Most of these files (data.ssa, the campaigns, the localized
 //    intro movie) only exist on the servers, so a build can rarely pin them; requiring a pin made
 //    the download component useless.
 // AddOnlineFile registers a file only under these conditions. DownloadOnlineFiles checks the pin
@@ -39,8 +43,9 @@
 // files". Without the list the setup compiles with a warning, and no Language.dll is downloaded.
 //
 // Requires: EEDir, AoCDir (ISPP, setup_is6.iss), OnlineFilesURL, OnlineFilesMirrorURL,
-// GetHttpStatus, GetOnlineFileCheck, IsHttpsUrl, NextDownloadAction and the DownloadOutcome* and
-// DownloadAction* constants (utils.iss), SilentInstall, SuppressMsgBoxes (extension.iss), the
+// GetHttpStatus, HttpRequest, IsRedirectStatus, ResolveRedirectUrl, RequestResolveTimeoutMs,
+// HttpRequestFailed, GetOnlineFileCheck, IsHttpsUrl, NextDownloadAction and the DownloadOutcome*
+// and DownloadAction* constants (utils.iss), SilentInstall, SuppressMsgBoxes (extension.iss), the
 // Download* messages (messages.iss).
 
 // DownloadHashFile: the hash list, relative to setup_is6.iss unless absolute (ISCC /DDownloadHashFile=...)
@@ -318,13 +323,65 @@ begin
   Log('Online files: downloads stopped by the user, no further request (neither the other server nor the remaining files)');
 end;
 
+const
+  // Redirects CheckOnlineFileRedirects follows, as many as the client of Inno Setup's downloads
+  OnlineFileMaxRedirects = 5;
+
+// The check before an online file without pin is downloaded from Url: True if Url answers a HEAD
+// request over https with anything but a redirect (any other status, e.g. 200, 404 or 405, which
+// the download itself then handles), after at most OnlineFileMaxRedirects redirects that all lead
+// to https URLs (ResolveRedirectUrl, utils.iss), each asked again with HEAD. False, logged, for a
+// redirect to http:// or any other scheme, a redirect without Location, more redirects, or no
+// answer. The requests follow no redirect themselves (HttpRequest with FollowRedirects False), so
+// unlike the download they see every redirect; each one validates the certificate. What it cannot
+// see: a server that answers HEAD and GET differently, or changes its answer between the check and
+// the download (ADR 0008, point 6).
+function CheckOnlineFileRedirects(const Url: String): Boolean;
+var
+  Current, Next, Location, Ignored: String;
+  Status, Redirects: Integer;
+begin
+  Result := False;
+  Current := Url;
+  for Redirects := 0 to OnlineFileMaxRedirects do
+  begin
+    Status := HttpRequest('HEAD', Current, RequestResolveTimeoutMs, False, False, False, Ignored, Location);
+    if Status = HttpRequestFailed then
+    begin
+      Log('Online file not downloaded from ' + Url + ': no answer to the check of its redirects (HEAD ' + Current + ')');
+      Exit;
+    end;
+    if not IsRedirectStatus(Status) then
+    begin
+      Log('Online file redirect check: ' + Url + ' answers HTTP ' + IntToStr(Status) + ' over https after ' + IntToStr(Redirects) +
+        ' redirects, none to http');
+      Result := True;
+      Exit;
+    end;
+    Next := ResolveRedirectUrl(Current, Location);
+    if not IsHttpsUrl(Next) then
+    begin
+      Log('Online file refused, it has no SHA-256 and ' + Current + ' redirects to "' + Next + '", not to https: ' + Url);
+      Exit;
+    end;
+    Current := Next;
+  end;
+  Log('Online file refused, more than ' + IntToStr(OnlineFileMaxRedirects) + ' redirects: ' + Url);
+end;
+
 // One download attempt of OnlineFiles[Index] from Url to {tmp}\<RelDest>: DownloadOutcomeSuccess,
-// DownloadOutcomeFailure or DownloadOutcomePinMismatch. Sets DownloadsStoppedByUser if the user
-// stopped it. No exception escapes.
+// DownloadOutcomeFailure or DownloadOutcomePinMismatch. A file without pin is only requested if
+// CheckOnlineFileRedirects allows it (else DownloadOutcomeFailure, so the other server may be tried).
+// Sets DownloadsStoppedByUser if the user stopped it. No exception escapes.
 function DownloadOnlineFileFrom(const Index: Integer; const Url: String): Integer;
 var
   Target, Hash: String;
 begin
+  if (OnlineFiles[Index].SHA256 = '') and not CheckOnlineFileRedirects(Url) then
+  begin
+    Result := DownloadOutcomeFailure;
+    Exit;
+  end;
   Target := ExpandConstant('{tmp}\' + OnlineFiles[Index].RelDest);
   OnlineFilesDownloadPage.Clear;
   // No SHA-256 for Inno Setup: the pin is checked below, so that a mismatch is told apart from a

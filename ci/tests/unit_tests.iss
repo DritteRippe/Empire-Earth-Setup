@@ -378,6 +378,65 @@ begin
   CheckBool('IsHttpsUrl empty', IsHttpsUrl(''), False);
 end;
 
+procedure TestIsRedirectStatus;
+begin
+  CheckBool('IsRedirectStatus 301', IsRedirectStatus(301), True);
+  CheckBool('IsRedirectStatus 302', IsRedirectStatus(302), True);
+  CheckBool('IsRedirectStatus 303', IsRedirectStatus(303), True);
+  CheckBool('IsRedirectStatus 307', IsRedirectStatus(307), True);
+  CheckBool('IsRedirectStatus 308', IsRedirectStatus(308), True);
+  CheckBool('IsRedirectStatus 200', IsRedirectStatus(200), False);
+  CheckBool('IsRedirectStatus 300', IsRedirectStatus(300), False);
+  CheckBool('IsRedirectStatus 304', IsRedirectStatus(304), False);
+  CheckBool('IsRedirectStatus 405', IsRedirectStatus(405), False);
+  CheckBool('IsRedirectStatus failed', IsRedirectStatus(HttpRequestFailed), False);
+end;
+
+procedure CheckRedirect(const Location, Expected: String);
+begin
+  Check('ResolveRedirectUrl "' + Location + '"', ResolveRedirectUrl('https://files.empireearth.eu/localized/Game/de/EE/Data/data.ssa?v=1#top', Location), Expected);
+end;
+
+// The target of a redirect of the check before a download without pin (CheckOnlineFileRedirects):
+// only its scheme decides, so every form of a Location header must keep or name the right one
+procedure TestResolveRedirectUrl;
+begin
+  // With a scheme: the Location itself, whatever the scheme and its case
+  CheckRedirect('https://storage.neoee.net/localized/x.ssa', 'https://storage.neoee.net/localized/x.ssa');
+  CheckRedirect('http://files.empireearth.eu/localized/x.ssa', 'http://files.empireearth.eu/localized/x.ssa');
+  CheckRedirect('HTTP://files.empireearth.eu/x', 'HTTP://files.empireearth.eu/x');
+  CheckRedirect('ftp://files.empireearth.eu/x', 'ftp://files.empireearth.eu/x');
+  CheckRedirect('http:/x', 'http:/x');
+  CheckRedirect('http:x', 'http:x');
+  CheckRedirect('https:x', 'https:x');
+  CheckRedirect('javascript:alert(1)', 'javascript:alert(1)');
+  CheckRedirect('  http://files.empireearth.eu/x  ', 'http://files.empireearth.eu/x');
+  CheckRedirect(':x', ':x');
+  // Network-path reference: the scheme of the URL
+  CheckRedirect('//cdn.empireearth.eu/x.ssa', 'https://cdn.empireearth.eu/x.ssa');
+  // Absolute path: scheme and server of the URL
+  CheckRedirect('/mirror/x.ssa', 'https://files.empireearth.eu/mirror/x.ssa');
+  CheckRedirect('/a:b', 'https://files.empireearth.eu/a:b');
+  // Relative path: the folder of the URL, without its query and fragment
+  CheckRedirect('data2.ssa', 'https://files.empireearth.eu/localized/Game/de/EE/Data/data2.ssa');
+  CheckRedirect('../x/y.ssa?a=b:c', 'https://files.empireearth.eu/localized/Game/de/EE/Data/../x/y.ssa?a=b:c');
+  CheckRedirect('\\evil\x', 'https://files.empireearth.eu/localized/Game/de/EE/Data/\\evil\x');
+  CheckRedirect('?v=2', 'https://files.empireearth.eu/localized/Game/de/EE/Data/data.ssa?v=2');
+  CheckRedirect('#part', 'https://files.empireearth.eu/localized/Game/de/EE/Data/data.ssa#part');
+  // Nothing to resolve
+  CheckRedirect('', '');
+  CheckRedirect('   ', '');
+  Check('ResolveRedirectUrl URL without scheme', ResolveRedirectUrl('files.empireearth.eu/x', 'y'), '');
+  // A URL without a path or with only a server and a query
+  Check('ResolveRedirectUrl server only, relative', ResolveRedirectUrl('https://files.empireearth.eu', 'x.ssa'), 'https://files.empireearth.eu/x.ssa');
+  Check('ResolveRedirectUrl server and query, relative', ResolveRedirectUrl('https://files.empireearth.eu?q=1', 'x.ssa'), 'https://files.empireearth.eu/x.ssa');
+  Check('ResolveRedirectUrl server only, absolute path', ResolveRedirectUrl('https://files.empireearth.eu', '/x.ssa'), 'https://files.empireearth.eu/x.ssa');
+  // Only https targets are followed by the check
+  CheckBool('redirect to a relative path stays https', IsHttpsUrl(ResolveRedirectUrl('https://files.empireearth.eu/a/b', 'c')), True);
+  CheckBool('redirect to http is not https', IsHttpsUrl(ResolveRedirectUrl('https://files.empireearth.eu/a/b', 'http://files.empireearth.eu/a/b')), False);
+  CheckBool('redirect without Location is not https', IsHttpsUrl(ResolveRedirectUrl('https://files.empireearth.eu/a/b', '')), False);
+end;
+
 // The servers of the online files must be https: data files without SHA-256 are only accepted
 // from https URLs
 procedure TestOnlineFilesServers;
@@ -1603,6 +1662,8 @@ begin
     TestFileNameExtension;
     TestIsCodeFileName;
     TestIsHttpsUrl;
+    TestIsRedirectStatus;
+    TestResolveRedirectUrl;
     TestOnlineFilesServers;
     TestOnlineFileCheck;
     TestNextDownloadAction;
