@@ -55,8 +55,7 @@
 #define MyAppGroupName "Empire Earth"
 ; Version of the setup and launcher contract (docs/CONTRACT.md, section 5) that this script
 ; implements. ci/check_contract.py compares it with the header of the contract; change both together.
-; The install record, install.ini and the uninstall key are to carry it (contract 1.1 to 1.3); until
-; they do, it does not change the compiled setup.
+; install.ini and the value in the uninstall key (installstate.iss) carry it (contract 1.2, 1.3).
 #define ContractVersion 1
 
 ; Build switches
@@ -1153,6 +1152,8 @@ Filename: "{tmp}\directx\dxwebsetup.exe"; Parameters: "/Q"; Flags: runhidden; Ta
 //   downloads.iss   online localized files: policy, download page, downloads, verification
 //                   (needs utils.iss, extension.iss)
 //   randommaps.iss  random map scripts of the previous setup (needs extension.iss)
+//   installstate.iss  install.ini and the contract version in the uninstall key for the launcher
+//                   (needs utils.iss)
 //   telemetry.iss   setup statistics, included further down after the language functions it uses
 #include "eestats.iss"
 
@@ -1177,6 +1178,7 @@ var
 #include "pages.iss"
 #include "downloads.iss"
 #include "randommaps.iss"
+#include "installstate.iss"
 
 // [Registry] value of the compatibility entries, from the selected tasks (BuildCompatibilityFlags,
 // utils.iss). The flags come from the task compatibility (Windows 8 and later) or from the opt-in
@@ -1884,6 +1886,9 @@ procedure CurStepChanged(CurStep: TSetupStep);
 begin
   if (CurStep = ssInstall) then
   begin
+    // First, before [Files]: install.ini of the previous run goes, so that an aborted installation
+    // leaves none that claims a valid state; a failed deletion is remembered (WriteInstallState)
+    DeleteInstallState();
     // Runs before [Files]: only downloads matching their SHA-256 are moved to {tmp}\verified
     VerifyDownloadedFiles();
     // Before [Files]: removes the maps the previous setup installed, remembers the player's own
@@ -1917,6 +1922,9 @@ begin
       RegisterCDKeys();
     end;
 #endif
+    // Last, after every other step (contract 1.2, 1.3): install.ini, then the contract version in
+    // the uninstall key of the Regular variants if the install state of this run is complete
+    WriteInstallState();
   end;
 end;
 
