@@ -151,6 +151,71 @@ begin
   CheckLegacyVista('kept', '~ WIN7RTM', False);
 end;
 
+procedure CheckRemoveLegacy(const Value: String; const LegacyOptIn, ProgramSelected, Expected: Boolean);
+var
+  Task, Component: String;
+begin
+  Task := 'task not selected';
+  if LegacyOptIn then
+    Task := 'task selected';
+  Component := 'component not selected';
+  if ProgramSelected then
+    Component := 'component selected';
+  CheckBool('ShouldRemoveLegacyVistaCompatValue ' + Task + ', ' + Component + ' "' + Value + '"',
+    ShouldRemoveLegacyVistaCompatValue(Value, LegacyOptIn, ProgramSelected), Expected);
+end;
+
+// Old values: removed unless this run wrote the value of the program (task and component selected)
+procedure CheckRemoveLegacyOld(const Values: array of String);
+var
+  I: Integer;
+begin
+  for I := 0 to GetArrayLength(Values) - 1 do
+  begin
+    CheckRemoveLegacy(Values[I], True, True, False);
+    // Task selected, but not the component of this program: the old value of that program goes
+    CheckRemoveLegacy(Values[I], True, False, True);
+    // Task not selected: removed whether the program is installed or not
+    CheckRemoveLegacy(Values[I], False, True, True);
+    CheckRemoveLegacy(Values[I], False, False, True);
+  end;
+end;
+
+// Values that are not old values: never removed
+procedure CheckRemoveLegacyKept(const Values: array of String);
+var
+  I: Integer;
+begin
+  for I := 0 to GetArrayLength(Values) - 1 do
+  begin
+    CheckRemoveLegacy(Values[I], True, True, False);
+    CheckRemoveLegacy(Values[I], True, False, False);
+    CheckRemoveLegacy(Values[I], False, True, False);
+    CheckRemoveLegacy(Values[I], False, False, False);
+  end;
+end;
+
+// The cleanup on Windows Vista/7 keeps the value that the opt-in task compatibility_legacy writes
+// in this run for a selected program, and removes the old values otherwise (ADR 0010)
+procedure TestShouldRemoveLegacyVistaCompatValue;
+begin
+  // All six old values
+  CheckRemoveLegacyOld(['~ WINXPSP3', '~ RUNASADMIN WINXPSP3',
+    '~ DWM8And16BitMitigation HIGHDPIAWARE HeapClearAllocation',
+    '~ DWM8And16BitMitigation HIGHDPIAWARE HeapClearAllocation WINXPSP3',
+    '~ RUNASADMIN DWM8And16BitMitigation HIGHDPIAWARE HeapClearAllocation',
+    '~ RUNASADMIN DWM8And16BitMitigation HIGHDPIAWARE HeapClearAllocation WINXPSP3']);
+  // The two values the task itself writes (with and without everyoneadminstart) are among the
+  // old ones: kept only with task and component
+  CheckRemoveLegacy(BuildCompatibilityFlags(False, True), True, True, False);
+  CheckRemoveLegacy(BuildCompatibilityFlags(True, True), True, True, False);
+  CheckRemoveLegacy(BuildCompatibilityFlags(False, True), False, True, True);
+  CheckRemoveLegacy(BuildCompatibilityFlags(True, True), True, False, True);
+  // Values that are not old values stay in every case
+  CheckRemoveLegacyKept(['~', '~ RUNASADMIN', '~ WINXPSP3 DISABLEDWM', '',
+    '~ DWM8And16BitMitigation HIGHDPIAWARE HeapClearAllocation WIN7RTM']);
+end;
+
 procedure TestUninstallKeys;
 begin
   Check('GetUninstallRegPath', GetUninstallRegPath(),
@@ -400,6 +465,7 @@ begin
     TestCompatibilityFlags;
     TestIsBelowWindows8;
     TestIsLegacyVistaCompatValue;
+    TestShouldRemoveLegacyVistaCompatValue;
     TestUninstallKeys;
     TestUrlEncode;
     TestSplitHttpsUrl;

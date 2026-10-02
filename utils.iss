@@ -107,6 +107,19 @@ begin
   end;
 end;
 
+// True if the cleanup of the old Windows Vista/7 values (RemoveLegacyVistaCompatValues) removes
+// Value, the compatibility value of one game program: a value of an earlier setup
+// (IsLegacyVistaCompatValue), unless this run writes the value of that program itself with the
+// opt-in task compatibility_legacy. LegacyOptInSelected: the task is selected; ProgramSelected: the
+// component of the program is selected (game: Empire Earth.exe, gameaoc: EE-AOC.exe). The value of
+// the task, BuildCompatibilityFlags(RunAsAdmin, True), is one of the old values, and [Registry] has
+// written it before the cleanup runs, so without this exception the cleanup would delete it again.
+// docs/adr/0010-opt-in-compatibility-on-windows-7.md, contract 3.7
+function ShouldRemoveLegacyVistaCompatValue(const Value: String; const LegacyOptInSelected, ProgramSelected: Boolean): Boolean;
+begin
+  Result := IsLegacyVistaCompatValue(Value) and not (LegacyOptInSelected and ProgramSelected);
+end;
+
 // Uninstall key (below HKA) of this product
 function GetUninstallRegPath(): String;
 begin
