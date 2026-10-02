@@ -147,7 +147,9 @@ function Find-Iscc {
   throw 'ISCC.exe (Inno Setup 6.2) not found. Install it or pass -Iscc <path>.'
 }
 
-# Runs ISCC and returns its exit code; the complete output (stdout and stderr) goes to $LogFile.
+# Runs ISCC and returns its exit code; the complete output (stdout and stderr) goes to $LogFile,
+# which is also written when ISCC prints nothing (e.g. it could not start), so that the callers
+# report that clearly instead of failing to read a missing log.
 function Invoke-Iscc([string[]]$Arguments, [string]$LogFile) {
   $previous = $ErrorActionPreference
   $ErrorActionPreference = 'Continue'   # stderr lines of a native command must not throw
@@ -157,7 +159,7 @@ function Invoke-Iscc([string[]]$Arguments, [string]$LogFile) {
   } finally {
     $ErrorActionPreference = $previous
   }
-  $output | ForEach-Object { "$_" } | Set-Content -LiteralPath $LogFile -Encoding UTF8
+  Set-Content -LiteralPath $LogFile -Value @($output | ForEach-Object { "$_" }) -Encoding UTF8
   return $code
 }
 

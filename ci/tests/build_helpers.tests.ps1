@@ -205,6 +205,14 @@ exit 0
   CheckThrows 'build.ps1 refuses -TestID abc' { & $build @common -TestID abc 3>$null 6>$null }
   Check 'build.ps1 calls no ISCC for an invalid -TestID' (Test-Path -LiteralPath $calls) $false
 
+  # An ISCC that prints nothing (e.g. it cannot start): a clear version error, not a missing log
+  $silentIscc = Join-Path $temp 'silent_iscc.ps1'
+  [System.IO.File]::WriteAllText($silentIscc, 'exit 1')
+  $common.Iscc = $silentIscc
+  $message = ''
+  try { & $build @common -RequireVersion 6.2.2 3>$null 6>$null } catch { $message = $_.Exception.Message }
+  Check 'dry run with an ISCC that prints nothing' $message 'ISCC 6.2.2 is required, found unknown.'
+
   # --- Optional: a real certificate
   if ($CertFile) {
     $out = Join-Path (Join-Path $temp 'real') ([System.IO.Path]::GetFileName($CertFile))
