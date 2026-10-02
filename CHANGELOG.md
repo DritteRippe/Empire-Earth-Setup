@@ -97,6 +97,14 @@ Refactoring and quality fixes (no new game content).
   template, that the forum test cases 1 to 22 are each assigned (or excluded with a reason) and
   that every test case id named in the README, the architecture document, the ADRs or another
   Markdown file of the repository exists.
+- `docs/SERVER-OPERATIONS.md`: what the file servers and the API must provide for the setup (a
+  certificate for the exact host name with its chain, TLS 1.2 with a cipher suite Windows 7
+  supports, `Content-Length` for every file below `/localized/`, no redirect to `http://`, identical
+  files on main server and mirror), the commands to check it (`openssl s_client`, `curl`, the SSL
+  Labs handshake simulation "IE 11 / Win 7" for the API, the file server and the mirror), the fix
+  for the current certificate of `files.empireearth.eu` and the release criterion: at least one
+  file server with a valid certificate. README: a "Support" section (setup log, missing localized
+  files, Windows 7 and the update KB3140245).
 
 ### Changed
 - The hidden setup data folder (holds `EEStatsSetup.dll` for the uninstaller) is now

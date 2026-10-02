@@ -223,7 +223,9 @@ plan.
 - Download policy ([ADR 0003](adr/0003-built-in-downloads-instead-of-idp.md),
   [ADR 0006](adr/0006-strict-tls-and-server-certificates.md)): code only with pin; unpinned data
   only over HTTPS with a validated certificate; the remaining trust in the server operators is
-  documented in the README.
+  documented in the README. What the servers must provide for that (certificate and chain, TLS 1.2
+  for Windows 7 clients, `Content-Length`, no redirect to `http://`, identical files on both
+  servers) and how to check it: [SERVER-OPERATIONS.md](SERVER-OPERATIONS.md).
 - Environment checks are read-only and never offer to delete foreign installations
   ([ADR 0007](adr/0007-environment-warnings.md)).
 
@@ -251,8 +253,9 @@ plan.
   may treat an unknown version as outdated, so the version is raised together with the release and
   the API, not by a work package. Test builds are told apart by `SetupBuild` (S-WP6).
 - **Mirror certificate:** unknown from the analysis environment. A release needs at least one file
-  server with a valid certificate ([ADR 0006](adr/0006-strict-tls-and-server-certificates.md));
-  the test plan checks both servers first (TP-00).
+  server with a valid certificate ([ADR 0006](adr/0006-strict-tls-and-server-certificates.md),
+  release criterion in [SERVER-OPERATIONS.md](SERVER-OPERATIONS.md)); the test plan checks both
+  servers first (TP-00).
 - **TLS 1.2 on Windows 7** without KB3140245: a hypothesis, tested in a Windows 7 VM
   ([ADR 0006](adr/0006-strict-tls-and-server-certificates.md)).
 
