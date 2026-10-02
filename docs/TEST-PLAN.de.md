@@ -89,7 +89,7 @@ Nummer ihres Blocks.
 |---|---|---|---|
 | TP-00 | Vorabprüfung | S-WP2 | Zustand der beiden Dateiserver vor jedem Testtag mit Downloads |
 | TP-1x | Downloads | S-WP3 | eingebaute Downloads statt IDP: Hauptserver ungültig und Spiegel (TP-10), offline (TP-11), Stopp-Knopf am ersten und am zweiten Server (TP-12, TP-13), Silent (TP-14), Koreanisch (TP-15), verworfener Download (TP-16), TLS 1.2 unter Windows 7 (TP-17) |
-| TP-2x | Kompatibilität und Grafik | S-WP4 | Windows 7 ohne Kompatibilitätswerte (TP-20), Bereinigung beim Update unter Windows 7 (TP-21), Windows 10/11 unverändert (TP-22), Grafikmatrix mit und ohne DirectX-Wrapper (TP-23), 150 % Anzeigeskalierung mit und ohne `compatibility` (TP-24) |
+| TP-2x | Kompatibilität und Grafik | S-WP4, S-WP10 | Windows 7 ohne Kompatibilitätswerte und mit der freiwilligen Aufgabe `compatibility_legacy` (TP-20), Bereinigung beim Update unter Windows 7, auch mit `compatibility_legacy` (TP-21), Windows 10/11 unverändert (TP-22), Grafikmatrix mit und ohne DirectX-Wrapper (TP-23), 150 % Anzeigeskalierung mit und ohne `compatibility` bzw. `compatibility_legacy` (TP-24) |
 | TP-3x | Build und Log | S-WP5 | SHA-256-Dateien der Setups und Setup-Log ohne `/LOG`, auch bei Over-the-Shoulder-Erhöhung (TP-30) |
 | TP-4x | Installationseintrag und `install.ini` | S-WP6 | Registry-Eintrag, `install.ini`, Defaults-Marker, `SetupBuild`, Wert `ContractVersion` im Uninstall-Schlüssel |
 | TP-5x | Integritätsmanifest | S-WP7 | `files.sha256`, Dateiprüfung nach der Installation, Dauer des Hashens |
@@ -737,15 +737,19 @@ Gemeinsam für alle Fälle dieses Blocks:
   `Online file downloaded, …` oder `Online file download failed from <URL>: <Ursache>`. Die
   Ursachen wörtlich ins Protokoll übernehmen.
 
-### Block 2: Kompatibilität und Grafik (S-WP4)
+### Block 2: Kompatibilität und Grafik (S-WP4, S-WP10)
 
-Diese Fälle prüfen, was ADR 0005 und Vertrag 3.7 nur auf Windows zeigen können: Unter Windows 7
-schreibt das Setup keine Kompatibilitätswerte mehr (außer dem freiwilligen `~ RUNASADMIN`) und
-entfernt bei einem Update nur die Werte früherer Setups (TP-20, TP-21); unter Windows 10/11 bleibt
-alles wie bisher (TP-22). Dazu kommen die Grafikmatrix mit und ohne DirectX-Wrapper (TP-23) und der
-Fall 150 % Anzeigeskalierung mit und ohne Aufgabe `compatibility` (TP-24, Vertrag O4). Welche Werte
-als „Werte früherer Setups“ gelten, entscheidet `IsLegacyVistaCompatValue`; die Unit-Tests in
-`ci/tests/unit_tests.iss` decken alle Kombinationen ab.
+Diese Fälle prüfen, was ADR 0005, ADR 0010 und Vertrag 3.7 nur auf Windows zeigen können: Unter
+Windows 7 schreibt das Setup standardmäßig keine Kompatibilitätswerte mehr (nur mit den freiwilligen
+Aufgaben `everyoneadminstart` und `compatibility_legacy`) und entfernt bei einem Update nur die
+Werte früherer Setups, nicht den Wert, den derselbe Lauf mit `compatibility_legacy` schreibt
+(TP-20, TP-21); unter Windows 10/11 bleibt alles wie bisher (TP-22). Dazu kommen die Grafikmatrix
+mit und ohne DirectX-Wrapper (TP-23) und der Fall 150 % Anzeigeskalierung mit und ohne Aufgabe
+`compatibility` bzw. `compatibility_legacy` (TP-24, Vertrag O4). Welche Werte als „Werte früherer
+Setups“ gelten, entscheidet `IsLegacyVistaCompatValue`, ob der Wert dieses Laufs bleibt,
+`ShouldRemoveLegacyVistaCompatValue`; die Unit-Tests in `ci/tests/unit_tests.iss` decken alle
+Kombinationen ab. Die Varianten mit `compatibility_legacy` (S-WP10) laufen wie alle
+Windows-7-Fälle nur in einer VM und haben die Priorität P3.
 
 Gemeinsam für alle Fälle dieses Blocks:
 
@@ -765,16 +769,22 @@ Gemeinsam für alle Fälle dieses Blocks:
   Protokoll übernehmen.
 - Die Aufgaben „Kompatibilitätseinstellungen aktivieren“ (`compatibility`) und
   „Kompatibilitätsmodus für ältere Windows-Versionen aktivieren“ (`compatibility_windows`) gibt es
-  nur ab Windows 8; dort sind sie vorausgewählt. Ihre Seite „Zusätzliche Aufgaben auswählen“
-  erscheint nur mit „Benutzerdefinierte Installationseinstellungen“. „Spiel immer als Administrator
-  ausführen, für alle Benutzer …“ (`everyoneadminstart`) gibt es nur im Modus „admin“, sie ist nie
-  vorausgewählt.
+  nur ab Windows 8; dort sind sie vorausgewählt. „Kompatibilitätseinstellungen aktivieren
+  (optional unter Windows 7: kann helfen, wenn das Spiel bei vergrößerter Anzeige unscharf aussieht
+  oder nicht auf den Bildschirm passt)“ (`compatibility_legacy`) gibt es nur unter Windows 7, nie
+  vorausgewählt; sie schreibt `~ DWM8And16BitMitigation HIGHDPIAWARE HeapClearAllocation` (mit
+  `everyoneadminstart` `~ RUNASADMIN DWM8And16BitMitigation HIGHDPIAWARE HeapClearAllocation`), nie
+  `WINXPSP3`. Die Seite „Zusätzliche Aufgaben auswählen“ erscheint nur mit „Benutzerdefinierte
+  Installationseinstellungen“. „Spiel immer als Administrator ausführen, für alle Benutzer …“
+  (`everyoneadminstart`) gibt es nur im Modus „admin“, sie ist nie vorausgewählt.
 - Log-Zeilen der Bereinigung (`setup_is6.iss`, `RemoveLegacyVistaCompatValues`), nur unter
   Windows Vista/7:
-  `Windows 6.1: this setup writes no compatibility values on Windows Vista/7, checking HKLM for values of earlier setups`
-  (bzw. `HKCU`), danach je Spielprogramm eine der Zeilen `No compatibility value of <Pfad> (HKLM)`,
+  `Windows 6.1: this setup writes no compatibility values on Windows Vista/7 by default, checking HKLM for values of earlier setups`
+  (bzw. `HKCU`; mit `compatibility_legacy` folgt am Ende ` (opt-in task compatibility_legacy selected)`),
+  danach je Spielprogramm eine der Zeilen `No compatibility value of <Pfad> (HKLM)`,
   `Removed the old Windows Vista/7 compatibility value "<Wert>" of <Pfad> (HKLM)`,
-  `Kept the compatibility value "<Wert>" of <Pfad> (HKLM): not a value of an earlier setup` oder
+  `Kept the compatibility value "<Wert>" of <Pfad> (HKLM): not a value of an earlier setup`,
+  `Kept the compatibility value "<Wert>" of <Pfad> (HKLM): written by this run (task compatibility_legacy)` oder
   `Unable to remove the old Windows Vista/7 compatibility value "<Wert>" of <Pfad> (HKLM)`. Den
   alten Wert `~ RUNASADMIN` in HKCU (Modus „admin“, Setups bis 1.7.2) entfernt das Setup auf jeder
   Windows-Version: `Removed the old per-user RUNASADMIN flag of <Pfad>`.
@@ -783,21 +793,24 @@ Gemeinsam für alle Fälle dieses Blocks:
   Bildschirme mit Variante ins Protokoll (Forum t=4280 p=30477: „a long black screen and a runtime
   error“ im Kompatibilitätsmodus).
 
-#### TP-20: Windows 7: Neuinstallation ohne Kompatibilitätswerte (nur VM)
+#### TP-20: Windows 7: Neuinstallation ohne Kompatibilitätswerte und mit compatibility_legacy (nur VM)
 
 - **Status:** ausgearbeitet
-- **Priorität:** P3
-- **Bezug:** R15, ADR 0005, Vertrag 3.7; Forum §8 Nr. 5 (t=4280 p=30477 und p=30479, t=1827
-  p=12147, t=5814)
-- **Ziel:** Unter Windows 7 bietet das Setup die beiden Kompatibilitätsaufgaben nicht an und schreibt
-  keinen Kompatibilitätswert, außer `~ RUNASADMIN` mit der freiwilligen Aufgabe; das Spiel startet
-  ohne Werte.
-- **Build-Art:** A oder B (Schritt 5 nur B)
+- **Priorität:** P3 (nur VM; auch die Varianten (d) bis (f) mit `compatibility_legacy`)
+- **Bezug:** R15, ADR 0005, ADR 0010 (freiwillige Aufgabe `compatibility_legacy`), Vertrag 3.7;
+  Forum §8 Nr. 5 (t=4280 p=30477 und p=30479, t=1827 p=12147, t=5814)
+- **Ziel:** Unter Windows 7 bietet das Setup die beiden vorausgewählten Kompatibilitätsaufgaben
+  nicht an und schreibt standardmäßig keinen Kompatibilitätswert; mit den freiwilligen Aufgaben
+  schreibt es genau `~ RUNASADMIN` bzw. die Flags ohne `WINXPSP3`, behält sie bei der Bereinigung
+  und entfernt sie bei der Deinstallation; das Spiel startet mit und ohne Werte.
+- **Build-Art:** A oder B (Schritt 5 und der Spielstart in Schritt 7 nur B)
 - **Ausgangszustand:** Windows 7 SP1, kein Empire Earth, keine Werte für `Empire Earth.exe` und
   `EE-AOC.exe` (Schritt 1), Anzeigeskalierung 100 % (150 % prüft TP-24).
 - **Snapshot:** `S-Win7` (nur VM, nie auf dem Laptop)
 - **Varianten:** (a) EE-admin mit den angebotenen Aufgaben, (b) EE-admin mit `everyoneadminstart`,
-  (c) EE-user. NeoEE und portable nutzen dieselben Einträge (portable wie user in HKCU) und werden
+  (c) EE-user; mit `compatibility_legacy` (S-WP10): (d) EE-admin mit Empire Earth und AoC, (e)
+  EE-admin mit `compatibility_legacy` und `everyoneadminstart`, (f) EE-user nur mit Empire Earth
+  (ohne AoC). NeoEE und portable nutzen dieselben Einträge (portable wie user in HKCU) und werden
   ausgelassen.
 - **Schritte:**
   1. Die beiden `reg query`-Befehle (siehe oben) ausführen und die Ausgaben notieren.
@@ -812,40 +825,68 @@ Gemeinsam für alle Fälle dieses Blocks:
   5. Nur Weg B, nach (a): Empire Earth und AoC je starten (siehe oben).
   6. (c) Snapshot zurücksetzen, Setup mit `/CURRENTUSER /LOG="C:\EE-Test\logs\TP-20c_EE-user.log"`
      starten, sonst wie Schritt 2; dann Schritt 3.
+  7. (d) Snapshot zurücksetzen, Schritt 2 mit `TP-20d` im Log-Namen, dazu
+     „Kompatibilitätseinstellungen aktivieren (optional unter Windows 7: …)“ anhaken; dann
+     Schritt 3. Nur Weg B: Empire Earth und AoC je starten (siehe oben). Danach über
+     *Systemsteuerung › Programme und Funktionen* deinstallieren und Schritt 3 wiederholen.
+  8. (e) Snapshot zurücksetzen, Schritt 2 mit `TP-20e`, dazu „Kompatibilitätseinstellungen
+     aktivieren (optional unter Windows 7: …)“ und „Spiel immer als Administrator ausführen, für
+     alle Benutzer …“ anhaken; dann Schritt 3.
+  9. (f) Snapshot zurücksetzen, Setup mit `/CURRENTUSER /LOG="C:\EE-Test\logs\TP-20f_EE-user.log"`,
+     „Benutzerdefinierte Installationseinstellungen“ nur mit Empire Earth (AoC abgewählt), dazu
+     „Kompatibilitätseinstellungen aktivieren (optional unter Windows 7: …)“ anhaken; dann Schritt 3.
 - **Erwartetes Ergebnis:**
-  - Die Aufgabenseite zeigt weder „Kompatibilitätseinstellungen aktivieren“ noch
-    „Kompatibilitätsmodus für ältere Windows-Versionen aktivieren“. „Spiel immer als Administrator
-    ausführen …“ steht in (a) und (b) da und ist nicht vorausgewählt, in (c) fehlt es.
+  - Die Aufgabenseite zeigt weder die vorausgewählte Aufgabe „Kompatibilitätseinstellungen
+    aktivieren“ (ohne Zusatz) noch „Kompatibilitätsmodus für ältere Windows-Versionen aktivieren“,
+    aber „Kompatibilitätseinstellungen aktivieren (optional unter Windows 7: …)“, nicht angehakt.
+    „Spiel immer als Administrator ausführen …“ steht in den admin-Varianten da und ist nicht
+    vorausgewählt, in (c) und (f) fehlt es.
   - (a) und (c): Schritt 3 zeigt weder in HKLM noch in HKCU eine Zeile mit `Empire Earth.exe` oder
     `EE-AOC.exe`.
   - (b): In HKLM steht für beide Programme genau `~ RUNASADMIN`, z. B.
     `C:\Program Files (x86)\Empire Earth\Empire Earth\Empire Earth.exe    REG_SZ    ~ RUNASADMIN`;
     in HKCU nichts.
-  - Schritt 5: Beide Spiele starten ohne Fehlermeldung, Runtime-Fehler oder schwarzen Bildschirm.
-- **Log-Hinweis:** (a) `Windows 6.1: this setup writes no compatibility values on Windows Vista/7, checking HKLM for values of earlier setups`,
+  - (d): In HKLM für beide Programme genau `~ DWM8And16BitMitigation HIGHDPIAWARE HeapClearAllocation`
+    (kein `WINXPSP3`), in HKCU nichts; nach der Deinstallation keine der beiden Zeilen mehr.
+  - (e): In HKLM für beide genau `~ RUNASADMIN DWM8And16BitMitigation HIGHDPIAWARE HeapClearAllocation`,
+    in HKCU nichts.
+  - (f): In HKCU nur für `Empire Earth.exe` `~ DWM8And16BitMitigation HIGHDPIAWARE HeapClearAllocation`,
+    für `EE-AOC.exe` nichts; in HKLM nichts.
+  - Schritt 5 und der Spielstart in Schritt 7: Beide Spiele starten ohne Fehlermeldung,
+    Runtime-Fehler oder schwarzen Bildschirm.
+- **Log-Hinweis:** (a) `Windows 6.1: this setup writes no compatibility values on Windows Vista/7 by default, checking HKLM for values of earlier setups`,
   dann zweimal `No compatibility value of … (HKLM)`; (b) zweimal
   `Kept the compatibility value "~ RUNASADMIN" of … (HKLM): not a value of an earlier setup` (der
-  Wert dieses Laufs bleibt); (c) wie (a) mit `HKCU`. In keinem Lauf eine Zeile
+  Wert dieses Laufs bleibt); (c) wie (a) mit `HKCU`; (d) die Kopfzeile endet mit
+  ` (opt-in task compatibility_legacy selected)`, dann zweimal
+  `Kept the compatibility value "~ DWM8And16BitMitigation HIGHDPIAWARE HeapClearAllocation" of … (HKLM): written by this run (task compatibility_legacy)`;
+  (e) ebenso mit `"~ RUNASADMIN DWM8And16BitMitigation HIGHDPIAWARE HeapClearAllocation"`; (f)
+  `Kept the compatibility value "~ DWM8And16BitMitigation HIGHDPIAWARE HeapClearAllocation" of …\Empire Earth.exe (HKCU): written by this run (task compatibility_legacy)`
+  und `No compatibility value of …\EE-AOC.exe (HKCU)`. In keinem Lauf eine Zeile
   `Removed the old Windows Vista/7 compatibility value`.
 
 #### TP-21: Windows 7: Update entfernt nur die Werte früherer Setups (nur VM)
 
 - **Status:** ausgearbeitet
-- **Priorität:** P3
-- **Bezug:** R15, ADR 0005 (Bereinigung, `IsLegacyVistaCompatValue`), Vertrag 3.7; Forum §8 Nr. 5
-  („Unter Windows 7 besonders den Standardfall WINXPSP3 prüfen“)
+- **Priorität:** P3 (nur VM; auch die Variante (c) mit `compatibility_legacy`)
+- **Bezug:** R15, ADR 0005 (Bereinigung, `IsLegacyVistaCompatValue`), ADR 0010 (Ausnahme für den
+  Wert von `compatibility_legacy`, `ShouldRemoveLegacyVistaCompatValue`), Vertrag 3.7; Forum §8
+  Nr. 5 („Unter Windows 7 besonders den Standardfall WINXPSP3 prüfen“)
 - **Ziel:** Ein Update unter Windows 7 entfernt genau die Werte, die frühere Setups dort geschrieben
   haben (bei 1.7.2 der Wert von `EE-AOC.exe`), und lässt jeden anderen Wert stehen: einen, den der
-  Spieler selbst gesetzt hat, und `~ RUNASADMIN`.
-- **Build-Art:** (a) B; (b) A oder B
+  Spieler selbst gesetzt hat, `~ RUNASADMIN` und den Wert, den derselbe Lauf mit
+  `compatibility_legacy` schreibt; wird die Aufgabe bei einem späteren Lauf abgewählt, entfernt die
+  Bereinigung ihren Wert.
+- **Build-Art:** (a) B; (b) und (c) A oder B
 - **Ausgangszustand:** (a) offizielles Setup 1.7.2 (EE) unter Windows 7 als Administrator mit
   „Empfohlene Einstellungen“ und „Installiere Empire Earth und Die Kunst der Eroberungen -
   Erweiterung“ installiert, einmal gestartet; dazu ein eigener Wert des Spielers für
   `Empire Earth.exe` (Schritt 3). (b) Kein Empire Earth; die Werte früherer Setups werden mit
   `reg add` nachgestellt, für Tests ohne die Daten von Weg B.
-- **Snapshot:** (a) `S-Win7-172-EE`; (b) `S-Win7` (nur VM, nie auf dem Laptop)
+- **Snapshot:** (a) `S-Win7-172-EE`; (b) und (c) `S-Win7` (nur VM, nie auf dem Laptop)
 - **Varianten:** (a) EE-admin als Update an Ort und Stelle (NeoEE nutzt denselben Code); (b)
-  EE-admin (HKLM) und EE-user (HKCU).
+  EE-admin (HKLM) und EE-user (HKCU); (c) EE-admin mit `compatibility_legacy` über nachgestellten
+  Werten früherer Setups, danach ein zweiter Lauf ohne die Aufgabe (S-WP10).
 - **Schritte:**
   1. (a) Die `reg query`-Befehle ausführen. Nach 1.7.2 erwartet: in HKLM für `EE-AOC.exe`
      `~ DWM8And16BitMitigation HIGHDPIAWARE HeapClearAllocation WINXPSP3`, für `Empire Earth.exe`
@@ -888,6 +929,25 @@ Gemeinsam für alle Fälle dieses Blocks:
      Dann das Setup mit `/CURRENTUSER /LOG="C:\EE-Test\logs\TP-21b_EE-user.log"`, „Empfohlene
      Einstellungen“ mit Empire Earth und AoC, Zielordner unverändert (er muss zu den Pfaden oben
      passen), installieren; `reg query` für HKCU wiederholen.
+  7. (c) Snapshot `S-Win7` zurücksetzen und in einer Eingabeaufforderung als Administrator die Werte
+     von 1.7.2 und einem früheren Setup nachstellen:
+
+     ```bat
+     set L=HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers
+     reg add "%L%" /v "C:\Program Files (x86)\Empire Earth\Empire Earth\Empire Earth.exe" /t REG_SZ /d "~ RUNASADMIN WINXPSP3" /f /reg:64
+     reg add "%L%" /v "C:\Program Files (x86)\Empire Earth\Empire Earth - The Art of Conquest\EE-AOC.exe" /t REG_SZ /d "~ DWM8And16BitMitigation HIGHDPIAWARE HeapClearAllocation WINXPSP3" /f /reg:64
+     ```
+
+     Dann das Setup mit `/LOG="C:\EE-Test\logs\TP-21c_EE-admin.log"`, „Für alle Benutzer
+     installieren“, „Benutzerdefinierte Installationseinstellungen“ mit Empire Earth und AoC,
+     Zielordner unverändert, auf der Aufgabenseite „Kompatibilitätseinstellungen aktivieren
+     (optional unter Windows 7: …)“ anhaken, installieren; die `reg query`-Befehle wiederholen.
+  8. (c) Das Setup ein zweites Mal mit `/LOG="C:\EE-Test\logs\TP-21c2_EE-admin.log"` starten,
+     „Aktuelle Installation aktualisieren“ bzw. „Vorhandene Installation reparieren“ nicht wählen,
+     sondern „Benutzerdefinierte Installationseinstellungen“ mit Empire Earth und AoC; auf der
+     Aufgabenseite prüfen, dass „Kompatibilitätseinstellungen aktivieren (optional unter Windows 7:
+     …)“ vom ersten Lauf her angehakt ist, den Haken entfernen, installieren; die `reg query`-Befehle
+     wiederholen.
 - **Erwartetes Ergebnis:**
   - (a) nach dem Update: kein Wert mehr für `EE-AOC.exe` in HKLM; für `Empire Earth.exe` in HKLM
     weiterhin `~ WINXPSP3 DISABLEDWM` (der Wert des Spielers); in HKCU keine der beiden
@@ -896,6 +956,11 @@ Gemeinsam für alle Fälle dieses Blocks:
   - (b) admin: der Wert von `Empire Earth.exe` ist entfernt, `EE-AOC.exe` behält
     `~ WINXPSP3 DISABLEDWM`.
   - (b) user: der Wert von `Empire Earth.exe` ist entfernt, `EE-AOC.exe` behält `~ RUNASADMIN`.
+  - (c) nach Schritt 7: in HKLM für beide Programme genau
+    `~ DWM8And16BitMitigation HIGHDPIAWARE HeapClearAllocation`: die Einträge der Aufgabe haben die
+    nachgestellten Werte ersetzt, und die Bereinigung hat den neuen Wert stehen lassen; nirgends
+    `WINXPSP3`. Nach Schritt 8: kein Wert mehr für beide Programme (die Bereinigung entfernt den
+    Wert der abgewählten Aufgabe, denn er ist einer der Werte früherer Setups).
   - Kein anderer Wert unter `AppCompatFlags\Layers` hat sich geändert (Ausgaben vorher und nachher
     vergleichen).
 - **Log-Hinweis:** (a) `Removed the old Windows Vista/7 compatibility value "~ DWM8And16BitMitigation HIGHDPIAWARE HeapClearAllocation WINXPSP3" of …\EE-AOC.exe (HKLM)`,
@@ -904,7 +969,11 @@ Gemeinsam für alle Fälle dieses Blocks:
   `Removed the old Windows Vista/7 compatibility value "~ RUNASADMIN DWM8And16BitMitigation HIGHDPIAWARE HeapClearAllocation WINXPSP3" of …\Empire Earth.exe (HKLM)`
   und `Kept the compatibility value "~ WINXPSP3 DISABLEDWM" of …\EE-AOC.exe (HKLM): …`; (b) user
   `Removed the old Windows Vista/7 compatibility value "~ WINXPSP3" of …\Empire Earth.exe (HKCU)` und
-  `Kept the compatibility value "~ RUNASADMIN" of …\EE-AOC.exe (HKCU): …`.
+  `Kept the compatibility value "~ RUNASADMIN" of …\EE-AOC.exe (HKCU): …`; (c) Schritt 7: Kopfzeile
+  mit ` (opt-in task compatibility_legacy selected)` und zweimal
+  `Kept the compatibility value "~ DWM8And16BitMitigation HIGHDPIAWARE HeapClearAllocation" of … (HKLM): written by this run (task compatibility_legacy)`;
+  Schritt 8: Kopfzeile ohne den Zusatz und zweimal
+  `Removed the old Windows Vista/7 compatibility value "~ DWM8And16BitMitigation HIGHDPIAWARE HeapClearAllocation" of … (HKLM)`.
 
 #### TP-22: Windows 10/11: Kompatibilitätswerte unverändert
 
@@ -1014,21 +1083,23 @@ Gemeinsam für alle Fälle dieses Blocks:
 #### TP-24: 150 % Anzeigeskalierung mit und ohne Aufgabe compatibility
 
 - **Status:** ausgearbeitet
-- **Priorität:** P2
+- **Priorität:** P2 (Windows-7-Varianten (c) und (d): P3, nur VM)
 - **Bezug:** Vertrag O4 und 3.3 (`Game Window Width`, `Game Window Height` in physischen Pixeln),
-  ADR 0005 (Folgen: ohne `HIGHDPIAWARE` unter Windows 7), R15
+  ADR 0005 (Folgen: ohne `HIGHDPIAWARE` unter Windows 7), ADR 0010 (`compatibility_legacy` setzt
+  `HIGHDPIAWARE` unter Windows 7), R15
 - **Ziel:** Bei 150 % schreibt das Setup die Fenstergröße in physischen Pixeln, und es ist
-  festgehalten, ob das Spiel mit `HIGHDPIAWARE` (Aufgabe `compatibility`) und ohne auf den
-  Bildschirm passt, auch unter Windows 7, wo es die Aufgabe nicht mehr gibt.
+  festgehalten, ob das Spiel mit `HIGHDPIAWARE` (Aufgabe `compatibility`, unter Windows 7 die
+  freiwillige Aufgabe `compatibility_legacy`) und ohne auf den Bildschirm passt.
 - **Build-Art:** B (Schritte 1 und 2 auch A)
 - **Ausgangszustand:** (a), (b) Windows 10/11, *Einstellungen › System › Anzeige › Skalierung* auf
   150 %, danach ab- und wieder angemeldet; (c) Windows 7, *Systemsteuerung › Anzeige* „Größer –
   150 %“, abgemeldet und wieder angemeldet. Physische Auflösung notieren (Windows 10/11:
   „Bildschirmauflösung“ auf derselben Seite; Windows 7: *Bildschirmauflösung*). Kein Empire Earth.
-- **Snapshot:** (a), (b) `Laptop` (Weg B) oder `S-Basis`; (c) `S-Win7`
+- **Snapshot:** (a), (b) `Laptop` (Weg B) oder `S-Basis`; (c), (d) `S-Win7`
 - **Varianten:** (a) EE-admin mit beiden Aufgaben (`HIGHDPIAWARE`), (b) EE-admin ohne
-  „Kompatibilitätseinstellungen aktivieren“ (Wert `~ WIN7RTM`), (c) EE-admin unter Windows 7 (keine
-  Werte).
+  „Kompatibilitätseinstellungen aktivieren“ (Wert `~ WIN7RTM`), (c) EE-admin unter Windows 7 mit den
+  vorgegebenen Aufgaben (keine Werte), (d) EE-admin unter Windows 7 mit `compatibility_legacy`
+  (`HIGHDPIAWARE`, S-WP10).
 - **Schritte:**
   1. (a) Setup mit `/LOG="C:\EE-Test\logs\TP-24a_EE-admin.log"`, „Benutzerdefinierte
      Installationseinstellungen“ mit Empire Earth und AoC, Aufgaben unverändert, installieren.
@@ -1042,20 +1113,24 @@ Gemeinsam für alle Fälle dieses Blocks:
      Bildschirmfoto ins Protokoll. Dasselbe mit AoC (`HKCU\Software\Mad Doc Software\EE-AOC`).
   4. (b) Deinstallieren bzw. Snapshot zurücksetzen, Schritt 1 mit `TP-24b` im Log-Namen und
      abgewählter Aufgabe „Kompatibilitätseinstellungen aktivieren“; Schritte 2 und 3.
-  5. (c) Schritte 1 bis 3 auf `S-Win7` mit `TP-24c` (die Aufgabenseite zeigt keine
-     Kompatibilitätsaufgaben).
+  5. (c) Schritte 1 bis 3 auf `S-Win7` mit `TP-24c` (die Aufgabenseite zeigt nur die nicht
+     angehakte Aufgabe „Kompatibilitätseinstellungen aktivieren (optional unter Windows 7: …)“; sie
+     bleibt aus).
+  6. (d) Snapshot `S-Win7` zurücksetzen, Schritte 1 bis 3 mit `TP-24d` und angehakter Aufgabe
+     „Kompatibilitätseinstellungen aktivieren (optional unter Windows 7: …)“.
 - **Erwartetes Ergebnis:**
   - Schritt 2, alle Varianten: `Game Window Width` und `Game Window Height` sind die physische
     Auflösung, begrenzt auf 1024 bis 1920 bzw. 768 bis 1080 (bei 1920 × 1080: `0x780` und `0x438`,
     nicht die logischen 1280 × 720). Logische Werte sind ein Befund zu Vertrag O4.
   - Kompatibilitätswerte: (a) `~ DWM8And16BitMitigation HIGHDPIAWARE HeapClearAllocation WIN7RTM`,
-    (b) `~ WIN7RTM`, (c) keiner.
+    (b) `~ WIN7RTM`, (c) keiner, (d) `~ DWM8And16BitMitigation HIGHDPIAWARE HeapClearAllocation`.
   - Schritt 3 ist ein Befund, kein Bestanden/Nicht bestanden: je Variante und Spiel „passt“, „zu
-    groß“ oder „zu klein“. Passt das Bild nur in (a), bekommt Vertrag 3.3 den Hinweis, dass die
-    Fenstergröße nur mit `HIGHDPIAWARE` passt (Vertrag O4), und (c) ist die bekannte Folge von
-    ADR 0005 für Windows 7 (README).
+    groß“ oder „zu klein“. Passt das Bild nur mit `HIGHDPIAWARE` ((a) bzw. (d)), bekommt Vertrag 3.3
+    den Hinweis, dass die Fenstergröße nur mit `HIGHDPIAWARE` passt (Vertrag O4); (c) ist dann die
+    bekannte Folge von ADR 0005 für Windows 7, die (d) mit der freiwilligen Aufgabe beheben soll (README).
 - **Log-Hinweis:** Das Setup schreibt die Bildschirmgröße nicht ins Log; maßgeblich sind die
-  Registry-Werte aus Schritt 2. Bei (c) zusätzlich die Zeilen aus [TP-20](#tp-20-windows-7-neuinstallation-ohne-kompatibilitätswerte-nur-vm) (a).
+  Registry-Werte aus Schritt 2. Bei (c) zusätzlich die Zeilen aus [TP-20](#tp-20-windows-7-neuinstallation-ohne-kompatibilitätswerte-und-mit-compatibility_legacy-nur-vm) (a),
+  bei (d) die aus TP-20 (d).
 
 ### Block 3: Build und Log (S-WP5)
 
