@@ -39,7 +39,8 @@
   script before ISCC runs). 0 is a release build; a number > 0 makes a test build: fast
   compression (zip/1) and a warning with the number on every start, also in silent mode (silent
   test runs need /SUPPRESSMSGBOXES). Default: the TestID define in setup_is6.iss (0). Test builds
-  are for testing only and must never be distributed.
+  are for testing only and must never be distributed (docs/TEST-PLAN.de.md, "Testbuild
+  herstellen").
 
 .PARAMETER Variants
   Variants to build, any of EE/Regular, NeoEE/Regular, EE/Portable, NeoEE/Portable (default: all).

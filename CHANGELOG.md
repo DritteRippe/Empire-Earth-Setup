@@ -81,6 +81,17 @@ Refactoring and quality fixes (no new game content).
   and the temporary build copies, so a new module is checked from its first commit; an `#include`
   of a missing file is reported. `--self-test` (also in the workflow) runs the check against
   modified copies, e.g. a new module with an undefined message or without BOM, which must fail.
+- `docs/TEST-PLAN.de.md`: the German plan of the manual tests on Windows for setup v2: safety rules
+  (placeholder builds only in a virtual machine or on a snapshot, only own legally obtained game
+  data, `Software\Sierra\CDKeys` is never deleted, test builds are never passed on, where the setup
+  log is), test case ids (`TP-00` and one block per work package), a template per case, test
+  environments and snapshots, how to make a test build (from placeholders, which needs the real
+  `EEStatsSetup.dll`, or from own data with the official AppIds read from the uninstall key; the
+  tools that rebuilt the data from the official 1.7.2 setups stay outside the repository, with the
+  reasons), silent test runs with `/SUPPRESSMSGBOXES`, the server pre-check `TP-00`, the basic run
+  `TP-70`, and the forum test cases 1 to 22 mapped to test cases or excluded with a reason. The
+  other cases are placeholders that the following work packages work out. README: "Testing on
+  Windows".
 
 ### Changed
 - The hidden setup data folder (holds `EEStatsSetup.dll` for the uninstaller) is now
