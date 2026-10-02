@@ -114,8 +114,9 @@ release build.
   compliant), an interpreter of the ISPP directives used in `[Registry]` whose output equals ISCC's
   preprocessing for all four variants (72 entries each; `--preprocessed` checks that in CI), and
   `--self-test` with 35 cases (modified copies that must fail, and copies that must pass). The
-  tables of 3.3 and 3.4 follow with contract revision 2
-  (S-WP10).
+  tables of 3.3 and 3.4 followed with contract revision 2 (S-WP10, `921360a`: the window limits
+  against `MinGameWindowWidth` ... `MaxGameWindowHeight`, the GPU preference entries; 3.7 also
+  reads `OnlyBelowVersion` and `(opt-in)` since `727bc93`; 55 self-test cases, ADR 0010).
 - **Point 3 and 4** were implemented by S-WP1 and S-WP2 (`ci/compare_contract.py`, the encoding and
   message checks of `ci/check_messages.py`).
 - **Point 5:** `[Setup] SetupLogging=yes`. Inno Setup 6.2.2 (`Main.pas`) starts logging after the

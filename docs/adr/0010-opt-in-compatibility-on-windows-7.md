@@ -1,6 +1,8 @@
 # 0010. Opt-in compatibility flags on Windows 7; rules for the graphics and VirtualStore results
 
-- Status: Accepted (implemented by S-WP10; the rules of points 3 and 4 apply to the test results)
+- Status: Accepted, implemented: points 1 to 3 and the README part of point 6 by S-WP10 (see
+  [Implementation](#implementation)); points 4 and 5 are rules for the results of TP-23 and TP-71,
+  the Windows 8.1 variant of TP-22 (point 6) follows with S-WP9
 - Date: 2026-10-02
 - Requirements: R15 ("decide with evidence, document, keep user-selectable"), contract O7, forum
   report section 8 problem table item 2 (VirtualStore)
@@ -87,6 +89,78 @@ VirtualStore could never be closed.
 - The launcher may offer the same values on Windows 7 (contract 3.7, "Windows versions of the
   table").
 - TP-23 and TP-71 state the rules of points 4 and 5 as their expected consequence (S-WP9).
+
+## Implementation
+
+S-WP10, 2026-10-02, in this order: the helper with its unit tests (`2ce68ee`), contract revision 2
+together with the task and the extended contract check (`727bc93` here, `0b2cb40` in the launcher
+repository, same subject), the checks of the tables 3.3 and 3.4 (`921360a`), the test cases
+(`ce29e90`), README and CHANGELOG (`bb4601e`).
+
+- **Point 1:** `[Tasks]` `compatibility_legacy` with `OnlyBelowVersion: {#Win8}`, `Flags: unchecked`,
+  `Check: not IsWine`, message `TaskCompatibilityLegacy` (English, German, French; "Enable
+  compatibility flags (optional on Windows 7: can help if the game looks blurry or does not fit on
+  the screen with enlarged display scaling)"). `[Registry]`: the new sub `CompatibilityValuesWin7`
+  writes `{code:GetCompatibilityFlags}` without a Windows compatibility mode, `OnlyBelowVersion:
+  {#Win8}`, `uninsdeletevalue`, for `Empire Earth.exe` (`game`) and `EE-AOC.exe` (`gameaoc`), in
+  HKLM (`Check: IsAdminInstallMode`) and HKCU (`Check: not IsAdminInstallMode`). `GetCompatibilityFlags`
+  passes `WizardIsTaskSelected('compatibility') or WizardIsTaskSelected('compatibility_legacy')` as
+  the flags parameter; no Windows has both tasks, so the value is
+  `BuildCompatibilityFlags(<everyoneadminstart>, True)` and nothing changes on Windows 8 and later.
+  The RUNASADMIN-only entry requires `not compatibility_legacy` as well, otherwise two entries would
+  write the same value on Windows 7 with both opt-in tasks. The preprocessed scripts of all four
+  variants contain `WINXPSP3` only in `LegacyVistaCompatLayer`.
+- **Point 2:** `ShouldRemoveLegacyVistaCompatValue(Value, LegacyOptInSelected, ProgramSelected)` in
+  `utils.iss` (48 unit tests: the six old values with task and component, task without component,
+  task not selected with and without component; the two values of the task; five values that are
+  never removed; dropping the component condition fails 7 tests, dropping the exception 8).
+  `RemoveLegacyVistaCompatValue` passes `WizardIsComponentSelected('game')` resp. `'gameaoc'` and
+  logs a kept value as `written by this run (task compatibility_legacy)`; the header line names the
+  selected task.
+- **Point 3:** contract 3.7 has the row
+  `compatibility_legacy | DWM8And16BitMitigation HIGHDPIAWARE HeapClearAllocation | 7 only (opt-in) | HKLM / HKCU / HKCU`
+  (between `compatibility` and `compatibility_windows`, the order of the value), `(opt-in)` also for
+  `everyoneadminstart`, the exception in the cleanup rule, and for the launcher: such a value is no
+  leftover when `Tasks` contains the task. `ci/check_contract.py` reads the Windows versions from
+  `MinVersion` and `OnlyBelowVersion` of the tasks and entries ("7 only"), several tasks joined by
+  `or` in `GetCompatibilityFlags` (one row each), `(opt-in)` against `Flags: unchecked`, a task that
+  cannot be selected outside its Windows versions, and two entries that could write the value of
+  one program in the same run (an error). 20 new self-test cases (11 for 3.7, 9 for 3.3 and 3.4),
+  55 in all.
+- **Point 6:** README "Compatibility and graphics options" (the option on Windows 7, Windows 8 and
+  8.1 against 1.7.2); TP-20 (d) to (f), TP-21 (c) and TP-24 (d) test the task (virtual machine
+  only, `P3`).
+- Real-data comparison (maintainers only, never committed: EE and NeoEE built with ISCC from the
+  reconstructed 1.7.2 data, official AppIds, unsigned; innoextract dumps compared semantically).
+  Against the S-WP5 build (`5c4d895`), for EE and NeoEE alike, only these differ: the compiled
+  code (EE 121005 -> 122096 bytes, NeoEE 125700 -> 126791 bytes), the three entries of the message
+  `TaskCompatibilityLegacy` (845 -> 848 resp. 887 -> 890), the task `compatibility_legacy` (7 -> 8
+  resp. 8 -> 9 tasks: only below Windows 8, unchecked, `not IsWine`) and the registry entries (72
+  -> 76): the four new entries and `and not compatibility_legacy` in the `Tasks` of the two
+  RUNASADMIN-only entries. Files, data, components, the other tasks and registry entries, run
+  entries and folders are identical. Against official 1.7.2 the two new `EE-AOC.exe` entries equal
+  its Windows Vista/7 entries without `WINXPSP3` (`Tasks: not compatibility_windows and
+  compatibility`, value `{code:GetCompatibilityFlags}`, the same root, check, flags and
+  `OnlyBelowVersion` NT 6.2) except for `Tasks` and the minimum (Vista; Inno Setup 6 setups start
+  on Windows 7 SP1 only); 1.7.2 computed the same value (`~`, `RUNASADMIN` with
+  `everyoneadminstart`, the flags with `compatibility`). The two `Empire Earth.exe` entries have no
+  counterpart that ever applied in 1.7.2 (its filter `0.6.2`). No compatibility entry of the new
+  build contains `WINXPSP3`.
+- Run-time probe under Wine (not in the repository): a tiny setup with the real
+  `GetCompatibilityFlags` and `RemoveLegacyVistaCompatValue`, cut out of `setup_is6.iss`
+  (`WizardIsTaskSelected` replaced by a probe function, because Inno Setup 6.2.2 in this Wine
+  prefix stops with "System Error. Code: 120" when the wizard is created, also without any code),
+  on a scratch key in HKCU, with the values of earlier setups seeded. Task with Empire Earth only:
+  the value of `Empire Earth.exe` written by "[Registry]" (`~ DWM8And16BitMitigation HIGHDPIAWARE
+  HeapClearAllocation`) stays ("written by this run"), the old `EE-AOC.exe` value with `WINXPSP3`
+  is removed; next run without the task: that value is removed; task with `everyoneadminstart` and
+  both games: both `~ RUNASADMIN DWM8And16BitMitigation HIGHDPIAWARE HeapClearAllocation` stay; a
+  value of the player (`~ WINXPSP3 DISABLEDWM`) stays; an unrelated value is never touched. The
+  Windows version filter itself is covered by `OnlyBelowVersion` (Inno Setup) and the unit tests
+  of `IsBelowWindows8`; the Wine prefix reports Windows 10.
+- Not verified here: whether `DWM8And16BitMitigation` and `HeapClearAllocation` change anything on
+  Windows 7, and the effect of `HIGHDPIAWARE` at 150 % there (TP-20 (d), TP-24 (d), virtual machine
+  only).
 
 ## Alternatives considered
 
