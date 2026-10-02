@@ -178,8 +178,10 @@ installation loop (an exception in `AfterInstall` would abort the installation, 
 
 ## 6. Logging
 
-- **Every run writes a log** (`SetupLogging=yes`, S-WP5): `%TEMP%\Setup Log <date> #<n>.txt`, so
-  that players can send it without knowing the `/LOG` switch. `/LOG=<file>` still works.
+- **Every run writes a log** (`SetupLogging=yes`, S-WP5): `%TEMP%\Setup Log <date> #<n>.txt`
+  (`<date>` as `yyyy-mm-dd`, `<n>` the three-digit number of the run on that day), so that players
+  can send it without knowing the `/LOG` switch. `/LOG=<file>` still works and writes to `<file>`
+  instead (Inno Setup: a file name given with `/LOG` takes precedence over `SetupLogging`).
 - Every decision is logged with its reason: update check, legal question, page choices,
   registered/refused/accepted downloads (pinned or TLS-only, with SHA-256), server fallback and its
   cause, random map moves, certificate handling, CD-key result code, manifest summary (number of
@@ -188,8 +190,11 @@ installation loop (an exception in `AfterInstall` would abort the installation, 
   earlier setups removed or kept on Windows Vista/7 (with the value), environment findings,
   screen size, DPI and clamped window size (S-WP8), the link check (folders checked, duration,
   findings; S-WP11), the hashing throughput in MB/s (S-WP7).
-- With over-the-shoulder elevation the log is in the `%TEMP%` of the administrator account that
-  elevated; it contains paths with user names (README "Support", S-WP5).
+- Inno Setup starts logging only after the elevation, in the elevated process: with
+  over-the-shoulder elevation the log is in the `%TEMP%` of the administrator account that
+  elevated, not in the one of the standard user who started the setup. It contains paths with
+  user names; README "Support" says where to find the log in both cases and to check it for user
+  names before posting it publicly (test case TP-30).
 - **Never logged:** CD keys and anything below `Software\Sierra\CDKeys` (the setup does not read
   it), the anonymous telemetry id (the query of telemetry requests is cut from the log),
   credentials of any kind.

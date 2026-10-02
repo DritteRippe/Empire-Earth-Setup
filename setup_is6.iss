@@ -338,6 +338,11 @@ WindowShowCaption=False
 UninstallDisplayIcon={uninstallexe}
 DirExistsWarning=no
 ShowLanguageDialog=auto
+; Every run writes a log, "Setup Log <yyyy-mm-dd> #<nnn>.txt" in the temporary folder (%TEMP%) of
+; the account that runs the setup (with over-the-shoulder elevation: the administrator account
+; that elevated it), so that players can send it without knowing /LOG; /LOG=<file> still writes
+; to <file> instead. The uninstaller writes a log only with /LOG. ADR 0008 point 5, README "Support".
+SetupLogging=yes
 
 
 #if Ver >= EncodeVer(6, 0, 0)

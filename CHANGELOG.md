@@ -150,6 +150,13 @@ Refactoring and quality fixes (no new game content).
   `WIN7RTM` -> `WIN8RTM`, an entry without `ignoreversion`); `--preprocessed out/preprocessed`
   (workflow, after the build) checks that its interpreter reads `[Registry]` exactly as ISCC
   preprocessed it and lints the expanded `[Files]` sections. README: "Verify".
+- Every run of the setup writes a log (`SetupLogging=yes`): `Setup Log <yyyy-mm-dd> #<nnn>.txt` in
+  the temporary folder (`%TEMP%`) of the account that runs it, so that players can attach it to a
+  support request without knowing the `/LOG` switch; `/LOG=<file>` still writes to that file
+  instead. With over-the-shoulder elevation the setup runs as the administrator account that
+  confirmed the elevation, so the log is in that account's `%TEMP%`. The uninstaller still writes a
+  log only with `/LOG`. Nothing else in the compiled setups changes. README: "Support" (where to
+  find the log, and to check it for user names in folder paths before posting it publicly).
 
 ### Changed
 - The hidden setup data folder (holds `EEStatsSetup.dll` for the uninstaller) is now
