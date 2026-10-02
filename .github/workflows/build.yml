@@ -86,7 +86,9 @@ jobs:
         run: ./ci/build.ps1 -Placeholders -RequireVersion 6.2.2 -KeepPreprocessed out/preprocessed
 
       # The ISPP interpreter of the contract check must read [Registry] exactly as ISCC did for
-      # every variant, and the fully expanded [Files] sections must pass its lint as well
+      # every variant (with the SetupBuild that build.ps1 passed in CI, the short commit, which the
+      # check reads from the install record), and the fully expanded [Files] sections must pass
+      # its lint as well
       - name: Contract check against the preprocessed scripts
         shell: pwsh
         run: python ci/check_contract.py --preprocessed out/preprocessed

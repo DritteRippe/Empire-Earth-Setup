@@ -55,7 +55,8 @@
 #define MyAppGroupName "Empire Earth"
 ; Version of the setup and launcher contract (docs/CONTRACT.md, section 5) that this script
 ; implements. ci/check_contract.py compares it with the header of the contract; change both together.
-; install.ini and the value in the uninstall key (installstate.iss) carry it (contract 1.2, 1.3).
+; The install record and the defaults marker ([Registry]), install.ini and the value in the
+; uninstall key (installstate.iss) carry it (contract 1.1 to 1.3, 3.5).
 #define ContractVersion 1
 
 ; Build switches
@@ -187,6 +188,8 @@
 
 ; Regedit (the game settings keys BaseRegEE and BaseRegAoC are in the product configuration)
 #define BaseRegCompatibility = "Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers"
+; Install record and defaults marker of the setup and launcher contract (docs/CONTRACT.md 1.1, 3.5)
+#define BaseRegCommunity = "Software\Empire Earth Community"
 
 ; Windows versions for the MinVersion and OnlyBelowVersion parameters. Inno Setup 6 ignores the
 ; part before the comma (Windows 95/98/Me) and reads a single value as the Windows NT version:
@@ -977,6 +980,39 @@ Root: "HKCU"; Subkey: "{#GameRegKey}"; ValueType: string; ValueName: "Installed 
 ; The Art of Conquest: Ending Epoch $E = 14, its last epoch (AoC adds the Space Age)
 #expr GameRegKey = BaseRegAoC, GameComp = "gameaoc", GameDir = AoCDir, GameEndingEpoch = "$E"
 #call GameSettings
+
+#if InstallMode == "Regular"
+; Install record (contract 1.1, docs/adr/0004-install-record-and-integrity-manifest.md point 2):
+; which product is installed where, in which install mode, by which setup; the launcher reads it.
+; HKA is HKLM in administrative install mode (the 64-bit view on 64-bit Windows, see
+; ArchitecturesInstallIn64BitMode) and HKCU in non-administrative install mode. deletekey: every run
+; writes the record anew, so no value of an earlier run stays (e.g. SetupBuild of a test build). The
+; uninstaller removes the record, and the parent keys if they are empty. Portable setups write none:
+; they have no uninstaller that would remove it (contract 1.1).
+Root: HKA; Subkey: "{#BaseRegCommunity}"; Flags: uninsdeletekeyifempty
+Root: HKA; Subkey: "{#BaseRegCommunity}\Installations"; Flags: uninsdeletekeyifempty
+Root: HKA; Subkey: "{#BaseRegCommunity}\Installations\{#InstallType}"; Flags: deletekey uninsdeletekey
+Root: HKA; Subkey: "{#BaseRegCommunity}\Installations\{#InstallType}"; ValueType: dword; ValueName: "ContractVersion"; ValueData: "{#ContractVersion}"
+Root: HKA; Subkey: "{#BaseRegCommunity}\Installations\{#InstallType}"; ValueType: string; ValueName: "InstallPath"; ValueData: "{app}"
+Root: HKA; Subkey: "{#BaseRegCommunity}\Installations\{#InstallType}"; ValueType: string; ValueName: "InstallMode"; ValueData: "{code:GetContractInstallMode}"
+Root: HKA; Subkey: "{#BaseRegCommunity}\Installations\{#InstallType}"; ValueType: string; ValueName: "AppId"; ValueData: "{#AppID}"
+Root: HKA; Subkey: "{#BaseRegCommunity}\Installations\{#InstallType}"; ValueType: string; ValueName: "GameVersion"; ValueData: "{#MyAppVersion}"
+Root: HKA; Subkey: "{#BaseRegCommunity}\Installations\{#InstallType}"; ValueType: string; ValueName: "SetupVersion"; ValueData: "{#MySetupVersion}"
+  #if SetupBuild != ""
+Root: HKA; Subkey: "{#BaseRegCommunity}\Installations\{#InstallType}"; ValueType: string; ValueName: "SetupBuild"; ValueData: "{#SetupBuild}"
+  #endif
+; Defaults marker (contract 3.5, ADR 0004 point 2): per game, the contract version whose default game
+; settings (the GameSettings values above) were applied for this account. Like the game settings it
+; goes to the account that runs the setup (with over-the-shoulder elevation: the administrator
+; account that elevated it); the launcher applies the defaults for every other account and writes
+; their marker. The uninstaller removes it for the account that uninstalls. Portable setups write
+; none (no uninstaller; the launcher finds the values they wrote and does not ask, contract 3.5).
+Root: HKCU; Subkey: "{#BaseRegCommunity}"; Flags: uninsdeletekeyifempty
+Root: HKCU; Subkey: "{#BaseRegCommunity}\GameDefaults"; Flags: uninsdeletekeyifempty
+Root: HKCU; Subkey: "{#BaseRegCommunity}\GameDefaults\{#InstallType}"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "{#BaseRegCommunity}\GameDefaults\{#InstallType}"; ValueType: dword; ValueName: "EE"; ValueData: "{#ContractVersion}"; Components: game
+Root: HKCU; Subkey: "{#BaseRegCommunity}\GameDefaults\{#InstallType}"; ValueType: dword; ValueName: "AoC"; ValueData: "{#ContractVersion}"; Components: gameaoc
+#endif
 
 [Icons]
 #if InstallMode != "Portable"

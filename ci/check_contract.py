@@ -72,6 +72,9 @@ that must pass.
 NeoEE_Portable.iss) and checks that the [Registry] entries of the interpreter above are exactly
 those of ISCC for every variant, and lints their fully expanded [Files] sections (the CI workflow
 runs it after the placeholder build). This keeps the interpreter honest as the script changes.
+The build switch SetupBuild changes [Registry] (the install record's value SetupBuild exists only
+if it is set) and ci/build.ps1 sets it in CI and for test builds, so the interpreter takes the
+value ISCC got from the preprocessed script: the data of that value, '' (the default) without it.
 
 Exit code 0 if everything matches (resp. all self-test cases behave), else 1.
 """
@@ -90,6 +93,9 @@ ALL_MODES = ["admin", "user", "portable"]
 # Dummy AppIds: the checked sections do not use them, but the defines of config_*.iss name them
 FIXED_DEFINES = {"EE_AppID": "00000000-0000-0000-0000-0000000000EE",
                  "NeoEE_AppID": "00000000-0000-0000-0000-000000000AEE"}
+# Build switch whose value --preprocessed takes from the install record of the preprocessed script
+SETUP_BUILD = "SetupBuild"
+INSTALL_RECORD_KEY = "\\installations\\"
 GAME_NAMES = ["Empire Earth", "The Art of Conquest"]
 REG_TYPES = {"string": "REG_SZ", "expandsz": "REG_EXPAND_SZ", "multisz": "REG_MULTI_SZ",
              "dword": "REG_DWORD", "qword": "REG_QWORD", "binary": "REG_BINARY"}
@@ -490,11 +496,12 @@ class Preprocessor:
         return out
 
 
-def collect_defines(root, install_type, install_mode):
+def collect_defines(root, install_type, install_mode, switches=None):
     """The plain #define values of config_<type>.iss and of setup_is6.iss above [Registry], for one
-    build variant. Lines this check cannot evaluate are skipped: only the names the checked
-    sections use matter, and using an unreadable one is an error there."""
-    defines = dict(FIXED_DEFINES, InstallType=install_type, InstallMode=install_mode)
+    build variant, with the build switches given as ISCC /D switches (switches, e.g. SetupBuild)
+    instead of their defaults. Lines this check cannot evaluate are skipped: only the names the
+    checked sections use matter, and using an unreadable one is an error there."""
+    defines = dict(FIXED_DEFINES, InstallType=install_type, InstallMode=install_mode, **(switches or {}))
     fixed = set(defines)
     files = [root / f"config_{install_type.lower()}.iss", root / MAIN_SCRIPT]
     for path in files:
@@ -523,10 +530,10 @@ def collect_defines(root, install_type, install_mode):
     return defines
 
 
-def registry_entries(root, install_type, install_mode):
+def registry_entries(root, install_type, install_mode, switches=None):
     """[(line, params)] of the [Registry] section of setup_is6.iss after preprocessing, and the
-    defines, for one build variant."""
-    defines = collect_defines(root, install_type, install_mode)
+    defines, for one build variant (switches: build switches as with ISCC /D)."""
+    defines = collect_defines(root, install_type, install_mode, switches)
     lines = section(logical_lines(read_text(root / MAIN_SCRIPT)), "Registry")
     entries = []
     for no, text in Preprocessor(defines, MAIN_SCRIPT).run(lines):
@@ -1603,8 +1610,13 @@ def check_preprocessed(root, folder):
         lines = logical_lines(path.read_text(encoding="utf-8-sig", errors="replace"))
         real = [parse_params(text) for _, text in section(lines, "Registry")
                 if text.strip() and not text.strip().startswith(";")]
+        # SetupBuild as ISCC got it: the data of the install record's value SetupBuild, if any
+        builds = [params.get("valuedata", "") for params in real
+                  if params.get("valuename", "") == SETUP_BUILD
+                  and INSTALL_RECORD_KEY in params.get("subkey", "").lower()]
+        switches = {SETUP_BUILD: builds[0] if builds else ""}
         try:
-            mine = [params for _, params in registry_entries(root, install_type, install_mode)[0]]
+            mine = [params for _, params in registry_entries(root, install_type, install_mode, switches)[0]]
         except CheckError as error:
             errors.append(f"{install_type}/{install_mode}: {error}")
             continue
