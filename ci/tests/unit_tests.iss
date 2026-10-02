@@ -1,5 +1,6 @@
 ﻿; Unit tests of the [Code] helpers without wizard access (utils.iss), including the download
-; policy of the online localized files and the install state for the launcher.
+; policy of the online localized files, the install state for the launcher and its integrity
+; manifest.
 ;
 ; A tiny setup that includes utils.iss, runs every test in InitializeSetup, writes the results to
 ; a text file and exits without installing anything (InitializeSetup returns False). It sends no
@@ -663,6 +664,291 @@ begin
   DelTree(Folder, True, True, True);
 end;
 
+procedure CheckManifestPath(const Name, Root, FullPath: String; const ExpectedOk: Boolean; const ExpectedPath: String);
+var
+  RelPath: String;
+  Ok: Boolean;
+begin
+  RelPath := '<unchanged>';
+  Ok := GetManifestPath(Root, FullPath, RelPath);
+  CheckBool('GetManifestPath ' + Name, Ok, ExpectedOk);
+  Check('GetManifestPath ' + Name + ': path', RelPath, ExpectedPath);
+end;
+
+// Contract 2.2: relative to the root, '/', never outside the root, no ':' and no '..'
+procedure TestGetManifestPath;
+begin
+  CheckManifestPath('file in a game folder', 'C:\Games\EE', 'C:\Games\EE\Empire Earth\Empire Earth.exe', True, 'Empire Earth/Empire Earth.exe');
+  CheckManifestPath('root with a trailing backslash', 'C:\Games\EE\', 'C:\Games\EE\Empire Earth\Empire Earth.exe', True, 'Empire Earth/Empire Earth.exe');
+  CheckManifestPath('root compared ignoring case, the rest keeps its case', 'c:\games\ee',
+    'C:\Games\EE\Empire Earth - The Art of Conquest\Data\WONLobby Resources\_LobbyResource.cfg', True,
+    'Empire Earth - The Art of Conquest/Data/WONLobby Resources/_LobbyResource.cfg');
+  CheckManifestPath('file in the root', 'C:\Games\EE', 'C:\Games\EE\readme.txt', True, 'readme.txt');
+  CheckManifestPath('root with non-ASCII characters', 'C:\Jeux ' + #$E9 + ' ' + #$FC, 'C:\Jeux ' + #$E9 + ' ' + #$FC + '\Tools\Diagnostic\EE-Diagnostic.exe',
+    True, 'Tools/Diagnostic/EE-Diagnostic.exe');
+  CheckManifestPath('two dots inside a name', 'C:\Games\EE', 'C:\Games\EE\Data\a..b.ssa', True, 'Data/a..b.ssa');
+  CheckManifestPath('folder that only starts like the root', 'C:\Games\EE', 'C:\Games\EE2\Empire Earth.exe', False, '');
+  CheckManifestPath('other drive', 'C:\Games\EE', 'D:\Games\EE\Empire Earth.exe', False, '');
+  CheckManifestPath('shorter than the root', 'C:\Games\EE', 'C:\Games', False, '');
+  CheckManifestPath('the root itself', 'C:\Games\EE', 'C:\Games\EE', False, '');
+  CheckManifestPath('the root with a backslash', 'C:\Games\EE', 'C:\Games\EE\', False, '');
+  CheckManifestPath('.. segment', 'C:\Games\EE', 'C:\Games\EE\..\Windows\System32\x.dll', False, '');
+  CheckManifestPath('.. segment inside', 'C:\Games\EE', 'C:\Games\EE\Empire Earth\..\..\x.dll', False, '');
+  CheckManifestPath('. segment', 'C:\Games\EE', 'C:\Games\EE\.\x.dll', False, '');
+  CheckManifestPath('colon of an alternate data stream', 'C:\Games\EE', 'C:\Games\EE\Data\data.ssa:stream', False, '');
+  CheckManifestPath('drive after the root', 'C:\Games\EE', 'C:\Games\EE\C:\x.dll', False, '');
+  CheckManifestPath('empty segment', 'C:\Games\EE', 'C:\Games\EE\Data\\x.dll', False, '');
+  CheckManifestPath('trailing backslash', 'C:\Games\EE', 'C:\Games\EE\Data\', False, '');
+  CheckManifestPath('slash in the rest', 'C:\Games\EE', 'C:\Games\EE\Data/x.dll', False, '');
+  CheckManifestPath('empty root', '', 'C:\Games\EE\x.dll', False, '');
+end;
+
+// Contract 2.3: the setup data folder and the uninstaller are never in the manifest
+procedure TestIsManifestExcludedPath;
+begin
+  CheckBool('IsManifestExcludedPath setup data folder', IsManifestExcludedPath('_setupdata_EE/EEStatsSetup.dll', '_setupdata_EE'), True);
+  CheckBool('IsManifestExcludedPath setup data folder, other case', IsManifestExcludedPath('_SetupData_ee/install.ini', '_setupdata_EE'), True);
+  CheckBool('IsManifestExcludedPath setup data folder of the other product', IsManifestExcludedPath('_setupdata_NeoEE/install.ini', '_setupdata_EE'), False);
+  CheckBool('IsManifestExcludedPath a file named like the setup data folder', IsManifestExcludedPath('_setupdata_EE', '_setupdata_EE'), False);
+  CheckBool('IsManifestExcludedPath unins000.exe', IsManifestExcludedPath('unins000.exe', '_setupdata_EE'), True);
+  CheckBool('IsManifestExcludedPath unins000.dat', IsManifestExcludedPath('unins000.dat', '_setupdata_EE'), True);
+  CheckBool('IsManifestExcludedPath UNINS001.EXE', IsManifestExcludedPath('UNINS001.EXE', '_setupdata_EE'), True);
+  CheckBool('IsManifestExcludedPath unins000.exe in a game folder', IsManifestExcludedPath('Empire Earth/unins000.exe', '_setupdata_EE'), False);
+  CheckBool('IsManifestExcludedPath uninstall.txt', IsManifestExcludedPath('uninstall.txt', '_setupdata_EE'), False);
+  CheckBool('IsManifestExcludedPath game program', IsManifestExcludedPath('Empire Earth/Empire Earth.exe', '_setupdata_EE'), False);
+  CheckBool('IsManifestExcludedPath tool', IsManifestExcludedPath('Tools/Diagnostic/EE-Diagnostic.exe', '_setupdata_EE'), False);
+end;
+
+procedure TestManifestLine;
+begin
+  Check('ManifestLine lowercase hex, two spaces, LF',
+    ManifestLine('27A84712E4B22C415FC544D55CDEE82327A829F96D03329457F76EBF9AF4DCAA', 'Empire Earth/Empire Earth.exe'),
+    '27a84712e4b22c415fc544d55cdee82327a829f96d03329457f76ebf9af4dcaa  Empire Earth/Empire Earth.exe' + #10);
+  Check('ManifestLine path with spaces and a dash',
+    ManifestLine('be3f1b44776624b9c37b661e9711ac1d8f51628b80c33e3b60b6a56fea088c9b', 'Empire Earth - The Art of Conquest/Data/WONLobby Resources/_LobbyResource.cfg'),
+    'be3f1b44776624b9c37b661e9711ac1d8f51628b80c33e3b60b6a56fea088c9b  Empire Earth - The Art of Conquest/Data/WONLobby Resources/_LobbyResource.cfg' + #10);
+end;
+
+procedure CheckOrder(const A, B: String; const Expected: Integer);
+var
+  Actual: Integer;
+begin
+  Actual := CompareManifestPaths(A, B);
+  if Actual < 0 then
+    Actual := -1
+  else if Actual > 0 then
+    Actual := 1;
+  Check('CompareManifestPaths "' + A + '" "' + B + '"', IntToStr(Actual), IntToStr(Expected));
+end;
+
+// Ordinal ignoring case (uppercase), contract 2.2
+procedure TestCompareManifestPaths;
+begin
+  CheckOrder('Data/Campaigns/EELearningCampaign.ssa', 'data/campaigns/eelearningcampaign.SSA', 0);
+  CheckOrder('a.dll', 'B.dll', -1);
+  CheckOrder('B.dll', 'a.dll', 1);
+  CheckOrder('Data', 'Data/x.ssa', -1);
+  CheckOrder('Data/_WONStatus.cfg', 'Data/Zebra.cfg', 1);
+  CheckOrder('Data/_WONStatus.cfg', 'Data/zebra.cfg', 1);
+  CheckOrder('Empire Earth - The Art of Conquest/EE-AOC.exe', 'Empire Earth/Empire Earth.exe', -1);
+  CheckOrder('Empire Earth/Data/data.ssa', 'Empire Earth/Data/Data.ssa', 0);
+  CheckOrder('Tools/Diagnostic/EE-Diagnostic.exe', 'Empire Earth/Empire Earth.exe', 1);
+end;
+
+function JoinedPaths(const Paths: TArrayOfString): String;
+var
+  I: Integer;
+begin
+  Result := '';
+  for I := 0 to GetArrayLength(Paths) - 1 do
+  begin
+    if I > 0 then
+      Result := Result + '|';
+    Result := Result + Paths[I];
+  end;
+end;
+
+// Number of neighbours in Paths that are not in strictly increasing order of CompareManifestPaths
+function UnorderedNeighbours(const Paths: TArrayOfString): Integer;
+var
+  I: Integer;
+begin
+  Result := 0;
+  for I := 0 to GetArrayLength(Paths) - 2 do
+    if CompareManifestPaths(Paths[I], Paths[I + 1]) >= 0 then
+      Result := Result + 1;
+end;
+
+// One of three spellings of Path: as it is, uppercase, lowercase
+function MixedCase(const Path: String; const Index: Integer): String;
+begin
+  case Index mod 3 of
+    0: Result := Path;
+    1: Result := UpperCase(Path);
+  else
+    Result := LowerCase(Path);
+  end;
+end;
+
+// Merge sort (n log n, stable) and the removal of paths that differ only in case: 2000 entries
+procedure TestSortManifestPaths;
+var
+  Paths: TArrayOfString;
+  I, V, Comparisons, Removed: Integer;
+  AllUpper: Boolean;
+begin
+  SetArrayLength(Paths, 0);
+  Check('MergeSortManifestPaths empty: comparisons', IntToStr(MergeSortManifestPaths(Paths)), '0');
+  Check('RemoveDuplicateManifestPaths empty', IntToStr(RemoveDuplicateManifestPaths(Paths)) + ':' + JoinedPaths(Paths), '0:');
+  SetArrayLength(Paths, 1);
+  Paths[0] := 'Empire Earth/Empire Earth.exe';
+  Check('MergeSortManifestPaths one path: comparisons', IntToStr(MergeSortManifestPaths(Paths)), '0');
+  Check('MergeSortManifestPaths one path', JoinedPaths(Paths), 'Empire Earth/Empire Earth.exe');
+
+  // Stable: of two paths equal ignoring case, the one recorded first stays first; the removal keeps
+  // the last one
+  SetArrayLength(Paths, 6);
+  Paths[0] := 'b.ssa';
+  Paths[1] := 'Data/A.ssa';
+  Paths[2] := '_x.cfg';
+  Paths[3] := 'data/a.ssa';
+  Paths[4] := 'C.ssa';
+  Paths[5] := 'DATA/A.SSA';
+  MergeSortManifestPaths(Paths);
+  Check('MergeSortManifestPaths six paths, stable', JoinedPaths(Paths), 'b.ssa|C.ssa|Data/A.ssa|data/a.ssa|DATA/A.SSA|_x.cfg');
+  Check('RemoveDuplicateManifestPaths six paths: removed', IntToStr(RemoveDuplicateManifestPaths(Paths)), '2');
+  Check('RemoveDuplicateManifestPaths six paths: the spelling recorded last', JoinedPaths(Paths), 'b.ssa|C.ssa|DATA/A.SSA|_x.cfg');
+
+  // 2000 different paths in mixed case, in a scrambled order (1237 is coprime to 2000, so V runs
+  // through 0 to 1999 once)
+  SetArrayLength(Paths, 2000);
+  for I := 0 to 1999 do
+  begin
+    V := (I * 1237) mod 2000;
+    Paths[I] := MixedCase('Empire Earth/Data/Folder' + IntToStr(V mod 7) + '/File' + IntToStr(V) + '.ssa', I);
+  end;
+  Comparisons := MergeSortManifestPaths(Paths);
+  Check('MergeSortManifestPaths 2000 paths: still 2000', IntToStr(GetArrayLength(Paths)), '2000');
+  Check('MergeSortManifestPaths 2000 paths: strictly increasing', IntToStr(UnorderedNeighbours(Paths)), '0');
+  CheckBool('MergeSortManifestPaths 2000 paths: at most 2000 * 11 comparisons (' + IntToStr(Comparisons) + ')',
+    (Comparisons > 0) and (Comparisons <= 2000 * 11), True);
+  Check('RemoveDuplicateManifestPaths 2000 different paths: none removed', IntToStr(RemoveDuplicateManifestPaths(Paths)), '0');
+
+  // 1000 paths recorded twice: first in lowercase, then (a later entry overwrites the file) in
+  // uppercase; one entry per file is left, in the spelling of the later entry
+  for I := 0 to 1999 do
+  begin
+    V := ((I mod 1000) * 1237) mod 1000;
+    Paths[I] := 'Empire Earth - The Art of Conquest/Data/Textures/Texture' + IntToStr(V) + '.tga';
+    if I < 1000 then
+      Paths[I] := LowerCase(Paths[I])
+    else
+      Paths[I] := UpperCase(Paths[I]);
+  end;
+  Comparisons := MergeSortManifestPaths(Paths);
+  CheckBool('MergeSortManifestPaths 2000 paths with duplicates: at most 2000 * 11 comparisons (' + IntToStr(Comparisons) + ')',
+    Comparisons <= 2000 * 11, True);
+  Removed := RemoveDuplicateManifestPaths(Paths);
+  Check('RemoveDuplicateManifestPaths 2000 paths with duplicates: removed', IntToStr(Removed), '1000');
+  Check('RemoveDuplicateManifestPaths 2000 paths with duplicates: left', IntToStr(GetArrayLength(Paths)), '1000');
+  Check('RemoveDuplicateManifestPaths 2000 paths with duplicates: strictly increasing', IntToStr(UnorderedNeighbours(Paths)), '0');
+  AllUpper := True;
+  for I := 0 to GetArrayLength(Paths) - 1 do
+    if Paths[I] <> UpperCase(Paths[I]) then
+      AllUpper := False;
+  CheckBool('RemoveDuplicateManifestPaths 2000 paths with duplicates: the spelling recorded last', AllUpper, True);
+end;
+
+// install.ini [MissingAfterInstall], contract 1.2
+procedure TestBuildMissingAfterInstallText;
+var
+  Missing: TArrayOfString;
+begin
+  SetArrayLength(Missing, 0);
+  Check('BuildMissingAfterInstallText nothing missing', BuildMissingAfterInstallText(Missing), '');
+  SetArrayLength(Missing, 1);
+  Missing[0] := 'Empire Earth/DDraw.dll';
+  Check('BuildMissingAfterInstallText example of contract 1.2',
+    BuildInstallIniText(1, 'NeoEE', '00000000-0000-0000-0000-000000000AEE', 'admin', '2.0.0.5', '2.0.0', 'a1b2c3d',
+      'game,gameaoc,additional,additional\directx_wrapper,additional\directx_wrapper\dx11_lvl11,language,language\de',
+      'compatibility,compatibility_windows,firewallexception,neoee_cdkeys', '2026-10-02 18:04:31') + BuildMissingAfterInstallText(Missing),
+    '[Install]' + #13#10 + 'ContractVersion=1' + #13#10 + 'Product=NeoEE' + #13#10 +
+    'AppId=00000000-0000-0000-0000-000000000AEE' + #13#10 + 'InstallMode=admin' + #13#10 + 'GameVersion=2.0.0.5' + #13#10 +
+    'SetupVersion=2.0.0' + #13#10 + 'SetupBuild=a1b2c3d' + #13#10 +
+    'Components=game,gameaoc,additional,additional\directx_wrapper,additional\directx_wrapper\dx11_lvl11,language,language\de' + #13#10 +
+    'Tasks=compatibility,compatibility_windows,firewallexception,neoee_cdkeys' + #13#10 + 'Written=2026-10-02 18:04:31' + #13#10 + #13#10 +
+    '[MissingAfterInstall]' + #13#10 + '1=Empire Earth/DDraw.dll' + #13#10);
+  SetArrayLength(Missing, 3);
+  Missing[0] := 'Empire Earth - The Art of Conquest/EE-AOC.exe';
+  Missing[1] := 'Empire Earth/Data/Campagne ' + #$E9 + '.ssa';
+  Missing[2] := 'Empire Earth/Empire Earth.exe';
+  Check('BuildMissingAfterInstallText leaves out a path that is not ASCII, consecutive keys', BuildMissingAfterInstallText(Missing),
+    '' + #13#10 + '[MissingAfterInstall]' + #13#10 + '1=Empire Earth - The Art of Conquest/EE-AOC.exe' + #13#10 +
+    '2=Empire Earth/Empire Earth.exe' + #13#10);
+  SetArrayLength(Missing, 1);
+  Missing[0] := 'Empire Earth/Data/Campagne ' + #$E9 + '.ssa';
+  Check('BuildMissingAfterInstallText only a path that is not ASCII', BuildMissingAfterInstallText(Missing), '');
+end;
+
+procedure SetMissing(var Missing: TArrayOfString; const Count: Integer);
+var
+  I: Integer;
+begin
+  SetArrayLength(Missing, Count);
+  for I := 0 to Count - 1 do
+    Missing[I] := 'Empire Earth/Data/Sounds/Sound' + IntToStr(I + 1) + '.wav';
+end;
+
+// The list of the notice FilesMissingAfterInstall: at most ten names, then "and %1 more"
+procedure TestFormatMissingFileList;
+var
+  Missing: TArrayOfString;
+  Expected: String;
+  I: Integer;
+begin
+  SetMissing(Missing, 0);
+  Check('FormatMissingFileList nothing', FormatMissingFileList(Missing, MissingFilesShownMax, 'and %1 more'), '');
+  SetArrayLength(Missing, 2);
+  Missing[0] := 'Empire Earth/DDraw.dll';
+  Missing[1] := 'Empire Earth - The Art of Conquest/Data/WONLobby Resources/_LobbyResource.cfg';
+  Check('FormatMissingFileList two files, backslashes',
+    FormatMissingFileList(Missing, MissingFilesShownMax, 'and %1 more'),
+    '' + #13#10 + '  Empire Earth\DDraw.dll' + #13#10 + '  Empire Earth - The Art of Conquest\Data\WONLobby Resources\_LobbyResource.cfg');
+  Expected := '';
+  for I := 1 to 10 do
+    Expected := Expected + #13#10 + '  Empire Earth\Data\Sounds\Sound' + IntToStr(I) + '.wav';
+  SetMissing(Missing, 10);
+  Check('FormatMissingFileList ten files: all, no "more"', FormatMissingFileList(Missing, MissingFilesShownMax, 'and %1 more'), Expected);
+  SetMissing(Missing, 11);
+  Check('FormatMissingFileList eleven files: ten and "and 1 more"', FormatMissingFileList(Missing, MissingFilesShownMax, 'and %1 more'),
+    Expected + #13#10 + '  and 1 more');
+  SetMissing(Missing, 25);
+  Check('FormatMissingFileList 25 files, German', FormatMissingFileList(Missing, MissingFilesShownMax, 'und %1 weitere'),
+    Expected + #13#10 + '  und 15 weitere');
+  Check('FormatMissingFileList at most 2', FormatMissingFileList(Missing, 2, 'et %1 autres'),
+    '' + #13#10 + '  Empire Earth\Data\Sounds\Sound1.wav' + #13#10 + '  Empire Earth\Data\Sounds\Sound2.wav' + #13#10 + '  et 23 autres');
+end;
+
+// The log line 'Manifest: <n> files, <MB> MB, <ms> ms, <MB/s> MB/s'
+procedure TestFormatManifestSummary;
+var
+  Bytes: Int64;
+begin
+  Bytes := 1048576;
+  Bytes := Bytes * 1500;
+  Check('FormatManifestSummary 1500 MB in 12 s', FormatManifestSummary(1791, Bytes, 12000),
+    'Manifest: 1791 files, 1500.0 MB, 12000 ms, 125.0 MB/s');
+  Bytes := 1073741824;
+  Bytes := Bytes * 3;
+  Check('FormatManifestSummary 3 GB in 7 s (beyond 32 bits)', FormatManifestSummary(2000, Bytes, 7000),
+    'Manifest: 2000 files, 3072.0 MB, 7000 ms, 438.9 MB/s');
+  Check('FormatManifestSummary nothing', FormatManifestSummary(0, 0, 0), 'Manifest: 0 files, 0.0 MB, 0 ms, 0.0 MB/s');
+  Check('FormatManifestSummary rounded to one decimal', FormatManifestSummary(2, 1310720, 1000),
+    'Manifest: 2 files, 1.3 MB, 1000 ms, 1.3 MB/s');
+  Check('FormatManifestSummary 0 ms counts as 1 ms', FormatManifestSummary(1, 1048576, 0),
+    'Manifest: 1 files, 1.0 MB, 0 ms, 1000.0 MB/s');
+end;
+
 function InitializeSetup: Boolean;
 var
   Lines: TArrayOfString;
@@ -697,6 +983,14 @@ begin
     TestBuildInstallIniText;
     TestShouldWriteContractVersionValue;
     TestStateFiles;
+    TestGetManifestPath;
+    TestIsManifestExcludedPath;
+    TestManifestLine;
+    TestCompareManifestPaths;
+    TestSortManifestPaths;
+    TestBuildMissingAfterInstallText;
+    TestFormatMissingFileList;
+    TestFormatManifestSummary;
   except
     Failures := Failures + 1;
     Results.Add('FAIL exception: ' + GetExceptionMessage);

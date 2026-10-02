@@ -2,7 +2,8 @@
 // Base helpers of the [Code] part: the URL constants, string split, language tag, compatibility
 // flags, uninstall keys of EE and NeoEE, the HTTP requests, URL checks, the download policy of
 // the online localized files and the install state for the launcher (install mode, install.ini,
-// writing a state file). Included first, before every other [Code] part.
+// writing a state file, the integrity manifest files.sha256). Included first, before every other
+// [Code] part.
 // Requires: AppID, OtherAppID (ISPP, product configuration config_*.iss).
 // The functions without wizard access are tested by ci/tests/unit_tests.iss.
 
@@ -500,7 +501,8 @@ const
 // taken as they are (AppId without braces, Components and Tasks as WizardSelectedComponents and
 // WizardSelectedTasks return them, Written as yyyy-mm-dd hh:nn:ss); ReplaceStateFile checks that
 // the complete text is ASCII before it writes it. The install root is not stored (it is the parent
-// of the setup data folder), so the text holds no path. S-WP7 appends [MissingAfterInstall].
+// of the setup data folder), so the text holds no path. BuildMissingAfterInstallText gives the
+// section [MissingAfterInstall] that follows it if installed files are gone.
 function BuildInstallIniText(const ContractVersion: Integer; const Product, AppId, InstallMode,
   GameVersion, SetupVersion, SetupBuild, Components, Tasks, Written: String): String;
 begin
@@ -593,4 +595,236 @@ begin
   end;
   if not Result then
     DeleteStateFile(TempName);
+end;
+
+// Integrity manifest files.sha256 for the Empire Earth Launcher (installstate.iss): docs/CONTRACT.md
+// 1.2 and 2, docs/adr/0004-install-record-and-integrity-manifest.md points 3 to 8
+
+const
+  // Line end of files.sha256 (contract 2.2)
+  ManifestLineEnd = #10;
+  // First letters of the uninstaller files in the install root (unins000.exe, unins000.dat)
+  UninstallerFilePrefix = 'unins';
+  // The notice FilesMissingAfterInstall names at most this many files (FormatMissingFileList)
+  MissingFilesShownMax = 10;
+
+// Manifest path (contract 2.2) of the file FullPath below the install root InstallRoot (both full
+// Windows paths, a trailing '\' of the root does not count): the part after the root and its '\',
+// with '/' as separator. False (RelPath '') for a path that is not below the root (the root is
+// compared ignoring case and must be followed by '\'), for the root itself, and for a rest that
+// contains ':' (drive, alternate data stream) or '/', or an empty, '.' or '..' segment: the
+// launcher treats such a manifest line as invalid, so the setup never writes one.
+function GetManifestPath(const InstallRoot, FullPath: String; var RelPath: String): Boolean;
+var
+  Root, Rest: String;
+  Segments: TArrayOfString;
+  I: Integer;
+begin
+  Result := False;
+  RelPath := '';
+  Root := InstallRoot;
+  while (Length(Root) > 0) and (Root[Length(Root)] = '\') do
+    Root := Copy(Root, 1, Length(Root) - 1);
+  if (Root = '') or (Length(FullPath) <= Length(Root) + 1) then
+    Exit;
+  if (CompareText(Copy(FullPath, 1, Length(Root)), Root) <> 0) or (FullPath[Length(Root) + 1] <> '\') then
+    Exit;
+  Rest := Copy(FullPath, Length(Root) + 2, Length(FullPath));
+  // StrSplit drops a trailing separator, so a trailing '\' is checked here
+  if (Pos(':', Rest) > 0) or (Pos('/', Rest) > 0) or (Rest[Length(Rest)] = '\') then
+    Exit;
+  Segments := StrSplit(Rest, '\');
+  for I := 0 to GetArrayLength(Segments) - 1 do
+    if (Segments[I] = '') or (Segments[I] = '.') or (Segments[I] = '..') then
+      Exit;
+  RelPath := Rest;
+  StringChangeEx(RelPath, '\', '/', True);
+  Result := True;
+end;
+
+// True if the manifest leaves out the manifest path RelPath even if a [Files] entry names it
+// (contract 2.3): everything in the setup data folder SetupDataDir (its first segment, ignoring
+// case) and the uninstaller unins*.exe, unins*.dat in the install root
+function IsManifestExcludedPath(const RelPath, SetupDataDir: String): Boolean;
+var
+  Slash: Integer;
+  Ext: String;
+begin
+  Slash := Pos('/', RelPath);
+  if Slash > 0 then
+    Result := CompareText(Copy(RelPath, 1, Slash - 1), SetupDataDir) = 0
+  else
+  begin
+    Ext := GetFileNameExtension(RelPath);
+    Result := (CompareText(Copy(RelPath, 1, Length(UninstallerFilePrefix)), UninstallerFilePrefix) = 0) and
+      ((Ext = 'exe') or (Ext = 'dat'));
+  end;
+end;
+
+// One line of files.sha256 (contract 2.2): the SHA-256 in lowercase hex, two spaces, the manifest
+// path, LF
+function ManifestLine(const SHA256, RelPath: String): String;
+begin
+  Result := LowerCase(SHA256) + '  ' + RelPath + ManifestLineEnd;
+end;
+
+// Order of the manifest paths (contract 2.2): ordinal, ignoring case. Both paths are compared in
+// uppercase (UpperCase changes only a-z), as .NET's StringComparer.OrdinalIgnoreCase and
+// 'LC_ALL=C sort -f' do for ASCII, so '_' (after 'Z') sorts after the letters. < 0, 0 or > 0.
+function CompareManifestPaths(const A, B: String): Integer;
+begin
+  Result := CompareStr(UpperCase(A), UpperCase(B));
+end;
+
+// Sorts Paths in the order of CompareManifestPaths with a bottom-up merge sort and returns the
+// number of comparisons: at most n * ceil(log2 n), about 20000 for the 1800 paths of an
+// installation, where an insertion sort in interpreted Pascal Script could need 1.6 million. Stable:
+// paths that differ only in case keep their order (RemoveDuplicateManifestPaths relies on it). The
+// uppercase keys are computed once per path.
+function MergeSortManifestPaths(var Paths: TArrayOfString): Integer;
+var
+  N, Width, Left, Mid, Right, I, J, K: Integer;
+  Keys, NextKeys, NextPaths: TArrayOfString;
+  TakeLeft: Boolean;
+begin
+  Result := 0;
+  N := GetArrayLength(Paths);
+  SetArrayLength(Keys, N);
+  SetArrayLength(NextKeys, N);
+  SetArrayLength(NextPaths, N);
+  for I := 0 to N - 1 do
+    Keys[I] := UpperCase(Paths[I]);
+  Width := 1;
+  while Width < N do
+  begin
+    // Merge the neighbouring runs [Left, Mid) and [Mid, Right) of length Width
+    Left := 0;
+    while Left < N do
+    begin
+      Mid := Left + Width;
+      if Mid > N then
+        Mid := N;
+      Right := Mid + Width;
+      if Right > N then
+        Right := N;
+      I := Left;
+      J := Mid;
+      for K := Left to Right - 1 do
+      begin
+        if (I < Mid) and (J < Right) then
+        begin
+          Result := Result + 1;
+          // The right one only if it is smaller: equal keys keep their order
+          TakeLeft := CompareStr(Keys[J], Keys[I]) >= 0;
+        end
+        else
+          TakeLeft := I < Mid;
+        if TakeLeft then
+        begin
+          NextKeys[K] := Keys[I];
+          NextPaths[K] := Paths[I];
+          I := I + 1;
+        end
+        else
+        begin
+          NextKeys[K] := Keys[J];
+          NextPaths[K] := Paths[J];
+          J := J + 1;
+        end;
+      end;
+      Left := Right;
+    end;
+    for I := 0 to N - 1 do
+    begin
+      Keys[I] := NextKeys[I];
+      Paths[I] := NextPaths[I];
+    end;
+    Width := Width * 2;
+  end;
+end;
+
+// Removes from Paths, sorted by MergeSortManifestPaths, every path that the next one repeats
+// ignoring case, so that each file is listed once, with the spelling of the entry recorded last
+// (contract 2.3: a later [Files] entry that overwrites a file replaces the earlier one). Returns the
+// number of removed paths.
+function RemoveDuplicateManifestPaths(var Paths: TArrayOfString): Integer;
+var
+  I, Count: Integer;
+  Keep: Boolean;
+begin
+  Count := 0;
+  for I := 0 to GetArrayLength(Paths) - 1 do
+  begin
+    Keep := I = GetArrayLength(Paths) - 1;
+    if not Keep then
+      Keep := CompareManifestPaths(Paths[I], Paths[I + 1]) <> 0;
+    if Keep then
+    begin
+      Paths[Count] := Paths[I];
+      Count := Count + 1;
+    end;
+  end;
+  Result := GetArrayLength(Paths) - Count;
+  SetArrayLength(Paths, Count);
+end;
+
+// Section [MissingAfterInstall] of install.ini (contract 1.2), appended to BuildInstallIniText: an
+// empty line, the section and the manifest paths of Missing under the keys 1, 2, ..., every line
+// with CRLF; '' if Missing is empty. A path that is not ASCII is left out (contract 1.2: never
+// written, not even with replaced characters; the caller logs it), the keys stay consecutive.
+function BuildMissingAfterInstallText(const Missing: TArrayOfString): String;
+var
+  I, Key: Integer;
+begin
+  Result := '';
+  Key := 0;
+  for I := 0 to GetArrayLength(Missing) - 1 do
+    if IsAsciiText(Missing[I]) then
+    begin
+      if Key = 0 then
+        Result := InstallIniLineEnd + '[MissingAfterInstall]' + InstallIniLineEnd;
+      Key := Key + 1;
+      Result := Result + IntToStr(Key) + '=' + Missing[I] + InstallIniLineEnd;
+    end;
+end;
+
+// The file list of the notice FilesMissingAfterInstall (%1): a line break and two spaces before
+// each manifest path of Missing, with '\' instead of '/' as the player sees paths, at most MaxNames
+// of them, then one more line MoreText with %1 = the number of paths not shown
+// (FilesMissingAfterInstallMore, 'and %1 more')
+function FormatMissingFileList(const Missing: TArrayOfString; const MaxNames: Integer; const MoreText: String): String;
+var
+  I: Integer;
+  Name: String;
+begin
+  Result := '';
+  for I := 0 to GetArrayLength(Missing) - 1 do
+    if I < MaxNames then
+    begin
+      Name := Missing[I];
+      StringChangeEx(Name, '/', '\', True);
+      Result := Result + #13#10 + '  ' + Name;
+    end;
+  if GetArrayLength(Missing) > MaxNames then
+    Result := Result + #13#10 + '  ' + FmtMessage(MoreText, [IntToStr(GetArrayLength(Missing) - MaxNames)]);
+end;
+
+// A number of tenths as text with one decimal: 15123 -> '1512.3'
+function TenthsToStr(const Tenths: Int64): String;
+begin
+  Result := IntToStr(Tenths div 10) + '.' + IntToStr(Tenths mod 10);
+end;
+
+// The log line of the manifest (ADR 0004 point 4) for FileCount hashed files of Bytes bytes in
+// ElapsedMs milliseconds: 'Manifest: <n> files, <MB> MB, <ms> ms, <MB/s> MB/s', MB = 1048576 bytes,
+// rounded to one decimal; less than 1 ms counts as 1 ms for the throughput
+function FormatManifestSummary(const FileCount: Integer; const Bytes, ElapsedMs: Int64): String;
+var
+  Ms: Int64;
+begin
+  Ms := ElapsedMs;
+  if Ms < 1 then
+    Ms := 1;
+  Result := 'Manifest: ' + IntToStr(FileCount) + ' files, ' + TenthsToStr((Bytes * 10 + 524288) div 1048576) + ' MB, ' +
+    IntToStr(ElapsedMs) + ' ms, ' + TenthsToStr((Bytes * 10000 + Ms * 524288) div (Ms * 1048576)) + ' MB/s';
 end;
