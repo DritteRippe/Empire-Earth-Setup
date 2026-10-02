@@ -564,7 +564,10 @@ stimmt und höchstens 180 Minuten beträgt.
     möglich (das Setup wertet jede HTTP-Antwort als erreichbar); für `data.ssa` `200` mit einer
     `Content-Length` größer als 0. Fehlt `Content-Length`, ist das ein Hinweis an die
     Serverbetreiber (das Setup kann die Größe ungepinnter Dateien dann nicht prüfen, ADR 0003),
-    kein Testabbruch.
+    kein Testabbruch. Die Zeile von `data.ssa` ist eine `HEAD`-Anfrage wie die Prüfung der
+    Weiterleitungen, die das Setup vor jeder ungepinnten Datei macht: Scheitert nur sie, während
+    der Ordner antwortet, beantwortet der Server `HEAD` nicht, und das Setup lädt von ihm keine
+    ungepinnte Datei (Hinweis an die Betreiber, SERVER-OPERATIONS.md Anforderung 4).
   - **ungültig**: `FEHLER` mit einer Zertifikats- oder TLS-Meldung (Windows PowerShell z. B.
     „Für den geschützten SSL/TLS-Kanal konnte keine Vertrauensstellung hergestellt werden“,
     PowerShell 7 „The SSL connection could not be established“), oder keine Verbindung (Name nicht
@@ -618,7 +621,12 @@ Gemeinsam für alle Fälle dieses Blocks:
   *Netzwerkkarte › Bandbreitenverwaltung*) und die Komponente „Intro-Videos installieren“ wählen
   (nur in der benutzerdefinierten Installation; das lokalisierte Video ist die größte Datei).
 - Log-Zeilen des Download-Teils (`downloads.iss`), die die Fälle zitieren:
-  `Downloading <n> online files, one at a time`; je Versuch
+  `Downloading <n> online files, one at a time`; vor jedem Versuch einer ungepinnten Datei die
+  Prüfung der Weiterleitungen `HTTP HEAD <URL>` mit `HTTP HEAD <URL>: status <n>, 0 characters read`
+  und `Online file redirect check: <URL> answers HTTP <n> over https after <k> redirects, none to http`
+  (sonst `Online file refused, it has no SHA-256 and <URL> redirects to "<Ziel>", not to https: <URL>`
+  oder `Online file not downloaded from <URL>: no answer to the check of its redirects (HEAD <URL>)`,
+  dann ohne Download weiter wie nach einem gescheiterten Versuch); je Versuch
   `Downloading temporary file from <URL>: <Ziel>` (Inno Setup) und danach
   `Online file downloaded, SHA-256 pinned: <URL>`,
   `Online file downloaded, TLS-verified, size checked: <URL>`,
@@ -670,7 +678,10 @@ Gemeinsam für alle Fälle dieses Blocks:
   `Main online files server unreachable or without a valid certificate (see the HTTP GET line above), downloading from the mirror first`
   und `Downloading temporary file from https://storage.ee.zocker-160.de/localized/…`. Scheitert
   eine Datei am Spiegel, folgt `Online file: trying the other server, https://files.empireearth.eu/…`
-  und `Online file download failed from https://files.empireearth.eu/…: <Zertifikatsfehler>`. Steht
+  und bei einer gepinnten Datei `Online file download failed from https://files.empireearth.eu/…:
+  <Zertifikatsfehler>`, bei einer ungepinnten schon die Prüfung der Weiterleitungen:
+  `HTTP HEAD https://files.empireearth.eu/… failed: <Zertifikatsfehler>` und `Online file not
+  downloaded from https://files.empireearth.eu/…: no answer to the check of its redirects (…)`. Steht
   bei einer ungepinnten Datei `accepted without size check`, sendet der Spiegel kein
   `Content-Length`: ins Protokoll und an die Serverbetreiber (SERVER-OPERATIONS.md, Abschnitt 2).
 

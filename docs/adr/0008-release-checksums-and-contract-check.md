@@ -10,7 +10,8 @@
   to `.editorconfig`) and report an `#include` of a missing file; second plan review (the tables of
   contract 3.3 and 3.4 are checked too; the README names where the log of an elevated run lands;
   the redirect from `https://` to `http://` is probed and a release build lists its unpinned online
-  files)
+  files); security review of v2: the setup checks the redirects of a file without pin before its
+  download (point 6, Implementation)
 
 ## Context
 
@@ -184,9 +185,33 @@ release build.
     recommends pinning the files known at build time, with the trade-off. No hard release
     criterion (second plan review, K6).
 
-  Not done: detecting the redirect in the setup. Pascal Script of 6.2.2 gets neither the final URL
-  nor a hook into the redirect of `DownloadTemporaryFile`, so the log keeps naming the requested
-  `https://` URL; the operator rule and the pins are the mitigation.
+  Not done in S-WP5: detecting the redirect in the setup. Pascal Script of 6.2.2 gets neither the
+  final URL nor a hook into the redirect of `DownloadTemporaryFile`, so the log keeps naming the
+  requested `https://` URL; the operator rule and the pins were the mitigation.
+
+  **Added by the security review of v2** (`6152c93`): a check of the redirects before the download
+  instead of a hook into it. `CheckOnlineFileRedirects` (`downloads.iss`) asks the URL of every file
+  without pin with `HEAD` requests (`HttpRequest` in `utils.iss`, the one WinHTTP implementation,
+  `WinHttpRequestOption_EnableRedirects` off) and follows at most five redirects itself; each must
+  lead to `https://` (`ResolveRedirectUrl`: absolute, network-path, absolute-path and relative
+  `Location` values), else, and without an answer, the file is refused on that server like a failed
+  download (`DownloadOutcomeFailure`, so `NextDownloadAction` may still try the other server). One
+  `HEAD` request more per file without pin and server; a pinned file is not checked, the pin
+  protects it. Loopback probe under Wine (as above, three servers: main and mirror over HTTPS,
+  plain HTTP; `downloads.iss` unchanged, the two server URLs of `utils.iss` pointed to the
+  loopback servers): `302` to `http://` on the main server: refused there, downloaded from the
+  mirror; `302` from `https://` to `https://` and `200`: downloaded; `301` to a relative `https`
+  path and then `307` to `http://`: refused, the mirror's `404` reported as missing; a redirect loop:
+  refused; `HEAD` answered with `405` and `GET` with `200`: downloaded; a pinned file behind a
+  redirect to `http://`: downloaded over HTTP and accepted by its pin, as designed; and the limit: a
+  server that answers `HEAD` with `200` but redirects `GET` to `http://` still delivers the file
+  over HTTP. No unpinned file reached the HTTP server otherwise (server log). Wine 9.0 ignores
+  `WinHttpRequestOption_EnableRedirects`: its WinHTTP followed the `https://` redirects itself and
+  failed on the one to `http://` (its default policy), which the check treats as no answer, so the
+  results are the same; the walk over the redirects that Windows returns is covered by the unit
+  tests of `IsRedirectStatus` and `ResolveRedirectUrl`, its run time on Windows by no test case (a
+  redirecting server with a valid certificate for the setup's server names cannot be set up in a
+  test VM).
 
 ## Alternatives considered
 

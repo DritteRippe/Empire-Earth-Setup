@@ -183,8 +183,8 @@ setup version stays 1.7.2 until the release.
   file the setups download without a SHA-256 pin, per product (with the 1.7.2 data: the voices,
   campaigns and movies, 110 server paths each). A loopback probe under Wine showed that Inno
   Setup's downloads follow a redirect from `https://` to `http://` and that the setup then
-  accepts such a file as "TLS-verified", so these files are only as safe as the configuration of
-  the file servers. The list is read from the code of `RegisterOnlineFiles` and the procedures it
+  accepts such a file as "TLS-verified", so these files were only as safe as the configuration of
+  the file servers (the setup now checks the redirects before such a download, see "Security"). The list is read from the code of `RegisterOnlineFiles` and the procedures it
   calls (`Get-OnlineFiles` in `ci/build_helpers.ps1`: the game languages, the files per game, the
   NeoEE versions, the shared lobby folder of zh-CN and zh-TW) and the hash list of the same build;
   a change of that code it does not understand stops the build. Placeholder builds (CI) only
@@ -622,6 +622,18 @@ setup version stays 1.7.2 until the release.
 - Random map scripts: the elevated setup never follows junctions or symbolic links in the random
   map folders, which all users can write to. A user could otherwise have made it delete files or
   empty folders elsewhere, or loop through a link to a parent folder.
+- Online files without SHA-256 never come over a redirect to `http://` that the server also sends
+  to a `HEAD` request: Inno Setup's downloads follow a redirect from `https://` to `http://` (Wine
+  probe, ADR 0008), so before such a file is requested, `CheckOnlineFileRedirects` asks its URL
+  with `HEAD` requests that follow no redirect themselves (`HttpRequest`, the generalised
+  `HttpGet`); every redirect must lead to `https://` again, at most five. A redirect elsewhere,
+  one without `Location` or no answer refuses the file on that server like a failed download
+  (log `Online file refused, ...` or `... no answer to the check of its redirects ...`), so the
+  other server may still be tried; otherwise the log notes `Online file redirect check: ...`. One
+  request more per file without pin; pinned files are not checked (their hash decides). Not
+  covered: a server that answers `HEAD` and `GET` differently, or changes its answer in between
+  (operator rules in `docs/SERVER-OPERATIONS.md`, requirement 4). New tested helpers
+  `IsRedirectStatus` and `ResolveRedirectUrl` (37 unit tests).
 - No elevated installation through links (ADR 0009): an installation for all users gives every
   user modify rights on `Data` and `Users` of both games, and an update or repair writes there with
   administrator rights. A standard user could replace such a folder by a junction or symbolic link

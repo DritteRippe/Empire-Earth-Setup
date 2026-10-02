@@ -4,7 +4,8 @@
 - Date: 2026-10-02
 - Requirements: D3, R16, R17
 - Revised: 2026-10-02, plan review before implementation (stop button vs. mirror, size check only
-  with `Content-Length`, removal of IDP as a separate commit)
+  with `Content-Length`, removal of IDP as a separate commit); security review of v2: the redirects
+  of a file without pin are checked before its download (Consequences, "Redirects")
 
 ## Context
 
@@ -104,7 +105,13 @@ the silent mode. Both are cases of the test plan.
   policy already trusts that operator with the content of these files. Remaining risk: a
   misconfigured server redirect followed by an attacker on the plain-HTTP leg. Mitigation: the
   operator guide ([ADR 0006](0006-strict-tls-and-server-certificates.md), README) requires that the
-  file servers never redirect to `http://`; the setup itself never builds an `http://` URL.
+  file servers never redirect to `http://`; the setup itself never builds an `http://` URL. The
+  S-WP5 probe confirmed that the client follows such a redirect ([ADR
+  0008](0008-release-checksums-and-contract-check.md), point 6), so since the security review of v2
+  the setup checks the redirects of every unpinned file with `HEAD` requests before it downloads it
+  and refuses a redirect to anything but `https://` (`CheckOnlineFileRedirects`). D3 ("never
+  `http://`") is therefore met for every server that answers `HEAD` and `GET` alike; for one that
+  does not, it still rests on the operator rule.
 - **Timeouts:** `THTTPClient`'s timeouts cannot be set from Pascal Script in 6.2.2 (IDP used 15 s
   connect / 30 s transfer). The short probe of `SelectOnlineFilesServer` keeps the common case
   (server down) fast; a server that answers the probe and then stalls costs the RTL timeout once per

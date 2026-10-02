@@ -65,16 +65,23 @@ Each file server (main server **and** mirror) must:
    chunked answer because the server compresses on the fly) the setup cannot check the size of a
    file it has no SHA-256 for, accepts it unchecked and writes `accepted without size check` into
    its log. Do not compress `.ssa`, `.cfg`, `.bik` and `.dll` files on the fly.
-4. **Never redirect to `http://`.** A redirect from `https://` to `https://` is fine. The download
-   code of Inno Setup 6.2.2 follows redirects itself, **also from `https://` to `http://`**: a
-   probe for setup v2 showed that it follows `301`, `302`, `307` and `308` to `http://` and that
-   the setup then accepts a file it has no SHA-256 of as "TLS-verified" (it cannot see the
-   redirect; [ADR 0008](adr/0008-release-checksums-and-contract-check.md), "Implementation"). Only
-   the server operator can send such a redirect (nobody else can inject one into a validated TLS
-   connection), so the guarantee "never over `http://`" for these files depends on this rule;
-   check 3.4 shows it, and [section 6](#6-pins-for-the-files-known-at-build-time) removes the
-   dependency for the files a build pins. (The update check and the reachability check use
-   WinHTTP, which refuses redirects from `https://` to `http://`.)
+4. **Never redirect to `http://`, and answer `HEAD` like `GET`.** A redirect from `https://` to
+   `https://` is fine. The download code of Inno Setup 6.2.2 follows redirects itself, **also from
+   `https://` to `http://`**: a probe for setup v2 showed that it follows `301`, `302`, `307` and
+   `308` to `http://` ([ADR 0008](adr/0008-release-checksums-and-contract-check.md),
+   "Implementation"). So before it downloads a file it has no SHA-256 of, the setup asks the URL
+   with `HEAD` requests that follow no redirect themselves; a redirect that leads anywhere but
+   `https://`, or no answer, makes it skip the file on that server (log: `Online file refused, ...`
+   or `... no answer to the check of its redirects ...`). That check only sees what the server
+   answers to `HEAD`: a server that redirects `GET` but not `HEAD` to `http://` still gets the file
+   delivered over plain HTTP, and the setup still logs it as "TLS-verified". Only the server
+   operator can send such a redirect (nobody else can inject one into a validated TLS connection),
+   so the guarantee "never over `http://`" for these files depends on this rule; check 3.4 shows it,
+   and [section 6](#6-pins-for-the-files-known-at-build-time) removes the dependency for the files a
+   build pins. `HEAD` must not fail either: a `405` or another status without redirect is fine, but
+   a server that drops the connection on `HEAD` makes the setup skip every file without SHA-256.
+   (The update check and the reachability check use WinHTTP, which refuses redirects from
+   `https://` to `http://`.)
 5. **Serve identical files** on main server and mirror at the same paths. The setup checks a
    downloaded file against the SHA-256 compiled into it where it has one (always for
    `Language.dll`); a file that differs on one server is discarded there, and the setup tries the
@@ -141,7 +148,9 @@ done
 
 Expected for every file: `HTTP/1.1 200` (or `HTTP/2 200`), a `content-length` header, no
 `transfer-encoding: chunked`, no `content-encoding`, no `location: http://...`. The command uses
-`GET`, like the setup; a `HEAD` request (`curl -I`) may be answered differently by some servers.
+`GET`, like the download; run it once more with `-I` instead of `-o /dev/null -D -` (a `HEAD`
+request, like the setup's check of the redirects before a file without SHA-256): the same status
+or `405`, never a `location: http://...`, and no error.
 `curl -sS -L -o /dev/null -w '%{url_effective}\n' "https://HOST/localized"` shows where the
 reachability URL ends after redirects: it must start with `https://`.
 
@@ -198,7 +207,8 @@ A recommendation for every release, not a release criterion.
 **Why.** A setup accepts a file without a SHA-256 pin as the HTTPS server sends it. With the data
 of setup 1.7.2 that are 110 server paths per product: the voices (`data.ssa`), the campaigns and
 the localized movie of every language, which only exist on the servers. Because the downloads
-follow a redirect to `http://` (requirement 4), one misconfigured redirect on a file server is
+follow a redirect to `http://` (requirement 4), one misconfigured redirect on a file server that
+the setup's check with `HEAD` does not see (a server that answers `HEAD` and `GET` differently) is
 enough to deliver them over plain HTTP, where anyone on the network path can replace them, and
 the setup logs them as "TLS-verified" all the same. A pinned file is safe whatever path it took:
 the setup compares its SHA-256 and discards anything else.

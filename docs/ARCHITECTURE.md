@@ -108,7 +108,9 @@ Wizard pages
 NextButtonClick(wpReady)
   RegisterOnlineFiles: selected localized files, policy (pin / TLS only / refused), server choice
   DownloadOnlineFiles (S-WP3): one file at a time, main server then mirror  -> {tmp}\<RelDest>
-                               (NextDownloadAction decides; a stop ends all requests)
+                               (NextDownloadAction decides; a stop ends all requests;
+                               a file without pin only after CheckOnlineFileRedirects:
+                               HEAD without redirects, every redirect to https)
 PrepareToInstall (S-WP11, done; admin mode only, user and portable: a log line)
   Data, Users and every folder below them, both game folders that exist: a junction, a symbolic
   link or a folder that cannot be listed, a file with more than one name (hard link) or one whose
@@ -249,7 +251,7 @@ installation loop (an exception in `AfterInstall` would abort the installation, 
 
 | Level | What | Where | Command |
 |---|---|---|---|
-| Unit | Pure `[Code]` helpers (`utils.iss`): strings, URLs, download policy, `NextDownloadAction`, compatibility flags, legacy compatibility values, the Windows versions of their cleanup and its exception for `compatibility_legacy`, the install mode name, the text of `install.ini`, `IsAsciiText` and the rule of the contract version value (S-WP6), manifest path (outside, `..`, `:` refused), exclusions, manifest lines, ordinal comparison, merge sort with 2000 paths in mixed case and duplicates, `[MissingAfterInstall]`, the list of the notice, the log line (S-WP7), the clamp of the game window (equal to the old inline code for every size from -10 to 4000), the low-screen predicate and the screen log line, folder normalization, `IsSameOrInside` (`C:\Sierra2` is not inside `C:\Sierra`), the "Installed From" folder, the regedit names of HKLM keys, the uninstall entry rule (community AppIds and publishers, Empire Earth II/III) and the finding list (S-WP8), which folders the link check examines (`IsLinkGuardedFolder`: `Data`, `Users` and below, not `Data2`, `redist`, `..`; S-WP11), the number of names of a file (`GetFileLinkCount`) and the walk with hard links (`CreateHardLinkW`, also under Wine) | `ci/tests/unit_tests.iss` (tiny setup, no network) | `ci/run_unit_tests.ps1`; Linux: `ISCC=... sh ci/tests/run_unit_tests.sh` |
+| Unit | Pure `[Code]` helpers (`utils.iss`): strings, URLs, download policy, `NextDownloadAction`, compatibility flags, legacy compatibility values, the Windows versions of their cleanup and its exception for `compatibility_legacy`, the install mode name, the text of `install.ini`, `IsAsciiText` and the rule of the contract version value (S-WP6), manifest path (outside, `..`, `:` refused), exclusions, manifest lines, ordinal comparison, merge sort with 2000 paths in mixed case and duplicates, `[MissingAfterInstall]`, the list of the notice, the log line (S-WP7), the clamp of the game window (equal to the old inline code for every size from -10 to 4000), the low-screen predicate and the screen log line, folder normalization, `IsSameOrInside` (`C:\Sierra2` is not inside `C:\Sierra`), the "Installed From" folder, the regedit names of HKLM keys, the uninstall entry rule (community AppIds and publishers, Empire Earth II/III) and the finding list (S-WP8), which folders the link check examines (`IsLinkGuardedFolder`: `Data`, `Users` and below, not `Data2`, `redist`, `..`; S-WP11), the number of names of a file (`GetFileLinkCount`) and the walk with hard links (`CreateHardLinkW`, also under Wine), the redirect statuses and the target of a `Location` header for the check before a download without pin (`IsRedirectStatus`, `ResolveRedirectUrl`) | `ci/tests/unit_tests.iss` (tiny setup, no network) | `ci/run_unit_tests.ps1`; Linux: `ISCC=... sh ci/tests/run_unit_tests.sh` |
 | Unit (file) | Writing `install.ini` with `ReplaceStateFile` in `{tmp}` (bytes: no BOM, ASCII, CRLF; over an existing file and a leftover `.tmp`; `RenameFile` fails over an existing file and works after deleting it; a non-ASCII text, a read-only target and a folder of that name leave the old state and no `.tmp`; S-WP6) and the manifest with `install.ini` for files the test creates, one of them deleted (no BOM, only LF, order, hashes equal to `GetSHA256OfFile`, each file once, no `.tmp`, `[MissingAfterInstall]`), a verified online file next to a hidden one, a file held open without sharing (two retries of 300 ms, no manifest), a path that is not ASCII, an incomplete recording, nothing recorded (S-WP7); the walk of the link check over a tree in `{tmp}` (folders examined, hidden ones too, none found, a missing game folder; S-WP11) | `ci/tests/unit_tests.iss` | as above |
 | Unit (run time) | Setting the TLS protocol option on a `WinHttpRequest` object without a request (proves the run-time call, not only its compilation); on Windows only, junctions made with `cmd /c mklink /J` in `{tmp}`: found, not entered, the target unchanged, also a junction whose target is gone (S-WP11; Wine cannot make junctions, there it is a `SKIP` line and the result line says `<n> tests, <s> skipped`) | `ci/tests/unit_tests.iss` | as above |
 | Build | All four variants compile against placeholder assets, output names prove the variant | `ci/build.ps1 -Placeholders`; locally `verify_setup.sh` | CI workflow |
@@ -298,11 +300,19 @@ plan.
 - **Redirects:** the built-in downloads follow a redirect from `https://` to `http://` (Wine probe
   of S-WP5: `301`, `302`, `307` and `308`; the redirect is handled by the Delphi HTTP client in
   `Setup.e32`, which switches WinHTTP's own redirect handling off, so it applies on Windows too;
-  [ADR 0008](adr/0008-release-checksums-and-contract-check.md), "Implementation"). The setup cannot
-  see it and logs such a file as "TLS-verified". Mitigations: the operator rule "no redirect to
-  `http://`" (check 3.4 of [SERVER-OPERATIONS.md](SERVER-OPERATIONS.md)), and pins for the files
-  known at build time, which a release build of `ci/build.ps1` lists as a warning (section 6
-  there; a recommendation, not a release criterion).
+  [ADR 0008](adr/0008-release-checksums-and-contract-check.md), "Implementation"). So before a file
+  without pin is requested, `CheckOnlineFileRedirects` (`downloads.iss`) asks its URL with `HEAD`
+  requests of `HttpRequest` (`utils.iss`) with `WinHttpRequestOption_EnableRedirects` off and
+  follows at most five redirects itself, each of which must lead to `https://`
+  (`ResolveRedirectUrl`); anything else, and no answer, refuses the file on that server (security
+  review of v2). Under Wine 9.0 the option is ignored and WinHTTP follows the redirects itself,
+  refusing one from `https://` to `http://` with an error, which the check treats as no answer: the
+  same result. Left open: a server that answers `HEAD` and `GET` differently or changes its answer
+  between the check and the download; the log keeps calling such a file "TLS-verified".
+  Mitigations for that: the operator rules "no redirect to `http://`" and "answer `HEAD` like
+  `GET`" (requirement 4 and check 3.4 of [SERVER-OPERATIONS.md](SERVER-OPERATIONS.md)), and pins for
+  the files known at build time, which a release build of `ci/build.ps1` lists as a warning
+  (section 6 there; a recommendation, not a release criterion).
 
 ## 10. Open points
 
