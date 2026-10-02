@@ -38,6 +38,16 @@ jobs:
         shell: pwsh
         run: python ci/check_messages.py --self-test
 
+      # docs/TEST-PLAN.de.md: unique test case ids, forum test cases 1 to 22 assigned, every id
+      # named in the documentation defined; then the self-test of the check (modified copies).
+      - name: Check the test plan
+        shell: pwsh
+        run: python ci/check_test_plan.py
+
+      - name: Check the test plan (self-test)
+        shell: pwsh
+        run: python ci/check_test_plan.py --self-test
+
       # docs/CONTRACT.md must be identical in the launcher repository, which CI cannot reach: the
       # copy check runs locally (README, "Verify"); here only its self-test.
       - name: Contract copy check (self-test)

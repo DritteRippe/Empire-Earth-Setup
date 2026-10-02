@@ -41,7 +41,7 @@ The texts of the setup are in `messages.iss`. [TRANSLATING.md](TRANSLATING.md) e
 - Windows (or Wine) with [Inno Setup](https://jrsoftware.org/isinfo.php) **6.2.x**. Releases are built with 6.2.2; newer versions are untested.
 - The game data and setup media. They are not part of this repository (see [Assets](#assets)).
 - The AppId GUIDs of both setups (see [AppIds](#appids)).
-- Python 3, only for placeholder builds and the checks (`ci/make_placeholder_assets.py`, `ci/check_messages.py`, `ci/compare_contract.py`).
+- Python 3, only for placeholder builds and the checks (`ci/make_placeholder_assets.py`, `ci/check_messages.py`, `ci/check_test_plan.py`, `ci/compare_contract.py`).
 
 ### Assets
 The script packs files from these folders, which are listed in `.gitignore`:
@@ -138,6 +138,8 @@ Installers are never run in CI. The manual tests on real Windows (a laptop and v
 - **Real build** (way B): your own data in `data\` (see [Assets](#assets)), the official AppIds read from the uninstall key `{<AppId>}_is1` of an existing installation (`reg query`), then `ci\build.ps1 -DownloadHashesOnly` and `ci\build.ps1 -EEAppID <GUID> -NeoEEAppID <GUID> -TestID 1`.
 - Test builds show their warning even in silent mode, so silent test runs need `/VERYSILENT /SUPPRESSMSGBOXES`; start every test run with `/LOG=<file>`.
 
+A new case gets the next free id of its block; `python ci/check_test_plan.py` checks the form of the plan (unique ids, every case with a valid status and the fields of the template, the forum test cases 1 to 22 assigned) and that every id named in the documentation exists.
+
 ### Verify
 Before a commit, run the checks that the change touches. The CI workflow runs all of them except the copy check of the contract:
 
@@ -147,12 +149,13 @@ Before a commit, run the checks that the change touches. The CI workflow runs al
 | Unit tests | `powershell -ExecutionPolicy Bypass -File ci\run_unit_tests.ps1` (Linux/Wine: see [Unit tests](#unit-tests)) |
 | Build script tests | `powershell -ExecutionPolicy Bypass -File ci\tests\build_helpers.tests.ps1` (also `pwsh` on Linux) |
 | All four variants compile | `powershell -ExecutionPolicy Bypass -File ci\build.ps1 -Placeholders` (see [Contributing without the game data](#contributing-without-the-game-data)) |
+| Test plan: unique test case ids, forum test cases 1 to 22 assigned, every id named in the documentation defined | `python ci/check_test_plan.py` (`--self-test` checks the check itself) |
 | Both copies of the contract are identical | `python ci/compare_contract.py <launcher clone>` |
 
 `docs/CONTRACT.md` exists in this repository and in the [launcher repository](https://github.com/EE-modders/Empire-Earth-Launcher) and must stay byte-identical; a change of the contract is one step in both repositories (same text, same commit subject). CI cannot reach the other repository, so after every change of the contract run the copy check against a local clone of the launcher, e.g. `python ci/compare_contract.py ../Empire-Earth-Launcher` (the clone's root folder or its `docs/CONTRACT.md`). Exit code 0: identical, the SHA-256 is printed; 1: different, both SHA-256 values and the first differing line are printed (and a hint if only the line endings differ, see `core.autocrlf`); 2: a file is missing. `python ci/compare_contract.py --self-test` checks the script itself.
 
 ### Continuous integration
-`.github/workflows/build.yml` checks the messages and the own scripts (`python ci/check_messages.py` and its `--self-test`), runs the self-test of the contract copy check (`python ci/compare_contract.py --self-test`), the unit tests and the build script tests, runs the placeholder build with Inno Setup 6.2.2 on `windows-latest` for every push and pull request and uploads the preprocessed script of every variant as an artifact.
+`.github/workflows/build.yml` checks the messages and the own scripts (`python ci/check_messages.py` and its `--self-test`), checks the test plan (`python ci/check_test_plan.py` and its `--self-test`), runs the self-test of the contract copy check (`python ci/compare_contract.py --self-test`), the unit tests and the build script tests, runs the placeholder build with Inno Setup 6.2.2 on `windows-latest` for every push and pull request and uploads the preprocessed script of every variant as an artifact.
 
 ### Conventions
 The own `.iss` files are UTF-8 **with BOM** and CRLF (see `.editorconfig` and `.gitattributes`): Inno Setup 6.2 reads files without BOM as ANSI and would break non-ASCII text. Release notes go into [CHANGELOG.md](CHANGELOG.md). After changing `messages.iss` or any own script, run `python ci/check_messages.py`: it reports duplicate messages, `==` typos, unknown language prefixes and messages that are used but not defined, which Inno Setup compiles without a warning, translations out of the standard order (`--sort` fixes that), and every own script without the UTF-8 BOM or with a line end other than CRLF. It finds the own scripts itself (every `*.iss` in the root folder and in `ci/tests`, plus every file named by an `#include "..."` line of `setup_is6.iss` or of a script found that way, without `internal/`), so a new module is checked from its first commit. `--coverage` adds the list of missing translations per language (see [TRANSLATING.md](TRANSLATING.md)).

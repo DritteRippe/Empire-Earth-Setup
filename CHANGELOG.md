@@ -92,6 +92,11 @@ Refactoring and quality fixes (no new game content).
   `TP-70`, and the forum test cases 1 to 22 mapped to test cases or excluded with a reason. The
   other cases are placeholders that the following work packages work out. README: "Testing on
   Windows".
+- `ci/check_test_plan.py` (also run by the workflow, with its `--self-test`): checks that every test
+  case id of `docs/TEST-PLAN.de.md` is defined once with a valid status and the fields of the
+  template, that the forum test cases 1 to 22 are each assigned (or excluded with a reason) and
+  that every test case id named in the README, the architecture document, the ADRs or another
+  Markdown file of the repository exists.
 
 ### Changed
 - The hidden setup data folder (holds `EEStatsSetup.dll` for the uninstaller) is now

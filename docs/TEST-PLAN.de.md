@@ -9,13 +9,15 @@ Stand: Gerüst aus Arbeitspaket S-WP2. Ausgearbeitet sind die Server-Vorabprüfu
 [TP-00](#tp-00-server-vorabprüfung) und der Grundablauf [TP-70](#tp-70-grundablauf-installieren-starten-deinstallieren).
 Jedes weitere Arbeitspaket (S-WP3 bis S-WP8) arbeitet die Fälle seines Blocks aus, S-WP9
 vervollständigt den Plan. Fälle, die noch nicht ausgearbeitet sind, tragen den Status
-`geplant: S-WPx`.
+`geplant: S-WPx`. `ci/check_test_plan.py` prüft die Form dieses Dokuments (siehe
+[Abschnitt 10](#10-automatische-prüfung-dieses-dokuments)).
 
 Inhalt: [1. Zweck](#1-zweck) · [2. Sicherheitsregeln](#2-sicherheitsregeln) ·
 [3. ID-Schema](#3-id-schema) · [4. Vorlage je Fall](#4-vorlage-je-fall) ·
 [5. Testumgebungen und Snapshots](#5-testumgebungen-und-snapshots) ·
 [6. Testbuild herstellen](#6-testbuild-herstellen) · [7. Testfälle](#7-testfälle) ·
-[8. Forum-Testfälle §8](#8-forum-testfälle-8) · [9. Protokoll](#9-protokoll)
+[8. Forum-Testfälle §8](#8-forum-testfälle-8) · [9. Protokoll](#9-protokoll) ·
+[10. Automatische Prüfung](#10-automatische-prüfung-dieses-dokuments)
 
 ## 1. Zweck
 
@@ -677,3 +679,20 @@ Jeder Testlauf ist eine Zeile. Die Logs liegen unter `C:\EE-Test\logs` und heiß
 „Abweichung“ heißt: Das Ergebnis weicht vom erwarteten ab, aber anders als ein Fehler (z. B.
 ein anderer Text); in die Bemerkung gehört, was genau. Ergebnisse zurückmelden mit dieser
 Tabelle und den Logs der betroffenen Läufe (vorher auf persönliche Daten ansehen, Regel 6).
+
+## 10. Automatische Prüfung dieses Dokuments
+
+`python ci/check_test_plan.py` (auch im CI-Workflow) prüft:
+
+- jede ID ist als Überschrift `#### TP-xy: …` genau einmal definiert,
+- jeder Fall hat einen gültigen Status; ein ausgearbeiteter Fall hat alle Felder der Vorlage,
+  ein geplanter mindestens `Bezug` und `Ziel`,
+- die Tabelle in [Abschnitt 8](#8-forum-testfälle-8) hat die Nummern 1 bis 22 je einmal, jede mit
+  einer ID oder mit „Launcher“/„entfällt“ und Grund, und ihre Spalte „Stand“ passt zum Status der
+  genannten Fälle,
+- jede ID, die in diesem Dokument, in der README, in `docs/ARCHITECTURE.md`, in den ADRs oder in
+  einer anderen Markdown-Datei des Repositorys (außer `ci/`, `.github/` und den Asset-Ordnern)
+  genannt wird, ist hier definiert, und jede ID hat genau zwei Ziffern (`TP-1x` meint einen
+  Block und zählt nicht als ID).
+
+`python ci/check_test_plan.py --self-test` prüft die Prüfung selbst mit veränderten Kopien.
