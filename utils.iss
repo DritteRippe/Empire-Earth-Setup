@@ -371,3 +371,33 @@ begin
   else
     Result := OnlineFileTlsOnly;
 end;
+
+const
+  // Outcome of one download attempt of an online file (DownloadOnlineFiles, downloads.iss)
+  DownloadOutcomeSuccess = 0;      // complete, and it matches its pin if it has one
+  DownloadOutcomeFailure = 1;      // network, TLS certificate, HTTP status, size, or stopped
+  DownloadOutcomePinMismatch = 2;  // complete, but not the file of its pin (deleted)
+  // What DownloadOnlineFiles does next (NextDownloadAction)
+  DownloadActionAccept = 0;        // keep the file, go on with the next one
+  DownloadActionTryMirror = 1;     // request the same file from the mirror
+  DownloadActionGiveUp = 2;        // report the file as not downloaded, go on with the next one
+  DownloadActionStopAll = 3;       // the user stopped the downloads: no further request at all
+
+// Decides what happens after a download attempt with the result Outcome (DownloadOutcome*):
+// MirrorAllowed if the file may be requested from the mirror (same GetOnlineFileCheck result
+// there, so never over http without a pin), MirrorTried if this attempt or an earlier one of the
+// same file was the mirror, StoppedByUser if the user stopped the downloads (the stop button of
+// the download page, copied right after the attempt). A complete file is kept even if the stop
+// came too late to cancel it; after a stop no further URL is requested, neither the mirror nor the
+// next file. Any outcome other than success counts as a failed attempt.
+function NextDownloadAction(const Outcome: Integer; const MirrorAllowed, MirrorTried, StoppedByUser: Boolean): Integer;
+begin
+  if Outcome = DownloadOutcomeSuccess then
+    Result := DownloadActionAccept
+  else if StoppedByUser then
+    Result := DownloadActionStopAll
+  else if MirrorAllowed and not MirrorTried then
+    Result := DownloadActionTryMirror
+  else
+    Result := DownloadActionGiveUp;
+end;

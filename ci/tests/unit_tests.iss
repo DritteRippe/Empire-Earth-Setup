@@ -248,6 +248,32 @@ begin
   Check('GetOnlineFileCheck data without pin, no URL', IntToStr(GetOnlineFileCheck('EE\Data\data.ssa', '', '')), IntToStr(OnlineFileRefusedInsecure));
 end;
 
+procedure CheckAction(const Name: String; const Outcome: Integer; const MirrorAllowed, MirrorTried, StoppedByUser: Boolean; const Expected: Integer);
+begin
+  Check('NextDownloadAction ' + Name, IntToStr(NextDownloadAction(Outcome, MirrorAllowed, MirrorTried, StoppedByUser)), IntToStr(Expected));
+end;
+
+// The decision after each download attempt (ADR 0003): Outcome, MirrorAllowed, MirrorTried,
+// StoppedByUser
+procedure TestNextDownloadAction;
+begin
+  CheckAction('success at the main server', DownloadOutcomeSuccess, True, False, False, DownloadActionAccept);
+  CheckAction('success at the mirror', DownloadOutcomeSuccess, True, True, False, DownloadActionAccept);
+  CheckAction('success without mirror', DownloadOutcomeSuccess, False, False, False, DownloadActionAccept);
+  CheckAction('success, stop came too late to cancel it', DownloadOutcomeSuccess, True, False, True, DownloadActionAccept);
+  CheckAction('network error, mirror allowed', DownloadOutcomeFailure, True, False, False, DownloadActionTryMirror);
+  CheckAction('network error, mirror not allowed', DownloadOutcomeFailure, False, False, False, DownloadActionGiveUp);
+  CheckAction('network error at the mirror', DownloadOutcomeFailure, True, True, False, DownloadActionGiveUp);
+  CheckAction('pin mismatch, mirror allowed', DownloadOutcomePinMismatch, True, False, False, DownloadActionTryMirror);
+  CheckAction('pin mismatch, mirror not allowed', DownloadOutcomePinMismatch, False, False, False, DownloadActionGiveUp);
+  CheckAction('pin mismatch at the mirror', DownloadOutcomePinMismatch, True, True, False, DownloadActionGiveUp);
+  CheckAction('stop at the main server', DownloadOutcomeFailure, True, False, True, DownloadActionStopAll);
+  CheckAction('stop at the main server, mirror not allowed', DownloadOutcomeFailure, False, False, True, DownloadActionStopAll);
+  CheckAction('stop at the mirror', DownloadOutcomeFailure, True, True, True, DownloadActionStopAll);
+  CheckAction('stop with a pin mismatch', DownloadOutcomePinMismatch, True, False, True, DownloadActionStopAll);
+  CheckAction('unknown outcome counts as failure', 99, True, False, False, DownloadActionTryMirror);
+end;
+
 procedure TestNeedsExplicitTlsProtocols;
 begin
   CheckBool('NeedsExplicitTlsProtocols Vista 6.0', NeedsExplicitTlsProtocols(6, 0), True);
@@ -323,6 +349,7 @@ begin
     TestIsHttpsUrl;
     TestOnlineFilesServers;
     TestOnlineFileCheck;
+    TestNextDownloadAction;
     TestNeedsExplicitTlsProtocols;
     TestApplyTlsProtocolsNotNeeded;
     TestApplyTlsProtocolsRunTime;
