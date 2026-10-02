@@ -5,17 +5,15 @@ virtuelle Maschinen). Er gehört zur Architektur in [ARCHITECTURE.md](ARCHITECTU
 Teststrategie) und zu den Entscheidungen in [docs/adr](adr/README.md). Was das Setup für den
 Launcher hinterlässt, steht in [CONTRACT.md](CONTRACT.md).
 
-Stand: Gerüst aus Arbeitspaket S-WP2, Block 1 (Downloads, TP-10 bis TP-17) aus S-WP3, Block 2
-(Kompatibilität und Grafik, TP-20 bis TP-24) aus S-WP4, Block 3 (Build und Log, TP-30) aus S-WP5,
-Block 4 (Installationseintrag und `install.ini`, TP-40 und TP-41) aus S-WP6, Block 5
-(Integritätsmanifest, TP-50) aus S-WP7, Block 6 (Umgebung, TP-60 bis TP-63) aus S-WP8, Block 8
-(Links in `Data` und `Users`, TP-80) aus S-WP11.
-Ausgearbeitet sind die Server-Vorabprüfung [TP-00](#tp-00-server-vorabprüfung), die Fälle der
-Blöcke 1 bis 6 und 8 und der Grundablauf
-[TP-70](#tp-70-grundablauf-installieren-starten-deinstallieren). Seit S-WP5 hat jeder
-Fall eine Priorität (P1 bis P3, [Abschnitt 4](#4-vorlage-je-fall)).
-S-WP9 arbeitet die übrigen Fälle aus und vervollständigt den Plan. Fälle, die noch nicht ausgearbeitet sind, tragen den Status
-`geplant: S-WPx`. `ci/check_test_plan.py` prüft die Form dieses Dokuments (siehe
+Stand: vollständig. Gerüst aus Arbeitspaket S-WP2, Block 1 (Downloads, TP-10 bis TP-17) aus
+S-WP3, Block 2 (Kompatibilität und Grafik, TP-20 bis TP-24) aus S-WP4, Block 3 (Build und Log,
+TP-30) aus S-WP5, Block 4 (Installationseintrag und `install.ini`, TP-40 und TP-41) aus S-WP6,
+Block 5 (Integritätsmanifest, TP-50) aus S-WP7, Block 6 (Umgebung, TP-60 bis TP-63) aus S-WP8,
+Block 8 (Links in `Data` und `Users`, TP-80) aus S-WP11; S-WP9 hat die Build-Art A+ für das Update
+über 1.7.2 ohne Daten der Maintainer, die Fälle TP-71 bis TP-79 von Block 7, die
+Windows-8.1-Variante von TP-22 und die Entscheidungsregeln in TP-23 und TP-71 ergänzt. Alle Fälle
+sind ausgearbeitet; jeder hat eine Priorität (P1 bis P3, [Abschnitt 4](#4-vorlage-je-fall)).
+`ci/check_test_plan.py` prüft die Form dieses Dokuments (siehe
 [Abschnitt 10](#10-automatische-prüfung-dieses-dokuments)).
 
 Inhalt: [1. Zweck](#1-zweck) · [2. Sicherheitsregeln](#2-sicherheitsregeln) ·
@@ -97,12 +95,12 @@ Nummer ihres Blocks. Ein neues Arbeitspaket mit eigenen Fällen bekommt den näc
 |---|---|---|---|
 | TP-00 | Vorabprüfung | S-WP2 | Zustand der beiden Dateiserver vor jedem Testtag mit Downloads |
 | TP-1x | Downloads | S-WP3 | eingebaute Downloads statt IDP: Hauptserver ungültig und Spiegel (TP-10), offline (TP-11), Stopp-Knopf am ersten und am zweiten Server (TP-12, TP-13), Silent (TP-14), Koreanisch (TP-15), verworfener Download (TP-16), TLS 1.2 unter Windows 7 (TP-17) |
-| TP-2x | Kompatibilität und Grafik | S-WP4, S-WP10 | Windows 7 ohne Kompatibilitätswerte und mit der freiwilligen Aufgabe `compatibility_legacy` (TP-20), Bereinigung beim Update unter Windows 7, auch mit `compatibility_legacy` (TP-21), Windows 10/11 unverändert (TP-22), Grafikmatrix mit und ohne DirectX-Wrapper (TP-23), 150 % Anzeigeskalierung mit und ohne `compatibility` bzw. `compatibility_legacy` (TP-24) |
+| TP-2x | Kompatibilität und Grafik | S-WP4, S-WP10 | Windows 7 ohne Kompatibilitätswerte und mit der freiwilligen Aufgabe `compatibility_legacy` (TP-20), Bereinigung beim Update unter Windows 7, auch mit `compatibility_legacy` (TP-21), Windows 10/11 unverändert, optional Windows 8.1 (TP-22), Grafikmatrix mit und ohne DirectX-Wrapper und die Entscheidungsregel aus ADR 0010 (TP-23), 150 % Anzeigeskalierung mit und ohne `compatibility` bzw. `compatibility_legacy` (TP-24) |
 | TP-3x | Build und Log | S-WP5 | SHA-256-Dateien der Setups und Setup-Log ohne `/LOG`, auch bei Over-the-Shoulder-Erhöhung (TP-30) |
 | TP-4x | Installationseintrag und `install.ini` | S-WP6 | Installationseintrag, `install.ini`, Defaults-Marker, `SetupBuild` und der Wert `Empire Earth Community: ContractVersion` im Uninstall-Schlüssel je Variante, auch bei schreibgeschützter oder geöffneter `install.ini` und nach dem Setup 1.7.2, Deinstallation (TP-40); Spieleinstellungen und Marker beim installierenden und bei einem zweiten Konto, Over-the-Shoulder-Erhöhung (TP-41) |
 | TP-5x | Integritätsmanifest | S-WP7 | `files.sha256` je Variante (Inhalt geprüft mit `Get-FileHash` bzw. `sha256sum -c`), von einem Virenscanner gelöschte Dateien mit Hinweis und `[MissingAfterInstall]`, eine gesperrte Datei, Dauer des Prüfens auf dem Laptop und auf HDD bzw. unter Windows 7 (TP-50) |
 | TP-6x | Umgebung | S-WP8 | Hinweis unter 768 Pixeln Höhe und Bildschirm, DPI und Spielfenster im Log (TP-60), fremde und alte Installationen: Schlüssel in HKLM, fremde Uninstall-Einträge, CD-Ordner, Wortlaut zu den CD-Keys (TP-61), EE und NeoEE in einem Ordner (TP-62), Installation in den Ordner einer GOG- oder CD-Installation (TP-63) |
-| TP-7x | Allgemeine Abläufe und Forumfälle | S-WP2, S-WP9 | Grundablauf, Standardnutzer, Version, Reparatur, Firewall, CD-Keys, Sprachen, laufendes Spiel |
+| TP-7x | Allgemeine Abläufe und Forumfälle | S-WP2, S-WP9 | Grundablauf mit Update über 1.7.2 (TP-70), Standardnutzer und VirtualStore (TP-71), Version und Mehrspieler (TP-72), Reparatur (TP-73), AoC ohne EE-Start (TP-74), EE und NeoEE getrennt, eines deinstalliert (TP-75), Firewall beim Hosten (TP-76), CD-Keys (TP-77), Deutsch (TP-78), laufendes Spiel (TP-79) |
 | TP-8x | Links in den für alle beschreibbaren Ordnern | S-WP11 | Ein Standardbenutzer ersetzt `Data\Movies` durch eine Junction; das Update als Administrator hält auf der Seite „Vorbereitung der Installation“ an, ändert nichts und läuft nach dem Entfernen des Links durch; still Exit-Code 7; ein Link im Spielerordner unter `Users` hält ebenfalls an (TP-80) |
 
 ## 4. Vorlage je Fall
@@ -855,8 +853,9 @@ Diese Fälle prüfen, was ADR 0005, ADR 0010 und Vertrag 3.7 nur auf Windows zei
 Windows 7 schreibt das Setup standardmäßig keine Kompatibilitätswerte mehr (nur mit den freiwilligen
 Aufgaben `everyoneadminstart` und `compatibility_legacy`) und entfernt bei einem Update nur die
 Werte früherer Setups, nicht den Wert, den derselbe Lauf mit `compatibility_legacy` schreibt
-(TP-20, TP-21); unter Windows 10/11 bleibt alles wie bisher (TP-22). Dazu kommen die Grafikmatrix
-mit und ohne DirectX-Wrapper (TP-23) und der Fall 150 % Anzeigeskalierung mit und ohne Aufgabe
+(TP-20, TP-21); unter Windows 10/11 bleibt alles wie bisher, Windows 8.1 bekommt dieselben Werte
+(TP-22, die Windows-8.1-Variante optional). Dazu kommen die Grafikmatrix mit und ohne
+DirectX-Wrapper und die vorab festgelegte Regel, was aus ihr folgt (TP-23), und der Fall 150 % Anzeigeskalierung mit und ohne Aufgabe
 `compatibility` bzw. `compatibility_legacy` (TP-24, Vertrag O4). Welche Werte als „Werte früherer
 Setups“ gelten, entscheidet `IsLegacyVistaCompatValue`, ob der Wert dieses Laufs bleibt,
 `ShouldRemoveLegacyVistaCompatValue`; die Unit-Tests in `ci/tests/unit_tests.iss` decken alle
@@ -1089,24 +1088,27 @@ Gemeinsam für alle Fälle dieses Blocks:
   Schritt 8: Kopfzeile ohne den Zusatz und zweimal
   `Removed the old Windows Vista/7 compatibility value "~ DWM8And16BitMitigation HIGHDPIAWARE HeapClearAllocation" of … (HKLM)`.
 
-#### TP-22: Windows 10/11: Kompatibilitätswerte unverändert
+#### TP-22: Windows 10/11 und 8.1: Kompatibilitätswerte unverändert
 
 - **Status:** ausgearbeitet
-- **Priorität:** P1
-- **Bezug:** R15, ADR 0005 (ab Windows 8 unverändert), Vertrag 3.4 und 3.7; Forum §8 Nr. 5 (t=5842
-  p=39349, t=5748 p=38768)
+- **Priorität:** P1 (Variante f unter Windows 8.1: P3, nur VM)
+- **Bezug:** R15, ADR 0005 (ab Windows 8 unverändert), ADR 0010 Punkt 6 (Windows 8 und 8.1 gegenüber
+  1.7.2), Vertrag 3.4 und 3.7; Forum §8 Nr. 5 (t=5842 p=39349, t=5748 p=38768)
 - **Ziel:** Ab Windows 8 schreibt das Setup dieselben Werte wie vor S-WP4 (`WIN7RTM`, die Flags der
   Aufgabe `compatibility`, die GPU-Präferenz), ein Update entfernt keinen Kompatibilitätswert außer
   dem alten `~ RUNASADMIN` in HKCU, und das Spiel startet mit allen Aufgaben, ohne
   `compatibility_windows` und ohne beide.
-- **Build-Art:** (a) bis (d) A oder B, (e) A+ oder B (Schritt 5 nur B)
-- **Ausgangszustand:** (a) bis (d) kein Empire Earth; (e) offizielles Setup 1.7.2 (EE) als
+- **Build-Art:** (a) bis (d) und (f) A oder B, (e) A+ oder B (Schritt 5 und der Spielstart in
+  Schritt 6 nur B)
+- **Ausgangszustand:** (a) bis (d) und (f) kein Empire Earth; (e) offizielles Setup 1.7.2 (EE) als
   Administrator installiert, einmal gestartet.
-- **Snapshot:** (a) bis (d) `S-Basis`; (e) `S-172-EE`. Auf dem `Laptop` nur Weg B mit
-  Wiederherstellungspunkt.
+- **Snapshot:** (a) bis (d) `S-Basis`; (e) `S-172-EE`; (f) `S-Win81` (nur VM). Auf dem `Laptop` nur
+  Weg B mit Wiederherstellungspunkt.
 - **Varianten:** (a) EE-admin mit beiden Aufgaben, (b) EE-admin ohne `compatibility_windows`, (c)
-  EE-admin ohne beide, (d) EE-user mit beiden, (e) EE-admin als Update über 1.7.2. NeoEE nutzt
-  dieselben Einträge.
+  EE-admin ohne beide, (d) EE-user mit beiden, (e) EE-admin als Update über 1.7.2, (f) optional
+  EE-admin unter Windows 8.1 mit beiden Aufgaben und ohne beide: Das offizielle Setup 1.7.2 schrieb
+  dort keine Werte, unter Windows 8.1 ist das Verhalten neu und bisher ungetestet (ADR 0010 Punkt
+  6). NeoEE nutzt dieselben Einträge.
 - **Schritte:**
   1. Die `reg query`-Befehle ausführen (vor (a) bis (d): keine Werte).
   2. (a) Setup mit `/LOG="C:\EE-Test\logs\TP-22a_EE-admin.log"`, „Für alle Benutzer installieren“,
@@ -1122,6 +1124,10 @@ Gemeinsam für alle Fälle dieses Blocks:
      `/LOG="C:\EE-Test\logs\TP-22e_EE-admin.log"` und „Aktuelle Installation aktualisieren“ bzw.
      „Vorhandene Installation reparieren“ ausführen, danach dieselben Abfragen.
   5. Nur Weg B: nach (a), (b) und (c) Empire Earth und AoC je starten (siehe oben).
+  6. (f) Nur in der VM `S-Win81`: Schritt 2 mit `TP-22f` im Log-Namen (die Aufgabenseite zeigt beide
+     Kompatibilitätsaufgaben angehakt), dann die `reg query`-Befehle und die Abfrage von
+     `UserGpuPreferences`; nur Weg B: Empire Earth und AoC je starten. Snapshot zurücksetzen und
+     dasselbe mit beiden Aufgaben abgewählt (`TP-22f2`), wieder beide Spiele starten.
 - **Erwartetes Ergebnis:**
   - (a): in HKLM für beide Programme `~ DWM8And16BitMitigation HIGHDPIAWARE HeapClearAllocation WIN7RTM`,
     in HKCU keine; unter `UserGpuPreferences` für beide `GpuPreference=2;`.
@@ -1133,6 +1139,12 @@ Gemeinsam für alle Fälle dieses Blocks:
   - (e): nach dem Update in HKLM dieselben Werte wie vorher (1.7.2 schrieb unter Windows 10 schon
     `… WIN7RTM`); in HKCU keine `~ RUNASADMIN`-Zeilen mehr.
   - Schritt 5: Alle Varianten starten ohne Fehlermeldung, Runtime-Fehler oder schwarzen Bildschirm.
+  - (f): mit beiden Aufgaben in HKLM dieselben Werte wie (a), aber keine GPU-Präferenz (sie gibt es
+    erst ab Windows 10, Vertrag 3.4); ohne beide Aufgaben keine Werte. Die Spielstarts sind ein
+    Befund: Startet ein Spiel unter Windows 8.1 nur ohne die Werte, geht das mit Grafikchip und
+    Treiber an die Maintainer, als Vorschlag für ein Folgepaket, das die beiden Aufgaben unter
+    Windows 8 und 8.1 nicht mehr vorauswählt. Ohne Windows-8.1-VM steht der Teil als „nicht
+    durchgeführt: ungetestet“ im Protokoll.
 - **Log-Hinweis:** Keine Zeile `… this setup writes no compatibility values on Windows Vista/7 …`
   und keine Zeile `Removed the old Windows Vista/7 compatibility value`; bei (e) zweimal
   `Removed the old per-user RUNASADMIN flag of …`.
@@ -1141,9 +1153,9 @@ Gemeinsam für alle Fälle dieses Blocks:
 
 - **Status:** ausgearbeitet
 - **Priorität:** P2
-- **Bezug:** ADR 0005 (Punkt 2: Wrapper-Vorauswahl bleibt, wählbar), Vertrag 3.3 (`Rasterizer Name`);
-  Forum §8 Nr. 3 (t=5751, t=1862, t=1643, t=2884, t=5588, t=5887 p=39385; NeoEE-Einblendung
-  t=10968 p=47345)
+- **Bezug:** ADR 0005 (Punkt 2: Wrapper-Vorauswahl bleibt, wählbar), ADR 0010 Punkt 4 (die
+  Entscheidungsregel), Vertrag 3.3 (`Rasterizer Name`); Forum §8 Nr. 3 (t=5751, t=1862, t=1643,
+  t=2884, t=5588, t=5887 p=39385; NeoEE-Einblendung t=10968 p=47345)
 - **Ziel:** Für den Grafikchip des Testrechners belegen, wie sich die Spiele ohne Wrapper und mit
   jedem Wrapper verhalten (Menütexte, HUD, Einheiten, Flackern, Maus, NeoEE-Einblendung), und dass
   der Weg zu „Nativ“ funktioniert. Das Ergebnis entscheidet, ob die Vorauswahl je Hersteller bleibt.
@@ -1187,9 +1199,14 @@ Gemeinsam für alle Fälle dieses Blocks:
   - Die Spiele erreichen in jeder Einstellung das Hauptmenü. Ob Menütexte, HUD, Einheiten, Maus und
     NeoEE-Einblendung funktionieren, ist der Befund dieses Falls: je Einstellung und Spiel eine Zeile
     im Protokoll mit „ok“ oder dem Fehlerbild (z. B. „Maus reagiert im Spiel nicht“, t=5887).
-    Funktioniert die Vorauswahl schlechter als „Nativ“ oder ein anderer Wrapper, geht das mit
-    Grafikchip und Treiber an die Maintainer (ADR 0005, Folgen: Die Wrapper-Frage bleibt für echte
-    Tests offen).
+  - Was aus dem Befund folgt, legt die Regel aus ADR 0010 Punkt 4 fest, die vor dem Test bestimmt
+    wurde: Zeigt die vorausgewählte Stufe bei diesem Hersteller einen Defekt, den „Nativ“ auf
+    demselben Rechner nicht zeigt (Menütexte fehlen, die Maus reagiert nicht, die
+    NeoEE-Einblendung fehlt, Absturz oder Einfrieren), geht das Ergebnis mit Grafikchip und Treiber
+    an die Maintainer, als Vorschlag, die Vorauswahl **für diesen Hersteller** auf die beste Stufe
+    der Matrix zu ändern; die Änderung selbst ist ein Folgepaket mit CHANGELOG-Eintrag. Bei gleichem
+    Ergebnis bleibt die Vorauswahl. Ein Defekt, den auch „Nativ“ zeigt, betrifft nicht die
+    Vorauswahl (ins Protokoll, an die Maintainer).
 - **Log-Hinweis:** `<Hersteller> GPU detected` bzw. `Unknown GPU detected` und
   `Using <Hersteller> GPU settings: additional\directx_wrapper\dx11_lvl11` (bzw. `…\dx11_lvl10_1`,
   `…\dx9`, `!additional\directx_wrapper` bei „Nativ“). Bei der benutzerdefinierten Installation
@@ -2013,6 +2030,13 @@ Befehle unten lassen den abschließenden `\` deshalb weg.
 
 ### Block 7: Allgemeine Abläufe und Forumfälle
 
+Fälle, die nicht zu einem Arbeitspaket gehören: der Grundablauf (TP-70, Grundlage aller anderen
+Fälle) und die Testfälle für echtes Windows aus der Forumsstudie, die kein anderer Block abdeckt
+(Zuordnung in [Abschnitt 8](#8-forum-testfälle-8)). Viele brauchen das laufende Spiel und damit
+Weg B; ohne Daten der Maintainer bleiben von ihnen die Teile mit Weg A bzw. A+, der Rest kommt als
+„nicht durchgeführt: keine Daten“ ins Protokoll. Abfragen von `Software\Sierra\CDKeys` prüfen
+nur, ob es den Schlüssel gibt, nie seine Werte (Regel 3).
+
 #### TP-70: Grundablauf: installieren, starten, deinstallieren
 
 - **Status:** ausgearbeitet
@@ -2087,79 +2111,554 @@ Befehle unten lassen den abschließenden `\` deshalb weg.
 
 #### TP-71: Als Administrator installieren, als Standardbenutzer spielen
 
-- **Status:** geplant: S-WP9
+- **Status:** ausgearbeitet
 - **Priorität:** P2
-- **Bezug:** Forum §8 Nr. 1 (t=3001 p=22273, VirtualStore), Launcher R8
-- **Ziel:** Ob unter `%LOCALAPPDATA%\VirtualStore\…\Empire Earth` Dateien entstehen
-  (`_won*`, `neoee.log`, `upnp_info.txt`) und ob die Version im Hauptmenü mit und ohne
-  „Als Administrator“ gleich ist.
+- **Bezug:** Forum §8 Nr. 1 (t=3001 p=22273: ohne Administratorrechte meldete EE 2.00.5038, mit
+  2.00.6345; t=2631 p=17656), Forumsbericht §8 Problemabgleich Nr. 2 (VirtualStore); ADR 0010
+  Punkt 5 (Entscheidungsregel); Launcher R8 (Warnung vor VirtualStore-Kopien)
+- **Ziel:** Zeigen, ob ein Standardbenutzer nach einer Installation für alle Benutzer Dateien des
+  Spielordners in den VirtualStore umgeleitet bekommt (`_won*`, `_wonHTTPCache`, `neoee.log`,
+  `upnp_info.txt`, `0_Error.log`) und ob das Hauptmenü mit und ohne „Als Administrator ausführen“
+  dieselbe Version zeigt; das Ergebnis entscheidet nach der Regel aus ADR 0010 Punkt 5.
+- **Build-Art:** B (das Spiel muss laufen)
+- **Ausgangszustand:** Windows 10/11 mit 3D-Beschleunigung, kein Empire Earth; ein
+  Administratorkonto („Admin“) und das Standardkonto „Spieler“, beide schon einmal angemeldet;
+  Internet (für die Lobby).
+- **Snapshot:** `Laptop` (Wiederherstellungspunkt, Regel 1; ein Standardkonto anlegen, falls keines
+  da ist) oder eine VM auf `S-Basis` mit 3D-Beschleunigung
+- **Varianten:** (a) EE-admin, (b) NeoEE-admin (NeoEE schreibt zusätzlich `neoee.log` und
+  `upnp_info.txt`). Nur admin: Im Modus user und portable gehört der Spielordner dem Spieler, dort
+  leitet Windows nichts um.
+- **Schritte:**
+  1. Als „Admin“ EE-admin mit `/LOG="C:\EE-Test\logs\TP-71a_EE-admin.log"` installieren:
+     „Empfohlene Einstellungen“ mit Empire Earth und AoC, Standardordner, Telemetrie aus. Abmelden.
+  2. Als „Spieler“ anmelden und prüfen, dass es noch keine Kopien gibt:
+     `dir /s /a "%LOCALAPPDATA%\VirtualStore\Program Files (x86)\Empire Earth"` (erwartet: „Die
+     Datei wurde nicht gefunden“ bzw. „Das System kann den angegebenen Pfad nicht finden“).
+  3. Empire Earth über das Startmenü starten (nicht als Administrator): die Version im Hauptmenü
+     notieren, *Mehrspieler › Online* öffnen und warten, bis die Lobby geladen ist (ohne Anmeldung;
+     das legt die `_won*`-Dateien an), zurück, eine Zufallskarte gegen den Computer zwei Minuten
+     spielen, als `TP71` speichern, beenden. Dasselbe mit AoC.
+  4. Ausgaben ins Protokoll:
+
+     ```bat
+     dir /s /a "%LOCALAPPDATA%\VirtualStore\Program Files (x86)\Empire Earth"
+     dir /a "C:\Program Files (x86)\Empire Earth\Empire Earth\Data\Saved Games"
+     dir /a "C:\Program Files (x86)\Empire Earth\Empire Earth\_won*"
+     ```
+
+  5. Empire Earth mit Rechtsklick › „Als Administrator ausführen“ starten (Kennwort von „Admin“),
+     die Version im Hauptmenü notieren, beenden; Schritt 4 wiederholen.
+  6. (b) Snapshot zurücksetzen und mit NeoEE-admin wiederholen (Ordner `…\Neo Empire Earth`, die
+     NeoEE-Lobby; VirtualStore-Pfad `…\VirtualStore\Program Files (x86)\Neo Empire Earth`).
+- **Erwartetes Ergebnis:**
+  - Das Spiel startet als „Spieler“, der Spielstand `TP71` liegt im echten Ordner `Data\Saved Games`
+    (das Setup gibt allen Benutzern Schreibrechte auf `Data`), nicht im VirtualStore. Startet das
+    Spiel nicht oder kann es nicht speichern, ist der Fall nicht bestanden.
+  - Die Version im Hauptmenü ist mit und ohne Administratorrechte gleich. Zwei verschiedene Werte
+    sind eine Abweichung (beide ins Protokoll, mit der Liste aus Schritt 4): Dann liest das Spiel
+    ohne Administratorrechte Dateien aus dem VirtualStore (t=3001 p=22273).
+  - Der VirtualStore ist ein Befund, über den die vor dem Test festgelegte Regel aus ADR 0010
+    Punkt 5 entscheidet: **leer** → keine Änderung am Setup (der Launcher warnt weiterhin, R8);
+    **Dateien gefunden** → die Liste (Pfad und Name) an die Maintainer: Ein Folgepaket gibt genau
+    diesen Dateien bzw. Ordnern `authusers-modify` (Kandidaten aus dem Forum `_won*`, `neoee.log`,
+    `upnp_info.txt`); liegen sie über den Spielordner verteilt, schlägt das Folgepaket stattdessen
+    einen Standardordner außerhalb von `Program Files` vor. Beides ist kein „nicht bestanden“.
+- **Log-Hinweis:** Das Setup-Log belegt nur die Rechte: je Ordner `Setting permissions on
+  directory: …\Empire Earth\Data` bzw. `…\Users` (und für AoC), je vorhandener `*.cfg`-, `*.ini`-
+  Datei `Setting permissions on file: …`. Was im VirtualStore liegt, zeigt nur `dir` aus Schritt 4.
 
 #### TP-72: Versionsanzeige und Mehrspieler zwischen zwei Installationen
 
-- **Status:** geplant: S-WP9
-- **Priorität:** P3
-- **Bezug:** Forum §8 Nr. 2 (t=11034 p=47982), Forum 4.12
-- **Ziel:** EE und AoC zeigen den erwarteten NeoEE-Stand, und zwei Setup-Installationen treten
-  einem Mehrspielerspiel ohne Versionskonflikt bei.
+- **Status:** ausgearbeitet
+- **Priorität:** P3 (zwei Rechner mit 3D-Beschleunigung)
+- **Bezug:** Forum §8 Nr. 2 (t=11034 p=47982: EE 2.00.2949 und AoC 1.00.2473 seit 2015, auch t=5750
+  p=38772, t=5909 p=39456; t=3001: „your version is not the same as the host“), Forumsbericht 4.12;
+  Vertrag 2 (`files.sha256`); Forum §8 Nr. 19 verweist hierher
+- **Ziel:** Zwei Installationen desselben Setups haben dieselben Spielprogramme, zeigen dieselbe
+  Version im Hauptmenü und spielen ohne Versionskonflikt und ohne Asynchronität miteinander.
+- **Build-Art:** B
+- **Ausgangszustand:** zwei Rechner im selben lokalen Netz (der Laptop und ein zweiter Rechner oder
+  eine VM mit 3D-Beschleunigung), auf beiden noch kein Empire Earth.
+- **Snapshot:** `Laptop` und der zweite Rechner, beide mit Wiederherstellungspunkt (Regel 1)
+- **Varianten:** NeoEE-admin auf beiden (der Normalfall der Online-Lobby); EE-admin auf beiden
+  optional. Eine Mischung aus EE und NeoEE ist ausgelassen: andere Programme, ein Konflikt ist dort
+  erwartet.
+- **Schritte:**
+  1. Auf beiden Rechnern denselben Testbuild NeoEE-admin mit
+     `/LOG="C:\EE-Test\logs\TP-72_NeoEE-admin_<Rechner>.log"` installieren: „Empfohlene
+     Einstellungen“ mit Empire Earth und AoC, Spielsprache auf beiden gleich, Telemetrie aus; die
+     Aufgabe „Spiel in der Windows-Firewall zulassen …“ bleibt angehakt (Standard, TP-76).
+  2. Auf beiden in PowerShell:
+
+     ```powershell
+     $root = 'C:\Program Files (x86)\Neo Empire Earth'
+     foreach ($p in 'Empire Earth\Empire Earth.exe', 'Empire Earth - The Art of Conquest\EE-AOC.exe') {
+       $f = Join-Path $root $p
+       '{0}  {1}  {2}' -f (Get-FileHash -LiteralPath $f -Algorithm SHA256).Hash.ToLower(), (Get-Item -LiteralPath $f).VersionInfo.FileVersion, $p
+     }
+     Select-String -LiteralPath (Join-Path $root '_setupdata_NeoEE\files.sha256') -Pattern 'Empire Earth.exe$', 'EE-AOC.exe$'
+     ```
+
+  3. Auf beiden Empire Earth starten und die Version im Hauptmenü notieren; dasselbe mit AoC.
+  4. Rechner 1: *Mehrspieler › LAN* (TCP/IP) ein Spiel erstellen; Rechner 2: beitreten. Starten und
+     fünf Minuten spielen, dabei auf beiden Seiten Einheiten bauen und kämpfen. Dasselbe mit AoC.
+     Optional (mit NeoEE-Konto): dasselbe über die Online-Lobby.
+  5. Danach auf beiden `dir "C:\Program Files (x86)\Neo Empire Earth\Empire Earth\OOS*.log"`.
+- **Erwartetes Ergebnis:**
+  - Schritt 2: auf beiden Rechnern dieselben SHA-256 und Dateiversionen, gleich den Zeilen in
+    `files.sha256`.
+  - Schritt 3: auf beiden dieselbe Version. Die Referenz aus dem Forum für NeoEE ist EE 2.00.2949
+    und AoC 1.00.2473 (Stand 2015 bis 2017); eine andere Zahl ist kein Fehler, solange beide gleich
+    sind, gehört aber ins Protokoll.
+  - Schritt 4: Der Beitritt gelingt ohne Meldung zu einer anderen Version, das Spiel läuft ohne
+    „Out of Sync“; Schritt 5 findet keine `OOS*.log`.
+- **Log-Hinweis:** In beiden Setup-Logs `Manifest: <n> files, …` mit derselben Anzahl Dateien. Eine
+  Asynchronität schreibt das Spiel selbst als `OOS*.log` in den Spielordner (Schritt 5).
 
 #### TP-73: Reparatur durch erneutes Ausführen des Setups
 
-- **Status:** geplant: S-WP9
-- **Priorität:** P1
-- **Bezug:** Forum §8 Nr. 4 (t=10931, 16 Bit) und Nr. 22 (t=5825, t=10915, t=11034),
-  Vertrag 4
-- **Ziel:** Ein erneuter Lauf über eine veränderte oder teilweise beschädigte Installation stellt
-  die Dateien und die Spieleinstellungen (z. B. 32 Bit) wieder her, ohne in die Sackgasse
-  „nur Ändern/Reparieren/Entfernen“ zu führen.
+- **Status:** ausgearbeitet
+- **Priorität:** P1 (Teil a; b und c: P2; d: P2, nur Weg B)
+- **Bezug:** Forum §8 Nr. 4 (t=10931 p=47182: Einfrieren mit 16 Bit Farbtiefe unter Windows 10) und
+  Nr. 22 (t=5825 p=39086, t=10915 p=46963, t=11034 p=47986: der Wartungsmodus des alten
+  NeoEE-Installers „Modify/Repair/Uninstall“ als Sackgasse); Vertrag 3.2 (Klassen D und P) und 4.1
+  (die Reparatur ist ein Lauf des Setups); Launcher-Testplan WP6-11
+- **Ziel:** Ein erneuter Lauf über eine veränderte oder teilweise kaputte Installation stellt
+  fehlende und veränderte Dateien und die Anzeigewerte (32 Bit) wieder her, lässt die Vorgaben des
+  Spielers stehen und führt nie in eine Sackgasse; auch ohne Uninstall-Schlüssel läuft eine
+  Installation in denselben Ordner durch.
+- **Build-Art:** A oder B (Teil d nur B)
+- **Ausgangszustand:** (a), (b) EE-admin mit AoC installiert, z. B. der Stand nach
+  [TP-70](#tp-70-grundablauf-installieren-starten-deinstallieren) (a) vor Schritt 7; (c) NeoEE-admin
+  mit AoC und der Aufgabe „NeoEE-CD-Keys registrieren“ installiert; (d) EE-admin mit Weg B auf dem
+  Laptop.
+- **Snapshot:** `S-Basis` oder `S-Sandbox` für (a) bis (c); `Laptop` für (d)
+- **Varianten:** (a) EE-admin, Reparatur über den Assistenten; (b) EE-admin ohne
+  Uninstall-Schlüssel; (c) NeoEE-admin ohne `EE-AOC.exe` und ohne `install.ini`; (d) EE-admin mit
+  16 Bit unter Windows 10/11. EE-user und portable reparieren mit demselben Code; portable hat nie
+  einen Uninstall-Schlüssel und läuft deshalb immer wie (b).
+- **Schritte:**
+  1. (a) Die Installation beschädigen und die Einstellungen verstellen (PowerShell als
+     Administrator):
+
+     ```powershell
+     $spiel = 'C:\Program Files (x86)\Empire Earth\Empire Earth'
+     Remove-Item -LiteralPath "$spiel\Language.dll"
+     Add-Content -LiteralPath "$spiel\help.rtf" -Value 'x'
+     reg add "HKCU\Software\SSSI\Empire Earth" /v "Game Bit Depth" /t REG_DWORD /d 16 /f
+     reg add "HKCU\Software\SSSI\Empire Earth" /v "Texture Bit Depth" /t REG_DWORD /d 16 /f
+     reg add "HKCU\Software\SSSI\Empire Earth" /v "Music Volume" /t REG_DWORD /d 10 /f
+     ```
+
+  2. Das Setup mit `/LOG="C:\EE-Test\logs\TP-73a_EE-admin.log"` starten (Weg A zusätzlich
+     `/MERGETASKS="!dxwebsetup"`): Auf der Seite „Installationsmodus“ ist „Vorhandene Installation
+     reparieren“ vorausgewählt; so lassen, Telemetrie aus, installieren, fertigstellen.
+  3. Prüfen: die PowerShell-Zeilen aus [TP-50](#tp-50-von-antivirenprogrammen-gelöschte-dateien)
+     Schritt 2 und
+
+     ```bat
+     reg query "HKCU\Software\SSSI\Empire Earth" /v "Game Bit Depth"
+     reg query "HKCU\Software\SSSI\Empire Earth" /v "Texture Bit Depth"
+     reg query "HKCU\Software\SSSI\Empire Earth" /v "Music Volume"
+     ```
+
+  4. (b) Nur den Uninstall-Schlüssel des Testbuilds löschen (Weg A: Platzhalter-AppId; nie einen
+     anderen Schlüssel, nie `Software\Sierra`):
+     `reg delete "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{<AppId>}_is1" /reg:64 /f`.
+     Dann das Setup mit `TP-73b` im Log-Namen starten: Die Seite „Installationsmodus“ bietet keine
+     Reparatur an; „Empfohlene Einstellungen“ mit Empire Earth und AoC, auf der Ordnerseite den
+     vorgeschlagenen Ordner `C:\Program Files (x86)\Empire Earth` lassen, installieren. Danach
+     `dir /a "C:\Program Files (x86)\Empire Earth"` und
+     `reg query "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{<AppId>}_is1" /v "Empire Earth Community: ContractVersion" /reg:64`.
+  5. (c) Beim NeoEE-admin (wie im Launcher-Testplan WP6-11) die Installation teilweise zerstören:
+
+     ```powershell
+     $root = 'C:\Program Files (x86)\Neo Empire Earth'
+     Remove-Item -LiteralPath "$root\Empire Earth - The Art of Conquest\EE-AOC.exe"
+     Remove-Item -LiteralPath "$root\_setupdata_NeoEE\install.ini"
+     ```
+
+     Das NeoEE-Setup mit `TP-73c` im Log-Namen starten, „Vorhandene Installation reparieren“,
+     installieren; danach die PowerShell-Zeilen aus TP-50 Schritt 2 mit `$root` und
+     `_setupdata_NeoEE`.
+  6. (d) Nur Weg B, auf dem Laptop: wie Schritt 1 nur die beiden Bit-Tiefen auf 16 setzen, Empire
+     Earth starten und ein Spiel beginnen (friert es ein? t=10931); beenden (notfalls im
+     Task-Manager), reparieren wie in Schritt 2 und erneut ein Spiel beginnen.
+- **Erwartetes Ergebnis:**
+  - (a) Außer der Testwarnung (und bei Weg A den bekannten Grenzen) keine Frage; die Reparatur
+    fragt weder nach Komponenten noch nach dem Ordner. Danach `Hash falsch oder Datei fehlt: 0`
+    (`Language.dll` ist wieder da, `help.rtf` hat wieder den Hash aus dem Setup), `Game Bit Depth`
+    und `Texture Bit Depth` sind `0x20` (Klasse D: jeder Lauf überschreibt), `Music Volume` bleibt
+    `0xa` (Klasse P: nur angelegt, wenn er fehlt; Vertrag 3.2). Kein Hinweis zu fehlenden Dateien.
+  - (b) Die Installation läuft in denselben Ordner durch, ohne Frage nach einem fremden oder
+    gemeinsamen Ordner; danach gibt es den Uninstall-Schlüssel wieder mit
+    `Empire Earth Community: ContractVersion` `0x1`, und im Ordner liegt weiter genau ein
+    Deinstallationsprogramm `unins000.exe` (Inno Setup führt das vorhandene
+    Deinstallationsprotokoll derselben AppId fort; ein zusätzliches `unins001.exe` ist eine
+    Abweichung).
+  - (c) Die Reparatur läuft durch, `EE-AOC.exe` und `install.ini` sind wieder da, das Manifest
+    stimmt. Die CD-Key-Registrierung meldet bei Weg A `CDKeysToolMissing`, in einer VM mit Weg B
+    `CDKeysErrorVM` ([TP-77](#tp-77-neoee-cd-keys-bei-gesperrtem-server-und-in-einer-vm)); die
+    Installation endet trotzdem normal. Es gibt keine Sackgasse wie beim alten NeoEE-Installer: das
+    Setup bietet die Reparatur selbst an, und unter „Apps“ steht ein Eintrag, der deinstalliert.
+  - (d) Befund: Einfrieren mit 16 Bit ja/nein (mit Grafikchip und Treiber ins Protokoll); nach der
+    Reparatur sind beide Werte `0x20`, und das Spiel läuft.
+- **Log-Hinweis:** (a) `Will append to existing uninstall log: …\unins000.dat`, `Dest filename:
+  …\Empire Earth\Language.dll`, die Registry-Zeilen `Key: HKEY_CURRENT_USER\Software\SSSI\Empire
+  Earth` mit `Value name: Game Bit Depth`, `Manifest: …` und `Wrote "Empire Earth Community:
+  ContractVersion" = 1 into the uninstall key`; (b) dieselben Zeilen und `Creating new uninstall key:
+  HKEY_LOCAL_MACHINE\…\Uninstall\{<AppId>}_is1`; (c) `Register NeoEE CD Keys for EE and AoC`, dann
+  `Unable to call authtools.dll: …` und `CD Keys: <Text der Meldung>` (Weg A) bzw.
+  `CD Keys generation result: <n>` (Weg B).
 
 #### TP-74: AoC ohne vorherigen Start von EE
 
-- **Status:** geplant: S-WP9
+- **Status:** ausgearbeitet
 - **Priorität:** P2
-- **Bezug:** Forum §8 Nr. 7 (t=2825), Forum 4.5
-- **Ziel:** The Art of Conquest startet direkt nach der Installation, weil das Setup
-  `Installed From` setzt.
+- **Bezug:** Forum §8 Nr. 7 (t=2825 p=19423: AoC braucht die Registry-Schlüssel des Basisspiels),
+  Forumsbericht 4.5; Vertrag 3.2 und 3.3 (`Installed From Volume`, `Installed From Directory`,
+  Klasse S)
+- **Ziel:** Das Setup schreibt `Installed From` für Empire Earth und AoC, sodass AoC direkt nach der
+  Installation startet, ohne dass Empire Earth je lief.
+- **Build-Art:** A oder B (der Spielstart in Schritt 4 nur B)
+- **Ausgangszustand:** kein Empire Earth; in HKCU keine Schlüssel `Software\SSSI`,
+  `Software\Mad Doc Software` und `Software\Neo` (Schritt 1). Auf dem Laptop daher nur ohne andere
+  Installation des Spiels für dieses Konto.
+- **Snapshot:** `S-Basis` oder `S-Sandbox` (Weg A); `Laptop` oder eine VM mit 3D-Beschleunigung
+  (Weg B)
+- **Varianten:** (a) EE-admin, (b) NeoEE-admin, (c) EE-user (ein Pfad unter `%LOCALAPPDATA%`).
+  Portable schreibt dieselben Werte wie user.
+- **Schritte:**
+  1. `reg query "HKCU\Software\SSSI"`, `reg query "HKCU\Software\Mad Doc Software"` und
+     `reg query "HKCU\Software\Neo"`: alle „nicht gefunden“.
+  2. (a) EE-admin mit `/LOG="C:\EE-Test\logs\TP-74a_EE-admin.log"`, „Empfohlene Einstellungen“ mit
+     Empire Earth und AoC, Standardordner, Telemetrie aus; das Spiel danach nicht starten.
+  3. Abfragen:
+
+     ```bat
+     reg query "HKCU\Software\SSSI\Empire Earth" /v "Installed From Volume"
+     reg query "HKCU\Software\SSSI\Empire Earth" /v "Installed From Directory"
+     reg query "HKCU\Software\Mad Doc Software\EE-AOC" /v "Installed From Volume"
+     reg query "HKCU\Software\Mad Doc Software\EE-AOC" /v "Installed From Directory"
+     ```
+
+  4. Nur Weg B: AoC über das Startmenü starten (nicht Empire Earth), bis ins Hauptmenü, eine
+     Zufallskarte eine Minute anspielen, beenden.
+  5. (b) Snapshot zurücksetzen, NeoEE-admin mit `TP-74b`, Schritte 3 und 4 mit
+     `HKCU\Software\Neo\Empire Earth` und `HKCU\Software\Neo\Art of Conquest`. (c) Snapshot
+     zurücksetzen, EE-user (`/CURRENTUSER`) mit `TP-74c`, Schritte 3 und 4.
+- **Erwartetes Ergebnis:**
+  - Schritt 3: `Installed From Volume` ist `C:`; `Installed From Directory` ist
+    `\PROGRAM FILES (X86)\EMPIRE EARTH\Empire Earth\` bzw.
+    `\PROGRAM FILES (X86)\EMPIRE EARTH\Empire Earth - The Art of Conquest\` (Vertrag 3.3: die Wurzel
+    in Großbuchstaben, der Spielordner nicht, `\` am Ende). (b) `\PROGRAM FILES (X86)\NEO EMPIRE
+    EARTH\…`; (c) `\USERS\<NAME>\APPDATA\LOCAL\PROGRAMS\EMPIRE EARTH\…`.
+  - Schritt 4: AoC erreicht das Hauptmenü und startet die Karte ohne Fehlermeldung, ohne dass
+    Empire Earth vorher lief (t=2825).
+- **Log-Hinweis:** `Key: HKEY_CURRENT_USER\Software\SSSI\Empire Earth` und
+  `Key: HKEY_CURRENT_USER\Software\Mad Doc Software\EE-AOC` (NeoEE: `…\Software\Neo\…`) je mit
+  `Value name: Installed From Volume` und `Value name: Installed From Directory`.
 
 #### TP-75: EE und NeoEE in getrennten Ordnern, eines deinstallieren
 
-- **Status:** geplant: S-WP9
+- **Status:** ausgearbeitet
 - **Priorität:** P2
-- **Bezug:** Forum §8 Nr. 9
-- **Ziel:** Nach der Deinstallation eines Produkts bleiben Firewall-Regeln, CD-Keys und Registry
-  des anderen erhalten.
+- **Bezug:** Forum §8 Nr. 9 (t=4723 p=33045: Parallelinstallationen in getrennten Ordnern);
+  Vertrag 1.1 (ein Eintrag je Produkt), 3.1 (getrennte Schlüssel der Spieleinstellungen), 3.4, 3.7
+  und 3.8 (`Software\Sierra\CDKeys`); ADR 0004 (Deinstallation)
+- **Ziel:** Nach der Deinstallation eines Produkts bleiben Firewall-Regeln, Spieleinstellungen,
+  Installationseintrag, Kompatibilitätswerte, GPU-Präferenzen und CD-Keys des anderen erhalten, und
+  es startet weiter.
+- **Build-Art:** A oder B (CD-Keys und Spielstart nur B)
+- **Ausgangszustand:** kein Empire Earth.
+- **Snapshot:** `S-Basis` oder `S-Sandbox` (Weg A); `Laptop` für Weg B (die CD-Keys lassen sich in
+  einer VM nicht registrieren, TP-77)
+- **Varianten:** (a) EE-admin und NeoEE-admin, dann EE deinstallieren; (b) dieselben, dann NeoEE
+  deinstallieren. user-Installationen haben keine Firewall-Regeln und HKCU statt HKLM; derselbe Code.
+- **Schritte:**
+  1. EE-admin und danach NeoEE-admin je in den Standardordner installieren (`…\Empire Earth` bzw.
+     `…\Neo Empire Earth`), Log `TP-75a_EE-admin` bzw. `TP-75a_NeoEE-admin`, „Empfohlene
+     Einstellungen“ mit Empire Earth und AoC, Telemetrie aus; die Firewall-Aufgabe bleibt angehakt,
+     bei NeoEE mit Weg B auch „NeoEE-CD-Keys registrieren“.
+  2. Bestandsaufnahme als Administrator (PowerShell), die Ausgabe in eine Datei
+     `C:\EE-Test\logs\TP-75a_vorher.txt`:
+
+     ```powershell
+     Get-NetFirewallRule | Where-Object { $_.DisplayName -like 'Empire Earth*' -or $_.DisplayName -like 'NeoEE*' } |
+       ForEach-Object { '{0} | {1}' -f $_.DisplayName, ($_ | Get-NetFirewallApplicationFilter).Program } | Sort-Object
+     reg query "HKCU\Software\SSSI\Empire Earth" /v "Installed From Directory"
+     reg query "HKCU\Software\Neo\Empire Earth" /v "Installed From Directory"
+     reg query "HKLM\SOFTWARE\Empire Earth Community\Installations" /s /reg:64
+     reg query "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers" /reg:64
+     reg query "HKCU\Software\Microsoft\DirectX\UserGpuPreferences"
+     foreach ($k in 'HKLM:\SOFTWARE\WOW6432Node\Sierra\CDKeys', 'HKLM:\SOFTWARE\Sierra\CDKeys', 'HKCU:\Software\Sierra\CDKeys') { '{0}: {1}' -f $k, (Test-Path $k) }
+     ```
+
+     Die letzte Zeile sagt nur, ob es die Schlüssel gibt; ihre Werte nie ausgeben (Regel 3).
+  3. (a) EE über *Einstellungen › Apps* deinstallieren (oder `unins000.exe` mit `/LOG`), Schritt 2
+     wiederholen (`TP-75a_nachher.txt`). Nur Weg B: NeoEE (Empire Earth und AoC) starten und die
+     Online-Lobby öffnen.
+  4. (b) Snapshot zurücksetzen (Weg B: Wiederherstellungspunkt bzw. beide deinstallieren und neu),
+     Schritte 1 und 2 mit `TP-75b`, dann NeoEE deinstallieren, Schritt 2 wiederholen. Nur Weg B:
+     Empire Earth und AoC starten.
+- **Erwartetes Ergebnis:**
+  - Vorher: 16 Firewall-Regeln (je Produkt und Spiel TCP und UDP, ein- und ausgehend), deren
+    Programm im Ordner des eigenen Produkts liegt; zwei Einträge unter `Installations`; vier
+    Kompatibilitätswerte und vier GPU-Präferenzen (je Programm im eigenen Ordner); beide
+    Spieleinstellungsschlüssel.
+  - (a) Nachher: die acht `NeoEE`-Regeln unverändert, keine Regel mit einem Programm unter
+    `…\Empire Earth\…` mehr; `Software\SSSI\Empire Earth` und `Software\Mad Doc Software\EE-AOC`
+    weg, `Software\Neo\…` unverändert; unter `Installations` nur `NeoEE`; Kompatibilitätswerte und
+    GPU-Präferenzen nur noch für die NeoEE-Programme; die CD-Key-Zeilen gleich wie vorher (Weg B:
+    `True` für die Ansicht, in die `authtools.dll` geschrieben hat). Weg B: NeoEE startet und kommt
+    in die Lobby, ohne „CD key invalid“.
+  - (b) Spiegelbildlich: alles von NeoEE weg, alles von EE vollständig; die CD-Key-Zeilen bleiben
+    auch nach der Deinstallation von NeoEE gleich (die Deinstallation fasst `Software\Sierra\CDKeys`
+    nie an, Vertrag 3.8). Weg B: Empire Earth und AoC starten.
+- **Log-Hinweis:** Setup: je Regel `-- Run entry --`, `Filename: …\netsh.exe` und `Parameters:
+  advfirewall firewall add rule name="NeoEE - TCP - In" program="…\Neo Empire Earth\Empire
+  Earth\Empire Earth.exe" …`. Das Deinstallations-Log (`/LOG`) nennt die Löschbefehle
+  `advfirewall firewall delete rule program="<Programm des deinstallierten Produkts>" name=all`.
 
 #### TP-76: Firewall-Regeln beim Hosten
 
-- **Status:** geplant: S-WP9
-- **Priorität:** P2
-- **Bezug:** Forum §8 Nr. 10, Forum 4.9
-- **Ziel:** Mit der Aufgabe `firewallexception` kommen Mitspieler ohne Windows-Firewall-Dialog ins
-  gehostete NeoEE-Spiel, im Netzwerkprofil „Öffentlich“ und „Privat“; Gegenprobe ohne Aufgabe.
+- **Status:** ausgearbeitet
+- **Priorität:** P2 (Teil c mit einem zweiten Rechner: P3)
+- **Bezug:** Forum §8 Nr. 10 und Forumsbericht 4.9 (Ports 33334 bis 33336, t=4266 p=30400);
+  Problemabgleich Nr. 8; `setup_is6.iss` `FirewallAllowRules` (TCP und UDP, ein- und ausgehend,
+  `profile=any`, nur im Modus admin)
+- **Ziel:** Mit der Aufgabe `firewallexception` legt das Setup für beide Programme Regeln für alle
+  Netzwerkprofile an, und Mitspieler kommen ohne Firewall-Dialog ins gehostete Spiel, im Profil
+  „Öffentlich“ wie „Privat“; ohne die Aufgabe gibt es keine Regeln, im Modus user gibt es die
+  Aufgabe nicht.
+- **Build-Art:** A oder B (Teil c nur B)
+- **Ausgangszustand:** kein Empire Earth; die Windows-Firewall ist an (Standard), es gibt keine
+  Regel mit „Empire Earth“ oder „NeoEE“ im Namen (Abfrage aus Schritt 1).
+- **Snapshot:** `S-Basis` oder `S-Sandbox` für (a), (b) und (d); für (c) `Laptop` und ein zweiter
+  Rechner im selben Netz mit derselben Installation ([TP-72](#tp-72-versionsanzeige-und-mehrspieler-zwischen-zwei-installationen))
+- **Varianten:** (a) NeoEE-admin mit der Aufgabe (Standard), (b) NeoEE-admin ohne, (c) wie (a) mit
+  einem Mitspieler, Profil „Öffentlich“ und „Privat“, und die Gegenprobe ohne die Aufgabe, (d)
+  NeoEE-user. EE legt dieselben Regeln mit dem Namen `Empire Earth` an.
+- **Schritte:**
+  1. (a) NeoEE-admin mit `/LOG="C:\EE-Test\logs\TP-76a_NeoEE-admin.log"`, „Benutzerdefinierte
+     Installationseinstellungen“ mit Empire Earth und AoC; auf der Aufgabenseite prüfen, dass „Spiel
+     in der Windows-Firewall zulassen (eingehende Verbindungen in allen Netzwerktypen, nötig zum
+     Hosten von Spielen)“ angehakt ist; installieren. Dann in PowerShell:
+
+     ```powershell
+     Get-NetFirewallRule | Where-Object { $_.DisplayName -like 'NeoEE*' -or $_.DisplayName -like 'Empire Earth*' } | ForEach-Object {
+       '{0} | {1} | {2} | {3} | {4}' -f $_.DisplayName, $_.Direction, $_.Action, $_.Profile, ($_ | Get-NetFirewallApplicationFilter).Program
+     } | Sort-Object
+     ```
+
+  2. (b) Snapshot zurücksetzen, wie (a) mit `TP-76b` und abgewählter Aufgabe; dieselbe Abfrage.
+  3. (d) Snapshot zurücksetzen, NeoEE-user (`/CURRENTUSER`) mit `TP-76d`, benutzerdefiniert: die
+     Aufgaben notieren; dieselbe Abfrage.
+  4. (c) Nur Weg B: Der Laptop hostet, der zweite Rechner tritt bei. Auf dem Laptop das
+     Netzwerkprofil auf „Öffentlich“ stellen (*Einstellungen › Netzwerk und Internet ›
+     Eigenschaften*), NeoEE starten, *Mehrspieler › LAN* ein Spiel erstellen; der zweite Rechner
+     tritt bei, beide starten und spielen eine Minute. Auf dem Laptop darauf achten, ob „Die Windows
+     Defender Firewall hat einige Features dieser App blockiert“ erscheint. Dasselbe mit dem Profil
+     „Privat“. Dann NeoEE deinstallieren, ohne die Aufgabe neu installieren (benutzerdefiniert) und
+     den Ablauf im Profil „Öffentlich“ wiederholen; erscheint der Dialog, „Abbrechen“ wählen.
+     Danach eine Regel, die Windows selbst angelegt hat, in *Windows Defender Firewall › Eine App
+     durch die Firewall zulassen* entfernen und das Netzwerkprofil zurückstellen.
+- **Erwartetes Ergebnis:**
+  - (a) Genau acht Regeln, `NeoEE - TCP - In`, `NeoEE - TCP - Out`, `NeoEE - UDP - In`,
+    `NeoEE - UDP - Out` und dieselben mit `NeoEE - AoC - …`; alle `Allow`, Profil `Any`, Programm
+    `C:\Program Files (x86)\Neo Empire Earth\Empire Earth\Empire Earth.exe` bzw.
+    `…\Empire Earth - The Art of Conquest\EE-AOC.exe`.
+  - (b) und (d): keine Regel; in (d) bietet die Aufgabenseite die Firewall-Aufgabe nicht an.
+  - (c) Mit den Regeln: in beiden Profilen kein Firewall-Dialog auf dem Laptop, der Mitspieler kommt
+    ins Spiel. Ohne die Regeln im Profil „Öffentlich“: Der Dialog erscheint bzw. der Beitritt
+    scheitert (Befund; er zeigt, wofür die Aufgabe da ist). Hosten über das Internet braucht
+    zusätzlich die Portweiterleitung am Router; das liegt außerhalb des Setups (Launcher,
+    Netzwerkdiagnose R7).
+- **Log-Hinweis:** (a) acht Blöcke `-- Run entry --`, `Filename: …\netsh.exe`, `Parameters:
+  advfirewall firewall add rule name="NeoEE - TCP - In" program="…" protocol=TCP dir=in
+  action=allow enable=yes profile=any localport=any` (und die anderen sieben), je mit `Process exit
+  code: 0`; davor die zwei Löschbefehle `advfirewall firewall delete rule program="…" name=all`. (b)
+  und (d): keine Zeile mit `advfirewall`.
 
 #### TP-77: NeoEE-CD-Keys bei gesperrtem Server und in einer VM
 
-- **Status:** geplant: S-WP9
+- **Status:** ausgearbeitet
 - **Priorität:** P2
-- **Bezug:** Forum §8 Nr. 13 (t=10950), Forum 4.19
-- **Ziel:** Bei gesperrtem `neoee.net:10003` und in einer VM erscheint die passende verständliche
-  Meldung; `CDKeyCheck` in `WONLobby.cfg` steht auf `true`; `Software\Sierra\CDKeys` wird nie
-  gelöscht.
+- **Bezug:** Forum §8 Nr. 13 (t=10950 p=47202, t=11021 p=47908 und p=47909, t=10968 p=47345),
+  Forumsbericht 4.19; Entscheidung D6 (die Registrierung über `authtools.dll` mit `neoee.net:10003`
+  bleibt unverändert); Vertrag 3.8; die Meldungen `CDKeysErrorNetwork`, `CDKeysErrorVM` und
+  `CDKeysToolMissing`
+- **Ziel:** Scheitert die Registrierung der NeoEE-CD-Keys, weil der Lizenzserver gesperrt ist oder
+  das Setup in einer VM läuft, erscheint die passende verständliche Meldung und die Installation
+  läuft zu Ende; eine Reparatur mit freiem Server registriert die Keys; `CDKeyCheck` steht in beiden
+  `WONLobby.cfg` auf `true`; `Software\Sierra\CDKeys` wird nie gelöscht.
+- **Build-Art:** B (Teil c mit Weg A)
+- **Ausgangszustand:** kein NeoEE installiert, Internet; (a) der Laptop, (b) eine VM.
+- **Snapshot:** (a) `Laptop` (Wiederherstellungspunkt, Regel 1), (b) `S-Basis`, (c) `S-Sandbox` oder
+  `S-Basis`
+- **Varianten:** (a) NeoEE-admin mit gesperrtem Lizenzserver, danach eine Reparatur mit freiem
+  Server; (b) NeoEE-admin in einer VM; (c) NeoEE-admin mit Weg A (Platzhalter statt
+  `authtools.dll`). NeoEE-user registriert die Keys mit demselben Aufruf in HKCU und ist ausgelassen.
+- **Schritte:**
+  1. (a) Den Lizenzserver sperren (PowerShell als Administrator):
+
+     ```powershell
+     $ip = (Resolve-DnsName neoee.net -Type A | Where-Object IPAddress | Select-Object -First 1).IPAddress
+     New-NetFirewallRule -DisplayName 'EE-Test neoee.net sperren' -Direction Outbound -Action Block -Protocol TCP -RemoteAddress $ip -RemotePort 10003
+     Test-NetConnection neoee.net -Port 10003
+     foreach ($k in 'HKLM:\SOFTWARE\WOW6432Node\Sierra\CDKeys', 'HKLM:\SOFTWARE\Sierra\CDKeys') { '{0}: {1}' -f $k, (Test-Path $k) }
+     ```
+
+     `Test-NetConnection` muss `TcpTestSucceeded : False` melden. Die letzte Zeile sagt nur, ob es
+     die Schlüssel gibt; ihre Werte nie ausgeben (Regel 3).
+  2. NeoEE-admin mit `/LOG="C:\EE-Test\logs\TP-77a_NeoEE-admin.log"`, „Benutzerdefinierte
+     Installationseinstellungen“ mit Empire Earth und AoC, Telemetrie aus; auf der Aufgabenseite ist
+     „NeoEE-CD-Keys registrieren (für die Online-Lobby erforderlich)“ angehakt. Installieren, die
+     Meldung abfotografieren, fertigstellen.
+  3. `Remove-NetFirewallRule -DisplayName 'EE-Test neoee.net sperren'`, das Setup erneut starten
+     (`TP-77a2`, „Vorhandene Installation reparieren“), danach die Abfrage der Schlüssel aus Schritt
+     1; NeoEE starten und die Online-Lobby öffnen.
+  4. `Select-String -Path 'C:\Program Files (x86)\Neo Empire Earth\Empire Earth\WONLobby.cfg', 'C:\Program Files (x86)\Neo Empire Earth\Empire Earth - The Art of Conquest\WONLobby.cfg' -Pattern 'CDKeyCheck'`
+  5. NeoEE deinstallieren (mit `/LOG`), die Abfrage der Schlüssel wiederholen.
+  6. (b) In der VM NeoEE-admin wie Schritt 2 mit `TP-77b` (Server frei).
+  7. (c) In der Sandbox NeoEE-admin von Weg A wie Schritt 2 mit `TP-77c`.
+- **Erwartetes Ergebnis:**
+  - (a) Schritt 2: genau eine Meldung, erwartet „Die CD-Keys konnten nicht installiert werden:
+    Netzwerkfehler. Wenn Sie NeoEE erst vor Kurzem installiert haben, ist dieser Fehler normal.“
+    (`CDKeysErrorNetwork`); die Installation endet normal. Meldet `authtools.dll` einen anderen Code
+    (eine andere `CDKeys*`-Meldung oder „Unbekannter Fehler beim Installieren der CD-Keys! Code:
+    <n>“), ist das ein Befund mit Meldung und Code im Protokoll; am Aufruf ändert das Setup nichts
+    (D6). Schritt 3: keine Meldung, die Schlüssel gibt es, die Lobby nimmt den Key an (kein „CD key
+    invalid“). Schritt 4: in beiden Dateien `CDKeyCheck: true`. Schritt 5: die Schlüssel gibt es
+    weiterhin.
+  - (b) „Die CD-Keys konnten nicht installiert werden: virtuelle Maschine erkannt. …“
+    (`CDKeysErrorVM`); die Installation endet normal.
+  - (c) „Die Datei zum Erzeugen der NeoEE-CD-Keys konnte nicht geladen werden, …“
+    (`CDKeysToolMissing`, eine Grenze von Weg A); die Installation endet normal.
+- **Log-Hinweis:** `Register NeoEE CD Keys for EE and AoC`, dann `CD Keys generation result: <n>` und
+  `CD Keys registered` (0) bzw. `CD Keys: <Text der Meldung>`; bei (c) `Unable to call
+  authtools.dll: <Ursache>` und `CD Keys: <Text von CDKeysToolMissing>`. Das Log enthält nie die
+  Keys selbst.
 
 #### TP-78: Deutsche Sprachversion von EE und AoC
 
-- **Status:** geplant: S-WP9
+- **Status:** ausgearbeitet
 - **Priorität:** P2
-- **Bezug:** Forum §8 Nr. 16 (t=1610, t=4726, t=11041, t=1905) und Nr. 13 des Problemabgleichs
-- **Ziel:** Mit Deutsch sind Space Age und die Spezial-Zivilisationen von AoC wählbar und die
-  deutschen Kampagnen starten.
+- **Bezug:** Forum §8 Nr. 16 und Problemabgleich Nr. 13: t=1610 p=9960 (deutsches AoC: im
+  Mehrspieler fehlte die letzte Epoche), t=4726 p=31563 (mit kopierter deutscher `Language.dll`
+  fehlten die Spezialkräfte der AoC-Zivilisationen), t=11041 p=48006 (deutsche EE-Kampagne friert
+  bei „Bitte warten“ ein), t=1905 p=12766 (deutsche `EETheGermans.ssa` defekt); ADR 0003 (Downloads)
+- **Ziel:** Mit Spielsprache Deutsch installiert das Setup für Empire Earth und AoC je die passende
+  `Language.dll` und die Lobby-Dateien und lädt die deutschen Stimmen und Kampagnen; in AoC sind die
+  letzte Epoche und die Zivilisationen mit Spezialkräften wählbar, und die deutschen Kampagnen beider
+  Spiele starten.
+- **Build-Art:** B (Schritt 2, die Dateien, auch A)
+- **Ausgangszustand:** [TP-00](#tp-00-server-vorabprüfung): mindestens ein Dateiserver gültig (sonst
+  bleiben Stimmen und Kampagnen englisch, Hinweis `OnlineFilesUnreachable`); kein Empire Earth.
+- **Snapshot:** `Laptop` oder eine VM mit 3D-Beschleunigung (Weg B); `S-Sandbox` für Schritt 2 mit
+  Weg A
+- **Varianten:** EE-admin und NeoEE-admin (NeoEE lädt die Lobby-Dateien aus `Mods/NeoEE/`). user und
+  portable laden dieselben Dateien.
+- **Schritte:**
+  1. EE-admin mit `/LOG="C:\EE-Test\logs\TP-78_EE-admin.log"`, Spielsprache Deutsch, „Empfohlene
+     Einstellungen“ mit Empire Earth und AoC (die Komponente „Lokalisierte Sprachausgabe und
+     Kampagnen herunterladen“ ist dabei gewählt), Telemetrie aus.
+  2. Die Dateien prüfen:
+
+     ```powershell
+     $root = 'C:\Program Files (x86)\Empire Earth'
+     Get-ChildItem "$root\Empire Earth\Data\Campaigns", "$root\Empire Earth - The Art of Conquest\Data\Campaigns" |
+       Select-Object FullName, Length, LastWriteTime
+     Select-String -Path C:\EE-Test\logs\TP-78_EE-admin.log -Pattern 'Online file (accepted|verified|not downloaded)'
+     ```
+
+  3. Nur Weg B: Empire Earth starten: Hauptmenü deutsch. *Einzelspieler › Kampagne*: die deutsche
+     Kampagne und eine zweite wählen und je das erste Szenario starten: Es lädt über „Bitte warten“
+     hinaus (t=11041), Texte und Sprachausgabe sind deutsch; beenden.
+  4. Nur Weg B: AoC starten. *Mehrspieler › LAN* ein Spiel erstellen (ohne Mitspieler genügt der
+     Einrichtungsbildschirm): In den Listen der Start- und der Endepoche steht die letzte Epoche von
+     AoC (das Weltraumzeitalter, „Space Age“), ohne leere Einträge (t=1610); die Zivilisationsauswahl
+     zeigt die Zivilisationen der Erweiterung mit ihren Spezialkräften (t=4726). Dann das erste
+     Szenario einer AoC-Kampagne starten.
+  5. NeoEE-admin (Snapshot zurücksetzen oder im eigenen Standardordner) mit `TP-78_NeoEE-admin`,
+     Schritte 2 bis 4 mit `…\Neo Empire Earth`.
+- **Erwartetes Ergebnis:**
+  - Schritt 2: Für Empire Earth stammen `data.ssa` und die fünf Kampagnen `EELearningCampaign.ssa`,
+    `EETheBritish.ssa`, `EETheFuture.ssa`, `EETheGermans.ssa`, `EETheGreeks.ssa`, für AoC `data.ssa`
+    und `AOCAsian.ssa`, `AOCPacific.ssa`, `AOCRoman.ssa` vom Server; mit Weg B kein Hinweis
+    `DownloadIncomplete` (Weg A: nur die gepinnten Dateien als verworfen,
+    [TP-16](#tp-16-manipulierter-download-wird-verworfen)).
+  - Schritte 3 und 4 wie beschrieben. Jede Abweichung (englische Texte, eine fehlende Epoche oder
+    fehlende Spezialkräfte, Einfrieren) mit Spiel und Kampagne ins Protokoll; sie betrifft die
+    Sprachdateien auf den Servern bzw. in `data\localized-text`, nicht den Code des Setups.
+- **Log-Hinweis:** `Online file accepted, TLS-verified, not pinned: Game/de/EE/Data/Campaigns/EETheGermans.ssa (SHA-256 …)`
+  und die anderen Kampagnen, `Online file verified, SHA-256 pinned: …Language.dll` (Weg B), am Ende
+  `All <n> online files accepted`.
 
 #### TP-79: Setup bei laufendem Spiel
 
-- **Status:** geplant: S-WP9
-- **Priorität:** P2
-- **Bezug:** Forum §8 Nr. 18 (t=2815, t=5859)
-- **Ziel:** Läuft EE oder AoC, verhindert das Setup die Installation (`AppMutex`) mit einem
-  verständlichen Hinweis.
+- **Status:** ausgearbeitet
+- **Priorität:** P2 (Teil e: P3, nur Weg B)
+- **Bezug:** Forum §8 Nr. 18 (t=2815 p=19299: Dateien „used by another application“ beim
+  Neuinstallieren; t=5859 p=39290 und p=39292: eine zweite, hängende Instanz), Problemabgleich
+  Nr. 14; Vertrag 0 („Game mutexes … used by the setup as `AppMutex`“) und 4.2; `setup_is6.iss`
+  `AppMutex`
+- **Ziel:** Läuft Empire Earth oder AoC, hält das Setup vor jeder Änderung mit der Meldung von Inno
+  Setup an: „OK“ nach dem Beenden des Spiels setzt fort, „Abbrechen“ beendet das Setup ohne
+  Änderung; still endet es ohne Installation; die Deinstallation verhält sich genauso.
+- **Build-Art:** A oder B (mit Weg A stellt eine PowerShell das laufende Spiel nach, indem sie seine
+  Mutex hält; Teil e nur B)
+- **Ausgangszustand:** (a) bis (c) kein Empire Earth; (d) EE-admin installiert; (e) EE-admin mit
+  Weg B installiert, das Standardkonto „Spieler“.
+- **Snapshot:** `S-Sandbox` oder `S-Basis` für (a) bis (d); `Laptop` oder eine VM mit
+  3D-Beschleunigung für (e)
+- **Varianten:** (a) EE-admin interaktiv, Empire Earth läuft, „OK“ nach dem Beenden; (b) EE-admin
+  interaktiv, AoC läuft, „Abbrechen“; (c) still mit `/SUPPRESSMSGBOXES`; (d) Deinstallation bei
+  laufendem Spiel; (e) Weg B: das echte Spiel, auch als „Spieler“ mit Over-the-Shoulder-Erhöhung des
+  Setups. NeoEE nutzt dieselben Mutexe.
+- **Schritte:**
+  1. Das laufende Spiel nachstellen (Weg A): in einer PowerShell ohne Administratorrechte
+     `$m = New-Object System.Threading.Mutex($false, 'StainlessSteelStudiosPresentsEmpireEarth')`
+     (AoC: `'MadDocSoftwarePresentsEmpireEarthExpansion'`) und das Fenster offen lassen; „das Spiel
+     beenden“ heißt hier `$m.Dispose()`. Mit Weg B das Spiel selbst starten und im Hauptmenü lassen.
+  2. (a) Mutex von Empire Earth, das Setup mit `/LOG="C:\EE-Test\logs\TP-79a_EE-admin.log"` starten
+     („Für alle Benutzer“), die ersten Fragen beantworten; die Meldung abfotografieren, dann das
+     Spiel beenden, „OK“, normal installieren.
+  3. (b) Snapshot zurücksetzen, Mutex von AoC, das Setup mit `TP-79b`, bei der Meldung „Abbrechen“.
+     Danach `dir "C:\Program Files (x86)\Empire Earth"` und die Abfrage des Uninstall-Schlüssels
+     aus [TP-70](#tp-70-grundablauf-installieren-starten-deinstallieren) Schritt 5.
+  4. (c) Mutex von Empire Earth,
+     `start "" /wait <Setup>.exe /VERYSILENT /SUPPRESSMSGBOXES /LOG="C:\EE-Test\logs\TP-79c_EE-admin.log"`
+     in einer Eingabeaufforderung als Administrator, danach `echo %ERRORLEVEL%` und dieselben
+     Abfragen wie in (b).
+  5. (d) Auf der Installation aus (a): Mutex von Empire Earth, Deinstallation mit
+     `"C:\Program Files (x86)\Empire Earth\unins000.exe" /LOG="C:\EE-Test\logs\TP-79d_uninstall.log"`,
+     die Meldung abfotografieren, „Abbrechen“; dann das Spiel beenden und noch einmal
+     deinstallieren.
+  6. (e) Nur Weg B: Empire Earth als „Admin“ starten, das Setup als „Admin“ starten („Reparieren“);
+     dann als „Spieler“ Empire Earth starten und das Setup als „Spieler“ mit Over-the-Shoulder-
+     Erhöhung (Kennwort von „Admin“) starten.
+- **Erwartetes Ergebnis:**
+  - (a) Nach den Fragen vor dem Assistenten (Testwarnung, bei der Erstinstallation die
+    Rechtsfrage) die Meldung „Das Setup hat entdeckt, dass Empire Earth zurzeit ausgeführt wird.
+    Bitte schließen Sie jetzt alle laufenden Instanzen und klicken Sie auf "OK", um fortzufahren,
+    oder auf "Abbrechen", um zu beenden.“ Mit noch laufendem Spiel kommt sie nach „OK“ wieder; nach
+    dem Beenden setzt „OK“ fort, und die Installation läuft normal.
+  - (b) Dieselbe Meldung; „Abbrechen“ beendet das Setup: kein Spielordner, kein Uninstall-Schlüssel.
+  - (c) Kein Fenster; das Setup endet ohne Installation mit einem Exit-Code ungleich 0 (den Wert ins
+    Protokoll); kein Spielordner.
+  - (d) „Die Deinstallation hat entdeckt, dass Empire Earth zurzeit ausgeführt wird. …“; „Abbrechen“
+    lässt die Installation vollständig stehen; nach dem Beenden deinstalliert der zweite Lauf normal.
+  - (e) Mit „Admin“ wie (a). Mit „Spieler“ und Over-the-Shoulder-Erhöhung ist das Ergebnis ein
+    Befund: Die Prüfung öffnet die Mutex des Spiels, das unter einem anderen Konto läuft; je nach
+    deren Zugriffsrechten (sie legt das Spiel selbst an) erscheint die Meldung oder nicht. Erscheint
+    sie nicht, meldet Inno Setup beim Ersetzen von `Empire Earth.exe`, dass die Datei verwendet wird
+    („Wiederholen“, „Ignorieren“, „Abbrechen“): dann „Abbrechen“ und Befund an die Maintainer.
+- **Log-Hinweis:** (a) `Message box (OK/Cancel):` mit dem englischen bzw. deutschen Text der
+  Meldung, dann `User chose OK.`; (b) `User chose Cancel.`; (c) `Defaulting to Cancel for suppressed
+  message box (OK/Cancel):` mit dem Text der Meldung und keine Zeile `Installation process
+  succeeded.`; (d) das Deinstallations-Log mit der Meldung.
 
 ### Block 8: Links in den für alle beschreibbaren Ordnern (S-WP11)
 
@@ -2273,28 +2772,28 @@ echtes Windows“). „Launcher“ heißt: Der Fall prüft den Launcher und geh�
 
 | Nr. | Forum-Testfall | Zuordnung | Stand |
 |---|---|---|---|
-| 1 | Frische Installation, Standardnutzer startet, zweites Konto, Over-the-Shoulder-Erhöhung | TP-41, TP-71; Launcher: Spielordner und Standardwerte für andere Konten (R1) | ausgearbeitet: TP-41; geplant: S-WP9 |
-| 2 | Versionsanzeige, MP-Beitritt ohne Versionskonflikt | TP-72, TP-70 (Version im Hauptmenü) | ausgearbeitet: TP-70; geplant: S-WP9 |
+| 1 | Frische Installation, Standardnutzer startet, zweites Konto, Over-the-Shoulder-Erhöhung | TP-41 (zweites Konto, Over-the-Shoulder), TP-71 (Standardnutzer, VirtualStore, Version mit und ohne Adminrechte); Launcher: Spielordner und Standardwerte für andere Konten (R1) | ausgearbeitet |
+| 2 | Versionsanzeige, MP-Beitritt ohne Versionskonflikt | TP-72, TP-70 (Version im Hauptmenü) | ausgearbeitet |
 | 3 | Grafikmatrix mit und ohne Wrapper | TP-23 | ausgearbeitet |
-| 4 | Farbtiefe 16 Bit, Reparatur stellt 32 Bit her | TP-73; Launcher: „Reset the Game“ (R4) | geplant: S-WP9 |
+| 4 | Farbtiefe 16 Bit, Reparatur stellt 32 Bit her | TP-73 (a: Registry, d: Einfrieren mit Weg B); Launcher: „Reset the Game“ (R4) | ausgearbeitet |
 | 5 | Kompatibilitätsflags, Windows 7 | TP-20, TP-21 (Windows 7), TP-22 (alle Aufgaben, ohne `compatibility_windows`, ohne beide) | ausgearbeitet |
 | 6 | Auflösungsgrenzen, 1024x600 | TP-60 | ausgearbeitet |
-| 7 | AoC ohne vorherigen EE-Start | TP-74 | geplant: S-WP9 |
+| 7 | AoC ohne vorherigen EE-Start | TP-74 | ausgearbeitet |
 | 8 | Alt-Installation (CD, GOG) vorhanden | TP-61; Launcher: welche Installation er erkennt (Vertrag 1.4) | ausgearbeitet |
-| 9 | EE und NeoEE parallel, eines deinstallieren | TP-62 (gleicher Ordner), TP-75 (getrennte Ordner) | ausgearbeitet: TP-62; geplant: S-WP9 |
-| 10 | Firewall beim Hosten | TP-76 | geplant: S-WP9 |
+| 9 | EE und NeoEE parallel, eines deinstallieren | TP-62 (gleicher Ordner), TP-75 (getrennte Ordner) | ausgearbeitet |
+| 10 | Firewall beim Hosten | TP-76 | ausgearbeitet |
 | 11 | Hosting-Varianten, Portweiterleitung, zwei PCs hinter einem Router | Launcher: Netzwerkdiagnose (R7); Router und Portweiterleitung liegen außerhalb des Setups, dessen Firewall-Regeln prüft TP-76 | Launcher |
 | 12 | Netzwerkadapter (VPN, Hamachi) | Launcher: Vergleich der Adapter (R7); das Setup wählt keinen Adapter | Launcher |
-| 13 | CD-Keys: Server gesperrt, VM, `CDKeyCheck` | TP-77 | geplant: S-WP9 |
+| 13 | CD-Keys: Server gesperrt, VM, `CDKeyCheck` | TP-77 | ausgearbeitet |
 | 14 | Antivirus löscht Dateien | TP-50 | ausgearbeitet |
 | 15 | Offline, nur Spiegel, manipulierter Download | TP-00, TP-10, TP-11, TP-16 | ausgearbeitet |
-| 16 | Sprachen: Deutsch für EE und AoC | TP-78 | geplant: S-WP9 |
+| 16 | Sprachen: Deutsch für EE und AoC | TP-78 | ausgearbeitet |
 | 17 | Spielstände im Mehrspieler, Namen mit Sonderzeichen | Launcher: Export und Import der Spielstände, Namensprüfung (R10); das Setup fasst Spielstände nicht an | Launcher |
-| 18 | Laufende Instanz | TP-79; Launcher: hängende Prozesse beim Start (R3) | geplant: S-WP9 |
+| 18 | Laufende Instanz | TP-79; Launcher: hängende Prozesse beim Start (R3) | ausgearbeitet |
 | 19 | Kampagnen-Tribut | entfällt: Spiellogik der installierten Spieldateien, die das Setup unverändert installiert und nicht prüfen kann; ob die erwartete Version installiert ist, zeigt TP-72 | entfällt |
 | 20 | Launcher: Spielerliste ohne Netz, beschädigte `user.config`, Pfad mit Umlauten | Launcher: der ganze Fall betrifft den Launcher | Launcher |
 | 21 | GOG als Basis | TP-63 | ausgearbeitet |
-| 22 | NeoEE-Wartungsmodus über kaputter Installation | TP-73 | geplant: S-WP9 |
+| 22 | NeoEE-Wartungsmodus über kaputter Installation | TP-73 (c: NeoEE ohne `EE-AOC.exe` und `install.ini`, b: ohne Uninstall-Schlüssel) | ausgearbeitet |
 
 ## 9. Protokoll
 
