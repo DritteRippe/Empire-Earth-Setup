@@ -23,9 +23,9 @@
 // left alone, reparse points inside it are neither listed nor entered, and a file is only deleted
 // if no folder on its way is one. Otherwise a user could make the setup delete files or empty
 // folders anywhere, or loop endlessly through a link to a parent folder.
-// Requires: SetupDataDir, AppID, EEDir, AoCDir, RmsSubDir (ISPP, setup_is6.iss), SilentInstall,
-// SuppressMsgBoxes (extension.iss), the messages RmsBackupKept, RmsBackupNotRestored
-// (messages.iss).
+// Requires: SetupDataDir, AppID, EEDir, AoCDir, RmsSubDir (ISPP, setup_is6.iss), IsReparsePoint
+// (utils.iss), SilentInstall, SuppressMsgBoxes (extension.iss), the messages RmsBackupKept,
+// RmsBackupNotRestored (messages.iss).
 
 type
   TRmsFolder = record
@@ -50,20 +50,6 @@ end;
 function RmsListFile(const Id: String): String;
 begin
   Result := ExpandConstant('{app}\{#SetupDataDir}\rms-') + Id + '.txt';
-end;
-
-// True if Path is a junction, symbolic link or other reparse point
-function IsReparsePoint(const Path: String): Boolean;
-var
-  FindRec: TFindRec;
-begin
-  Result := False;
-  if FindFirst(Path, FindRec) then
-  try
-    Result := (FindRec.Attributes and FILE_ATTRIBUTE_REPARSE_POINT) <> 0;
-  finally
-    FindClose(FindRec);
-  end;
 end;
 
 // True if neither Dir nor a folder between Dir and the file Dir\RelPath is a reparse point

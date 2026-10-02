@@ -1,18 +1,23 @@
 ﻿; Unit tests of the [Code] helpers without wizard access (utils.iss), including the download
 ; policy of the online localized files, the install state for the launcher and its integrity
-; manifest, the default game window and the environment checks before the installation.
+; manifest, the default game window, the environment checks before the installation and the link
+; check of the folders all users can write to.
 ;
 ; A tiny setup that includes utils.iss, runs every test in InitializeSetup, writes the results to
 ; a text file and exits without installing anything (InitializeSetup returns False). It sends no
 ; request and needs no network: only functions that compute something are tested, plus one run-time
 ; test that sets the TLS protocol option on a WinHttpRequest object without sending anything, and
 ; file-level tests that write state files (install.ini, files.sha256) for files they create in a
-; folder of their own temporary folder ({tmp}).
+; folder of their own temporary folder ({tmp}), and that walk a folder tree there for the link check.
+; On Windows the link check is also tested with junctions that "cmd /c mklink /J" makes in {tmp}
+; (no administrator rights needed); Wine cannot make junctions, so there these tests are reported
+; as SKIP lines.
 ;
 ; Build and run (ci/run_unit_tests.ps1 does both and checks the result):
 ;   ISCC ci\tests\unit_tests.iss
 ;   ci\tests\out\unit_tests.exe /VERYSILENT /SUPPRESSMSGBOXES /RESULTS=<file>
-; The last line of <file> is "RESULT: PASS (<n> tests)" or "RESULT: FAIL (<k> of <n> tests)".
+; The last line of <file> is "RESULT: PASS (<n> tests)" (", <s> skipped" if tests were skipped) or
+; "RESULT: FAIL (<k> of <n> tests)".
 
 ; utils.iss needs these from the product configuration (config_*.iss); any GUIDs will do
 #define AppID "11111111-2222-3333-4444-555555555555"
@@ -51,6 +56,8 @@ const
 var
   Results: TStringList;
   Failures: Integer;
+  // SKIP lines (not counted as tests)
+  Skipped: Integer;
 
 procedure Check(const Name: String; const Actual, Expected: String);
 begin
@@ -61,6 +68,13 @@ begin
     Failures := Failures + 1;
     Results.Add('FAIL ' + Name + ': got "' + Actual + '", expected "' + Expected + '"');
   end;
+end;
+
+// A test that cannot run here (e.g. under Wine), with the reason
+procedure Skip(const Name, Reason: String);
+begin
+  Skipped := Skipped + 1;
+  Results.Add('SKIP ' + Name + ': ' + Reason);
 end;
 
 procedure CheckBool(const Name: String; const Actual, Expected: Boolean);
@@ -1371,6 +1385,145 @@ begin
   end;
 end;
 
+procedure CheckGuarded(const RelPath: String; const Expected: Boolean);
+begin
+  CheckBool('IsLinkGuardedFolder "' + RelPath + '"', IsLinkGuardedFolder(RelPath), Expected);
+end;
+
+// ADR 0009 (revised): Data, Users and every folder below them, the folders of the players included
+procedure TestIsLinkGuardedFolder;
+begin
+  CheckGuarded('Data', True);
+  CheckGuarded('Data\Textures', True);
+  CheckGuarded('Data\Random Map Scripts\Common', True);
+  CheckGuarded('Users', True);
+  CheckGuarded('Users\default', True);
+  CheckGuarded('Users\default\Civilizations', True);
+  // The folder of a player and a name that only starts like default: the external [Files] entries
+  // of the permissions copy every *.cfg, *.config, *.conf and *.ini there onto itself
+  CheckGuarded('Users\Bob', True);
+  CheckGuarded('Users\defaultX', True);
+  CheckGuarded('Users\Bob\Saved', True);
+  // Case and separators
+  CheckGuarded('DATA\TEXTURES', True);
+  CheckGuarded('data/textures/', True);
+  CheckGuarded('users\\DEFAULT\civilizations\\', True);
+  CheckGuarded('Users/default/Civilizations', True);
+  CheckGuarded(' Data\Movies ', True);
+  // Not examined: the game folder itself, its other folders, names that only start like Data or Users
+  CheckGuarded('', False);
+  CheckGuarded('\', False);
+  CheckGuarded('Data2', False);
+  CheckGuarded('DataX\Textures', False);
+  CheckGuarded('Users2\default', False);
+  CheckGuarded('Userdefault', False);
+  CheckGuarded('redist\win32', False);
+  CheckGuarded('Manual', False);
+  CheckGuarded('Mods\NeoEE\Data', False);
+  CheckGuarded('Empire Earth.exe', False);
+  // Not a relative path below the game folder
+  CheckGuarded('\Data', False);
+  CheckGuarded('\\server\Data', False);
+  CheckGuarded('C:\Data', False);
+  CheckGuarded('C:Data', False);
+  CheckGuarded('..\Data', False);
+  CheckGuarded('Data\..\redist', False);
+  CheckGuarded('.\Data', False);
+  CheckGuarded('Users\.\default', False);
+end;
+
+// True if "cmd /c mklink /J" made the junction Link to the folder Target
+function MakeJunction(const Link, Target: String): Boolean;
+var
+  Code: Integer;
+begin
+  Result := Exec(ExpandConstant('{cmd}'), '/c mklink /J "' + Link + '" "' + Target + '"', '', SW_HIDE, ewWaitUntilTerminated, Code) and
+    (Code = 0) and DirExists(Link);
+end;
+
+// The walk of TestFindLinksInGameFolder with junctions (Windows only): Data\Movies replaced by one
+// (ADR 0009, test plan TP-80), one in the folder of a player, one in redist (not examined); none of
+// them is entered, the folder they point to stays unchanged
+procedure CheckFindLinksWithJunctions(const Game, Scratch: String; const Findings: TStringList);
+var
+  Found: String;
+  Folders, ReparseFiles, I: Integer;
+begin
+  RemoveDir(Game + '\Data\Movies');
+  CheckBool('mklink /J Data\Movies', MakeJunction(Game + '\Data\Movies', Scratch), True);
+  CheckBool('mklink /J Users\Bob\Profile', MakeJunction(Game + '\Users\Bob\Profile', Scratch), True);
+  CheckBool('mklink /J redist\Junction', MakeJunction(Game + '\redist\Junction', Scratch), True);
+  CheckBool('IsReparsePoint junction', IsReparsePoint(Game + '\Data\Movies'), True);
+  Findings.Clear;
+  Folders := 0;
+  ReparseFiles := 0;
+  FindLinksInGameFolder(Game, '', Findings, Folders, ReparseFiles);
+  Found := '';
+  for I := 0 to Findings.Count - 1 do
+    Found := Found + '[' + Findings[I] + ']';
+  Check('FindLinksInGameFolder with junctions: findings', Found, '[' + Game + '\Data\Movies][' + Game + '\Users\Bob\Profile]');
+  // The twelve folders without links (Movies is a junction now) and Profile; Deep is not entered
+  Check('FindLinksInGameFolder with junctions: folders examined', IntToStr(Folders), '13');
+  CheckBool('FindLinksInGameFolder with junctions: target unchanged', FileExists(Scratch + '\Deep\target.txt'), True);
+  RemoveDir(Game + '\Data\Movies');
+  RemoveDir(Game + '\Users\Bob\Profile');
+  RemoveDir(Game + '\redist\Junction');
+  CheckBool('junctions removed, target kept', (not DirExists(Game + '\Data\Movies')) and FileExists(Scratch + '\Deep\target.txt'), True);
+end;
+
+// The walk of the link check over a folder tree in {tmp}: without links, then (Windows only) with
+// junctions (CheckFindLinksWithJunctions)
+procedure TestFindLinksInGameFolder;
+var
+  Game, Scratch: String;
+  Findings: TStringList;
+  Folders, ReparseFiles: Integer;
+begin
+  Game := ExpandConstant('{tmp}\link_check\Empire Earth');
+  Scratch := ExpandConstant('{tmp}\link_scratch');
+  CreateTestFile(Game, 'Empire Earth.exe', 'program');
+  CreateTestFile(Game, 'Data\Textures\a.tga', 'texture');
+  CreateTestFile(Game, 'Data\Random Map Scripts\Common\x.rms', 'map');
+  ForceDirectories(Game + '\Data\Movies');
+  ForceDirectories(Game + '\Data\Saved Games');
+  ForceDirectories(Game + '\Data\Hidden');
+  SetFileAttributes(Game + '\Data\Hidden', FILE_ATTRIBUTE_HIDDEN);
+  CreateTestFile(Game, 'Users\default\Civilizations\c.civ', 'civilization');
+  CreateTestFile(Game, 'Users\Bob\bob.cfg', 'profile');
+  ForceDirectories(Game + '\Users\Bob\Saved');
+  CreateTestFile(Game, 'redist\win32\x.dll', 'redistributable');
+  CreateTestFile(Game, 'Manual\manual.pdf', 'manual');
+  CreateTestFile(Scratch, 'Deep\target.txt', 'scratch');
+
+  Findings := TStringList.Create;
+  try
+    Folders := 0;
+    ReparseFiles := 0;
+    FindLinksInGameFolder(Game, '', Findings, Folders, ReparseFiles);
+    Check('FindLinksInGameFolder without links: findings', IntToStr(Findings.Count), '0');
+    // Data, Textures, Random Map Scripts, Common, Movies, Saved Games, Hidden (hidden folders too),
+    // Users, default, Civilizations, Bob, Saved; not the game folder, redist, win32, Manual
+    Check('FindLinksInGameFolder without links: folders examined', IntToStr(Folders), '12');
+    Check('FindLinksInGameFolder without links: files with a reparse point', IntToStr(ReparseFiles), '0');
+    CheckBool('IsReparsePoint folder', IsReparsePoint(Game + '\Data\Movies'), False);
+    CheckBool('IsReparsePoint file', IsReparsePoint(Game + '\Empire Earth.exe'), False);
+    CheckBool('IsReparsePoint missing', IsReparsePoint(Game + '\Data\Missing'), False);
+
+    // A game folder that does not exist (AoC not installed): nothing examined, nothing found
+    Folders := 0;
+    FindLinksInGameFolder(ExpandConstant('{tmp}\link_check\Empire Earth - The Art of Conquest'), '', Findings, Folders, ReparseFiles);
+    Check('FindLinksInGameFolder missing game folder', IntToStr(Findings.Count) + ' ' + IntToStr(Folders), '0 0');
+
+    // Junctions: Windows only
+    if RegKeyExists(HKCU, 'Software\Wine') then
+      Skip('FindLinksInGameFolder with junctions', 'Wine cannot make junctions (the Wine probe of ADR 0009 uses Unix symbolic links)')
+    else
+      CheckFindLinksWithJunctions(Game, Scratch, Findings);
+  finally
+    Findings.Free;
+  end;
+end;
+
 function InitializeSetup: Boolean;
 var
   Lines: TArrayOfString;
@@ -1379,6 +1532,7 @@ var
 begin
   Results := TStringList.Create;
   Failures := 0;
+  Skipped := 0;
   try
     TestStrSplit;
     TestLanguageTag;
@@ -1423,14 +1577,18 @@ begin
     TestFormatHklmKeyName;
     TestIsForeignUninstallEntry;
     TestFormatFindingList;
+    TestIsLinkGuardedFolder;
+    TestFindLinksInGameFolder;
   except
     Failures := Failures + 1;
     Results.Add('FAIL exception: ' + GetExceptionMessage);
   end;
-  if Failures = 0 then
+  if (Failures = 0) and (Skipped = 0) then
     Results.Add('RESULT: PASS (' + IntToStr(Results.Count) + ' tests)')
+  else if Failures = 0 then
+    Results.Add('RESULT: PASS (' + IntToStr(Results.Count - Skipped) + ' tests, ' + IntToStr(Skipped) + ' skipped)')
   else
-    Results.Add('RESULT: FAIL (' + IntToStr(Failures) + ' of ' + IntToStr(Results.Count) + ' tests)');
+    Results.Add('RESULT: FAIL (' + IntToStr(Failures) + ' of ' + IntToStr(Results.Count - Skipped) + ' tests)');
 
   SetArrayLength(Lines, Results.Count);
   for I := 0 to Results.Count - 1 do

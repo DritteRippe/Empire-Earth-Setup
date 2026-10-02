@@ -2,9 +2,10 @@
 // Base helpers of the [Code] part: the URL constants, string split, language tag, compatibility
 // flags, uninstall keys of EE and NeoEE, the HTTP requests, URL checks, the download policy of
 // the online localized files, the install state for the launcher (install mode, install.ini,
-// writing a state file, the integrity manifest files.sha256) and the environment checks before the
+// writing a state file, the integrity manifest files.sha256), the environment checks before the
 // installation (game window size, low screen, folders and uninstall entries of other
-// installations). Included first, before every other [Code] part.
+// installations) and the link check of the folders all users can write to (reparse points).
+// Included first, before every other [Code] part.
 // Requires: AppID, OtherAppID (ISPP, product configuration config_*.iss).
 // The functions without wizard access are tested by ci/tests/unit_tests.iss.
 
@@ -1250,4 +1251,109 @@ begin
       Result := Result + #13#10 + '  ' + Findings[I];
   if Findings.Count > MaxShown then
     Result := Result + #13#10 + '  ... (+' + IntToStr(Findings.Count - MaxShown) + ')';
+end;
+
+// Links in the folders all users can write to: docs/adr/0009-no-installation-through-links.md. The
+// link check before an elevated installation (environment.iss) and the random map scripts
+// (randommaps.iss) use these.
+
+const
+  // The message LinkInGameFolder names at most this many folders (FormatFindingList): it is shown on
+  // the "Preparing to install" page, which has less room than a message box
+  LinkFindingsShownMax = 5;
+
+// True if Path is a junction, symbolic link or other reparse point
+function IsReparsePoint(const Path: String): Boolean;
+var
+  FindRec: TFindRec;
+begin
+  Result := False;
+  if FindFirst(Path, FindRec) then
+  try
+    Result := (FindRec.Attributes and FILE_ATTRIBUTE_REPARSE_POINT) <> 0;
+  finally
+    FindClose(FindRec);
+  end;
+end;
+
+// True if the folder RelPath below a game folder is one the link check examines: Data, Users and
+// every folder below them (ADR 0009, revised). In administrative install mode [Dirs] gives every
+// user modify rights on Data and Users, and the elevated setup writes below them: [Files] (Data,
+// Users\default), [InstallDelete] (Data), the random map scripts (Data), and the external [Files]
+// entries that set the permissions of *.cfg, *.config, *.conf and *.ini, which copy every such file
+// in every folder that is not hidden onto itself, links and the folders of the players below Users
+// included (Inno Setup 6.2.2: RecurseExternalCopyFiles, IsRecurseableDirectory). RelPath is relative
+// to the game folder: '\' or '/' as separators, any case, doubled and trailing separators allowed.
+// The game folder itself (''), its other folders and a path that is absolute or has a '.' or '..'
+// part are not examined.
+function IsLinkGuardedFolder(const RelPath: String): Boolean;
+var
+  Path: String;
+  Parts: TArrayOfString;
+  I: Integer;
+begin
+  Result := False;
+  Path := NormalizeFolderPath(RelPath);
+  if (Path = '') or (Copy(Path, 1, 1) = '\') or (Pos(':', Path) > 0) then
+    Exit;
+  Parts := StrSplit(Path, '\');
+  for I := 0 to GetArrayLength(Parts) - 1 do
+    if (Parts[I] = '.') or (Parts[I] = '..') then
+      Exit;
+  Result := (CompareText(Parts[0], 'Data') = 0) or (CompareText(Parts[0], 'Users') = 0);
+end;
+
+// File level, for the link check (environment.iss): examines the folders below the game folder
+// GameDir that IsLinkGuardedFolder names, starting in RelDir ('' for the game folder itself, which
+// is not examined, else '<folder>\'). A folder with a reparse point (FILE_ATTRIBUTE_REPARSE_POINT of
+// FindFirst: a junction, a symbolic link to a folder, a mount point) is a finding and is not
+// entered, so the walk never leaves the game folder and cannot loop. A folder that exists but cannot
+// be listed is a finding as well: what is in it cannot be checked. Every finding is added to
+// Findings as a full path and logged with its reason. Folders counts the folders examined,
+// ReparseFiles the files with a reparse point below them (a file compressed by Windows or a link to
+// a file: no finding, ADR 0009). Hidden folders are examined as well.
+procedure FindLinksInGameFolder(const GameDir, RelDir: String; const Findings: TStringList; var Folders, ReparseFiles: Integer);
+var
+  FindRec: TFindRec;
+  Folder, RelPath: String;
+begin
+  Folder := RemoveBackslashUnlessRoot(GameDir + '\' + RelDir);
+  if not FindFirst(GameDir + '\' + RelDir + '*', FindRec) then
+  begin
+    if DirExists(Folder) then
+    begin
+      Log('Link check: ' + Folder + ' cannot be listed, so the folders in it cannot be checked');
+      Findings.Add(Folder);
+    end;
+    Exit;
+  end;
+  try
+    repeat
+      if (FindRec.Name <> '.') and (FindRec.Name <> '..') then
+      begin
+        RelPath := RelDir + FindRec.Name;
+        if IsLinkGuardedFolder(RelPath) then
+        begin
+          if (FindRec.Attributes and FILE_ATTRIBUTE_DIRECTORY) = 0 then
+          begin
+            if (FindRec.Attributes and FILE_ATTRIBUTE_REPARSE_POINT) <> 0 then
+              ReparseFiles := ReparseFiles + 1;
+          end
+          else
+          begin
+            Folders := Folders + 1;
+            if (FindRec.Attributes and FILE_ATTRIBUTE_REPARSE_POINT) <> 0 then
+            begin
+              Log('Link check: ' + GameDir + '\' + RelPath + ' is a junction or symbolic link (reparse point)');
+              Findings.Add(GameDir + '\' + RelPath);
+            end
+            else
+              FindLinksInGameFolder(GameDir, RelPath + '\', Findings, Folders, ReparseFiles);
+          end;
+        end;
+      end;
+    until not FindNext(FindRec);
+  finally
+    FindClose(FindRec);
+  end;
 end;

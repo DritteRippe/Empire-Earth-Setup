@@ -1196,7 +1196,7 @@ Filename: "{tmp}\directx\dxwebsetup.exe"; Parameters: "/Q"; Flags: runhidden; Ta
 //   pages.iss       the custom wizard pages (needs Langs below, extension.iss, eestats.iss)
 //   downloads.iss   online localized files: policy, download page, downloads, verification
 //                   (needs utils.iss, extension.iss)
-//   randommaps.iss  random map scripts of the previous setup (needs extension.iss)
+//   randommaps.iss  random map scripts of the previous setup (needs utils.iss, extension.iss)
 //   environment.iss read-only checks before the installation: screen size, DPI and the notice for
 //                   a low screen; foreign or old installations, their folders and the folder of the
 //                   other product, when the folder page is left (needs utils.iss, extension.iss)
