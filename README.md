@@ -121,7 +121,7 @@ powershell -ExecutionPolicy Bypass -File ci\build.ps1 -Placeholders
 creates a small placeholder file for every missing asset (existing files are never overwritten) and uses dummy AppIds. Such a build only proves that the script compiles for all variants: **never distribute it**, and remove the placeholder files before building with the real data.
 
 ### Unit tests
-`ci\tests\unit_tests.iss` tests the `[Code]` helpers that only compute something (string split, language tag, compatibility flags, uninstall keys, URL encoding, the URL checks of the update question and the download policy of the online files: file types with code, https URLs, https servers; all in `utils.iss`). It is a tiny setup that runs the tests and exits without installing anything or using the network:
+`ci\tests\unit_tests.iss` tests the `[Code]` helpers that only compute something (string split, language tag, compatibility flags, uninstall keys, URL encoding, the URL checks of the update question, the download policy of the online files: file types with code, https URLs, https servers, and the Windows versions on which HTTP requests ask for TLS 1.2 explicitly; all in `utils.iss`). One test runs code at run time: it sets that TLS option on a `WinHttpRequest` object, as `HttpGet` does on Windows 7, without sending a request (under Wine the option is not implemented; the test only requires that no exception escapes and logs the outcome). It is a tiny setup that runs the tests and exits without installing anything or using the network:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File ci\run_unit_tests.ps1

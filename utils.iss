@@ -96,6 +96,43 @@ const
   HttpTimeoutMs = 4000;
   // Result of HttpGet when no HTTP answer arrived
   HttpRequestFailed = -1;
+  // WinHttpRequestOption_SecureProtocols (WinHttpRequest.Option) and the protocols HttpGet asks
+  // for on old Windows: TLS 1.0 ($80), TLS 1.1 ($200) and TLS 1.2 ($800), the set Inno Setup
+  // 6.2.2 uses for its own downloads
+  WinHttpRequestOptionSecureProtocols = 9;
+  WinHttpSecureProtocolsTls10To12 = $A80;
+
+// True on Windows older than 8.1 (NT 6.3): there WinHTTP does not offer TLS 1.1 and 1.2 to an
+// application that relies on the default protocols (Windows 7 SP1 and 8 without KB3140245 and
+// its registry value), so HttpGet asks for them explicitly (ApplyTlsProtocols). Windows 8.1 and
+// later keep their defaults, which include TLS 1.2 and, on Windows 11, TLS 1.3. That the explicit
+// protocols are enough on Windows 7 SP1 without KB3140245 is a hypothesis that the test plan
+// checks (docs/adr/0006-strict-tls-and-server-certificates.md).
+function NeedsExplicitTlsProtocols(const WindowsMajor, WindowsMinor: Cardinal): Boolean;
+begin
+  Result := (WindowsMajor < 6) or ((WindowsMajor = 6) and (WindowsMinor < 3));
+end;
+
+// Asks WinHttpRequest (a WinHttp.WinHttpRequest.5.1 object) for TLS 1.0 to 1.2 if
+// NeedsExplicitTlsProtocols says so for the Windows version WindowsMajor.WindowsMinor. Returns
+// what happened, for the log, or '' if nothing had to be done. No exception escapes: if the
+// option cannot be set, the request continues with the protocols of the system.
+// The setup only sets this option of its own request object; it never changes the SChannel or
+// WinHTTP settings of the system (registry values such as DisabledByDefault or
+// DefaultSecureProtocols).
+function ApplyTlsProtocols(WinHttpRequest: Variant; const WindowsMajor, WindowsMinor: Cardinal): String;
+begin
+  Result := '';
+  if not NeedsExplicitTlsProtocols(WindowsMajor, WindowsMinor) then
+    Exit;
+  try
+    WinHttpRequest.Option[WinHttpRequestOptionSecureProtocols] := WinHttpSecureProtocolsTls10To12;
+    Result := 'TLS 1.0, 1.1 and 1.2 requested explicitly (Windows ' + IntToStr(WindowsMajor) + '.' + IntToStr(WindowsMinor) + ')';
+  except
+    Result := 'unable to request TLS 1.0, 1.1 and 1.2 explicitly (Windows ' + IntToStr(WindowsMajor) + '.' + IntToStr(WindowsMinor) +
+      '), the request uses the protocols of the system: ' + GetExceptionMessage;
+  end;
+end;
 
 // The one HTTP implementation of the setup: a GET request with WinHTTP that returns the HTTP
 // status code, or HttpRequestFailed if no answer arrived (offline, timeout, invalid TLS
@@ -107,11 +144,14 @@ const
 // object would have to outlive this function, and the setup statistics are sent when the setup
 // is about to exit, which would cancel the request.
 // There is no fallback to HTTP: the callers decide what to open or install from the answer, so
-// it must come over validated TLS.
+// it must come over validated TLS. WinHTTP refuses redirects from https to http by default
+// (WinHttpRequestOption_EnableHttpsToHttpRedirects is left off). On Windows older than 8.1 the
+// request asks for TLS 1.0 to 1.2 explicitly (ApplyTlsProtocols).
 function HttpGet(const URL: String; const ResolveTimeoutMs: Integer; const ReadBody, HideQuery: Boolean; var Response: String): Integer;
 var
   WinHttpRequest: Variant;
-  LogURL: String;
+  LogURL, TlsNote: String;
+  Version: TWindowsVersion;
 begin
   Result := HttpRequestFailed;
   Response := '';
@@ -122,6 +162,10 @@ begin
 
   try
     WinHttpRequest := CreateOleObject('WinHttp.WinHttpRequest.5.1');
+    GetWindowsVersionEx(Version);
+    TlsNote := ApplyTlsProtocols(WinHttpRequest, Version.Major, Version.Minor);
+    if TlsNote <> '' then
+      Log('HTTP GET ' + LogURL + ': ' + TlsNote);
     WinHttpRequest.SetTimeouts(ResolveTimeoutMs, HttpTimeoutMs, HttpTimeoutMs, HttpTimeoutMs);
     WinHttpRequest.Open('GET', URL, False);
     WinHttpRequest.Send;

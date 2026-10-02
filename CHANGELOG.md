@@ -250,6 +250,16 @@ Refactoring and quality fixes (no new game content).
   opens. Links open in the browser of the original user instead of with the setup's admin
   rights, and the update question is shown as a question instead of an error. Systems without
   TLS 1.2 support skip the update check.
+- HTTP requests of the setup (update check, reachability check of the file servers, statistics with
+  consent) ask for TLS 1.0, 1.1 and 1.2 explicitly on Windows older than 8.1
+  (`WinHttpRequestOption_SecureProtocols`, the set Inno Setup uses for its own downloads): Windows 7
+  SP1 and 8 do not offer TLS 1.1 and 1.2 to applications that rely on the default protocols. Windows
+  8.1 and later keep their defaults (with TLS 1.3 on Windows 11). If the option cannot be set, the
+  request continues with the defaults and the log says why. The setup never changes the SChannel or
+  WinHTTP settings of Windows (registry values such as `DisabledByDefault`); whether the explicit
+  protocols are enough on Windows 7 SP1 without the update KB3140245 is checked in a Windows 7 VM
+  (see `docs/TEST-PLAN.de.md`). Unit tests cover the version rule and set the option on a
+  `WinHttpRequest` object at run time, without sending a request.
 - Setup statistics are only sent when the telemetry component of this product is selected. A
   refusal used to send the same request with components, tasks, VM detection and OS version (only
   the user id was left out); now no request is made at all, and the uninstaller never sends one.

@@ -3,7 +3,8 @@
 ;
 ; A tiny setup that includes utils.iss, runs every test in InitializeSetup, writes the results to
 ; a text file and exits without installing anything (InitializeSetup returns False). It sends no
-; request and needs no network: only functions that compute something are tested.
+; request and needs no network: only functions that compute something are tested, plus one run-time
+; test that sets the TLS protocol option on a WinHttpRequest object without sending anything.
 ;
 ; Build and run (ci/run_unit_tests.ps1 does both and checks the result):
 ;   ISCC ci\tests\unit_tests.iss
@@ -247,6 +248,59 @@ begin
   Check('GetOnlineFileCheck data without pin, no URL', IntToStr(GetOnlineFileCheck('EE\Data\data.ssa', '', '')), IntToStr(OnlineFileRefusedInsecure));
 end;
 
+procedure TestNeedsExplicitTlsProtocols;
+begin
+  CheckBool('NeedsExplicitTlsProtocols Vista 6.0', NeedsExplicitTlsProtocols(6, 0), True);
+  CheckBool('NeedsExplicitTlsProtocols Windows 7 6.1', NeedsExplicitTlsProtocols(6, 1), True);
+  CheckBool('NeedsExplicitTlsProtocols Windows 8 6.2', NeedsExplicitTlsProtocols(6, 2), True);
+  CheckBool('NeedsExplicitTlsProtocols Windows 8.1 6.3', NeedsExplicitTlsProtocols(6, 3), False);
+  CheckBool('NeedsExplicitTlsProtocols Windows 10/11 10.0', NeedsExplicitTlsProtocols(10, 0), False);
+end;
+
+// Windows 8.1 and later: the request object is not touched (an unassigned Variant would raise)
+procedure TestApplyTlsProtocolsNotNeeded;
+var
+  NoRequest: Variant;
+  Outcome: String;
+begin
+  try
+    Outcome := ApplyTlsProtocols(NoRequest, 10, 0);
+  except
+    Outcome := 'exception: ' + GetExceptionMessage;
+  end;
+  Check('ApplyTlsProtocols Windows 10 leaves the request alone', Outcome, '');
+end;
+
+// Run time, not only compilation: the same function HttpGet calls sets the option on a real
+// WinHttpRequest object as on Windows 7 (6.1). Nothing is sent. Whether the option is accepted
+// depends on the system (Wine answers "Not implemented"), so the test only requires that no
+// exception escapes and that something was attempted; the outcome goes into the setup log and the
+// name of the result line.
+procedure TestApplyTlsProtocolsRunTime;
+var
+  Request: Variant;
+  Outcome: String;
+  Escaped: Boolean;
+begin
+  try
+    Request := CreateOleObject('WinHttp.WinHttpRequest.5.1');
+  except
+    Failures := Failures + 1;
+    Results.Add('FAIL ApplyTlsProtocols run time: no WinHttpRequest object: ' + GetExceptionMessage);
+    Exit;
+  end;
+  Escaped := False;
+  try
+    Outcome := ApplyTlsProtocols(Request, 6, 1);
+  except
+    Escaped := True;
+    Outcome := GetExceptionMessage;
+  end;
+  Log('ApplyTlsProtocols on a WinHttpRequest object as on Windows 6.1: ' + Outcome);
+  CheckBool('ApplyTlsProtocols run time, no exception escapes (' + Outcome + ')', Escaped, False);
+  CheckBool('ApplyTlsProtocols run time, the option was attempted', Outcome <> '', True);
+end;
+
 function InitializeSetup: Boolean;
 var
   Lines: TArrayOfString;
@@ -269,6 +323,9 @@ begin
     TestIsHttpsUrl;
     TestOnlineFilesServers;
     TestOnlineFileCheck;
+    TestNeedsExplicitTlsProtocols;
+    TestApplyTlsProtocolsNotNeeded;
+    TestApplyTlsProtocolsRunTime;
   except
     Failures := Failures + 1;
     Results.Add('FAIL exception: ' + GetExceptionMessage);
