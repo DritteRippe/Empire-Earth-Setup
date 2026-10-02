@@ -5,7 +5,10 @@
 - Requirements: D5 (setup side of [CONTRACT.md](../CONTRACT.md) 1.1, 1.2, 2, 3.5), R1, R2, R11, R17
 - Revised: 2026-10-02, plan review before implementation (ASCII instead of `UTF8Encode`, which
   Inno Setup 6.2.2 does not offer; no defaults marker in portable variants; `SetupBuild`; a value in
-  the uninstall key that shows a later run of an older setup; responsive hashing; "processed" files)
+  the uninstall key that shows a later run of an older setup; responsive hashing; "processed" files);
+  second plan review (the uninstall key value only after both files were really replaced, because
+  `RenameFile` does not overwrite; retries for files that are briefly locked; a sort of at most
+  n log n; throughput in the log)
 
 ## Context
 
@@ -47,17 +50,24 @@ is testable without running an installer.
 4. **Writing at the end of `ssPostInstall`** (`installstate.iss`, after random maps, certificate
    handling and NeoEE CD keys): the recorded paths are converted to manifest paths, de-duplicated
    case-insensitively (a later entry that overwrites the same file counts once), sorted ordinal
-   ignoring case, hashed with `GetSHA256OfFile` (lowercase hex) and written as
+   ignoring case with a merge sort (at most n log n comparisons; about 1800 paths, an insertion
+   sort in interpreted Pascal Script would cost seconds; unit test with 2000 entries), hashed with
+   `GetSHA256OfFile` (lowercase hex) and written as
    `<hash><space><space><path>` with LF line ends. Files that no longer exist go to
-   `[MissingAfterInstall]` instead. Then `install.ini` (CRLF, ASCII) with `[Install]` and, if needed,
-   `[MissingAfterInstall]`. Both are written as `<name>.tmp` with `SaveStringToFile` and renamed;
-   on any error the temporary file is deleted, the error logged, and no file is left that looks
-   valid. Hashing runs on an output progress page (`CreateOutputProgressPage`, text "Checking the
+   `[MissingAfterInstall]` instead. `GetSHA256OfFile` raises on every read error, so each file is
+   hashed in `try`/`except` and tried twice more after 300 ms (a virus scanner that briefly holds
+   the file open); if it still fails, the file and the exception text are logged and the manifest is
+   switched off for this run (no partial manifest). Then `install.ini` (CRLF, ASCII) with `[Install]`
+   and, if needed, `[MissingAfterInstall]`. Both are written as `<name>.tmp` with `SaveStringToFile`
+   and renamed. `RenameFile` is `MoveFile` without `MOVEFILE_REPLACE_EXISTING` (`ScriptFunc_R.pas`,
+   `MoveFileRedir`), so the target is deleted first and `FileExists` must be false before the
+   rename; on any error the temporary file is deleted, the error logged, and no file is left that
+   looks valid. Hashing runs on an output progress page (`CreateOutputProgressPage`, text "Checking the
    installed files..." in en/de/fr, progress per file): its `SetProgress` processes window messages
    (`ScriptDlg.pas`, `TOutputProgressWizardPage.ProcessMsgs`), so Windows does not mark the wizard
    as "Not responding" while about 1.5 GB are hashed. The log gets one summary line
-   (`Manifest: <n> files, <MB> MB, <ms> ms`); the test plan sets the limit (under 30 s on the test
-   laptop, no "Not responding").
+   (`Manifest: <n> files, <MB> MB, <ms> ms, <MB/s> MB/s`); the test plan sets the limit (under 30 s
+   on the test laptop, no "Not responding") and measures once more on an HDD or in the Windows 7 VM.
 5. **Encoding: ASCII only.** Inno Setup 6.2.2's Pascal Script has no `UTF8Encode` (a probe script
    compiled with ISCC 6.2.2 stops with "Unknown identifier 'UTF8Encode'"; `ScriptFunc_R.pas`
    registers no such function). The text is therefore built as ASCII and written with
@@ -70,7 +80,11 @@ is testable without running an installer.
    replaces characters. `install.ini` contains no path except the `[MissingAfterInstall]` manifest
    paths and is checked the same way. A file-level unit test checks the bytes.
 6. **Deleting at `ssInstall`:** `install.ini`, `files.sha256` and their `.tmp` files are deleted
-   before `[Files]` runs, so an aborted run leaves no manifest that claims a valid state.
+   before `[Files]` runs, so an aborted run leaves no manifest that claims a valid state. A failed
+   deletion (the file is held open, e.g. by a reader without `FILE_SHARE_DELETE`) is logged and
+   remembered: then neither file is rewritten as valid by this run and point 9 does not write its
+   value. Contract 4.2 asks the launcher not to read these files while a setup mutex exists and
+   to open them with `FILE_SHARE_READ | FILE_SHARE_DELETE` (contract revision 2, S-WP10).
 7. **Missing files notice (R11):** if `[MissingAfterInstall]` is not empty the setup logs every file
    and shows one localized notice (English, German, French): the files that disappeared during the
    installation (at most ten names, then "and %n more"), that antivirus programs often delete or
@@ -86,7 +100,12 @@ is testable without running an installer.
    key on every run (`Install.pas`, `RegisterUninstallInfo`: `RegDeleteKeyIncludingSubkeys`), and
    the key exists at `ssPostInstall`. So the Regular variants write the dword
    `Empire Earth Community: ContractVersion` = `ContractVersion` into their uninstall key at the end
-   of `ssPostInstall`, after the manifest. Contract rule (revision in S-WP1): a manifest whose
+   of `ssPostInstall`, after the manifest, **only if** `files.sha256` and `install.ini` of this run
+   were both written and renamed (point 4) and no deletion of point 6 failed. Otherwise the value is
+   missing (Inno Setup recreated the key in this run, so no old value can survive) and the
+   launcher reports Unknown with the repair advice instead of comparing new files with an old
+   manifest. Portable variants have no uninstall key: there a manifest that could not be replaced
+   stays undetected (logged; documented in contract 2.5). Contract rule (revision in S-WP1): a manifest whose
    uninstall key lacks this value was overwritten by an older setup; the launcher reports Unknown
    ("an older setup ran after the current one, run the current setup"). Portable variants have no
    uninstall key; there the case stays undetected (documented). The file times of installed files

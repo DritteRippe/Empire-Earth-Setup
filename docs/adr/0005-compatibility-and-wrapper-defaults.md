@@ -1,6 +1,8 @@
 # 0005. No compatibility values on Windows Vista/7; keep the DirectX wrapper preselection
 
-- Status: Accepted, implemented (S-WP4, see [Implementation](#implementation))
+- Status: Accepted, implemented (S-WP4, see [Implementation](#implementation)); point 1 amended by
+  [ADR 0010](0010-opt-in-compatibility-on-windows-7.md) (opt-in flags on Windows 7, Windows 8/8.1
+  compared with 1.7.2, rules for the graphics matrix)
 - Date: 2026-10-02
 - Requirements: R15, contract question O7
 - Revised: 2026-10-02, plan review before implementation (the 1.7.2 baseline was described wrongly;

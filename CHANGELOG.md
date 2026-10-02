@@ -64,7 +64,10 @@ Refactoring and quality fixes (no new game content).
   Setup 6.2.2, replace the download plug-in IDP by Inno Setup's built-in downloads, how the install
   record and the integrity manifest are written, compatibility and DirectX wrapper defaults, strict
   TLS and the file server certificate, warnings before the installation, checksums of the setups
-  and a check of the contract. Documentation only, the setup does not change yet.
+  and a check of the contract. Documentation only, the setup does not change yet. Two more
+  records were added by a second plan review: no elevated installation through links in the
+  folders all users can write to (0009), and opt-in compatibility flags on Windows 7 with rules for
+  the graphics and VirtualStore test results (0010).
 - `ci/compare_contract.py`: checks locally that `docs/CONTRACT.md` is identical in this and in the
   launcher repository (CI cannot reach the other repository): exit code 0 if the SHA-256 of both
   copies is the same, 1 with both hashes and the first differing line if not, 2 if a file is

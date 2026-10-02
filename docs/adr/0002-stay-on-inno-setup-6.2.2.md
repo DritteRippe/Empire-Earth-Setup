@@ -4,7 +4,10 @@
 - Date: 2026-10-02
 - Requirements: D2
 - Revised: 2026-10-02, plan review before implementation (`UTF8Encode` is not available; every API
-  listed below is now proven by a probe compile)
+  listed below is now proven by a probe compile); second plan review (the security changes of 6.6.0
+  and 6.7.0 assessed against the trigger "relevant security fix", see
+  [ADR 0009](0009-no-installation-through-links.md); the outdated `UTF8Encode` sentence of the
+  consequences corrected)
 
 ## Context
 
@@ -49,7 +52,30 @@ Breaking changes of newer versions that affect this script:
 | 6.3.0 (2024-06-09) | "Support for Windows Vista, Windows Server 2008, and the Itanium architecture removed"; `ia64` identifier removed; `x64` deprecated in favour of `x64os`/`x64compatible` | `ArchitecturesInstallIn64BitMode=x64 arm64 ia64` no longer compiles; the meaning of the 64-bit install mode (registry view of the uninstall key and of every HKLM value, `{sys}`) must be re-checked on Arm64 |
 | 6.4.0 (2025-01-09) | "support for the long-deprecated [Setup] section directive WindowVisible ... has been dropped ... Pascal Scripting support object MainForm has been removed" | the setup background (`WindowVisible=True`, `CreateSetupBackground` on `MainForm`) does not compile: a visible change of the setup |
 | 6.5.0 to 6.5.2 | `[Files]` download flag (6.5.0), downloads in a secondary thread (6.5.1), TLS 1.3 and no TLS 1.0/1.1 for downloads (6.5.2) | no blocker; nice to have |
-| 6.6.0 (2025-11-11) | `WizardResizable` dropped; dark mode | no blocker |
+| 6.6.0 (2025-11-11) | `WizardResizable` dropped; dark mode. Security: random parts of temporary names doubled and drawn from a CSPRNG; the uninstaller uses a random temporary folder instead of re-using `iu-14D2N.tmp` (the reparse point check before deleting that folder had a TOCTOU gap) | no blocker; see the security assessment below |
+| 6.7.0 | Security: Setup and Uninstall enable Windows' **RedirectionGuard** on their own processes (Windows 10 22H2 and 11 only): junctions and symbolic links created by unprivileged users are not followed | no blocker; see the security assessment below |
+
+**Security assessment (second plan review).** The trigger "a security fix relevant to this setup"
+was checked against both entries of the vendor history (`evidence/is6-whatsnew.txt`, sections
+"Security improvements" of 6.6.0 and 6.7.0):
+
+- **Temporary names (6.6.0):** the vendor knows no practical exploit; the uninstaller's folder is
+  only exposed when untrusted users can write to the temporary folder, which is not the case for
+  `%TEMP%` of the account that runs the setup. Not relevant enough to trigger a switch.
+- **RedirectionGuard (6.7.0):** relevant in principle. In `admin` mode the setup gives
+  authenticated users write access to `<game>\Data` and `<game>\Users` (`[Dirs]`
+  `authusers-modify`, so that the unelevated game can write there), and an update or repair then
+  writes into these folders elevated. A standard user who replaces a subfolder (e.g. `Data\Movies`)
+  by a junction redirects these writes. Impact today: the setup writes only files with fixed names
+  and its own content there (textures, sounds, movies, campaigns, civilizations; no program file),
+  and Inno Setup's own `DelTree` does not descend into reparse points (`InstFunc.pas` 6.2.2,
+  `IsDirectoryAndNotReparsePointRedir`); a `files` deletion of a fixed name through a linked
+  parent folder remains possible. RedirectionGuard would only protect Windows 10 22H2 and 11. The
+  risk existed since 1.0 and needs a local attacker on the same computer. **Decision:** no switch
+  for this; v2 closes the gap with its own check before the installation
+  ([ADR 0009](0009-no-installation-through-links.md)), and the residual race between that check
+  and the writes is accepted and documented. A switch to a version with RedirectionGuard stays the
+  complete fix and is listed under "Revisit when".
 
 Windows 7 SP1 is still the minimum OS of the newest version (6.3.0 made it the minimum, no later
 entry changes it), so the OS range alone would not block a switch. What blocks it in v2 is the cost:
@@ -66,14 +92,17 @@ The installability of newer versions was not tested, because they are not adopte
   (`ci/build.ps1`), because the 6.2 preprocessor has no SHA-256.
 - Own `.iss` files stay UTF-8 with BOM (6.2 reads BOM-less files as ANSI).
 - `SaveStringsToUTF8File` of 6.2.2 writes a BOM and CRLF (`FileClass.pas`,
-  `TTextFileWriter.DoWrite`); files that must not have a BOM are written with `UTF8Encode` +
-  `SaveStringToFile` ([ADR 0004](0004-install-record-and-integrity-manifest.md)).
+  `TTextFileWriter.DoWrite`); files that must not have a BOM are written as ASCII with
+  `SaveStringToFile`, checked with `IsAsciiText` ([ADR 0004](0004-install-record-and-integrity-manifest.md)).
 - Downloads use TLS 1.0 to 1.2 (`SetUserAgentAndSecureProtocols` in 6.2.2), never TLS 1.3; the
   servers support TLS 1.2.
 
 ## Revisit when
 
-- a security fix relevant to this setup is only available in a newer version,
+- a security fix relevant to this setup is only available in a newer version (assessed for 6.6.0
+  and 6.7.0 above: RedirectionGuard is the complete fix for the junction risk of
+  [ADR 0009](0009-no-installation-through-links.md); revisit if a practical bypass of that check is
+  reported or the community gives up the background anyway),
 - Windows drops something 6.2.2 relies on,
 - or the background image is given up anyway; then a switch to the current 6.x is its own package:
   remove `WindowVisible`/`MainForm`/`ia64`, use `x64compatible`, rebuild, compare all dumps, test on

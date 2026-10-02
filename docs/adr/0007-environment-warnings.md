@@ -5,7 +5,8 @@
 - Requirements: R12, R13, contract question O11
 - Revised: 2026-10-02, plan review before implementation (installing into the folder of a retail or
   GOG installation is asked like the shared folder; the shared-folder question names the firewall
-  rules)
+  rules); second plan review (old NeoEE keys in HKLM and foreign uninstall entries are found too;
+  the notice advises against deleting registry keys by hand; screen size and DPI are logged)
 
 ## Context
 
@@ -39,12 +40,28 @@ silent installation (silent: log only).
    game may not fit or may crash after the intro; scaling in the graphics driver or a DirectX wrapper
    can help. The clamp of the window size (1024 to 1920 x 768 to 1080) stays. The predicate and the
    clamp become pure, unit-tested functions in `utils.iss` (`ClampGameWindowWidth/Height`,
-   `IsScreenTooLow`).
+   `IsScreenTooLow`). `InitializeSetup` always logs `SM_CXSCREEN`, `SM_CYSCREEN`, the DPI of the
+   screen (`GetDeviceCaps(LOGPIXELSX)`) and the clamped window size, so that contract question O4
+   and a support case can be decided from the setup log.
 2. **Foreign or old installations (R12):** when the user leaves the folder page, the setup looks
    for, in this order:
    - `Software\SSSI\Empire Earth` and `Software\Mad Doc Software\EE-AOC` in HKLM, 32- and 64-bit
      view (community setups write these keys only in HKCU, retail, GOG and old patches in HKLM;
      contract 1.4 source 4);
+   - `Software\Neo\Empire Earth` and `Software\Neo\Art of Conquest` in HKLM, 32- and 64-bit view:
+     the community NeoEE setup writes them only in HKCU (`config_neoee.iss`, `BaseRegEE`/`BaseRegAoC`
+     in `[Registry]` `Root: HKCU`), so an HKLM key belongs to an old NeoEE installation from before
+     the community setup (t=10577 p=46302: the key that had to go was 'in a "Neo" directory';
+     report 4.6: t=11088 p=48257);
+   - the uninstall entries of HKLM (32- and 64-bit view, `RegGetSubkeyNames` of
+     `Software\Microsoft\Windows\CurrentVersion\Uninstall`): an entry whose `DisplayName` contains
+     `Empire Earth` or `NeoEE` (case-insensitive) is reported with `DisplayName` and
+     `InstallLocation`, unless its key is `{<AppId>}_is1` of one of the two community products or
+     its `Publisher` is one of the two community publishers (`MyAppPublisher` of `config_ee.iss`
+     and `config_neoee.iss`). This finds InstallShield/MSI entries of the retail version and old
+     NeoEE installers, which made later installers offer only "repair/remove" (report 4.7, 4.8,
+     forum report section 8 item 22). The match is a pure helper `IsForeignUninstallEntry`
+     (unit tests: community AppIds and publishers excluded, case, empty or missing values);
    - the folders `<system drive>\Sierra\Empire Earth` and `{commonpf32}\Sierra\Empire Earth` (default
      folder of the retail CD, t=5825 p=39087, t=5571 p=37625);
    - where available, the folder named by the "Installed From" values of these HKLM keys, shown in
@@ -52,9 +69,10 @@ silent installation (silent: log only).
      installations).
 
    Findings are shown once as a notice: what was found, that the community setup installs its own
-   copy and does not change the other one, that a manual cleanup of old registry keys must keep
-   `Software\Sierra\CDKeys` (NeoEE CD keys), and that the launcher can help later. Nothing is
-   offered for deletion. Community installations (uninstall keys with the community publishers) are
+   copy and does not change the other one, and then, without approving any manual cleanup: "Please
+   do not delete registry keys by hand; `Software\Sierra\CDKeys` holds the NeoEE CD keys. The Empire
+   Earth Launcher offers a cleanup with a backup." (deleting `Software\Sierra` by hand is what lost
+   the CD keys in t=10950 and t=11021). Nothing is offered for deletion. Community installations (uninstall keys with the community publishers) are
    not reported.
 3. **Shared folder (O11):** when the user leaves the folder page and the chosen folder already holds
    the other product (`_setupdata_<other product>` exists, or the other product's uninstall key has

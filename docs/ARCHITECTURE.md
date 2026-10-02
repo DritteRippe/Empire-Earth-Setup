@@ -2,7 +2,7 @@
 
 This document describes the target architecture of setup v2: what the parts of the script are, how
 data flows through an installation, how errors, logging, localization and testing work, and which
-work package (S-WP1 ... S-WP9, see [Plan](#plan)) brings each change. Decisions are recorded as
+work package (S-WP1 ... S-WP11, see [Plan](#plan)) brings each change. Decisions are recorded as
 ADRs in [docs/adr](adr/README.md). What the setup leaves on the computer for the Empire Earth
 Launcher is specified in [docs/CONTRACT.md](CONTRACT.md) (shared with the launcher repository); this
 document only explains how the setup implements it.
@@ -53,25 +53,25 @@ requires.
 
 | File | Responsibility | Pure helpers (unit-tested) | v2 change |
 |---|---|---|---|
-| `setup_is6.iss` | Build switches and their checks, `[Setup]`, `[Languages]`, `[Types]`, `[Tasks]`, `[Components]`, `[Files]`, `[Dirs]`, `[Registry]`, `[Icons]`, `[InstallDelete]`, `[UninstallDelete]`, `[Run]`, `[UninstallRun]`; the event functions (`InitializeSetup`, `InitializeWizard`, `NextButtonClick`, `CurStepChanged`, ...) only dispatch to the modules | - | download wiring (S-WP3, done), compatibility tasks from Windows 8 on, no Vista/7 entries, `RemoveLegacyVistaCompatValues` (S-WP4, done), `SetupLogging` and `ContractVersion` define (S-WP5), install record, defaults marker and `SetupBuild` (S-WP6), `AfterInstall: RecordInstalledFile` on the file entries (S-WP7) |
+| `setup_is6.iss` | Build switches and their checks, `[Setup]`, `[Languages]`, `[Types]`, `[Tasks]`, `[Components]`, `[Files]`, `[Dirs]`, `[Registry]`, `[Icons]`, `[InstallDelete]`, `[UninstallDelete]`, `[Run]`, `[UninstallRun]`; the event functions (`InitializeSetup`, `InitializeWizard`, `NextButtonClick`, `CurStepChanged`, ...) only dispatch to the modules | - | download wiring (S-WP3, done), compatibility tasks from Windows 8 on, no Vista/7 entries, `RemoveLegacyVistaCompatValues` (S-WP4, done), `SetupLogging` and `ContractVersion` define (S-WP5), opt-in task `compatibility_legacy` on Windows 7 and the cleanup that keeps its values (S-WP10), install record, defaults marker and `SetupBuild` (S-WP6), `AfterInstall: RecordInstalledFile` on the file entries (S-WP7), `PrepareToInstall`: no elevated installation through links (S-WP11) |
 | `config_ee.iss`, `config_neoee.iss` | Product configuration | - | - |
-| `utils.iss` | URL constants, string helpers, language tag, compatibility flags, uninstall keys, the single HTTP implementation (`HttpGet`), URL allow-list of the update API, download policy (`GetOnlineFileCheck`, `CodeFileExtensions`) | yes, all functions without wizard access | TLS 1.2 for `HttpGet` on Windows 7 (`NeedsExplicitTlsProtocols`, `ApplyTlsProtocols`), `NextDownloadAction` (S-WP3, done); `IsLegacyVistaCompatValue`, `IsBelowWindows8` (S-WP4, done); INI text, `IsAsciiText` (S-WP6); manifest/path helpers, ordinal sort (S-WP7); screen size clamp, low-resolution predicate, `IsSameOrInside` (S-WP8) |
+| `utils.iss` | URL constants, string helpers, language tag, compatibility flags, uninstall keys, the single HTTP implementation (`HttpGet`), URL allow-list of the update API, download policy (`GetOnlineFileCheck`, `CodeFileExtensions`) | yes, all functions without wizard access | TLS 1.2 for `HttpGet` on Windows 7 (`NeedsExplicitTlsProtocols`, `ApplyTlsProtocols`), `NextDownloadAction` (S-WP3, done); `IsLegacyVistaCompatValue`, `IsBelowWindows8` (S-WP4, done); keeping the values of `compatibility_legacy` (S-WP10); INI text, `IsAsciiText` (S-WP6); manifest/path helpers, ordinal merge sort (S-WP7); screen size clamp, low-resolution predicate, `IsSameOrInside`, `IsForeignUninstallEntry` (S-WP8); `IsLinkGuardedFolder` (S-WP11) |
 | `messages.iss` | `[CustomMessages]` in all languages, `[Messages]` overrides | `ci/check_messages.py` | new texts in en/de/fr per package |
 | `eestats.iss` | Wrapper of `EEStatsSetup.dll` (Wine, GPU vendor, statistics values) | - | - |
 | `extension.iss` | Command line switches, previous installation (uninstall key), Windows version | - | - |
 | `pages.iss` | Custom wizard pages (game language, installation mode, graphics card) | - | - |
 | `downloads.iss` | Online localized files: pins, policy application, server selection, **download engine** (built-in `TDownloadWizardPage`/`DownloadTemporaryFile`), verification into `{tmp}\verified` | policy, pins and the decision after each attempt via `utils.iss` | engine replaced (S-WP3, done) |
-| `randommaps.iss` | Random map scripts: list-based cleanup, migration of 1.7.2 folders, restore on abort | - | - |
+| `randommaps.iss` | Random map scripts: list-based cleanup, migration of 1.7.2 folders, restore on abort | - | `IsReparsePoint` moves to a shared place for the link check (S-WP11) |
 | `telemetry.iss` | Setup statistics, only with consent | - | - |
-| `installstate.iss` (new) | Contract writer: records installed files, deletes stale state at `ssInstall`, writes `install.ini` and `files.sha256` (ASCII) at the end of `ssPostInstall`, the contract version into the uninstall key, reports files that disappeared | via `utils.iss` | new (S-WP6, S-WP7) |
-| `environment.iss` (new) | Read-only checks before the installation: low screen height, foreign or old installations, installing into their folder, EE and NeoEE in one folder | via `utils.iss` | new (S-WP8) |
+| `installstate.iss` (new) | Contract writer: records installed files, deletes stale state at `ssInstall` (and remembers a deletion that failed), writes `install.ini` and `files.sha256` (ASCII; hashing with retries) at the end of `ssPostInstall`, the contract version into the uninstall key only if both files were replaced, reports files that disappeared | via `utils.iss` | new (S-WP6, S-WP7) |
+| `environment.iss` (new) | Read-only checks before the installation: low screen height (screen size and DPI logged), foreign or old installations (retail/GOG/old NeoEE keys in HKLM, foreign uninstall entries), installing into their folder, EE and NeoEE in one folder; the link check before an elevated installation | via `utils.iss` | new (S-WP8; link check S-WP11) |
 | `internal/lib/bass` | Setup music (third-party) | - | - |
 | `internal/lib/idp` | Inno Download Plugin (third-party DLL) | - | **removed** in the last commit of S-WP3 (done) |
-| `ci/build.ps1`, `ci/build_helpers.ps1` | Two-pass build of all variants, hash list of `data\localized-text`, DER copy of the certificate | `ci/tests/build_helpers.tests.ps1` | SHA-256 files of the built setups, `/DSetupBuild` (S-WP5, S-WP6) |
+| `ci/build.ps1`, `ci/build_helpers.ps1` | Two-pass build of all variants, hash list of `data\localized-text`, DER copy of the certificate | `ci/tests/build_helpers.tests.ps1` | SHA-256 files of the built setups (S-WP5, done), list of unpinned online files in a release build if the redirect probe requires it (S-WP5), `/DSetupBuild` (S-WP6) |
 | `ci/check_messages.py` | Checks `messages.iss`, the use of messages in every own script and the encoding (UTF-8 BOM, CRLF) of every own `.iss`; finds the own scripts itself (root and `ci/tests` `*.iss` plus the `#include "..."` closure of `setup_is6.iss`, without `internal/`) | `--self-test` (CI workflow) | own scripts from the `#include` lines, encoding check, self-test (S-WP2, done) |
-| `ci/check_contract.py` (new) | Checks that the tables of `docs/CONTRACT.md` (header, 2.4 row `code`, 3.2, 3.7) match the source of truth in the script (`ContractVersion`, `CodeFileExtensions`, the `[Registry]` values of the game settings keys, the compatibility entries with `BuildCompatibilityFlags`/`GetCompatibilityFlags` and the tasks); reads only tables; preprocesses `[Registry]` for every build variant with a small interpreter of the ISPP directives used there (anything else is an error); lints the `[Files]` flags below `{app}` | `--self-test` (CI workflow); `--preprocessed <folder>` compares the interpreter with the scripts ISCC preprocessed (CI workflow, after the build) | new (S-WP5, done) |
+| `ci/check_contract.py` (new) | Checks that the tables of `docs/CONTRACT.md` (header, 2.4 row `code`, 3.2, 3.7) match the source of truth in the script (`ContractVersion`, `CodeFileExtensions`, the `[Registry]` values of the game settings keys, the compatibility entries with `BuildCompatibilityFlags`/`GetCompatibilityFlags` and the tasks); reads only tables; preprocesses `[Registry]` for every build variant with a small interpreter of the ISPP directives used there (anything else is an error); lints the `[Files]` flags below `{app}` | `--self-test` (CI workflow); `--preprocessed <folder>` compares the interpreter with the scripts ISCC preprocessed (CI workflow, after the build) | new (S-WP5, done); tables of contract 3.3 and 3.4 and the row `compatibility_legacy` of 3.7 (S-WP10) |
 | `ci/compare_contract.py` (new) | Local only: compares the SHA-256 of both copies of `docs/CONTRACT.md` (contract O12); exit code 0 identical, 1 different (both hashes, first differing line), 2 file missing | `--self-test` (CI workflow) | new (S-WP1) |
-| `ci/check_test_plan.py` (new) | `docs/TEST-PLAN.de.md`: unique TP ids, a valid status and the template fields per case, every forum test case 1 to 22 assigned (or "Launcher"/"entfällt" with a reason) with a "Stand" that matches its cases, every TP id named in a Markdown file of the repository exists | `--self-test` (CI workflow) | new (S-WP2, done) |
+| `ci/check_test_plan.py` (new) | `docs/TEST-PLAN.de.md`: unique TP ids, a valid status and the template fields per case, every forum test case 1 to 22 assigned (or "Launcher"/"entfällt" with a reason) with a "Stand" that matches its cases, every TP id named in a Markdown file of the repository exists | `--self-test` (CI workflow) | new (S-WP2, done); field `Priorität` P1/P2/P3 per case (S-WP5) |
 | `ci/tests/unit_tests.iss` | Unit tests of the pure helpers (a tiny setup that only computes) | - | extended per package |
 
 Include order in `setup_is6.iss`: `utils.iss`, `messages.iss`, `bass.iss` before `[Languages]`;
@@ -93,7 +93,7 @@ InitializeSetup
   update check -----------------------> api.empireearth.eu (HttpGet, TLS, short timeouts)
   legal question (first installation)
   test-build warning, install-mode notice, NeoEE Wine notice
-  low screen height (S-WP8)                                                [read-only, notice]
+  low screen height (S-WP8), screen size, DPI and clamped window logged   [read-only, notice]
 InitializeWizard
   languages, download pins, telemetry state, custom pages, background, download page (S-WP3)
 Wizard pages
@@ -105,8 +105,11 @@ NextButtonClick(wpReady)
   RegisterOnlineFiles: selected localized files, policy (pin / TLS only / refused), server choice
   DownloadOnlineFiles (S-WP3): one file at a time, main server then mirror  -> {tmp}\<RelDest>
                                (NextDownloadAction decides; a stop ends all requests)
+PrepareToInstall (S-WP11, admin mode only)
+  links in Data, Users, Users\default and below?  -> stop with a message, nothing changed yet
 CurStepChanged(ssInstall)
-  delete install.ini and files.sha256 of the previous run (S-WP6/7)
+  delete install.ini and files.sha256 of the previous run (S-WP6/7); a failed deletion is
+  remembered (no contract version in the uninstall key in this run)
   VerifyDownloadedFiles: pins, move accepted files to {tmp}\verified, notice for the rest
   PrepareRandomMapScripts, previous certificate state
 [InstallDelete] -> [Dirs] -> [Files] (AfterInstall: RecordInstalledFile, S-WP7) -> [Icons]
@@ -116,9 +119,10 @@ CurStepChanged(ssPostInstall)
   FinishRandomMapScripts, legacy root certificate, legacy RUNASADMIN,
   legacy Vista/7 compatibility values (S-WP4, done: only on Windows Vista/7, only exact values
   of earlier setups, HKLM or HKCU by install mode), NeoEE CD keys (authtools.dll)
-  WriteInstallState (last step, S-WP6/7): hash recorded files on a progress page, ASCII check,
-  files.sha256.tmp -> files.sha256, install.ini.tmp -> install.ini, ContractVersion into the
-  uninstall key, notice if installed files are gone (antivirus hint)
+  WriteInstallState (last step, S-WP6/7): hash recorded files on a progress page (retries for a
+  locked file), ASCII check, files.sha256.tmp -> files.sha256, install.ini.tmp -> install.ini
+  (target deleted and gone before each rename), ContractVersion into the uninstall key only if
+  both were replaced, notice if installed files are gone (antivirus hint)
 NextButtonClick(wpFinished)
   telemetry (only with consent), setup type in the uninstall key
 DeinitializeSetup
@@ -159,7 +163,10 @@ or changes anything outside its own scope to recover.
 | Verification at `ssInstall` | pin mismatch, move failed | file discarded, reported, local version installed |
 | `[Files]` | file locked, disk full | Inno Setup's own retry/abort dialog (unchanged) |
 | NeoEE CD keys | `authtools.dll` missing, network, VM, ... | specific `CDKeys*` message, installation completes (repair = run the setup again) |
-| Writing `install.ini`/`files.sha256` (S-WP6/7) | I/O error, a path that is not ASCII | logged, temporary file removed, no manifest (the launcher reports "Unknown" and advises a repair) |
+| Link check before an elevated installation (S-WP11) | a junction or symbolic link below `Data` or `Users\default` | stop on the "Preparing to install" page with a message (remove the link or install for the current user only); silent: exit code 7, folder in the log; nothing changed |
+| Deleting `install.ini`/`files.sha256` at `ssInstall` (S-WP6/7) | file held open by another program | logged; this run writes no `Empire Earth Community: ContractVersion`, so the launcher reports "Unknown" instead of trusting an old manifest (portable: not detectable, logged) |
+| Hashing one file (S-WP7) | read error (file briefly locked) | two retries after 300 ms; still failing: file and cause logged, no manifest |
+| Writing `install.ini`/`files.sha256` (S-WP6/7) | I/O error, a path that is not ASCII, rename failed (`RenameFile` does not overwrite) | logged, temporary file removed, no manifest and no contract version in the uninstall key (the launcher reports "Unknown" and advises a repair) |
 | Installed files gone at `ssPostInstall` (S-WP7) | antivirus deletion | listed in `[MissingAfterInstall]`, notice with antivirus advice and repair hint |
 | A setup up to 1.7.2 runs later over v2 | it keeps `install.ini`, `files.sha256` and the record | it recreates the uninstall key without `Empire Earth Community: ContractVersion`; the launcher reports "Unknown" (contract revision, S-WP1); portable: not detectable |
 | Aborted installation | any | `install.ini`/`files.sha256` were deleted at `ssInstall`, so no stale manifest claims a valid state; random maps restored |
@@ -178,7 +185,11 @@ installation loop (an exception in `AfterInstall` would abort the installation, 
   cause, random map moves, certificate handling, CD-key result code, manifest summary (number of
   files, size, duration, missing files), files accepted without size check (no `Content-Length`),
   the reason a download was not retried (stop, no mirror allowed), compatibility values of
-  earlier setups removed or kept on Windows Vista/7 (with the value), environment findings.
+  earlier setups removed or kept on Windows Vista/7 (with the value), environment findings,
+  screen size, DPI and clamped window size (S-WP8), the link check (folders checked, duration,
+  findings; S-WP11), the hashing throughput in MB/s (S-WP7).
+- With over-the-shoulder elevation the log is in the `%TEMP%` of the administrator account that
+  elevated; it contains paths with user names (README "Support", S-WP5).
 - **Never logged:** CD keys and anything below `Software\Sierra\CDKeys` (the setup does not read
   it), the anonymous telemetry id (the query of telemetry requests is cut from the log),
   credentials of any kind.
@@ -211,7 +222,7 @@ installation loop (an exception in `AfterInstall` would abort the installation, 
 | Test plan | Unique TP ids, valid status and template fields per case, forum test cases 1 to 22 assigned, TP ids named in the README, this document, the ADRs and the other Markdown files exist | `ci/check_test_plan.py`; `--self-test` runs it against modified copies that must fail (S-WP2) | CI workflow (both) |
 | Build helpers | Hash lists, DER certificate copy, SHA-256 files of the setups | `ci/tests/build_helpers.tests.ps1` | CI workflow, PowerShell 7 on Linux |
 | Real-data equivalence (maintainers, local only) | Build EE and NeoEE with the reconstructed official data, dump with innoextract and compare semantically with the previous build and the official 1.7.2 setups: only the changes of the package may differ | not in the repository (game data must never be committed) | after every package that changes the compiled setup |
-| Manual | Installation, update, repair, uninstall on real Windows; every case has a TP id (`TP-00` server pre-check, then one block per package: `TP-1x` downloads ... `TP-6x` environment, `TP-7x` general and forum cases), the build type (A: placeholder build `ci\build.ps1 -Placeholders -TestID 1`, only in a VM or on a snapshot, with the real `EEStatsSetup.dll`; B: real build from the tester's own data with the official AppIds, `-TestID 1`), the starting state and the snapshot to use; the forum test cases 1 to 22 are each mapped to a case or excluded with a reason | `docs/TEST-PLAN.de.md` (German; skeleton, safety rules, "Testbuild herstellen", `TP-00` and `TP-70` in S-WP2; each package works out the cases of its block, S-WP9 completes it) | tester |
+| Manual | Installation, update, repair, uninstall on real Windows; every case has a TP id (`TP-00` server pre-check, then one block per package: `TP-1x` downloads ... `TP-6x` environment, `TP-7x` general and forum cases), the build type (A: placeholder build `ci\build.ps1 -Placeholders -TestID 1`, only in a VM or on a snapshot, with the real `EEStatsSetup.dll`; A+: the same with the official AppIds read from the tester's own 1.7.2 installation, only in a VM, for the update cases without game data (S-WP9); B: real build from the tester's own data with the official AppIds, `-TestID 1`), a priority (P1 = short run of at most 3 hours on a laptop or Windows Sandbox and release-relevant, P2, P3 = optional, e.g. Windows 7 or retail only; S-WP5 adds the field, S-WP9 fixes the P1 run), the starting state and the snapshot to use; the forum test cases 1 to 22 are each mapped to a case or excluded with a reason | `docs/TEST-PLAN.de.md` (German; skeleton, safety rules, "Testbuild herstellen", `TP-00` and `TP-70` in S-WP2; each package works out the cases of its block, S-WP9 completes it) | tester |
 
 Installers are never run in CI or by agents (they contact live servers and send statistics);
 runtime behaviour is covered by the unit tests as far as possible and otherwise by the manual test
@@ -230,6 +241,15 @@ plan.
   servers) and how to check it: [SERVER-OPERATIONS.md](SERVER-OPERATIONS.md).
 - Environment checks are read-only and never offer to delete foreign installations
   ([ADR 0007](adr/0007-environment-warnings.md)).
+- **Links in the folders all users can write to** (`admin` mode grants `authusers-modify` on `Data`
+  and `Users`): before an elevated installation the setup refuses to run if a junction or symbolic
+  link exists below `Data` or `Users\default`, so that it does not write through it
+  ([ADR 0009](adr/0009-no-installation-through-links.md), S-WP11). Residual risk: a link created
+  during the installation (a race); the complete fix would be RedirectionGuard of Inno Setup 6.7
+  ([ADR 0002](adr/0002-stay-on-inno-setup-6.2.2.md), security assessment).
+- **Redirects:** whether the built-in downloads follow `https://` -> `http://` is probed under Wine
+  in S-WP5 ([ADR 0008](adr/0008-release-checksums-and-contract-check.md) point 6); until then the
+  operator rule "no redirect to `http://`" is the mitigation.
 
 ## 10. Open points
 
@@ -245,13 +265,16 @@ plan.
   screen at the logon DPI; a changed scaling without signing out again is the known exception. To be
   confirmed on Windows at 150 % (test plan TP-24), twice: with the task `compatibility` (the game
   is `HIGHDPIAWARE`) and without it (the game is DPI-virtualized and sees logical pixels), plus
-  Windows 7, which no longer gets `HIGHDPIAWARE`. If the window only fits with `HIGHDPIAWARE`,
-  contract 3.3 says so.
+  Windows 7, which gets `HIGHDPIAWARE` only with the opt-in task `compatibility_legacy`
+  ([ADR 0010](adr/0010-opt-in-compatibility-on-windows-7.md)). If the window only fits with
+  `HIGHDPIAWARE`, contract 3.3 says so. From S-WP8 on the setup log shows screen size, DPI and the
+  clamped window, so a report can be decided from the log.
 - **O7** (defaults under review): decided in [ADR 0005](adr/0005-compatibility-and-wrapper-defaults.md);
   the contract revision (S-WP1) changed 3.7 in both repositories (a table of the values per task,
   Windows version and root, which `ci/check_contract.py` reads), S-WP4 implemented it (test cases
   TP-20 to TP-24; the wrapper preselection stays until the graphics matrix TP-23 shows a better
-  default).
+  default by the rule fixed in [ADR 0010](adr/0010-opt-in-compatibility-on-windows-7.md), which also
+  adds the opt-in task on Windows 7 with contract revision 2, S-WP10).
 - **O11** (EE and NeoEE in one folder): the setup asks (S-WP8).
 - **O12** (copy check): answered locally, `ci/compare_contract.py` (S-WP1).
 - **Setup version:** `MySetupVersion` stays `1.7.2` until the maintainers release v2; the update API
@@ -272,17 +295,19 @@ plan.
 
 ## Plan
 
-| Package | Title | Requirements |
-|---|---|---|
-| S-WP1 | Contract revision in both repositories (one step), local copy check | D5, O3, O4, O7, O11, O12 |
-| S-WP2 | Test foundation: test plan skeleton with "Testbuild herstellen" and TP-00, source and test plan checks | R17, R18 |
-| S-WP3 | Built-in downloads replace IDP; TLS 1.2 for HTTP requests on Windows 7; operator guide | D2, D3, R16, R17 |
-| S-WP4 | Compatibility defaults (no values on Windows Vista/7), wrapper preselection documented | R15, O7 |
-| S-WP5 | Build, CI and diagnostics: SHA-256 files of the setups, contract check, setup log | R14, D5, R18 |
-| S-WP6 | Install record, `install.ini`, defaults marker, `SetupBuild`, uninstall key value | D5 (1.1, 1.2, 3.5), R1, R17 |
-| S-WP7 | Integrity manifest and post-install file check | D5 (2), R2, R11, R17 |
-| S-WP8 | Environment warnings: low resolution, foreign installations and their folders, shared folder | R12, R13, O11, R17 |
-| S-WP9 | Documentation and completion of the German test plan | R17, R18 |
+| Order | Package | Title | Requirements | State |
+|---|---|---|---|---|
+| 1 | S-WP1 | Contract revision in both repositories (one step), local copy check | D5, O3, O4, O7, O11, O12 | done |
+| 2 | S-WP2 | Test foundation: test plan skeleton with "Testbuild herstellen" and TP-00, source and test plan checks | R17, R18 | done |
+| 3 | S-WP3 | Built-in downloads replace IDP; TLS 1.2 for HTTP requests on Windows 7; operator guide | D2, D3, R16, R17 | done |
+| 4 | S-WP4 | Compatibility defaults (no values on Windows Vista/7), wrapper preselection documented | R15, O7 | done |
+| 5 | S-WP5 | Build, CI and diagnostics: SHA-256 files of the setups, contract check (done); setup log, priorities in the test plan, redirect probe | R14, D5, D3, R18 | in progress |
+| 6 | S-WP10 | Contract revision 2 in both repositories (tables of 3.3/3.4, opt-in row of 3.7, launcher rules for a running setup in 4.2 and 2.5) and the opt-in task `compatibility_legacy` on Windows 7 | D5, R15, O4, O7, R17 | planned |
+| 7 | S-WP6 | Install record, `install.ini`, defaults marker, `SetupBuild`, uninstall key value | D5 (1.1, 1.2, 3.5), R1, R17 | planned |
+| 8 | S-WP7 | Integrity manifest and post-install file check | D5 (2), R2, R11, R17 | planned |
+| 9 | S-WP8 | Environment warnings: low resolution (with screen metrics in the log), foreign and old installations (incl. old NeoEE keys and foreign uninstall entries), their folders, shared folder | R12, R13, O11, R17 | planned |
+| 10 | S-WP11 | No elevated installation through links in the folders all users can write to | ADR 0009, R17 | planned |
+| 11 | S-WP9 | Documentation and completion of the German test plan (build type A+, P1 short run, decision rules in TP-23/TP-71) | R17, R18 | planned |
 
 The contract comes first because the launcher implements it at the same time; every later contract
 change is again one step in both repositories. The test plan skeleton comes next, so that every
@@ -290,3 +315,11 @@ package adds its Windows cases with TP ids as it goes. Then the risky toolchain 
 compatibility change comes before the contract check, which checks the compatibility table of the
 revised contract. Each package leaves all checks green, updates the CHANGELOG, the README and these
 documents, and states its acceptance criteria and verification in its commit message.
+
+Second plan review (after S-WP4 and half of S-WP5): the numbers S-WP6 to S-WP9 are kept because the
+test plan blocks and the ADRs refer to them; the new packages get the next numbers and their place
+in the order. Contract revision 2 (S-WP10) comes before S-WP6 and S-WP7, because it fixes the
+launcher's side of the manifest replacement (2.5, 4.2) and the tables that S-WP8 refactors (3.3);
+it also carries the opt-in task, whose contract row and code must land together so that
+`ci/check_contract.py` stays green. The link check (S-WP11) comes after S-WP8, which creates
+`environment.iss`, and before the documentation package.
