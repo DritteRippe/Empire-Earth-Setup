@@ -131,6 +131,22 @@ Refactoring and quality fixes (no new game content).
   overwriting, relative paths, `sha256sum -c` where it exists, and the file next to every setup of
   the dry run. README: "Checksums of the setups" (publishing the hash, checking a download with
   `Get-FileHash`) and a line in "Support".
+- `ci/check_contract.py` (Python 3 without packages, run by the workflow): checks that the tables
+  of `docs/CONTRACT.md` match the script, which is their source of truth: the contract version in
+  the header against the new `#define ContractVersion 1` of `setup_is6.iss` (no effect on the
+  compiled setup yet), the row `code` of 2.4 against `CodeFileExtensions`, the table of 3.2
+  against the `[Registry]` values of the game settings keys of both games (name, type, data, the
+  ending epochs, class S/D = `deletevalue`, P = `createvalueifdoesntexist`) and the table of 3.7
+  against the compatibility entries (the flags of each task, `WIN7RTM`, the `MinVersion` of the
+  tasks and entries, the root per install mode, the order). It reads only tables of the contract
+  and preprocesses `[Registry]` for all four build variants with a small interpreter of the ISPP
+  directives used there; anything else is an error. It also lints `[Files]` (contract 2.3): every
+  entry below `{app}` has `ignoreversion` and none has `onlyifdoesntexist`, `promptifolder` or
+  `confirmoverwrite`; all 58 entries comply, so no entry changes. `--self-test` (workflow) runs it
+  against modified copies that must fail (e.g. `Music Volume` `$2C` -> `$2D`, `m3d` missing,
+  `WIN7RTM` -> `WIN8RTM`, an entry without `ignoreversion`); `--preprocessed out/preprocessed`
+  (workflow, after the build) checks that its interpreter reads `[Registry]` exactly as ISCC
+  preprocessed it and lints the expanded `[Files]` sections. README: "Verify".
 
 ### Changed
 - The hidden setup data folder (holds `EEStatsSetup.dll` for the uninstaller) is now

@@ -48,6 +48,18 @@ jobs:
         shell: pwsh
         run: python ci/check_test_plan.py --self-test
 
+      # The tables of docs/CONTRACT.md (header, 2.4, 3.2, 3.7) must match the script, the source of
+      # truth, and every [Files] entry below {app} must have ignoreversion and none of
+      # onlyifdoesntexist, promptifolder, confirmoverwrite (contract 2.3); then the self-test of the
+      # check (modified copies that must fail).
+      - name: Check the contract against the script
+        shell: pwsh
+        run: python ci/check_contract.py
+
+      - name: Check the contract against the script (self-test)
+        shell: pwsh
+        run: python ci/check_contract.py --self-test
+
       # docs/CONTRACT.md must be identical in the launcher repository, which CI cannot reach: the
       # copy check runs locally (README, "Verify"); here only its self-test.
       - name: Contract copy check (self-test)
@@ -67,6 +79,12 @@ jobs:
       - name: Build
         shell: pwsh
         run: ./ci/build.ps1 -Placeholders -RequireVersion 6.2.2 -KeepPreprocessed out/preprocessed
+
+      # The ISPP interpreter of the contract check must read [Registry] exactly as ISCC did for
+      # every variant, and the fully expanded [Files] sections must pass its lint as well
+      - name: Contract check against the preprocessed scripts
+        shell: pwsh
+        run: python ci/check_contract.py --preprocessed out/preprocessed
 
       # The resolved scripts are handy to review what a change does to each variant.
       - name: Upload preprocessed scripts

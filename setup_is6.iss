@@ -53,6 +53,11 @@
 
 #define MySetupVersion "1.7.2"
 #define MyAppGroupName "Empire Earth"
+; Version of the setup and launcher contract (docs/CONTRACT.md, section 5) that this script
+; implements. ci/check_contract.py compares it with the header of the contract; change both together.
+; The install record, install.ini and the uninstall key are to carry it (contract 1.1 to 1.3); until
+; they do, it does not change the compiled setup.
+#define ContractVersion 1
 
 ; Build switches
 ; Each switch below has a default here and can be overridden on the command line instead of
