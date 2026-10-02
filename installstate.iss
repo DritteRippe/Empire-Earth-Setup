@@ -36,6 +36,26 @@ const
 var
   // ssInstall could not delete a state file of the previous run (DeleteInstallState)
   InstallStateDeleteFailed: Boolean;
+  // Destinations (full paths) of the [Files] entries this run processed, recorded by
+  // RecordInstalledFile, and the number of destinations it could not record
+  InstalledFiles: TStringList;
+  RecordFailures: Integer;
+
+// AfterInstall of every compiled [Files] entry below {app} (ADR 0004 point 3; ci/check_contract.py
+// checks that each has it): records the destination of the file the entry has just installed or
+// kept (Inno Setup calls AfterInstall in both cases). It only appends to a list: no I/O, and no
+// exception escapes, because an exception in AfterInstall would abort the installation. A
+// destination that cannot be recorded is counted, and this run then writes no manifest.
+procedure RecordInstalledFile;
+begin
+  try
+    if InstalledFiles = nil then
+      InstalledFiles := TStringList.Create;
+    InstalledFiles.Add(ExpandConstant(CurrentFileName));
+  except
+    RecordFailures := RecordFailures + 1;
+  end;
+end;
 
 // install.ini in the setup data folder
 function GetInstallIniPath: String;

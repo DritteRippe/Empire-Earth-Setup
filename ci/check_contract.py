@@ -56,10 +56,15 @@ config_<type>.iss.
 
 [Files] lint (contract 2.3): every [Files] entry whose DestDir is {app} or below has the flag
 ignoreversion and none of onlyifdoesntexist, promptifolder and confirmoverwrite, so that every
-run processes every file it lists and the integrity manifest can list it. The entries are read as
-written (also those in #sub blocks, with ISPP line continuations joined) in setup_is6.iss and in
-every file its #include "..." lines name. There are no exceptions: the rule is a MUST of the
-contract, an exception would need a change of the contract first.
+run processes every file it lists and the integrity manifest can list it. There are no exceptions:
+the rule is a MUST of the contract, an exception would need a change of the contract first.
+Every such entry also records its files for the manifest (ADR 0004 point 3): a compiled entry has
+"AfterInstall: RecordInstalledFile"; an entry that the manifest leaves out must not have it: the
+setup data folder (DestDir {app}\\{#SetupDataDir}, preprocessed {app}\\_setupdata_<product>),
+deleteafterinstall files, and external entries (Inno Setup calls their AfterInstall once for all
+files with the folder as CurrentFileName; the verified online files are added by
+installstate.iss). The entries are read as written (also those in #sub blocks, with ISPP line
+continuations joined) in setup_is6.iss and in every file its #include "..." lines name.
 
 --self-test runs the check against modified temporary copies of the repository (one changed
 value per rule, e.g. Music Volume $2C -> $2D, a missing extension, a window limit 1920 -> 2560,
@@ -103,6 +108,9 @@ COMPAT_KEY_SUFFIX = "appcompatflags\\layers"
 COMPAT_FLAGS_CODE = "{code:GetCompatibilityFlags}"
 FILES_REQUIRED_FLAG = "ignoreversion"
 FILES_FORBIDDEN_FLAGS = ["onlyifdoesntexist", "promptifolder", "confirmoverwrite"]
+# AfterInstall of the compiled [Files] entries below {app} (installstate.iss, ADR 0004 point 3)
+FILES_RECORD_PROC = "RecordInstalledFile"
+SETUP_DATA_DIR = re.compile(r"^\{app\}\\(\{#SetupDataDir\}|_setupdata_[A-Za-z]+)$", re.I)
 INCLUDE_LINE = re.compile(r'^\s*#\s*include\s+"([^"]+)"\s*$')
 
 
@@ -1484,14 +1492,17 @@ def own_include_closure(root):
 
 
 def lint_files(root, errors):
-    """Lints the [Files] entries as written in setup_is6.iss and its #include files."""
-    return sum(lint_lines(rel.as_posix(), logical_lines(read_text(root / rel)), errors)
-               for rel in own_include_closure(root))
+    """Lints the [Files] entries as written in setup_is6.iss and its #include files; returns the
+    number of entries below {app} and the number of those with AfterInstall: RecordInstalledFile."""
+    counts = [lint_lines(rel.as_posix(), logical_lines(read_text(root / rel)), errors)
+              for rel in own_include_closure(root)]
+    return sum(c[0] for c in counts), sum(c[1] for c in counts)
 
 
 def lint_lines(name, lines, errors):
-    """Lints the [Files] entries among the logical lines; returns the number below {app}."""
-    checked = 0
+    """Lints the [Files] entries among the logical lines; returns the number below {app} and the
+    number of those that record their files."""
+    checked, recording = 0, 0
     for no, text in lines:
         if not re.match(r"^\s*Source\s*:(?!=)", text):
             continue
@@ -1521,7 +1532,27 @@ def lint_lines(name, lines, errors):
             if flag in flags:
                 errors.append(f"{where}: DestDir {destdir} with the flag {flag} (contract 2.3: "
                               "no entry below the install root may keep an existing file)")
-    return checked
+        after_install = params.get("afterinstall", "").strip()
+        if "external" in flags:
+            left_out = ("an external entry (Inno Setup calls its AfterInstall once, with the folder; "
+                        "installstate.iss adds the verified online files itself)")
+        elif "deleteafterinstall" in flags:
+            left_out = "a deleteafterinstall file (contract 2.3: not in the manifest)"
+        elif SETUP_DATA_DIR.match(destdir):
+            left_out = "the setup data folder (contract 2.3: not in the manifest)"
+        else:
+            left_out = None
+        if left_out:
+            if after_install.lower() == FILES_RECORD_PROC.lower():
+                errors.append(f"{where}: DestDir {destdir} with AfterInstall: {FILES_RECORD_PROC}, but it is "
+                              f"{left_out}")
+        elif after_install.lower() != FILES_RECORD_PROC.lower():
+            errors.append(f"{where}: DestDir {destdir} without AfterInstall: {FILES_RECORD_PROC} (ADR 0004 "
+                          "point 3: every compiled entry below the install root records its files for the "
+                          "manifest)" + (f", it has AfterInstall: {after_install}" if after_install else ""))
+        else:
+            recording += 1
+    return checked, recording
 
 
 # ---------------------------------------------------------------------------------------------
@@ -1591,9 +1622,10 @@ def check(root):
     if compat_rows and len(compat_rows) == len(VARIANTS):
         count = rule("3.7", lambda: check_compatibility(contract_lines, compat_rows, errors))
         summary.append(f"3.7: {count} rows")
-    count = lint_files(root, errors)
+    count, recording = lint_files(root, errors)
     summary.append(f"[Files]: {count} entries below {{app}} with {FILES_REQUIRED_FLAG} and without "
-                   f"{', '.join(FILES_FORBIDDEN_FLAGS)}")
+                   f"{', '.join(FILES_FORBIDDEN_FLAGS)}, {recording} of them with AfterInstall: "
+                   f"{FILES_RECORD_PROC}")
     return errors, "; ".join(summary)
 
 
@@ -1891,6 +1923,26 @@ def self_test(source_root):
          replace(main_script, 'EEStats.dll"; DestDir: "{app}\\{#EEDir}"; Flags: ignoreversion',
                  'EEStats.dll"; DestDir: "{app}\\{#EEDir}"; Flags: ignoreversion confirmoverwrite'),
          "with the flag confirmoverwrite"),
+        ("[Files] entry in a #sub without AfterInstall (Discord)",
+         replace(main_script, 'Components: additional\\discord and {#AddOnComp}; AfterInstall: RecordInstalledFile',
+                 'Components: additional\\discord and {#AddOnComp}'),
+         "without AfterInstall: RecordInstalledFile"),
+        ("[Files] entry on a continued line with another AfterInstall (AoC Base)",
+         replace(main_script, 'Components: gameaoc; AfterInstall: RecordInstalledFile' + crlf + '; AoC Movies',
+                 'Components: gameaoc; AfterInstall: OtherProcedure' + crlf + '; AoC Movies'),
+         "it has AfterInstall: OtherProcedure"),
+        ("[Files] external entry with AfterInstall (verified EE files)",
+         replace(main_script, 'external skipifsourcedoesntexist; Components: game and language\\update;',
+                 'external skipifsourcedoesntexist; Components: game and language\\update; AfterInstall: RecordInstalledFile'),
+         "but it is an external entry"),
+        ("[Files] deleteafterinstall entry with AfterInstall (_wonkver.pub)",
+         replace(main_script, 'Flags: deleteafterinstall ignoreversion recursesubdirs createallsubdirs; Components: game' + crlf,
+                 'Flags: deleteafterinstall ignoreversion recursesubdirs createallsubdirs; Components: game; AfterInstall: RecordInstalledFile' + crlf),
+         "but it is a deleteafterinstall file"),
+        ("[Files] setup data folder with AfterInstall (EEStatsSetup.dll)",
+         replace(main_script, 'createallsubdirs; MinVersion: {#WinXP}' + crlf,
+                 'createallsubdirs; MinVersion: {#WinXP}; AfterInstall: RecordInstalledFile' + crlf),
+         "but it is the setup data folder"),
     ]
     passing = [
         ("ISPP function in an unrelated [Registry] entry",

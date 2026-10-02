@@ -598,7 +598,7 @@ Name: "language\update"; Description: "{cm:CompLanguageUpdate}"; Types: full com
 #define public LobbyLangCount 0
 #define public LobbyLangFirst 0
 #sub LocalizedLanguageDll
-Source: "data\localized-text\{#LocTextBase}Game\{#StringChange(GameLangs[LangIndex], "_", "-")}\{#LocTextGame}\Language.dll"; DestDir: "{app}\{#LocTextDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: {#LocTextComp} and language\{#GameLangs[LangIndex]}
+Source: "data\localized-text\{#LocTextBase}Game\{#StringChange(GameLangs[LangIndex], "_", "-")}\{#LocTextGame}\Language.dll"; DestDir: "{app}\{#LocTextDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: {#LocTextComp} and language\{#GameLangs[LangIndex]}; AfterInstall: RecordInstalledFile
 #endsub
 ; Adds the language LobbyLangIndex to LobbyLangCond if it uses the lobby folder of LangIndex
 #sub CollectLobbyLang
@@ -618,7 +618,7 @@ Source: "data\localized-text\{#LocTextBase}Game\{#StringChange(GameLangs[LangInd
     #if LobbyLangCount > 1
       #expr LobbyLangCond = "(" + LobbyLangCond + ")"
     #endif
-Source: "data\localized-text\{#LocTextBase}Lobby\{#GameLangLobbyDirs[LangIndex]}\{#LocTextLobbySub}\*"; DestDir: "{app}\{#LocTextDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: {#LocTextComp} and {#LobbyLangCond}
+Source: "data\localized-text\{#LocTextBase}Lobby\{#GameLangLobbyDirs[LangIndex]}\{#LocTextLobbySub}\*"; DestDir: "{app}\{#LocTextDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: {#LocTextComp} and {#LobbyLangCond}; AfterInstall: RecordInstalledFile
   #endif
 #endsub
 #sub LocalizedTextFiles
@@ -638,35 +638,42 @@ Source: "data\localized-text\{#LocTextBase}Lobby\{#GameLangLobbyDirs[LangIndex]}
 #define public AddOnOmega ""
 #sub GameAddOnFiles
 ; dreXmod 2 (+privacy patched dll, because nothing allows to disable it in config)
-Source: "data\Add-on\DLLs\dreXmod\2\*"; DestDir: "{app}\{#AddOnDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\drexmod\v2 and {#AddOnComp}
-Source: "data\Add-on\DLLs\dreXmod\2_privacy\*"; DestDir: "{app}\{#AddOnDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\drexmod\v2 and {#AddOnComp} and not additional\telemetry
+Source: "data\Add-on\DLLs\dreXmod\2\*"; DestDir: "{app}\{#AddOnDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\drexmod\v2 and {#AddOnComp}; AfterInstall: RecordInstalledFile
+Source: "data\Add-on\DLLs\dreXmod\2_privacy\*"; DestDir: "{app}\{#AddOnDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\drexmod\v2 and {#AddOnComp} and not additional\telemetry; AfterInstall: RecordInstalledFile
 ; dreXmod 3 (+privacy config)
-Source: "data\Add-on\DLLs\dreXmod\3\*"; DestDir: "{app}\{#AddOnDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\drexmod\v3 and {#AddOnComp}
-Source: "data\Add-on\DLLs\dreXmod\3_privacy\*"; DestDir: "{app}\{#AddOnDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\drexmod\v3 and {#AddOnComp} and not additional\telemetry
+Source: "data\Add-on\DLLs\dreXmod\3\*"; DestDir: "{app}\{#AddOnDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\drexmod\v3 and {#AddOnComp}; AfterInstall: RecordInstalledFile
+Source: "data\Add-on\DLLs\dreXmod\3_privacy\*"; DestDir: "{app}\{#AddOnDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\drexmod\v3 and {#AddOnComp} and not additional\telemetry; AfterInstall: RecordInstalledFile
   #if InstallType == "EE"
 ; Random maps (NeoEE setups install them with the NeoEE base files)
-Source: "data\Add-on\RMS\Omega\{#AddOnOmega}\*"; DestDir: "{app}\{#AddOnDir}\{#RmsSubDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\rms\omega and {#AddOnComp}
-Source: "data\Add-on\RMS\NeoExtra\*"; DestDir: "{app}\{#AddOnDir}\{#RmsSubDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\rms\neoextra and {#AddOnComp}
+Source: "data\Add-on\RMS\Omega\{#AddOnOmega}\*"; DestDir: "{app}\{#AddOnDir}\{#RmsSubDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\rms\omega and {#AddOnComp}; AfterInstall: RecordInstalledFile
+Source: "data\Add-on\RMS\NeoExtra\*"; DestDir: "{app}\{#AddOnDir}\{#RmsSubDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\rms\neoextra and {#AddOnComp}; AfterInstall: RecordInstalledFile
   #endif
 ; dgVoodoo binaries (DirectX 11/12 wrapper) or DDraw.dll (GOG for dx9, DDrawCompat for dx7)
-Source: "data\Add-on\DirectX_Wrapper\dgVoodoo_bin\*"; DestDir: "{app}\{#AddOnDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper and {#AddOnComp} and not additional\directx_wrapper\dx9 and not additional\directx_wrapper\dx7
-Source: "data\Add-on\DirectX_Wrapper\GOG\DDraw.dll"; DestDir: "{app}\{#AddOnDir}"; DestName: "DDraw.dll"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper\dx9 and {#AddOnComp}
-Source: "data\Add-on\DirectX_Wrapper\DDrawCompat\DDraw.dll"; DestDir: "{app}\{#AddOnDir}"; DestName: "DDraw.dll"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper\dx7 and {#AddOnComp}
+Source: "data\Add-on\DirectX_Wrapper\dgVoodoo_bin\*"; DestDir: "{app}\{#AddOnDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper and {#AddOnComp} and not additional\directx_wrapper\dx9 and not additional\directx_wrapper\dx7; AfterInstall: RecordInstalledFile
+Source: "data\Add-on\DirectX_Wrapper\GOG\DDraw.dll"; DestDir: "{app}\{#AddOnDir}"; DestName: "DDraw.dll"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper\dx9 and {#AddOnComp}; AfterInstall: RecordInstalledFile
+Source: "data\Add-on\DirectX_Wrapper\DDrawCompat\DDraw.dll"; DestDir: "{app}\{#AddOnDir}"; DestName: "DDraw.dll"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper\dx7 and {#AddOnComp}; AfterInstall: RecordInstalledFile
 ; dgVoodoo configuration of the selected API level
-Source: "data\Add-on\DirectX_Wrapper\dgVoodoo_conf\dgVoodoo_DX11_LVL10.conf"; DestDir: "{app}\{#AddOnDir}"; DestName: "dgVoodoo.conf"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper\dx11_lvl10 and {#AddOnComp}
-Source: "data\Add-on\DirectX_Wrapper\dgVoodoo_conf\dgVoodoo_DX11_LVL10_1.conf"; DestDir: "{app}\{#AddOnDir}"; DestName: "dgVoodoo.conf"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper\dx11_lvl10_1 and {#AddOnComp}
-Source: "data\Add-on\DirectX_Wrapper\dgVoodoo_conf\dgVoodoo_DX11_LVL11.conf"; DestDir: "{app}\{#AddOnDir}"; DestName: "dgVoodoo.conf"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper\dx11_lvl11 and {#AddOnComp}
-Source: "data\Add-on\DirectX_Wrapper\dgVoodoo_conf\dgVoodoo_DX12_LVL11.conf"; DestDir: "{app}\{#AddOnDir}"; DestName: "dgVoodoo.conf"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper\dx12_lvl11 and {#AddOnComp}
-Source: "data\Add-on\DirectX_Wrapper\dgVoodoo_conf\dgVoodoo_DX12_LVL12.conf"; DestDir: "{app}\{#AddOnDir}"; DestName: "dgVoodoo.conf"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper\dx12_lvl12 and {#AddOnComp}
+Source: "data\Add-on\DirectX_Wrapper\dgVoodoo_conf\dgVoodoo_DX11_LVL10.conf"; DestDir: "{app}\{#AddOnDir}"; DestName: "dgVoodoo.conf"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper\dx11_lvl10 and {#AddOnComp}; AfterInstall: RecordInstalledFile
+Source: "data\Add-on\DirectX_Wrapper\dgVoodoo_conf\dgVoodoo_DX11_LVL10_1.conf"; DestDir: "{app}\{#AddOnDir}"; DestName: "dgVoodoo.conf"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper\dx11_lvl10_1 and {#AddOnComp}; AfterInstall: RecordInstalledFile
+Source: "data\Add-on\DirectX_Wrapper\dgVoodoo_conf\dgVoodoo_DX11_LVL11.conf"; DestDir: "{app}\{#AddOnDir}"; DestName: "dgVoodoo.conf"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper\dx11_lvl11 and {#AddOnComp}; AfterInstall: RecordInstalledFile
+Source: "data\Add-on\DirectX_Wrapper\dgVoodoo_conf\dgVoodoo_DX12_LVL11.conf"; DestDir: "{app}\{#AddOnDir}"; DestName: "dgVoodoo.conf"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper\dx12_lvl11 and {#AddOnComp}; AfterInstall: RecordInstalledFile
+Source: "data\Add-on\DirectX_Wrapper\dgVoodoo_conf\dgVoodoo_DX12_LVL12.conf"; DestDir: "{app}\{#AddOnDir}"; DestName: "dgVoodoo.conf"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper\dx12_lvl12 and {#AddOnComp}; AfterInstall: RecordInstalledFile
 ; Civilizations
-Source: "data\Add-on\Civs\eC\*"; DestDir: "{app}\{#AddOnDir}\Users\default\Civilizations"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\civs\ec and {#AddOnComp}
-Source: "data\Add-on\Civs\eC_full\*"; DestDir: "{app}\{#AddOnDir}\Users\default\Civilizations"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\civs\ec_full and {#AddOnComp}
+Source: "data\Add-on\Civs\eC\*"; DestDir: "{app}\{#AddOnDir}\Users\default\Civilizations"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\civs\ec and {#AddOnComp}; AfterInstall: RecordInstalledFile
+Source: "data\Add-on\Civs\eC_full\*"; DestDir: "{app}\{#AddOnDir}\Users\default\Civilizations"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\civs\ec_full and {#AddOnComp}; AfterInstall: RecordInstalledFile
 ; Discord presence
-Source: "data\Add-on\DLLs\Discord\*"; DestDir: "{app}\{#AddOnDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\discord and {#AddOnComp}
+Source: "data\Add-on\DLLs\Discord\*"; DestDir: "{app}\{#AddOnDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\discord and {#AddOnComp}; AfterInstall: RecordInstalledFile
 #endsub
 
 [Files]
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
+; Integrity manifest (docs/CONTRACT.md 2.3, ADR 0004 point 3): every compiled entry below {app} has
+; "AfterInstall: RecordInstalledFile" (installstate.iss), which records the destination of each
+; file the entry installs or keeps for files.sha256. Not on the setup data folder, not on
+; deleteafterinstall files and not on external entries: Inno Setup calls the AfterInstall of an
+; external entry once for all its files, so installstate.iss adds the verified online files from
+; {tmp}\verified itself. Every entry below {app} also has ignoreversion and none keeps an existing
+; file (onlyifdoesntexist, promptifolder, confirmoverwrite). ci/check_contract.py checks all of it.
 #if CertInclude
   ; DER encoded (CertDerFile), extracted under the name of the certificate (IsCertificateFileGenuine)
   Source: "{#CertDerFile}"; DestDir: "{tmp}"; DestName: "{#CertFileName}"; Flags: deleteafterinstall; Tasks: certinclude;
@@ -687,21 +694,21 @@ Source: "internal\runtime\directx\dxwebsetup.exe"; DestDir: "{tmp}\directx"; Fla
 ; ----------------
 
 ; EE Base
-Source: "data\Empire Earth Base\Empire Earth\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game;
+Source: "data\Empire Earth Base\Empire Earth\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game; AfterInstall: RecordInstalledFile
 ; EE Movies
-Source: "data\Add-on\Movies\EE\*"; DestDir: "{app}\{#EEDir}\Data\Movies"; Flags: ignoreversion recursesubdirs createallsubdirs nocompression; Components: additional\movies and game;
+Source: "data\Add-on\Movies\EE\*"; DestDir: "{app}\{#EEDir}\Data\Movies"; Flags: ignoreversion recursesubdirs createallsubdirs nocompression; Components: additional\movies and game; AfterInstall: RecordInstalledFile
 
 #if InstallType == "NeoEE"
-  Source: "data\NeoEE Base\Empire Earth\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game
-  Source: "data\NeoEE Base\shared\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game
-  Source: "data\Add-on\RMS\Omega\EE\*"; DestDir: "{app}\{#EEDir}\{#RmsSubDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game
-  Source: "data\Add-on\RMS\NeoExtra\*"; DestDir: "{app}\{#EEDir}\{#RmsSubDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game
-  Source: "data\NeoEE - Admin\Empire Earth\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game; Check: IsAdminInstallMode
-  Source: "data\NeoEE - User\Empire Earth\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game; Check: not IsAdminInstallMode
+  Source: "data\NeoEE Base\Empire Earth\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game; AfterInstall: RecordInstalledFile
+  Source: "data\NeoEE Base\shared\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game; AfterInstall: RecordInstalledFile
+  Source: "data\Add-on\RMS\Omega\EE\*"; DestDir: "{app}\{#EEDir}\{#RmsSubDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game; AfterInstall: RecordInstalledFile
+  Source: "data\Add-on\RMS\NeoExtra\*"; DestDir: "{app}\{#EEDir}\{#RmsSubDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game; AfterInstall: RecordInstalledFile
+  Source: "data\NeoEE - Admin\Empire Earth\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game; Check: IsAdminInstallMode; AfterInstall: RecordInstalledFile
+  Source: "data\NeoEE - User\Empire Earth\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game; Check: not IsAdminInstallMode; AfterInstall: RecordInstalledFile
   Source: "data\NeoEE - CDKeys\authtools.dll"; DestDir: "{tmp}"; DestName: "authtools.dll"; Flags: dontcopy noencryption nocompression; Components: game;
   Source: "data\NeoEE - CDKeys\_wonkver.pub"; DestDir: "{app}\{#EEDir}"; Flags: deleteafterinstall ignoreversion recursesubdirs createallsubdirs; Components: game
   ; NeoEE - Wine Fix (GDI)
-  Source: "data\NeoEE - Wine\NeoEE.cfg"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game; Check: IsWine
+  Source: "data\NeoEE - Wine\NeoEE.cfg"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: game; Check: IsWine; AfterInstall: RecordInstalledFile
 #endif
 
 ; EE localized text (Language.dll, lobby files) of the selected game language
@@ -714,6 +721,8 @@ Source: "data\Add-on\Movies\EE\*"; DestDir: "{app}\{#EEDir}\Data\Movies"; Flags:
 #endif
 
 ; EE Online Lang Any Based Content (only downloads that passed the checks of downloads.iss)
+; RecordVerifiedOnlineFiles (installstate.iss) adds the files of the three {tmp}\verified entries to
+; the manifest with the same folders and components; change both together
 Source: "{tmp}\verified\EE\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs external skipifsourcedoesntexist; Components: game and language\update;
 
 ; Add-on files (see GameAddOnFiles)
@@ -721,55 +730,55 @@ Source: "{tmp}\verified\EE\*"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion r
 #call GameAddOnFiles
 
 ; EEStats
-Source: "data\Add-on\DLLs\EEStats\EEStats.dll"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\telemetry and game; MinVersion: {#Win7}
+Source: "data\Add-on\DLLs\EEStats\EEStats.dll"; DestDir: "{app}\{#EEDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\telemetry and game; MinVersion: {#Win7}; AfterInstall: RecordInstalledFile
 
 ; HD
 Source: "data\Add-on\HD\terrain\*"; DestDir: "{app}\{#EEDir}\Data\Textures"; \
-  Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\hd\terrain and game
+  Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\hd\terrain and game; AfterInstall: RecordInstalledFile
 
 ; Music
 Source: "data\Add-on\HD\music\*"; DestDir: "{app}\{#EEDir}\Data\Sounds"; \
-  Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\hd\music and game
+  Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\hd\music and game; AfterInstall: RecordInstalledFile
 
 ; Tech
 Source: "data\Add-on\HD\tech\*"; DestDir: "{app}\{#EEDir}\Data\Textures"; \
-  Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\hd\tech and game
+  Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\hd\tech and game; AfterInstall: RecordInstalledFile
 
 ; Building
 Source: "data\Add-on\HD\buildings\*"; DestDir: "{app}\{#EEDir}\Data\Textures"; \
-  Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\hd\buildings and game
+  Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\hd\buildings and game; AfterInstall: RecordInstalledFile
 
 ; Effects
 Source: "data\Add-on\HD\effects\*"; DestDir: "{app}\{#EEDir}\Data\Textures"; \
-  Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\hd\effects and game
+  Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\hd\effects and game; AfterInstall: RecordInstalledFile
 
 ; ----------------
 
 ; AoC Base
 Source: "data\Empire Earth Base\Empire Earth - The Art of Conquest\*"; DestDir: "{app}\{#AoCDir}"; \
-  Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc;
+  Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc; AfterInstall: RecordInstalledFile
 ; AoC Movies
 Source: "data\Add-on\Movies\AoC\*"; DestDir: "{app}\{#AoCDir}\Data\Movies"; \
-  Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\movies and gameaoc;
+  Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\movies and gameaoc; AfterInstall: RecordInstalledFile
 
 #if InstallType == "NeoEE"
   Source: "data\NeoEE Base\Empire Earth - The Art of Conquest\*"; DestDir: "{app}\{#AoCDir}"; \
-    Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc
+    Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc; AfterInstall: RecordInstalledFile
   Source: "data\NeoEE Base\shared\*"; DestDir: "{app}\{#AoCDir}"; \
-    Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc
+    Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc; AfterInstall: RecordInstalledFile
   Source: "data\Add-on\RMS\Omega\AoC\*"; DestDir: "{app}\{#AoCDir}\{#RmsSubDir}"; \
-    Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc
+    Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc; AfterInstall: RecordInstalledFile
   Source: "data\Add-on\RMS\NeoExtra\*"; DestDir: "{app}\{#AoCDir}\{#RmsSubDir}"; \
-    Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc
+    Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc; AfterInstall: RecordInstalledFile
   Source: "data\NeoEE - Admin\Empire Earth - The Art of Conquest\*"; DestDir: "{app}\{#AoCDir}"; \
-    Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc; Check: IsAdminInstallMode
+    Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc; Check: IsAdminInstallMode; AfterInstall: RecordInstalledFile
   Source: "data\NeoEE - User\Empire Earth - The Art of Conquest\*"; DestDir: "{app}\{#AoCDir}"; \
-    Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc; Check: not IsAdminInstallMode
+    Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc; Check: not IsAdminInstallMode; AfterInstall: RecordInstalledFile
   Source: "data\NeoEE - CDKeys\_wonkver.pub"; DestDir: "{app}\{#AoCDir}"; \
     Flags: deleteafterinstall ignoreversion recursesubdirs createallsubdirs; Components: gameaoc
   ; NeoEE - Wine Fix (GDI)
   Source: "data\NeoEE - Wine\NeoEE.cfg"; DestDir: "{app}\{#AoCDir}"; \
-    Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc; Check: IsWine
+    Flags: ignoreversion recursesubdirs createallsubdirs; Components: gameaoc; Check: IsWine; AfterInstall: RecordInstalledFile
 #endif
 
 ; AoC localized text (Language.dll, lobby files) of the selected game language
@@ -819,7 +828,7 @@ Source: "{app}\{#AoCDir}\*.ini"; DestDir: "{app}\{#AoCDir}"; Permissions: authus
 ; ---------------------
 ;         Tools
 ; ---------------------
-Source: "data\Add-on\Tools\Diagnostic\*"; DestDir: "{app}\Tools\Diagnostic"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\tools\diagnostic;
+Source: "data\Add-on\Tools\Diagnostic\*"; DestDir: "{app}\Tools\Diagnostic"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\tools\diagnostic; AfterInstall: RecordInstalledFile
 
 [Dirs]
 ; ---------------------
