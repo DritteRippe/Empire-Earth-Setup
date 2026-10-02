@@ -185,6 +185,22 @@ Refactoring and quality fixes (no new game content).
   section 6 recommends pinning the files known at build time, with its trade-off (a pinned file
   that changes on the servers is discarded until the next setup). README: "Online localized
   files", "Build script".
+- Compatibility flags on Windows 7 as an option: the new unchecked task "Enable compatibility
+  flags (optional on Windows 7: can help if the game looks blurry or does not fit on the screen
+  with enlarged display scaling)" (`compatibility_legacy`, message `TaskCompatibilityLegacy` in
+  English, German and French), shown only below Windows 8 and not under Wine, on the tasks page of
+  the custom settings. It writes `~ DWM8And16BitMitigation HIGHDPIAWARE HeapClearAllocation`, with
+  `RUNASADMIN` in front if "Always run the game as administrator, for all users" is selected too,
+  for `Empire Earth.exe` (component `game`) and `EE-AOC.exe` (component `gameaoc`), in HKLM for an
+  administrative installation, else in HKCU, and the uninstaller removes it; it never adds the
+  Windows XP SP3 mode. Compared with official 1.7.2 this is the value of `EE-AOC.exe` there without
+  the XP mode, now for both programs and off by default. The cleanup of the old Windows Vista/7
+  values keeps the value of a program that the run writes with the task (pure helper
+  `ShouldRemoveLegacyVistaCompatValue`, 48 unit tests) and logs it as "written by this run"; a run
+  without the task removes it like every old value. Why: R15 asks to keep the compatibility
+  options user-selectable, and without `HIGHDPIAWARE` Windows 7 scales the game at 150 % display
+  scaling (contract O4). Decision record 0010; README "Compatibility and graphics options"; test
+  cases TP-20, TP-21 and TP-24 have variants with the task (virtual machine only, `P3`).
 
 ### Changed
 - The hidden setup data folder (holds `EEStatsSetup.dll` for the uninstaller) is now
@@ -261,11 +277,27 @@ Refactoring and quality fixes (no new game content).
   marker; contract 3.7 has a table of the compatibility values (none on Windows Vista/7 except the
   opt-in `~ RUNASADMIN`, O7); O4, O11 and O12 are answered. Documentation only, later packages
   implement it.
-- Compatibility values on Windows Vista/7: the setup writes none any more. The tasks "Enable
-  compatibility flags" and "Enable earlier Windows compatibility mode" exist on Windows 8 and later
-  only, where nothing changes (`WIN7RTM`, the flags `DWM8And16BitMitigation HIGHDPIAWARE
+- `docs/CONTRACT.md`, revision 2 after the second review of the v2 plan (still contract version 1,
+  draft, because every change is compatible by its section 5; the same text and commit subject in
+  the launcher repository): tables of the window size limits (3.3) and of the GPU preference values
+  (3.4); in 3.7 the row of the opt-in task `compatibility_legacy` ("7 only"), the marker
+  `(opt-in)`, the exception from the cleanup of the old values, and for the launcher: such a value
+  is no leftover if `Tasks` contains the task; while `EE_Setup` or `NeoEE_Setup` exists the
+  launcher reads neither `install.ini` nor `files.sha256` and runs no check, and it opens them with
+  `FILE_SHARE_READ` and `FILE_SHARE_DELETE` (4.2, 2.5); the setup writes
+  `Empire Earth Community: ContractVersion` only if it replaced `install.ini` and the manifest, so a
+  manifest it could not replace is Unknown, not detectable for portable installations (1.3, 2.1,
+  2.5). `ci/check_contract.py` also checks the tables of 3.3 (`MinGameWindowWidth` ...
+  `MaxGameWindowHeight`) and 3.4 (the GPU preference entries), and in 3.7 the Windows versions from
+  `MinVersion` and `OnlyBelowVersion`, tasks joined by `or` in `GetCompatibilityFlags`, the opt-in
+  marker and two entries that could write the value of one program in the same run (55 self-test
+  cases).
+- Compatibility values on Windows Vista/7: the setup writes none by default any more. The tasks
+  "Enable compatibility flags" and "Enable earlier Windows compatibility mode" exist on Windows 8 and
+  later only, where nothing changes (`WIN7RTM`, the flags `DWM8And16BitMitigation HIGHDPIAWARE
   HeapClearAllocation`, the GPU preference); on Windows Vista/7 only the opt-in task "Always run
-  the game as administrator, for all users" can still write `~ RUNASADMIN`. Compared with the
+  the game as administrator, for all users" can still write `~ RUNASADMIN`, and on Windows 7 the
+  opt-in task `compatibility_legacy` the flags without the XP mode (see Added). Compared with the
   official 1.7.2 setups, `Empire Earth.exe` still gets no value on Windows 7 (its Vista/7 entries
   never applied because of the version filter `0.6.2`) and `EE-AOC.exe` no longer gets
   `~ DWM8And16BitMitigation HIGHDPIAWARE HeapClearAllocation WINXPSP3`. Compared with the refactor
