@@ -1,8 +1,11 @@
 # 0008. SHA-256 files of the built setups, CI check of the contract, a log of every setup run
 
-- Status: Accepted (implemented by S-WP2)
+- Status: Accepted (implemented by S-WP5; copy check by S-WP1, source checks by S-WP2)
 - Date: 2026-10-02
-- Requirements: R14, D5 ("the `GameSettings` block is the source of truth"), R18
+- Requirements: R14, D5 ("the `GameSettings` block is the source of truth"), R18, contract O12
+- Revised: 2026-10-02, plan review before implementation (the check reads only tables of the
+  contract; `[Files]` flag lint; local copy check of the contract; encoding and message checks of
+  every own script)
 
 ## Context
 
@@ -24,16 +27,31 @@
    maintainers publish the hash next to the download and how players check it
    (`Get-FileHash <file> -Algorithm SHA256`, `sha256sum -c`).
 2. **Contract check:** `ci/check_contract.py` (Python 3, no dependencies) parses `setup_is6.iss` and
-   `utils.iss` and fails if `docs/CONTRACT.md` differs from them:
+   `utils.iss` and fails if `docs/CONTRACT.md` differs from them. It reads **only tables** of the
+   contract, never prose:
    - every value of the `GameSettings` sub (name, type, data, `deletevalue` = class S/D,
      `createvalueifdoesntexist` = class P) and the ending epochs passed to it, against the table of
      contract 3.2;
    - `CodeFileExtensions` against the `code` row of contract 2.4;
-   - the flags of `BuildCompatibilityFlags` and the Windows layers of the compatibility entries
-     against contract 3.7;
-   - `#define ContractVersion` (from S-WP3) against the contract header.
-   It runs in the CI workflow next to `check_messages.py` and in the local verification.
-3. **Setup log:** `[Setup] SetupLogging=yes`: every run writes `Setup Log <date> #<n>.txt` to the
+   - the flags of `BuildCompatibilityFlags`, the tasks and the Windows versions of the compatibility
+     entries against the table that the contract revision (S-WP1) adds to contract 3.7;
+   - `#define ContractVersion` (added by S-WP5) against the contract header table.
+   It also lints `[Files]`: every entry below `{app}` has `ignoreversion` and none has
+   `onlyifdoesntexist`, `promptifolder` or `confirmoverwrite` (contract 2.3, the manifest lists
+   every file the run processed). Its parser handles ISPP line continuations and `#expr`/`#call`
+   only as far as these blocks need, and `--self-test` runs it against modified copies (one changed
+   value per rule) that must fail. It runs in the CI workflow next to `check_messages.py` and in the
+   local verification.
+3. **Copy check of the contract (O12, local):** CI cannot reach the other repository, so
+   `ci/compare_contract.py <path of the other clone>` compares the SHA-256 of both `docs/CONTRACT.md`
+   files and is part of the local verification of every package that touches the contract. Every
+   contract change is one step that changes both copies in the same run, with the same commit
+   subject, and runs the checks of both repositories.
+4. **Source checks** (S-WP2): every own top-level `*.iss` starts with the UTF-8 BOM and has only
+   CRLF line ends (Inno Setup 6.2 reads BOM-less files as ANSI); `check_messages.py` takes its list
+   of own scripts from the `#include` lines of `setup_is6.iss` plus the root `*.iss` files, minus
+   third-party code under `internal/`, so that a new module is checked from its first commit.
+5. **Setup log:** `[Setup] SetupLogging=yes`: every run writes `Setup Log <date> #<n>.txt` to the
    user's temporary folder (the log lists no secrets, see ARCHITECTURE 6). The README and the test
    plan say where to find it.
 
@@ -51,7 +69,8 @@
 
 - A release has one more artefact per setup; the website must show or link it.
 - A change of a default fails CI until the contract (in both repositories) is updated: intended.
-- The check cannot verify the launcher's copy of the contract (no network in CI, contract O12).
+- CI cannot verify the launcher's copy of the contract (no network in CI); the local copy check covers
+  it for every package that touches the contract (O12 answered: locally, not in CI).
 
 ## Alternatives considered
 

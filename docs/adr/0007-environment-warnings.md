@@ -1,8 +1,11 @@
 # 0007. Read-only warnings for low resolution, foreign installations and a shared EE/NeoEE folder
 
-- Status: Accepted (implemented by S-WP5)
+- Status: Accepted (implemented by S-WP8)
 - Date: 2026-10-02
 - Requirements: R12, R13, contract question O11
+- Revised: 2026-10-02, plan review before implementation (installing into the folder of a retail or
+  GOG installation is asked like the shared folder; the shared-folder question names the firewall
+  rules)
 
 ## Context
 
@@ -17,7 +20,13 @@ The forum study found recurring problems the setup could point out before instal
   (report 4.19).
 - **EE and NeoEE in one folder:** the setup allows it (separate setup data folders), but the
   integrity manifest of the product installed first becomes unreliable and uninstalling one product
-  removes files of the other (contract 1.4 and O11).
+  removes files of the other (contract 1.4 and O11), and also its firewall rules: they are deleted by
+  program path (`netsh advfirewall firewall delete rule program="{app}\...\Empire Earth.exe"
+  name=all` in `[Run]` and `[UninstallRun]`), which is the same path for both products.
+- **Installing into the folder of another installation** (retail CD, GOG): players did it on purpose
+  (t=5825 p=39087: the game copied to `X:\Sierra\Empire Earth` so that an installer found it). The
+  result is a mix of file versions, and the uninstaller of the community setup later removes files
+  that belong to the other installation.
 
 ## Decision
 
@@ -50,11 +59,20 @@ silent installation (silent: log only).
 3. **Shared folder (O11):** when the user leaves the folder page and the chosen folder already holds
    the other product (`_setupdata_<other product>` exists, or the other product's uninstall key has
    this folder as `Inno Setup: App Path`, which also finds 1.7.2 installations), a Yes/No question
-   explains the consequences and recommends another folder; "Yes" (default) stays on the folder
-   page, "No" continues.
-4. The folder-page checks only run when the page is shown: an update in place keeps the previous
-   folder (`UsePreviousAppDir`), whose state was checked at the first installation.
-5. New texts in English, German and French; every finding is logged.
+   (`SharedFolderQuestion`) explains the consequences (the integrity check of the other product,
+   uninstalling one removes files **and the firewall rules** of the other) and recommends another
+   folder; "Yes" (default) stays on the folder page, "No" continues.
+4. **Folder of another installation (R12):** the same kind of question (`ForeignFolderQuestion`,
+   default "choose another folder") when `{app}\Empire Earth` or `{app}\Empire Earth - The Art of
+   Conquest` is the same as or inside a folder found in point 2 (the folder of an HKLM
+   "Installed From" value, `<system drive>\Sierra\Empire Earth`, `{commonpf32}\Sierra\Empire
+   Earth`), or the other way round. The comparison is a pure, unit-tested helper
+   `IsSameOrInside(Root, Candidate)` (case-insensitive, normalized separators and trailing
+   backslash, `C:\Sierra2` is not inside `C:\Sierra`).
+5. The folder-page checks only run when the page is shown: an update in place keeps the previous
+   folder (`UsePreviousAppDir`), whose state was checked at the first installation. In silent mode
+   the questions are not asked: the findings are logged and the installation continues.
+6. New texts in English, German and French; every finding is logged.
 
 ## Evidence
 
@@ -81,5 +99,7 @@ silent installation (silent: log only).
 - **Offer to delete leftovers:** irreversible, risks `Software\Sierra\CDKeys` and player data; the
   launcher's cleanup with `.reg` backup (contract 3.8) is the right place.
 - **Block the installation:** the old installation may be wanted.
+- **Only a notice for the retail/GOG folder:** too weak for the one case that mixes files and lets the
+  uninstaller delete files of another installation.
 - **Check at start instead of at the folder page:** the chosen folder is unknown then, so the shared
   folder case and own "Installed From" values could not be told apart.

@@ -3,6 +3,8 @@
 - Status: Accepted
 - Date: 2026-10-02
 - Requirements: D2
+- Revised: 2026-10-02, plan review before implementation (`UTF8Encode` is not available; every API
+  listed below is now proven by a probe compile)
 
 ## Context
 
@@ -29,8 +31,16 @@ Needed by v2 and present in 6.2.2:
   RequiredSHA256OfFile, OnDownloadProgress)` (since 6.1; `ScriptFunc_R.pas`, `Install.pas` of
   6.2.2), see [ADR 0003](0003-built-in-downloads-instead-of-idp.md).
 - `GetSHA256OfFile` at run time (already used by `downloads.iss`), `SaveStringToFile`,
-  `UTF8Encode`, `AfterInstall` with `CurrentFileName`, `[Registry]` `HKA` with
-  `uninsdeletekey`/`uninsdeletekeyifempty`.
+  `RenameFile`, `AfterInstall` with `CurrentFileName`, `[Registry]` `HKA` with
+  `uninsdeletekey`/`uninsdeletekeyifempty`, `CreateOutputProgressPage` (`SetProgress` processes
+  window messages), `RegWriteDWordValue` on `HKA`, `MinVersion` on `[Tasks]`, the
+  `WinHttpRequest.Option[9]` property assignment, `TDownloadWizardPage.AbortedByUser`.
+- **Not** present: `UTF8Encode` (`ScriptFunc_R.pas` does not register it; ISCC 6.2.2 reports
+  "Unknown identifier 'UTF8Encode'"), hence the ASCII manifest of
+  [ADR 0004](0004-install-record-and-integrity-manifest.md).
+- Proof: a probe script that uses every API of this list compiles with ISCC 6.2.2 under Wine
+  (2026-10-02, plan review; compiled, not run). Each work package that uses one of them proves the
+  run-time behaviour with its unit tests or its test plan case.
 
 Breaking changes of newer versions that affect this script:
 

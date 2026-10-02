@@ -3,6 +3,8 @@
 - Status: Accepted
 - Date: 2026-10-02
 - Requirements: D1
+- Revised: 2026-10-02, plan review before implementation (`UTF8Encode` removed from the list of
+  available functions)
 
 ## Context
 
@@ -28,7 +30,8 @@ change is intended, listed in the CHANGELOG and visible as such in the real-data
 - The setup already has CI (four variants against placeholder assets), unit tests of the Pascal
   helpers (113 tests), a message check and build-helper tests. A rewrite would start from zero.
 - Everything v2 needs is available in Inno Setup 6.2.2: `[Registry]` with `HKA` and uninstall flags,
-  `AfterInstall`/`CurrentFileName`, `GetSHA256OfFile`, `SaveStringToFile`/`UTF8Encode`, built-in
+  `AfterInstall`/`CurrentFileName`, `GetSHA256OfFile`, `SaveStringToFile` (ASCII text; `UTF8Encode`
+  does not exist in 6.2.2, see [ADR 0002](0002-stay-on-inno-setup-6.2.2.md)), built-in
   downloads with SHA-256 checks ([ADR 0003](0003-built-in-downloads-instead-of-idp.md)).
 
 ## Consequences

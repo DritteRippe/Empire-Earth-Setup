@@ -1,8 +1,10 @@
 # 0003. Replace the Inno Download Plugin by Inno Setup's built-in downloads
 
-- Status: Accepted (implemented by S-WP1)
+- Status: Accepted (implemented by S-WP3)
 - Date: 2026-10-02
 - Requirements: D3, R16, R17
+- Revised: 2026-10-02, plan review before implementation (stop button vs. mirror, size check only
+  with `Content-Length`, removal of IDP as a separate commit)
 
 ## Context
 
@@ -32,11 +34,24 @@ Use Inno Setup 6.2.2's built-in download support and remove IDP:
   `TDownloadWizardPage.Download` stops at the first failing file.
 - The pin is **not** passed to Inno Setup: the code checks the SHA-256 right after each download, so
   that a mismatch can be told apart from a network error (precise notice, `DownloadFileRejected`),
-  the file is deleted and the mirror is tried. Without a pin Inno Setup checks the received size
-  against `Content-Length`, which detects truncated transfers of unpinned data files (IDP did not).
-- The stop button of the page (`AbortedByUser`) skips the remaining downloads; the installation
-  continues with the files of the setup, and the notice lists everything that was skipped. This is
-  the old IDP behaviour with `AllowContinue=1`.
+  the file is deleted and the mirror is tried. Without a pin Inno Setup compares the received size
+  with `Content-Length` **if the server sends one** (`Install.pas`: only when `ProgressMax > 0`); a
+  chunked answer is accepted without a size check, which the setup logs for that file. The operator
+  guide requires `Content-Length` for `/localized/`.
+- **The stop button ends all downloads, it never starts the mirror.** `TDownloadWizardPage.Download`
+  resets `AbortedByUser` at the start of every call, and a stop raises an exception like a network
+  error. So, directly after every exception of `Download`, the code copies `AbortedByUser` into its
+  own flag `DownloadsStoppedByUser`; once it is set, no further URL is requested (no mirror, no
+  next file), every remaining file counts as skipped, the installation continues with the files of
+  the setup, and the notice lists everything that was skipped (the old IDP behaviour with
+  `AllowContinue=1`). What happens after each attempt is decided by a pure, unit-tested helper in
+  `utils.iss`, `NextDownloadAction(Outcome, MirrorAllowed, MirrorTried, StoppedByUser)`, with the
+  outcomes success, failure and pin mismatch and the actions accept, try mirror, give up on this
+  file and stop all; the tests cover success, network error, pin mismatch, stop at the main server,
+  stop at the mirror and a file without an allowed mirror.
+- IDP (`internal/lib/idp`, its `#include` and `[Files]` entry) is removed in a separate, last commit
+  of the package, so that the switch can be reverted on its own if the Windows test finds a problem
+  with the built-in engine.
 - `VerifyDownloadedFiles` (at `ssInstall`) stays as it is apart from asking the download list
   instead of `idpFileDownloaded`: it checks the pins again and moves accepted files to
   `{tmp}\verified`, the only folder `[Files]` installs downloads from.
@@ -97,9 +112,10 @@ the silent mode. Both are cases of the test plan.
 - The page is responsive during a transfer (the progress callback processes messages) and has a stop
   button; IDP's detailed mode and its error dialog with the URL list are gone, the final notice
   lists the files instead.
-- Unit tests keep covering the policy (`GetOnlineFileCheck`, `IsCodeFileName`, `IsHttpsUrl`); the
-  download loop itself is tested on Windows (main server with invalid certificate, mirror, offline,
-  stop button, `/VERYSILENT`).
+- Unit tests keep covering the policy (`GetOnlineFileCheck`, `IsCodeFileName`, `IsHttpsUrl`) and the
+  decision after each attempt (`NextDownloadAction`); the download loop itself is tested on Windows
+  (`docs/TEST-PLAN.de.md`: main server with invalid certificate, mirror, offline, stop button at the
+  main server and at the mirror, `/VERYSILENT`, Korean).
 
 ## Alternatives considered
 

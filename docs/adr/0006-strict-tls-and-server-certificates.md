@@ -1,8 +1,10 @@
 # 0006. Strict TLS everywhere, TLS 1.2 on Windows 7, operator guide for the file server certificate
 
-- Status: Accepted (implemented by S-WP1)
+- Status: Accepted (implemented by S-WP3)
 - Date: 2026-10-02
 - Requirements: R16, D3
+- Revised: 2026-10-02, plan review before implementation (TLS 1.2 on Windows 7 is a hypothesis to
+  be tested; the setup never changes SChannel; release criterion for the file servers)
 
 ## Context
 
@@ -21,6 +23,10 @@ to the mirror `storage.ee.zocker-160.de`.
 Windows 7 SP1 and Windows 8/Server 2012 do not offer TLS 1.1/1.2 to WinHTTP applications that use the
 default protocols.
 
+The mirror could not be checked from the analysis environment. If its certificate is invalid too,
+setup v2 installs no localized files at all, while 1.7.2 still downloaded them from the main server
+(IDP ignored the certificate error): a regression for every player who is not playing in English.
+
 ## Decision
 
 1. **Keep strict validation.** No option to ignore certificate errors, no HTTP fallback, neither for
@@ -31,19 +37,34 @@ default protocols.
    downloads. On Windows 8.1 and later the OS defaults stay (they include TLS 1.2 and, on Windows 11,
    TLS 1.3). If setting the option fails, the request continues with the defaults and the failure
    is logged. `WinHttpRequestOption_EnableHttpsToHttpRedirects` keeps its default (off).
+   **That this gives TLS 1.2 on Windows 7 SP1 without KB3140245 and without SChannel changes is a
+   hypothesis**, see Evidence; the test plan checks it in a Windows 7 VM (without and with the update
+   and the SChannel values: update API, probe and download, with the cause in the log). A unit test
+   sets the option on a `WinHttpRequest` object without sending a request (Wine), so that the
+   run-time syntax of the call is proven, not only its compilation.
+   **The setup never changes SChannel or WinHTTP registry values** (`DisabledByDefault`,
+   `DefaultSecureProtocols`) or other system-wide TLS settings. If TLS 1.2 does not work on a
+   Windows 7 system, the README (support section) names the Microsoft update; the user decides.
 3. **User-friendly fallback:** the log names the cause of a failed probe or download (the WinHTTP or
    download error text, e.g. a certificate error) and which server is used instead; a working mirror
    needs no message. If neither server works the notice `OnlineFilesUnreachable` says that the
-   servers could not be reached or did not present a valid certificate, that nothing is missing for
-   playing in English/with the included files, and that the setup can be run again later
-   (en/de/fr text update).
-4. **Operator guide:** `docs/SERVER-OPERATIONS.md` (S-WP1) lists what the file servers must provide
+   servers could not be reached **or did not present a valid certificate (a problem of the servers,
+   not of this computer)**, that the game is installed with the included files (English texts and
+   voices), and that the setup can be run again later to add the language (en/de/fr text update).
+4. **Operator guide:** `docs/SERVER-OPERATIONS.md` (S-WP3) lists what the file servers must provide
    (a certificate valid for the exact host name with the full chain, TLS 1.2, the `localized` layout
    on both servers, no redirect to `http://`, identical files on main server and mirror) and how to
    check it (`curl -sSI https://files.empireearth.eu/localized/`, `openssl s_client -connect
    files.empireearth.eu:443 -servername files.empireearth.eu`), including the fix for the current
    problem (enable a certificate for `files.empireearth.eu` in the hosting control panel, e.g. Let's
-   Encrypt for the multisite entry).
+   Encrypt for the multisite entry). It also asks for `Content-Length` on every file below
+   `/localized/` (without it the setup cannot check the size of unpinned files) and for a handshake
+   check that covers Windows 7 clients (e.g. the SSL Labs handshake simulation "IE 11 / Win 7") for
+   `api.empireearth.eu`, `files.empireearth.eu` and the mirror.
+5. **Release criterion:** a v2 release needs at least one file server (main server or mirror) with a
+   valid certificate that serves the `/localized/` files. If neither has one, that is a release
+   blocker on the server side, not a setup defect; the first case of the test plan (TP-00) checks
+   both servers before any other test.
 
 ## Evidence
 
@@ -51,8 +72,12 @@ default protocols.
   Windows" (KB3140245; applies to Windows 7 SP1, Server 2008 R2 SP1, Server 2012): applications that
   rely on the default protocols cannot use TLS 1.1/1.2 without the update and a registry value;
   "This update will not change the behavior of applications that are manually setting the secure
-  protocols instead of passing the default flag", i.e. setting the protocols explicitly is the way
-  that works without the update.
+  protocols instead of passing the default flag". This says only that the update does not change such
+  applications, **not** that they get TLS 1.2 without it. The same article also says that "for TLS 1.1
+  and 1.2 to be enabled and negotiated on Windows 7, you MUST create the `DisabledByDefault` entry
+  ... and set it to 0" (SChannel, client). `DisabledByDefault` is documented as "disabled unless the
+  application asks for it", which an explicit protocol set does; whether that suffices, and whether
+  the cipher suites of the servers match Windows 7's SChannel, is not proven here, hence the test.
 - Microsoft, `WinHttpRequestOption` enumeration: `WinHttpRequestOption_SecureProtocols` selects the
   acceptable protocols; `WinHttpRequestOption_EnableHttpsToHttpRedirects`: "By default, all
   redirects are automatically followed, except those that transfer from a secure (https) URL to a
@@ -66,9 +91,10 @@ default protocols.
 
 ## Consequences
 
-- Windows 7 SP1 with current root certificates can use the update API and the downloads without
-  KB3140245; systems without updated root certificates still cannot (strict validation), the
-  installation continues with the setup's own files.
+- Expected, to be confirmed by the Windows 7 test: Windows 7 SP1 with current root certificates can
+  use the update API and the downloads without KB3140245; systems without updated root certificates
+  or without a usable TLS 1.2 handshake cannot (strict validation), the installation continues with
+  the setup's own files and the log names the cause.
 - Windows 11 keeps TLS 1.3 for `HttpGet` because the option is only set on old Windows.
 - Until the server certificate is fixed, every download comes from the mirror; the test plan checks
   this path on purpose.
