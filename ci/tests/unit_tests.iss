@@ -1443,10 +1443,11 @@ end;
 
 // The walk of TestFindLinksInGameFolder with junctions (Windows only): Data\Movies replaced by one
 // (ADR 0009, test plan TP-80), one in the folder of a player, one in redist (not examined); none of
-// them is entered, the folder they point to stays unchanged
+// them is entered, the folder they point to stays unchanged. Then a junction whose target is gone:
+// Windows lists the junction itself, so it is found as well.
 procedure CheckFindLinksWithJunctions(const Game, Scratch: String; const Findings: TStringList);
 var
-  Found: String;
+  Found, Gone: String;
   Folders, ReparseFiles, I: Integer;
 begin
   RemoveDir(Game + '\Data\Movies');
@@ -1469,6 +1470,20 @@ begin
   RemoveDir(Game + '\Users\Bob\Profile');
   RemoveDir(Game + '\redist\Junction');
   CheckBool('junctions removed, target kept', (not DirExists(Game + '\Data\Movies')) and FileExists(Scratch + '\Deep\target.txt'), True);
+
+  Gone := ExpandConstant('{tmp}\link_gone');
+  ForceDirectories(Gone);
+  CheckBool('mklink /J Data\Sounds', MakeJunction(Game + '\Data\Sounds', Gone), True);
+  CheckBool('target of Data\Sounds deleted', RemoveDir(Gone) and not DirExists(Gone), True);
+  Findings.Clear;
+  Folders := 0;
+  ReparseFiles := 0;
+  FindLinksInGameFolder(Game, '', Findings, Folders, ReparseFiles);
+  Found := '';
+  for I := 0 to Findings.Count - 1 do
+    Found := Found + '[' + Findings[I] + ']';
+  Check('FindLinksInGameFolder junction without target: findings', Found, '[' + Game + '\Data\Sounds]');
+  RemoveDir(Game + '\Data\Sounds');
 end;
 
 // The walk of the link check over a folder tree in {tmp}: without links, then (Windows only) with
