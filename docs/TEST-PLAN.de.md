@@ -22,7 +22,8 @@ Inhalt: [1. Zweck](#1-zweck) · [2. Sicherheitsregeln](#2-sicherheitsregeln) ·
 [6. Testbuild herstellen](#6-testbuild-herstellen) ·
 [7. Kurzdurchlauf und Freigabe](#7-kurzdurchlauf-p1-und-freigabe) · [8. Testfälle](#8-testfälle) ·
 [9. Forum-Testfälle §8](#9-forum-testfälle-8) · [10. Protokoll](#10-protokoll) ·
-[11. Automatische Prüfung](#11-automatische-prüfung-dieses-dokuments)
+[11. Automatische Prüfung](#11-automatische-prüfung-dieses-dokuments) ·
+[12. Ende-zu-Ende-Test auf GitHub](#12-automatischer-ende-zu-ende-test-auf-github)
 
 Wer den Plan zum ersten Mal benutzt: [Abschnitt 2](#2-sicherheitsregeln) lesen, dann den
 Kurzdurchlauf in [Abschnitt 7](#7-kurzdurchlauf-p1-und-freigabe); er führt durch die nötigen Teile
@@ -41,6 +42,11 @@ von Abschnitt 5, 6 und 8.
   begründet ausgenommen.
 - Nicht Teil dieses Plans: der Launcher (eigene Tests im Launcher-Repository) und der Betrieb der
   Dateiserver; nur deren Zustand prüft [TP-00](#tp-00-server-vorabprüfung) vorab.
+- Seit ADR 0011 installiert, prüft und deinstalliert ein automatischer Ende-zu-Ende-Test die
+  Setups mit echten Daten auf einem Windows-Runner von GitHub. Er übernimmt die Teile der Fälle,
+  die keinen Menschen, keine Grafikkarte, kein Windows 7 und keinen Spielstart brauchen;
+  [Abschnitt 12](#12-automatischer-ende-zu-ende-test-auf-github) sagt, welche. Die Fälle und die
+  Freigabe in Abschnitt 7 ändert das nicht.
 
 ## 2. Sicherheitsregeln
 
@@ -2958,3 +2964,71 @@ ausgenommenen P1-Teilen und ihrem Grund.
   Block und zählt nicht als ID).
 
 `python ci/check_test_plan.py --self-test` prüft die Prüfung selbst mit veränderten Kopien.
+
+## 12. Automatischer Ende-zu-Ende-Test auf GitHub
+
+Der Workflow `.github/workflows/e2e-realdata.yml` ([ADR 0011](adr/0011-real-data-end-to-end-test-in-ci.md),
+README „End-to-end test on Windows“) baut die Setups EE und NeoEE (Regular, echte AppIds,
+`-TestID 0`, unsigniert) aus den Dateien der offiziellen Setups 1.7.2 auf einem Windows-Runner von
+GitHub, den GitHub nach dem Lauf verwirft, und spielt dort fünf Szenarien still durch
+(`/VERYSILENT /SUPPRESSMSGBOXES`, Windows PowerShell 5.1, `ci/e2e/run_e2e.ps1`):
+
+| Szenario | Ablauf |
+|---|---|
+| A | EE-admin, Deutsch, Typ „full“; der Hauptserver ist per `hosts` gesperrt, der Spiegel nur während dieses Setups frei (der einzige Lauf mit Downloads); Launcher-Prüfung für das installierende und ein frisches Konto; Deinstallation |
+| B | NeoEE-user, Englisch, ohne CD-Key-Aufgabe; Reparatur mit einer Junction in `Data`; Deinstallation |
+| E | EE-admin in einen eigenen Ordner neben Spuren einer fremden Installation (alter NeoEE-Schlüssel in HKLM, `C:\Sierra\Empire Earth`, ein GOG-Uninstall-Eintrag auf den gewählten Ordner, zwei Einträge, die nicht zählen dürfen) |
+| D | auf E: Junction in `Data` und feste Verknüpfung in `Users` (Exitcode 7, nichts geändert), dann Update ohne DirectX-Wrapper; Deinstallation |
+| C | offizielles Setup 1.7.2, v2 darüber, 1.7.2 noch einmal, v2 noch einmal, Schäden aus Sicht des Launchers, Reparatur, Deinstallation |
+
+Nach jedem Lauf prüft er den Vertrag (K1 bis K15: Installationseintrag, `install.ini`,
+Uninstall-Schlüssel, Manifest mit neu berechneten Hashes, Spieleinstellungen, GPU-Präferenz,
+Marker, Kompatibilitätswerte, CD-Key-Platzhalter, Dateien, Firewall-Regeln, Verknüpfungen,
+Schreibrechte, Setup-Log, keine HTTP-Anfrage bei Englisch), die Downloads (DL), die Deinstallation
+(U) und mit dem Launcher-Kern des Launcher-Forks jede Installation (L). Nie gewählt werden die
+Telemetrie, die NeoEE-CD-Key-Registrierung, das Root-Zertifikat, DirectPlay und die
+DirectX-Laufzeit; ein Platzhalter unter `Software\Sierra\CDKeys` muss alles überstehen.
+
+Die Tabelle sagt je Fall, was der Test übernimmt. „automatisch“: alle Teile des Falls ohne
+Spielstart und ohne Bedienung des Assistenten; „teilweise“: die genannten Teile, der Rest bleibt
+Handtest; „nein“: der Fall bleibt ganz beim Tester. Ein grüner Lauf ersetzt keinen Fall des
+Kurzdurchlaufs, und das Freigabekriterium in [Abschnitt 7](#7-kurzdurchlauf-p1-und-freigabe)
+bleibt; ein roter Lauf auf dem Commit eines Testbuilds ist aber ein Befund, bevor der Tester
+beginnt. Der Runner ist ein Windows Server (Image `windows-latest`) ohne Grafikkarte, mit einem
+einzigen Administratorkonto und ohne Bildschirm für den Assistenten.
+
+| Fall | Abdeckung | Wo im Test | Bleibt beim Tester |
+|---|---|---|---|
+| TP-00 | teilweise | A: HEAD-Anfragen an den Spiegel (`/localized/` und `Game/de/EE/Data/data.ssa`) direkt vor dem Setup, Ergebnis als Zeile `install/TP-00` | der Hauptserver und sein Zertifikat; der Zustand der Server aus Sicht des Testrechners |
+| TP-10 | teilweise | A, DL: Hauptserver nicht erreichbar (per `hosts` gesperrt statt ungültigem Zertifikat, derselbe Zweig im Code), alle Downloads vom Spiegel, 10 gepinnte und 10 ungepinnte Dateien registriert, Weiterleitungsprüfung über https, jede Datei mit ihrem Pin bzw. im Manifest mit demselben Hash | ein echtes ungültiges Zertifikat, NeoEE-admin (`Mods/NeoEE/`), die Download-Seite |
+| TP-11 | nur bei Spiegelausfall | A, DL: antwortet der Spiegel nicht, erwartet die Prüfung den Zweig ohne Server (`Unable to reach the online files server! …`) und meldet `SERVER` statt eines Fehlers | der ganze Fall |
+| TP-12, TP-13 | nein | | Stopp-Knopf der Download-Seite (interaktiv) |
+| TP-14 | teilweise | A ist Teil a: `/VERYSILENT /SUPPRESSMSGBOXES /ALLUSERS /LANG=de` endet ohne Bedienung innerhalb des Zeitlimits mit Exitcode 0 und `Installation process succeeded.` (K14), Downloads wie TP-10 | b bis d und EE-portable |
+| TP-15 | nein | | Koreanisch (nur ein Lauf je Test hat eine andere Sprache als Englisch) |
+| TP-16 | nein | | manipulierter Download (braucht einen manipulierten Server); der Test prüft nur, dass echte Downloads zu ihren Pins passen |
+| TP-17, TP-20, TP-21 | nein | | Windows 7 |
+| TP-22 | teilweise | K8 in A (Teil a), C nach dem Update über 1.7.2 (Teil e) und B (NeoEE-user statt d) | b, c und Windows 8.1 (f), der Spielstart |
+| TP-23, TP-24 | nein | K6 und K10 prüfen nur, dass GPU-Präferenz und Wrapper der Wahl der GPU-Seite folgen | Grafikmatrix, Anzeigeskalierung |
+| TP-30 | nein | | SHA-256-Datei der Setups, Log ohne `/LOG` (der Test startet jedes Setup mit `/LOG`) |
+| TP-40 | teilweise | K1 bis K3 und K7 in A und E (Teil a) und B (NeoEE-user); C: 1.7.2 über v2 entfernt die Vertragsversion aus dem Uninstall-Schlüssel, Eintrag und `install.ini` bleiben (Teil f), v2 stellt sie wieder her | b, c, d (NeoEE-admin neben EE-admin), e |
+| TP-41 | teilweise | K5 für das installierende Konto; L: das frische Konto, wie es der Launcher sieht (simuliert durch Löschen der Spieleinstellungen) | ein echtes zweites Konto, Over-the-Shoulder-Erhöhung |
+| TP-50 | teilweise | K4 nach jeder Installation, jedem Update und jeder Reparatur: Format, jede Zeile neu gehasht, genau die installierten Dateien; C: geänderte und fehlende Dateien aus Sicht des Launchers, Reparatur | gesperrte Datei (c), portable, Zeitmessung (e), die Seite „Installierte Dateien“ |
+| TP-60 | nein | | niedrige Auflösung (K5 prüft nur die Fenstergröße zur Zeile `Screen:`) |
+| TP-61 | teilweise | E: Teile a und b still (alter NeoEE-Schlüssel in HKLM, Ordner `C:\Sierra\Empire Earth`, GOG-Eintrag; Einträge der Community und von Empire Earth II zählen nicht; das Setup ändert keinen davon) | c (NeoEE-user), d (echte CD- oder GOG-Installation), e (verboten: CD-Keys) |
+| TP-62 | nein | | EE und NeoEE im selben Ordner |
+| TP-63 | teilweise | E: Teil c still, mit einem GOG-Eintrag auf den gewählten Ordner statt `C:\Sierra` (Frage `ForeignFolderQuestion` im Log, nicht gestellt) | a und b (Frage im Assistenten) |
+| TP-70 | teilweise | A (EE-admin) und B (NeoEE-user): Installation, alle Prüfungen, Deinstallation (U) | Spielstart, NeoEE-admin, EE-user, portable, der Assistent |
+| TP-71, TP-72 | nein | | Standardbenutzer, Mehrspieler |
+| TP-73 | teilweise | C: Schäden (geänderte Datendatei, fehlende Code-Datei, fehlendes Programm), der Launcher erkennt sie, Reparatur still statt über den Assistenten (Teil a); B: Reparatur einer NeoEE-user-Installation | b, c, d |
+| TP-74 | teilweise | K5: `Installed From` für EE und AoC in A (Teil a) und B (NeoEE-user) | NeoEE-admin, EE-user, der Start von AoC |
+| TP-75 | nein | | EE und NeoEE gleichzeitig installiert, eines deinstalliert |
+| TP-76 | teilweise | K11: die vier Regeln je Programm mit der Aufgabe `firewallexception` bei EE-admin (A, E, D) statt NeoEE-admin (Teil a); keine Regeln bei NeoEE-user (B, Teil d); U: Regeln nach der Deinstallation weg | b, Hosten mit Mitspieler (c) |
+| TP-77 | nein | | verboten: die NeoEE-CD-Key-Registrierung läuft im Test nie |
+| TP-78 | teilweise | A: die deutschen Dateien für EE und AoC heruntergeladen, geprüft und im Manifest | NeoEE-admin, Spielstart |
+| TP-79 | nein | | Setup bei laufendem Spiel |
+| TP-80 | teilweise | D: Junction in `Data` (wie Teil c) und feste Verknüpfung in `Users` (wie Teil f) stoppen das stille Update mit Exitcode 7, nichts geändert, Ziel unberührt; danach läuft das Update durch (wie f2); B: Junction bei einer user-Installation, keine Prüfung (Teil e). Die Links legt das Administratorkonto an, nicht ein Standardbenutzer | a, b und d, die Seite „Vorbereitung der Installation“ |
+
+Was der Test über die Fälle hinaus prüft: den Platzhalter unter `Software\Sierra\CDKeys` nach
+jedem Schritt, dass kein Setup das Root-Zertifikat des offiziellen Setups einträgt, und mit dem
+Launcher-Kern den Zustand jeder Installation (Erkennung, schnelle und volle Integritätsprüfung,
+Standardwerte, Maschinenzustand).

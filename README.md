@@ -192,7 +192,7 @@ On Linux with Wine: `ISCC='<Windows path of ISCC.exe>' sh ci/tests/run_unit_test
 `ci\tests\build_helpers.tests.ps1` tests the helpers of the build script (`ci\build_helpers.ps1`: hash list, DER copy of PEM and DER certificates, test build number, the SHA-256 file of a setup: content, LF, no BOM, overwriting, and `sha256sum -c` where that program exists; the online files a setup can download, read from the real `setup_is6.iss`, and which of them have no pin, also against changed copies of the script whose new files must be listed and whose unknown statements must stop it) with generated test certificates, and runs a copy of `ci\build.ps1` with a fake ISCC that records the switches it gets (e.g. `-TestID`) and checks the SHA-256 file next to every setup and the warning of a release build; it needs neither Inno Setup nor the game data and also runs with PowerShell 7 on Linux.
 
 ### Testing on Windows
-Installers are never run in CI. The manual tests on real Windows (a laptop and virtual machines) are described in German in [docs/TEST-PLAN.de.md](docs/TEST-PLAN.de.md): safety rules (placeholder builds only in a virtual machine or on a snapshot, only your own legally obtained game data, never delete `Software\Sierra\CDKeys`, never pass a test build on, where the setup log is), how to make a test build, the server pre-check `TP-00` and every test case with its id `TP-xy`, its priority (`P1`: the short run before every release, `P2`: important, outside the short run, `P3`: optional, e.g. Windows 7 only), the build type, the starting state and the snapshot to use. All 33 cases of setup v2 are worked out, and the forum test cases 1 to 22 of the save-ee.com study are each assigned to a case (or to the launcher, or excluded with a reason); a new change adds the cases it needs.
+The build workflow never runs an installer; the real-data end-to-end workflow runs them only on a throwaway GitHub-hosted runner with every server blocked (see [End-to-end test on Windows](#end-to-end-test-on-windows)), and nobody runs them on a development machine by script. The manual tests on real Windows (a laptop and virtual machines) are described in German in [docs/TEST-PLAN.de.md](docs/TEST-PLAN.de.md): safety rules (placeholder builds only in a virtual machine or on a snapshot, only your own legally obtained game data, never delete `Software\Sierra\CDKeys`, never pass a test build on, where the setup log is), how to make a test build, the server pre-check `TP-00` and every test case with its id `TP-xy`, its priority (`P1`: the short run before every release, `P2`: important, outside the short run, `P3`: optional, e.g. Windows 7 only), the build type, the starting state and the snapshot to use. All 33 cases of setup v2 are worked out, and the forum test cases 1 to 22 of the save-ee.com study are each assigned to a case (or to the launcher, or excluded with a reason); a new change adds the cases it needs.
 
 - **Placeholder build** (way A, setup mechanics only): `ci\build.ps1 -Placeholders -TestID 1`. Copy the real `EEStatsSetup.dll` of your own installation to `data\Add-on\DLLs\EEStats\` first: the setup loads it at start, a placeholder stops it.
 - **Placeholder build with the official AppIds** (way A+, the update over setup 1.7.2 without the game data): `ci\build.ps1 -Placeholders -EEAppID <GUID> -NeoEEAppID <GUID> -TestID 1 -OutputDir out\aplus`, with the AppIds read from the uninstall key of your own installation (`reg query`). For Windows such a setup is the published product: it updates an installation of 1.7.2 in place and replaces the game files by placeholders. Run it only in a virtual machine or in Windows Sandbox where the official setup 1.7.2 was installed first, **never on a computer with your real installation**.
@@ -201,6 +201,98 @@ Installers are never run in CI. The manual tests on real Windows (a laptop and v
 - **Short run before a release:** section 7 of the test plan combines the `P1` cases into ten steps on the laptop and in Windows Sandbox, about 2.5 hours with ways A and A+ and at most three hours with the way B step. A state (commit) is released when every `P1` case with all its `P1` parts passed or is excepted with a reason (e.g. "no data" for the way B parts); `P2` and `P3` cases (Windows 7 and 8.1, original CD, GOG, second accounts and computers) do not block a release.
 
 A new case gets the next free id of its block; `python ci/check_test_plan.py` checks the form of the plan (unique ids, every case with a valid status, a priority `P1`, `P2` or `P3` and the fields of the template, the short run naming exactly the `P1` cases within three hours, the forum test cases 1 to 22 assigned) and that every id named in the documentation exists.
+
+### End-to-end test on Windows
+`.github/workflows/e2e-realdata.yml` builds the real-data setups and installs, checks and uninstalls them on a GitHub-hosted
+Windows runner (`windows-latest`), which GitHub throws away after the job. The result is a red or green check in the pull
+request and a German/English table in the job summary. It runs for every pull request that changes a setup script
+(`*.iss`), `internal/lib`, `internal/unofficial_isl`, `ci/` or the workflow, and by hand: *Actions* > *E2E real data* >
+*Run workflow* (input `launcher_ref`: the branch of the launcher fork whose checks run, default `v2`). Run it once by hand
+on `v2` so that pull requests find the caches; expect about two hours per run.
+
+What the job does, in this order:
+
+1. **Official setups**: downloads the two official setups 1.7.2 (`EE_Setup.exe`, `NeoEE_Setup.exe` from
+   `r2.empireearth.eu`, public downloads), checks their SHA-256 in every run and keeps them unchanged in the Actions cache.
+2. **innoextract 1.10-dev** (1.9 cannot read Inno Setup 6.2.2 setups; there is no Windows binary of 1.10-dev): built from
+   a pinned commit with MSYS2/MinGW as a static `innoextract.exe` (only system DLLs, checked with `objdump`) and cached.
+3. **Assets**: extracts both setups, decompresses their setup headers (`ci/e2e/inno_headers.py`, the wizard bitmaps are
+   stored there) and puts every file the v2 build reads at its source path (`ci/e2e/place_assets.py`). Which file goes
+   where comes from the committed, data-free map `ci/e2e/assets-map.tsv`: one row per file (path, size, SHA-1, last write
+   time, product, origin) and per empty folder, no content. Every placed file is checked again (size, SHA-1, time), and the
+   asset folders may hold nothing else.
+4. **Build**: `ci/build.ps1` with Inno Setup 6.2.2 for `EE/Regular` and `NeoEE/Regular`, the real AppIds (an update over
+   1.7.2 needs them), release build (`-TestID 0`), unsigned (no certificate, so the task `certinclude` does not exist).
+   Then `ci/e2e/readset.py` checks that the preprocessed scripts read exactly the files of the map (a new or renamed asset
+   fails here until the map is generated again, see below) and that `data\localized-text.sha256` is the one of the map.
+5. **Safety before any setup runs** (`ci/e2e/run_e2e.ps1 -Phase Prepare`): the hosts file blocks (IPv4 and IPv6)
+   `api.empireearth.eu` (update API and every statistics endpoint, also those of `EEStats.dll`), `files.empireearth.eu`,
+   `storage.ee.zocker-160.de`, `neoee.net`, `www.neoee.net`, `titan.empireearth.eu`, `empireearth.eu`, `www.empireearth.eu`
+   and `www.gog.com`, and the job proves it (no address, no HTTPS answer, no WinHTTP proxy). `Software\Sierra\CDKeys` must
+   not exist in any view; the job then seeds the dummy value `CI-Dummy` = `NOT-A-KEY-0000` in HKCU, HKLM (64-bit) and HKLM
+   (32-bit) and checks after every setup run, uninstallation and launcher check that it is unchanged (only "intact or not"
+   is ever printed). No setup runs unless this phase passed.
+6. **Scenarios** (Windows PowerShell 5.1, `ci/e2e/run_e2e.ps1 -Phase A|B|E|D|C`), each starting from a clean machine:
+
+   | Scenario | What runs |
+   |---|---|
+   | A | EE for all users, German, type full: the only run with downloads (the mirror is unblocked only while this setup runs; the main server stays blocked, so the way "main server unusable, mirror" is tested); checks, launcher checks (installing account, then a fresh account), uninstallation |
+   | B | NeoEE for the current user, English, without the CD key task; a repair with a junction in `Data` (no link check in the user mode); uninstallation |
+   | E | EE for all users into `C:\EE CI\Custom Root` next to traces of a foreign installation (an HKLM key of an old NeoEE installer, `C:\Sierra\Empire Earth`, a GOG uninstall entry pointing into the chosen folder, two entries that must not count) |
+   | D | On E: a junction in `Data` and a hard link in `Users` stop the update with exit code 7 and change nothing; then an update without the DirectX wrapper; uninstallation |
+   | C | The official EE setup 1.7.2, v2 over it (components, tasks, the player's game settings by class, the old per-user `RUNASADMIN`, the random map folders), 1.7.2 again (the uninstall key loses the contract version), v2 again, damage as the launcher sees it (a modified data file, a missing code file, a missing program), repair, uninstallation |
+
+   After every run the checks of the contract: K1 install record (1.1), K2 `install.ini`, components and tasks (1.2),
+   K3 uninstall key (1.3), K4 integrity manifest (format, every line hashed again, the file tree), K5 game settings
+   (3.1 to 3.3, the window size from the log line `Screen:`), K6 GPU preference, K7 defaults marker, K8 compatibility values
+   (3.7), K9 CD key dummy, K10 files and privacy (no `EEStats.dll`, the privacy `dreXmod.config`, the wrapper the GPU page
+   chose, the NeoEE programs of the install mode, no `_wonkver.pub`), K11 firewall rules, K12 shortcuts, K13 write
+   permissions, K14 the setup log (expected and forbidden lines), K15 no HTTP request in English runs, DL the downloads
+   (pins, the redirect check over https, every download in the manifest with the same hash), U what the uninstaller must
+   remove. L runs the launcher core of the launcher fork (`Empire-Earth-Launcher.RealMachineTests`, category `RealMachine`)
+   against the real installation with an expectation file per step: discovery, quick and full integrity check, the state
+   of the defaults, the defaults of the launcher start for the installing and for a fresh account, and the machine state.
+7. **Report**: `ci/e2e/report.py` writes the table to the job summary; the job is red if any check fails or a scenario did
+   not run to its end. `SERVER` marks a community server that did not answer while the setup behaved correctly.
+
+**Hard rules of the job** (enforced by the scripts before a setup starts, `Test-E2ESetupArguments`): never the telemetry
+component; never the tasks `neoee_cdkeys` (the NeoEE CD key registration and `authtools.dll` never run), `certinclude`
+(the official setups would add their root certificate; the job checks the certificate stores), `directplay` or
+`dxwebsetup`; the official setup and every NeoEE setup only with an explicit `/TASKS` list (they preselect those tasks);
+at most one run in a language other than English (the localized files of one language are downloaded once per run from
+the mirror); the official setups only from the cache or `r2.empireearth.eu` before the hosts block.
+
+**Legal note: no game data leaves the runner.** The extracted files, the placed asset folders, the built installers and
+the installations exist only in the job workspace and the temporary folder of the runner and are deleted at the end of the
+job (GitHub discards the runner anyway). They are never committed, cached, uploaded or printed: innoextract runs with `-q`,
+the scripts print counts, paths and check results only, and every hash in the report is replaced by `<hash>`. Only two
+caches exist, the unchanged official setups (public downloads) and `innoextract.exe`, each saved explicitly by path. The
+only upload is the report folder (`e2e-realdata-report`: setup logs, launcher results, the expectation files, the report);
+`ci/e2e/guard_upload.py` refuses it unless it is a separate folder holding at most 400 text files of at most 8 MB each and
+64 MB together, none a link, none with the signature of a binary file and none with the SHA-1 of a file of the map. The map
+holds names, sizes, SHA-1 values and times of the files of the official setups, nothing of their content.
+
+**Not covered** (stays with [docs/TEST-PLAN.de.md](docs/TEST-PLAN.de.md)): starting the game, graphics cards and the
+effect of the GPU preference (the runner has none, the GPU page chooses the DirectX 9 wrapper there), Windows 7 and 8.1, a
+second Windows account (the launcher's fresh account is simulated by removing the game settings), interactive pages and
+messages, the stop button of the downloads, display scaling and low resolutions, the NeoEE CD keys, signed builds and the
+portable variants. Section 12 of the test plan lists which test cases the job covers.
+
+**Self-tests**: the tools of the job are tested without game data in every build (`build.yml`) and in the first step of
+the job: `python -m unittest discover -s ci/e2e/tests -p "test_*.py"` (header extraction with a made-up setup, placing
+files, the read set against the map, the upload guard, the report, the committed map is well-formed) and
+`powershell -ExecutionPolicy Bypass -File ci\e2e\tests\e2e_helpers.tests.ps1` (every rule of the checks with fake data,
+also under PowerShell 7 on Linux; all scripts of `ci/e2e` must parse in Windows PowerShell 5.1 and be ASCII).
+
+**Regenerating the map** (maintainers, locally, only with the official setups): after a change of `[Files]` or `[Setup]`
+that adds, renames or removes an asset, the step "Check the build inputs against the map" fails. Then extract both official
+setups with innoextract 1.10-dev (`innoextract -e --collisions=rename-all -d x\EE EE_Setup.exe`, the same for NeoEE),
+decompress their headers (`python ci/e2e/inno_headers.py EE_Setup.exe hd\EE`, the same for NeoEE), make a folder with the
+complete asset folders of a real-data build (e.g. `ci/e2e/place_assets.py` with the old map plus the new files), run
+`ci\build.ps1 -DownloadHashesOnly` there and preprocess `EE/Regular` and `NeoEE/Regular` (`ci\build.ps1 ... -KeepPreprocessed pp`),
+then `python ci/e2e/gen_map.py --assets <folder> --pp EE=pp\EE_Regular.iss --pp NeoEE=pp\NeoEE_Regular.iss --extract
+EE=x\EE NeoEE=x\NeoEE --headers EE=hd\EE NeoEE=hd\NeoEE --out ci/e2e/assets-map.tsv`. It fails if a file the build reads is
+not in one of the official setups (then the job cannot place it). Commit only the map, never the folders.
 
 ### Verify
 Before a commit, run the checks that the change touches. The CI workflow runs all of them except the copy check of the contract:
@@ -214,13 +306,14 @@ Before a commit, run the checks that the change touches. The CI workflow runs al
 | Test plan: unique test case ids, a status and a priority per case, the short run (exactly the `P1` cases, at most three hours), forum test cases 1 to 22 assigned, every id named in the documentation defined | `python ci/check_test_plan.py` (`--self-test` checks the check itself) |
 | The tables of the contract match the script; `[Files]` flags below `{app}` | `python ci/check_contract.py` (`--self-test` checks the check itself) |
 | Both copies of the contract are identical | `python ci/compare_contract.py <launcher clone>` |
+| Tools of the end-to-end test (no game data) | `python -m unittest discover -s ci/e2e/tests -p "test_*.py"` and `powershell -ExecutionPolicy Bypass -File ci\e2e\tests\e2e_helpers.tests.ps1` (also `pwsh` on Linux) |
 
 `docs/CONTRACT.md` exists in this repository and in the [launcher repository](https://github.com/EE-modders/Empire-Earth-Launcher) and must stay byte-identical; a change of the contract is one step in both repositories (same text, same commit subject). CI cannot reach the other repository, so after every change of the contract run the copy check against a local clone of the launcher, e.g. `python ci/compare_contract.py ../Empire-Earth-Launcher` (the clone's root folder or its `docs/CONTRACT.md`). Exit code 0: identical, the SHA-256 is printed; 1: different, both SHA-256 values and the first differing line are printed (and a hint if only the line endings differ, see `core.autocrlf`); 2: a file is missing. `python ci/compare_contract.py --self-test` checks the script itself.
 
 `python ci/check_contract.py` checks that the tables of the contract match the script, the source of truth, and runs in CI: the contract version in its header against `#define ContractVersion` of `setup_is6.iss`, the publishers of the products (0) against `MyAppPublisher` of `config_ee.iss`/`config_neoee.iss` and the constants `CommunityPublisherEE`/`CommunityPublisherNeoEE` of `utils.iss`, the row `code` of 2.4 against `CodeFileExtensions` (`utils.iss`), the table of 3.2 against the `[Registry]` values of the game settings keys (name, type, data of both games including the ending epochs, class S/D = `deletevalue`, P = `createvalueifdoesntexist`), the table of 3.3 against the constants `MinGameWindowWidth` ... `MaxGameWindowHeight` (`utils.iss`), the table of 3.4 against the GPU preference entries (program, component, data, Windows versions, task) and the table of 3.7 against the compatibility entries (the flags of each task, the Windows compatibility mode, the Windows versions from `MinVersion` and `OnlyBelowVersion` of the tasks and entries, `(opt-in)` for an unchecked task, the root per install mode and the order; two entries that could write the value of one program in the same run are an error). It reads only tables, never the prose of the contract, and preprocesses `[Registry]` for all four build variants with a small interpreter of the ISPP directives used there; a directive or function it does not know is an error, not a guess. It also lints `[Files]` (contract 2.3): every entry whose `DestDir` is `{app}` or below has `ignoreversion` and none has `onlyifdoesntexist`, `promptifolder` or `confirmoverwrite`, so that every run processes every file it installs and the integrity manifest can list it, and the external entries that install the verified online files from `{tmp}\verified` must name the same sources, folders and components as `RecordVerifiedOnlineFiles` (`installstate.iss`), which adds those files to the manifest. A change of a default therefore fails CI until the contract is changed too, in both repositories, followed by the copy check above. `python ci/check_contract.py --self-test` runs it against modified copies (e.g. `Music Volume` `$2C` -> `$2D`, another publisher in `config_neoee.iss`, an extension missing, the window width limit 1920 -> 2560, `GpuPreference=1;`, `WIN7RTM` -> `WIN8RTM`, the row `compatibility_legacy` missing or with `WINXPSP3`, an entry without `ignoreversion`, the learning campaign recorded in the wrong folder) that must fail. After the placeholder build, `python ci/check_contract.py --preprocessed out/preprocessed` (CI; locally after `ci\build.ps1 -Placeholders -KeepPreprocessed out\preprocessed`) compares the `[Registry]` entries of that interpreter with the scripts ISCC itself preprocessed, for all four variants, and lints their fully expanded `[Files]` sections.
 
 ### Continuous integration
-`.github/workflows/build.yml` checks the messages and the own scripts (`python ci/check_messages.py` and its `--self-test`), checks the test plan (`python ci/check_test_plan.py` and its `--self-test`), checks the contract against the script (`python ci/check_contract.py`, its `--self-test`, and after the build `--preprocessed out/preprocessed`), runs the self-test of the contract copy check (`python ci/compare_contract.py --self-test`), the unit tests and the build script tests, runs the placeholder build with Inno Setup 6.2.2 on `windows-latest` for every push and pull request and uploads the preprocessed script of every variant as an artifact.
+`.github/workflows/build.yml` checks the messages and the own scripts (`python ci/check_messages.py` and its `--self-test`), checks the test plan (`python ci/check_test_plan.py` and its `--self-test`), checks the contract against the script (`python ci/check_contract.py`, its `--self-test`, and after the build `--preprocessed out/preprocessed`), runs the self-test of the contract copy check (`python ci/compare_contract.py --self-test`), the unit tests, the build script tests and the self-tests of the end-to-end tools, runs the placeholder build with Inno Setup 6.2.2 on `windows-latest` for every push and pull request and uploads the preprocessed script of every variant as an artifact. `.github/workflows/e2e-realdata.yml` builds and tests the real-data setups on Windows, see [End-to-end test on Windows](#end-to-end-test-on-windows).
 
 ### Conventions
 The own `.iss` files are UTF-8 **with BOM** and CRLF (see `.editorconfig` and `.gitattributes`): Inno Setup 6.2 reads files without BOM as ANSI and would break non-ASCII text. Release notes go into [CHANGELOG.md](CHANGELOG.md). After changing `messages.iss` or any own script, run `python ci/check_messages.py`: it reports duplicate messages, `==` typos, unknown language prefixes and messages that are used but not defined, which Inno Setup compiles without a warning, translations out of the standard order (`--sort` fixes that), and every own script without the UTF-8 BOM or with a line end other than CRLF. It finds the own scripts itself (every `*.iss` in the root folder and in `ci/tests`, plus every file named by an `#include "..."` line of `setup_is6.iss` or of a script found that way, without `internal/`), so a new module is checked from its first commit. `--coverage` adds the list of missing translations per language (see [TRANSLATING.md](TRANSLATING.md)).

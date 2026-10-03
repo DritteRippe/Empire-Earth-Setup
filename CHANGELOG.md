@@ -396,6 +396,27 @@ setup version stays 1.7.2 until the release.
   short run names exactly the `P1` cases and takes at most 180 minutes (six new self-test cases, 28
   in all). README: what is new in setup v2 (under "Features"), way A+ and the short run (under
   "Testing on Windows").
+- Real-data end-to-end test on a GitHub-hosted Windows runner (`.github/workflows/e2e-realdata.yml`,
+  README "End-to-end test on Windows", ADR 0011): the job downloads the official setups 1.7.2
+  (cached unchanged, SHA-256 checked), builds innoextract 1.10-dev with MSYS2 (cached), puts the
+  files of the official setups where the build reads them (`ci/e2e/place_assets.py` with the
+  data-free map `ci/e2e/assets-map.tsv`: names, sizes, SHA-1 values and times, no content;
+  `ci/e2e/inno_headers.py` for the wizard bitmaps of the setup headers; `ci/e2e/gen_map.py`
+  regenerates the map), builds the EE and NeoEE setups (Regular, real AppIds, unsigned) and checks
+  that the scripts read exactly the files of the map (`ci/e2e/readset.py`). With every server of the
+  setups blocked in the hosts file and a dummy CD key value seeded, it runs five scenarios
+  (`ci/e2e/run_e2e.ps1`, Windows PowerShell 5.1): EE for all users in German with the downloads from
+  the mirror, NeoEE for the current user without the CD key task, EE next to a foreign
+  installation, the link guard (exit code 7) and an update without wrapper, and the official 1.7.2
+  with v2 over it, back and forth, damage and repair; after each run the contract checks (install
+  record, `install.ini`, uninstall key, the manifest hashed again, game settings, GPU preference,
+  marker, compatibility values, firewall rules, shortcuts, permissions, the setup log) and the
+  launcher core of the launcher fork against the installation (`Empire-Earth-Launcher.RealMachineTests`).
+  The job is red if a check fails; the job summary has a German/English table
+  (`ci/e2e/report.py`). Only logs and the report are uploaded, after `ci/e2e/guard_upload.py`
+  checked that they are small text files and no file of the map; no game data is committed,
+  cached, uploaded or printed. The tools are tested without game data in `build.yml`
+  (`ci/e2e/tests`). `docs/TEST-PLAN.de.md`, section 12: which test cases the job covers.
 
 ### Changed
 - The hidden setup data folder (holds `EEStatsSetup.dll` for the uninstaller) is now
