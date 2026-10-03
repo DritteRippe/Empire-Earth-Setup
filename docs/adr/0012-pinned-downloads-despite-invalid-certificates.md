@@ -136,19 +136,20 @@ not the certificate. Files without pin keep the strict rule of ADR 0003 and ADR 
 - **Inno Setup 6.2.2** (`ScriptDlg.pas`): `TOutputProgressWizardPage.SetProgress` calls
   `ProcessMsgs`, so the stop button of the page is processed between two reads;
   `TDownloadWizardPage.Download` resets `AbortedByUser`, nothing else does.
-- **Laptop retest 2026-10-03** (TP-10 (a), installers built from `02afce0`, German, EE and AoC,
-  recommended settings, telemetry off): EE-admin and NeoEE-admin passed. Main server "certificate
-  invalid" (answers only without validation), mirror without DNS (WinHTTP 12007, not used); EE 17
-  and NeoEE 18 pinned downloads over WinHTTP, every SHA-256 and size equal to its pin,
-  `All 20` and `All 22 online files accepted` (these counts include the shared lobby files copied
-  for AoC), no notice. No intro movie: its component is not part of the recommended settings.
+- **Laptop retest 2026-10-03** (TP-10 (a), installers built from `02afce0`, on Windows 10.0.26300
+  (Windows 11), German, EE and AoC, recommended settings, telemetry off): EE-admin and NeoEE-admin
+  passed. Main server "certificate invalid" (answers only without validation), mirror without DNS
+  (WinHTTP 12007, not used); EE 17 and NeoEE 18 pinned downloads over WinHTTP, every SHA-256 and
+  size equal to its pin, `All 20` and `All 22 online files accepted` (these counts include the
+  shared lobby files copied for AoC), no notice. No intro movie: its component is not part of the
+  recommended settings.
 
 ## Consequences
 
-- Players get the voices, campaigns and intro movie of their language again from
-  `files.empireearth.eu`, as long as the files there are the pinned ones. A file that changes there
-  is discarded until a setup with new pins is released (operator rule: version files instead of
-  overwriting them).
+- Players get the voices, campaigns and intro movie of their language (the movie with the component
+  "Install intro videos") again from `files.empireearth.eu`, as long as the files there are the
+  pinned ones. A file that changes there is discarded until a setup with new pins is released
+  (operator rule: version files instead of overwriting them).
 - Without certificate validation, someone on the network path can see which files are requested
   and can block or damage downloads (they are discarded, the setup installs its own files), but
   cannot get anything installed that is not the pinned file. Setup 1.7.2 accepted any file in that
@@ -157,9 +158,10 @@ not the certificate. Files without pin keep the strict rule of ADR 0003 and ADR 
   does not pin; the CI placeholder build checks the list as well.
 - Two requests more only when a server fails the validated probe (one per server); the mirror is
   not asked while the main server is verified.
-- What this cannot show here: the behaviour of the flags on real Windows (Windows 10/11 and 7, where
-  the error of a wrong host name is 12038, not Wine's 12157) and behind a proxy; the test plan
-  checks it (TP-10, TP-17). The handles are 32-bit (setups of Inno Setup 6.2.2 are 32-bit).
+- What the Wine probe cannot show: the behaviour of the flags on real Windows, where the error of a
+  wrong host name is 12038, not Wine's 12157. The laptop retest shows it on Windows 11; Windows 10
+  and 7 and the downloads behind a proxy remain open, the test plan checks them (TP-10, TP-17). The
+  handles are 32-bit (setups of Inno Setup 6.2.2 are 32-bit).
 - Unchanged and out of scope: languages whose server files are the English ones (ko, pt-BR) still
   download about 444 MiB that change nothing.
 

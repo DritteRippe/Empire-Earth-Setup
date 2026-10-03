@@ -674,8 +674,7 @@ Gemeinsam für alle Fälle dieses Blocks:
 - Langsame Leitung für die Stopp-Fälle: Damit man den Knopf rechtzeitig trifft, in der VM die
   Bandbreite begrenzen (VirtualBox: *Netzwerk › Bandbreitengruppe*, etwa 1 MBit/s; Hyper-V:
   *Netzwerkkarte › Bandbreitenverwaltung*) und die Komponente „Intro-Videos installieren“ wählen
-  (nur in der benutzerdefinierten Installation; das lokalisierte Video ist die größte Datei nach
-  den Stimmen).
+  (nur in der benutzerdefinierten Installation; auf Deutsch eine zusätzliche Datei von etwa 21 MB).
 - Log-Zeilen des Download-Teils (`downloads.iss`), die die Fälle zitieren: die Zeilen der
   Serverauswahl aus [TP-00](#tp-00-server-vorabprüfung); je Datei
   `Online file registered, SHA-256 pinned: <Pfad>` (ohne Pin: `…, TLS-verified, not pinned: …`, bei
@@ -699,7 +698,9 @@ Gemeinsam für alle Fälle dieses Blocks:
   Ende `<k> of <s> selected online files are missing, the setup installs its own files instead:` mit
   der Liste (bzw. `All <s> online files accepted`). `<s>` zählt anders als `<n>` der Summe auch die
   Kopien der gemeinsamen Lobby-Dateien für AoC (siehe „Log-Hinweis“ von
-  [TP-10](#tp-10-hauptserver-mit-ungültigem-zertifikat-gepinnte-dateien-trotzdem)).
+  [TP-10](#tp-10-hauptserver-mit-ungültigem-zertifikat-gepinnte-dateien-trotzdem)) und in der
+  Zeile `<k> of <s> …` auch die Dateien, die schon bei der Registrierung abgelehnt und nicht
+  registriert wurden (`Online file not downloaded, … no SHA-256 is known …`).
 
 #### TP-10: Hauptserver mit ungültigem Zertifikat: gepinnte Dateien trotzdem
 
@@ -713,7 +714,8 @@ Gemeinsam für alle Fälle dieses Blocks:
 - **Ziel:** (a) Mit dem echten Hauptserver, dessen Zertifikat nicht zu seinem Namen passt, lädt das
   Setup alle gepinnten Dateien ohne Zertifikatsprüfung und installiert jede nur, wenn sie zu ihrem
   Pin passt; mit den empfohlenen Einstellungen kommen die deutschen Stimmen (`data.ssa`), Kampagnen,
-  `Language.dll` und Lobby-Dateien an. Das Intro-Video kommt nur mit „Benutzerdefinierte
+  Lobby-Dateien und bei Weg B die `Language.dll` an (Weg A verwirft die beiden `Language.dll`, siehe
+  „Weg A“ am Anfang des Blocks). Das Intro-Video kommt nur mit „Benutzerdefinierte
   Installationseinstellungen“ und der Komponente „Intro-Videos installieren“ (optionale Variante
   a2). (b) Ein fremder Server unter dem Namen des Hauptservers kann nichts unterschieben: Er
   antwortet zwar ohne Zertifikatsprüfung, aber keine Datei passt zu ihrem Pin, nichts davon wird
@@ -771,7 +773,7 @@ Gemeinsam für alle Fälle dieses Blocks:
   `Online files: https://files.empireearth.eu/localized first (invalid certificate: pinned files only, without certificate validation), then https://storage.ee.zocker-160.de/localized (no answer: not used)`,
   je Datei `Downloading pinned online file without certificate validation (WinHTTP) from https://files.empireearth.eu/…`
   und `Online file downloaded, SHA-256 pinned, transport WinHTTP without certificate validation: …`,
-  die Summe `Online files: 0 downloaded with validated TLS (Inno Setup), <d> pinned ones with WinHTTP without certificate validation, of <d>`
+  bei Weg B die Summe `Online files: 0 downloaded with validated TLS (Inno Setup), <d> pinned ones with WinHTTP without certificate validation, of <d>`
   und `All <a> online files accepted`. Die beiden Zahlen sind verschieden, und das ist kein Fehler:
   `<d>` zählt nur die Downloads (wie `Downloading <d> online files, one at a time`), `<a>` auch die
   Kopien. Die gemeinsamen Lobby-Dateien (`_WONStatus.cfg`, `_GameResource.cfg`,
@@ -782,6 +784,14 @@ Gemeinsam für alle Fälle dieses Blocks:
   `Online file registered, SHA-256 pinned: Game/de/EE/Data/Movies/Empire Earth.bik`,
   `Online file downloaded, SHA-256 pinned, transport WinHTTP without certificate validation: https://files.empireearth.eu/localized/Game/de/EE/Data/Movies/Empire Earth.bik (21102520 bytes, <ms> ms)`
   und `Online file verified, SHA-256 pinned: Game/de/EE/Data/Movies/Empire Earth.bik (SHA-256 …)`.
+  Weg A: Die beiden `Language.dll` scheitern an ihrem Pin
+  (`Online file rejected, SHA-256 mismatch: https://files.empireearth.eu/localized/Game/de/EE/Language.dll (got …)`,
+  ebenso `…/Game/de/AoC/Language.dll`), deshalb zählt die Summe `<d>`−2 statt `<d>` gepinnte
+  Downloads (`Online files: 0 downloaded with validated TLS (Inno Setup), 15 pinned ones with WinHTTP without certificate validation, of 17`,
+  mit a2 16 von 18), und statt `All <a> …` steht
+  `2 of <a> selected online files are missing, the setup installs its own files instead:` mit den
+  beiden `Language.dll` (`2 of 20`, mit a2 `2 of 21`; siehe
+  [TP-16](#tp-16-manipulierter-download-wird-verworfen)).
   Unter Windows 7 und 8 zusätzlich keine Zeile
   `WinHTTP: unable to request TLS 1.0, 1.1 and 1.2 explicitly`. (b) Dieselbe Serverauswahl, je Datei
   `Online file download failed from https://files.empireearth.eu/…: HTTP status 404` (oder
@@ -922,7 +932,7 @@ Gemeinsam für alle Fälle dieses Blocks:
   `OnlineFilesUnreachable` noch `DownloadIncomplete` noch die Testwarnung). (a) und (c) zeigen
   höchstens das Fortschrittsfenster (c) bzw. gar nichts (a), die Installation endet von selbst mit
   den heruntergeladenen deutschen Dateien. (b) und (d) installieren mit den eigenen Dateien.
-- **Log-Hinweis:** (a), (c): die Download-Zeilen wie in TP-10 (a) und `All <n> online files accepted`
+- **Log-Hinweis:** (a), (c): die Download-Zeilen wie in TP-10 (a) und `All <s> online files accepted`
   bzw. bei Weg A die Liste `… selected online files are missing …` mit den `Language.dll`; (b), (d):
   `Unable to reach the online files server! The setup will only use local files...`. In allen
   Läufen `Installation process succeeded.`
@@ -2809,7 +2819,9 @@ nur, ob es den Schlüssel gibt, nie seine Werte (Regel 3).
     Sprachdateien auf den Servern bzw. in `data\localized-text`, nicht den Code des Setups.
 - **Log-Hinweis:** `Online file verified, SHA-256 pinned: Game/de/EE/Data/Campaigns/EETheGermans.ssa (SHA-256 …)`
   und die anderen Kampagnen, `Online file verified, SHA-256 pinned: …Language.dll` (Weg B), am Ende
-  `All <n> online files accepted`.
+  `All <s> online files accepted` (Weg B; EE `All 20`, NeoEE `All 22`: die Kopien der gemeinsamen
+  Lobby-Dateien für AoC zählen mit, siehe „Log-Hinweis“ von
+  [TP-10](#tp-10-hauptserver-mit-ungültigem-zertifikat-gepinnte-dateien-trotzdem)).
 
 #### TP-79: Setup bei laufendem Spiel
 

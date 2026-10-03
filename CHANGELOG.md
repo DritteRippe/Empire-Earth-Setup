@@ -568,13 +568,13 @@ setup version stays 1.7.2 until the release.
   certificate validation and, if it answers, downloads the **pinned** files from it with WinHTTP,
   streamed to a temporary file that is only kept if its size and SHA-256 match the pin (ADR 0012).
   Every online file is pinned now, so the voices, campaigns and intro movie of the chosen language
-  arrive again; the notice `OnlineFilesUnreachable` only comes when no server answers at all. From
-  a server with a valid certificate everything is downloaded as before; the mirror is not asked
-  while the main server has one. A file without pin is never downloaded from a server whose
-  certificate is invalid; the notice names it with the new message `DownloadFileServerCertificate`
-  (English, German, French). The log names the state of each server and the transport of every
-  file (`transport WinHTTP without certificate validation`), and a summary line counts both
-  transports.
+  (the movie with the component "Install intro videos") arrive again; the notice
+  `OnlineFilesUnreachable` only comes when no server answers at all. From a server with a valid
+  certificate everything is downloaded as before; the mirror is not asked while the main server has
+  one. A file without pin is never downloaded from a server whose certificate is invalid; the
+  notice names it with the new message `DownloadFileServerCertificate` (English, German, French).
+  The log names the state of each server and the transport of every file
+  (`transport WinHTTP without certificate validation`), and a summary line counts both transports.
 - Every pinned download (both transports) stops as soon as its announced or received size cannot
   match the pin, and such a file counts as "not the version this setup knows" (discarded). The
   stop button also works for the WinHTTP downloads (between two reads); their timeouts are 8 s for
