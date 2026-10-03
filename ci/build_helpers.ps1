@@ -2,8 +2,9 @@
 .SYNOPSIS
   Helper functions of ci\build.ps1 that do not need Inno Setup: the SHA-256 list of the online
   localized files, the DER copy of the signing certificate, the ISCC switches of the test build
-  number and of the build identifier, the SHA-256 file of every built setup and the list of online
-  files without a pin.
+  number and of the build identifier, the SHA-256 file of every built setup, the list of online
+  files and those without a pin, and the checked-in pins of the online files
+  (pins\online-files.txt, also used by ci\online_pins.ps1).
 
 .DESCRIPTION
   Dot-sourced by ci\build.ps1 and by ci\tests\build_helpers.tests.ps1. Kept free of ISCC and of
@@ -199,16 +200,19 @@ function Write-FileSha256([string]$Path, [string]$Destination) {
   return [pscustomobject]@{ Hash = $hash; Path = $Destination }
 }
 
-# --- Online files without a pin (ci\build.ps1, release builds; ADR 0008 point 6)
+# --- The online files a setup can download (ci\build.ps1, ci\online_pins.ps1; ADR 0008 point 6,
+# ADR 0012)
 #
 # Inno Setup's built-in downloads follow a redirect from https:// to http:// (Wine probe of S-WP5,
 # ADR 0008 "Implementation"), so an online file without a SHA-256 pin is only as safe as the
-# configuration of the file servers. A release build lists these files. The list comes from the
-# same source as the setup's own list: the code of RegisterOnlineFiles and of the procedures it
-# calls in setup_is6.iss, the game languages there (GameLangs, GameLangLobbyDirs) and
-# CodeFileExtensions in utils.iss. Only the statement forms that code uses are understood; anything
-# else throws, so that a change of that code cannot silently change the list (the CI build is a
-# release build and runs it on every push).
+# configuration of the file servers, and since ADR 0012 a pinned file is downloaded even from a
+# server whose certificate is invalid. Every online file is therefore pinned in
+# pins\online-files.txt, and the build and ci\online_pins.ps1 check that against the list of the
+# online files. That list comes from the same source as the setup's own list: the code of
+# RegisterOnlineFiles and of the procedures it calls in setup_is6.iss, the game languages there
+# (GameLangs, GameLangLobbyDirs) and CodeFileExtensions in utils.iss. Only the statement forms that
+# code uses are understood; anything else throws, so that a change of that code cannot silently
+# change the list (the CI build is a release build and runs it on every push).
 
 # Text of a Pascal Script source without "//" comments, quoted strings kept
 function Remove-PascalComment([string]$Line) {
@@ -475,20 +479,180 @@ function Get-OnlineFiles([string]$Root, [string]$InstallType) {
   return $result.ToArray()
 }
 
-# RelPaths of the files of $Files (Get-OnlineFiles) that a setup downloads without a pin: no entry
-# for their PinPath in the SHA-256 list $HashList (sha256sum format, see Write-DownloadHashes;
-# a missing list pins nothing) and not a file with code (those are never downloaded without a
-# pin). Sorted ordinally, each path once.
-function Get-UnpinnedOnlineFiles([object[]]$Files, [string]$HashList) {
-  $pins = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+# The SHA-256 list $HashList (sha256sum format, see Write-DownloadHashes) as a hashtable: path ->
+# lowercase hash. A missing list (or '') gives an empty table; lines in another format are ignored.
+function Read-DownloadHashList([string]$HashList) {
+  $hashes = [System.Collections.Generic.Dictionary[string, string]]::new([System.StringComparer]::Ordinal)
   if ($HashList -and (Test-Path -LiteralPath $HashList -PathType Leaf)) {
     foreach ($line in [System.IO.File]::ReadAllLines($HashList)) {
-      if ($line -match '^[0-9a-fA-F]{64}  (.+)$') { [void]$pins.Add($Matches[1]) }
+      if ($line -match '^([0-9a-fA-F]{64})  (.+)$') { $hashes[$Matches[2]] = $Matches[1].ToLowerInvariant() }
     }
   }
+  return ,$hashes
+}
+
+# RelPaths of the files of $Files (Get-OnlineFiles) that a setup downloads without a pin: no entry
+# for their PinPath in the SHA-256 list $HashList (a missing list pins nothing), no entry for their
+# RelPath in the pins of pins\online-files.txt $OnlinePins (Read-OnlinePins; none if omitted), and
+# not a file with code (those are never downloaded without a pin). Sorted ordinally, each path once.
+function Get-UnpinnedOnlineFiles([object[]]$Files, [string]$HashList, [object[]]$OnlinePins = @()) {
+  $pins = Read-DownloadHashList $HashList
+  $online = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+  foreach ($pin in $OnlinePins) { [void]$online.Add($pin.RelPath) }
   $paths = [System.Collections.Generic.SortedSet[string]]::new([System.StringComparer]::Ordinal)
   foreach ($file in $Files) {
-    if (-not $file.IsCode -and -not $pins.Contains($file.PinPath)) { [void]$paths.Add($file.RelPath) }
+    if (-not $file.IsCode -and -not $pins.ContainsKey($file.PinPath) -and -not $online.Contains($file.RelPath)) { [void]$paths.Add($file.RelPath) }
   }
   return [string[]]@($paths)
+}
+
+# --- The pins of the online files (pins\online-files.txt, ADR 0012)
+#
+# Every file a setup can download from the file servers is pinned by its server path: SHA-256 and
+# size, checked in this repository, compiled into every setup by downloads.iss. A pinned file is
+# downloaded even from a server whose certificate is invalid, because only its SHA-256 decides
+# whether it is installed. The list is written by Write-OnlinePins from a copy of the "localized"
+# folder of the file servers (ci\online_pins.ps1 -Update), read and checked by Read-OnlinePins,
+# and compared with the files the setups register (Test-OnlinePinCoverage) and with the hash list
+# of a build (Test-PinConsistency).
+
+# The comment block at the top of pins\online-files.txt (Format-OnlinePinList), without its
+# provenance line
+$OnlinePinListHeader = @(
+  '# SHA-256 pins of the online localized files of both setups (EE and NeoEE): one line per path below'
+  '# /localized/ of the file servers, "<SHA-256, 64 lowercase hex digits> <size in bytes> <server path>".'
+  '# The path is the last field and may contain spaces; it is the path the setup requests'
+  '# (RegisterOnlineFiles in setup_is6.iss), unencoded, with "/". Sorted ordinally, each path once,'
+  '# UTF-8 without BOM, LF. downloads.iss compiles the pins into every setup, which then installs a'
+  '# downloaded file only if it matches its pin, and downloads a pinned file even from a server whose'
+  '# certificate is invalid (docs/adr/0012-pinned-downloads-despite-invalid-certificates.md).'
+  '# ci/online_pins.ps1 checks this file (format, every downloadable file pinned, no other path);'
+  '# when a file changes on the servers, its pin must be regenerated before the next release:'
+  '# docs/SERVER-OPERATIONS.md, section 6 (ci/online_pins.ps1 -Update).'
+)
+
+# Reads pins\online-files.txt ($Path) and returns one object per pin, in the order of the file:
+# RelPath (server path), Sha256 (lowercase hex) and Size (bytes, [long]). Lines starting with '#'
+# are comments. Throws, naming the line, for anything else than the format of the header above: a
+# BOM, CR, invalid UTF-8, a missing LF at the end, an empty line, uppercase hex digits, a size that
+# is not a positive decimal number without leading zero (at most 15 digits), a path with a
+# backslash, ':', a control character, a leading or trailing '/' or space, an empty, '.' or '..'
+# segment, and paths that are not in ordinal order or appear twice.
+function Read-OnlinePins([string]$Path) {
+  if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { throw "${Path}: not found." }
+  $bytes = [System.IO.File]::ReadAllBytes($Path)
+  if ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF) { throw "${Path}: starts with a BOM (UTF-8 without BOM required)." }
+  if ([Array]::IndexOf($bytes, [byte]13) -ge 0) { throw "${Path}: has a CR (LF line ends required; see .gitattributes)." }
+  try {
+    $text = [System.Text.UTF8Encoding]::new($false, $true).GetString($bytes)
+  } catch {
+    throw "${Path}: not valid UTF-8."
+  }
+  if ($text.Length -gt 0 -and -not $text.EndsWith("`n")) { throw "${Path}: the last line has no LF." }
+  $lines = $text.Split("`n")
+  $pins = [System.Collections.Generic.List[object]]::new()
+  $previous = $null
+  for ($i = 0; $i -lt $lines.Count - 1; $i++) {
+    $line = $lines[$i]
+    $where = "${Path}, line $($i + 1)"
+    if ($line.StartsWith('#')) { continue }
+    if ($line -cnotmatch '^([0-9a-f]{64}) ([1-9][0-9]{0,14}) (.+)$') {
+      throw "${where}: not '<SHA-256, 64 lowercase hex digits> <size in bytes> <server path>'."
+    }
+    $hash, $size, $relPath = $Matches[1], $Matches[2], $Matches[3]
+    $segments = $relPath.Split('/')
+    if ($relPath -match '[\x00-\x1f\x7f\\:]' -or $relPath -cne $relPath.Trim() -or
+        @($segments | Where-Object { $_ -eq '' -or $_ -eq '.' -or $_ -eq '..' }).Count -gt 0) {
+      throw "${where}: '$relPath' is not a server path (relative, '/' between non-empty names, no '.' or '..', no '\', ':' or control characters, no space at either end)."
+    }
+    if ($null -ne $previous) {
+      $order = [string]::CompareOrdinal($previous, $relPath)
+      if ($order -eq 0) { throw "${where}: '$relPath' is pinned twice." }
+      if ($order -gt 0) { throw "${where}: '$relPath' is not in ordinal order (after '$previous')." }
+    }
+    $pins.Add([pscustomobject]@{ RelPath = $relPath; Sha256 = $hash; Size = [long]$size })
+    $previous = $relPath
+  }
+  return $pins.ToArray()
+}
+
+# The text of pins\online-files.txt for the pins $Pins (objects with RelPath, Sha256, Size): the
+# header above, the provenance line "# Source: $SourceNote", then the pins sorted ordinally by path,
+# LF line ends. Read-OnlinePins reads it back unchanged.
+function Format-OnlinePinList([object[]]$Pins, [string]$SourceNote) {
+  $sorted = [System.Collections.Generic.List[object]]::new()
+  foreach ($pin in $Pins) { $sorted.Add($pin) }
+  $sorted.Sort([System.Comparison[object]] { param($a, $b) [string]::CompareOrdinal($a.RelPath, $b.RelPath) })
+  $text = [System.Text.StringBuilder]::new()
+  foreach ($line in $OnlinePinListHeader) { [void]$text.Append($line).Append("`n") }
+  if ($SourceNote) { [void]$text.Append("# Source: $SourceNote").Append("`n") }
+  foreach ($pin in $sorted) { [void]$text.Append("$($pin.Sha256.ToLowerInvariant()) $($pin.Size) $($pin.RelPath)").Append("`n") }
+  return $text.ToString()
+}
+
+# Writes pins\online-files.txt ($ListFile) from a copy of the "localized" folder of the file
+# servers ($SourceFolder, the layout of /localized/): SHA-256 and size of every server path of
+# $Files (Get-OnlineFiles of both products), each once. Every file must exist there; otherwise
+# nothing is written and the missing paths are named. With $CrossCheckFolder, a second, independent
+# copy (e.g. downloaded over another network), every file must be byte-identical there too.
+# Returns the pins written. UTF-8 without BOM, LF (Format-OnlinePinList), checked by reading it back.
+function Write-OnlinePins([string]$SourceFolder, [object[]]$Files, [string]$ListFile, [string]$SourceNote, [string]$CrossCheckFolder) {
+  if (-not (Test-Path -LiteralPath $SourceFolder -PathType Container)) { throw "${SourceFolder}: folder not found." }
+  if ($CrossCheckFolder -and -not (Test-Path -LiteralPath $CrossCheckFolder -PathType Container)) { throw "${CrossCheckFolder}: folder not found." }
+  $paths = [System.Collections.Generic.SortedSet[string]]::new([System.StringComparer]::Ordinal)
+  foreach ($file in $Files) { [void]$paths.Add($file.RelPath) }
+  $pins = [System.Collections.Generic.List[object]]::new()
+  $problems = [System.Collections.Generic.List[string]]::new()
+  foreach ($relPath in $paths) {
+    $local = Join-Path $SourceFolder ($relPath.Replace('/', [System.IO.Path]::DirectorySeparatorChar))
+    if (-not (Test-Path -LiteralPath $local -PathType Leaf)) { $problems.Add("missing: $relPath"); continue }
+    $hash = (Get-FileHash -LiteralPath $local -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($CrossCheckFolder) {
+      $other = Join-Path $CrossCheckFolder ($relPath.Replace('/', [System.IO.Path]::DirectorySeparatorChar))
+      if (-not (Test-Path -LiteralPath $other -PathType Leaf)) { $problems.Add("missing in the second copy: $relPath"); continue }
+      if ((Get-FileHash -LiteralPath $other -Algorithm SHA256).Hash.ToLowerInvariant() -cne $hash) { $problems.Add("different in the second copy: $relPath"); continue }
+    }
+    $pins.Add([pscustomobject]@{ RelPath = $relPath; Sha256 = $hash; Size = [long](Get-Item -LiteralPath $local).Length })
+  }
+  if ($problems.Count -gt 0) {
+    throw ("$($problems.Count) of $($paths.Count) online file(s) cannot be pinned, nothing written:`n  " + ($problems -join "`n  "))
+  }
+  [System.IO.File]::WriteAllText($ListFile, (Format-OnlinePinList $pins.ToArray() $SourceNote), [System.Text.UTF8Encoding]::new($false))
+  return @(Read-OnlinePins $ListFile)
+}
+
+# Compares the pins $Pins (Read-OnlinePins) with the online files $Files a setup can download
+# (Get-OnlineFiles of both products): Missing are the server paths of $Files without a pin, Stale
+# the pinned paths no setup downloads (both sorted ordinally, each once). Both must be empty for a
+# release (ci\online_pins.ps1, ci\build.ps1).
+function Test-OnlinePinCoverage([object[]]$Files, [object[]]$Pins) {
+  $pinned = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+  foreach ($pin in $Pins) { [void]$pinned.Add($pin.RelPath) }
+  $wanted = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+  $missing = [System.Collections.Generic.SortedSet[string]]::new([System.StringComparer]::Ordinal)
+  foreach ($file in $Files) {
+    [void]$wanted.Add($file.RelPath)
+    if (-not $pinned.Contains($file.RelPath)) { [void]$missing.Add($file.RelPath) }
+  }
+  $stale = [System.Collections.Generic.SortedSet[string]]::new([System.StringComparer]::Ordinal)
+  foreach ($pin in $Pins) { if (-not $wanted.Contains($pin.RelPath)) { [void]$stale.Add($pin.RelPath) } }
+  return [pscustomobject]@{ Missing = [string[]]@($missing); Stale = [string[]]@($stale) }
+}
+
+# The online files of $Files whose pin in the hash list of the build ($HashList, by PinPath) differs
+# from their pin in pins\online-files.txt ($Pins, by RelPath): one object with RelPath, PinPath,
+# Local and Online (lowercase hashes) per file, sorted by RelPath, each once. The setup uses the pin
+# of the hash list then (downloads.iss, GetOnlineFilePin), so in a release build both must agree:
+# a difference means that data\localized-text is not the data the servers have.
+function Test-PinConsistency([object[]]$Files, [object[]]$Pins, [string]$HashList) {
+  $local = Read-DownloadHashList $HashList
+  $online = [System.Collections.Generic.Dictionary[string, string]]::new([System.StringComparer]::Ordinal)
+  foreach ($pin in $Pins) { $online[$pin.RelPath] = $pin.Sha256.ToLowerInvariant() }
+  $result = [System.Collections.Generic.SortedDictionary[string, object]]::new([System.StringComparer]::Ordinal)
+  foreach ($file in $Files) {
+    if ($local.ContainsKey($file.PinPath) -and $online.ContainsKey($file.RelPath) -and $local[$file.PinPath] -cne $online[$file.RelPath]) {
+      $result[$file.RelPath] = [pscustomobject]@{ RelPath = $file.RelPath; PinPath = $file.PinPath; Local = $local[$file.PinPath]; Online = $online[$file.RelPath] }
+    }
+  }
+  return @($result.Values)
 }

@@ -1,7 +1,8 @@
 <#
 .SYNOPSIS
   Tests of ci\build_helpers.ps1 (SHA-256 list of the online files, DER copy of the certificate,
-  test build number, build identifier) and a dry run of ci\build.ps1.
+  test build number, build identifier, the online files and their pins in pins\online-files.txt)
+  and a dry run of ci\build.ps1.
 
 .DESCRIPTION
   Needs neither Inno Setup nor the game data: the test certificates are generated (self-signed,
@@ -294,6 +295,107 @@ try {
   Check 'Get-UnpinnedOnlineFiles: sorted' ($unpinned[0]) 'Game/de/AoC/Data/Campaigns/AOCAsian.ssa'
   Check 'Get-UnpinnedOnlineFiles without a list' @(Get-UnpinnedOnlineFiles $eeFiles (Join-Path $temp 'missing.sha256')).Count 160
   Check 'Get-UnpinnedOnlineFiles NeoEE without a list' @(Get-UnpinnedOnlineFiles @(Get-OnlineFiles $repoRoot 'NeoEE') '').Count 170
+  $someOnlinePins = @([pscustomobject]@{ RelPath = 'Game/de/AoC/Data/data.ssa'; Sha256 = $zero; Size = 1L },
+    [pscustomobject]@{ RelPath = 'Lobby/zh-TW/EE/WONLobby.cfg'; Sha256 = $zero; Size = 1L })
+  $unpinned = @(Get-UnpinnedOnlineFiles $eeFiles $pinList $someOnlinePins)
+  Check 'Get-UnpinnedOnlineFiles with online pins: count' $unpinned.Count 155
+  Check 'Get-UnpinnedOnlineFiles: pinned by its server path in pins\online-files.txt' ($unpinned -ccontains 'Game/de/AoC/Data/data.ssa') $false
+  Check 'Get-UnpinnedOnlineFiles: zh-TW pinned by its own server path' ($unpinned -ccontains 'Lobby/zh-TW/EE/WONLobby.cfg') $false
+
+  # --- pins\online-files.txt (ADR 0012): the real list, then the functions with test data
+  $realList = Join-Path (Join-Path $repoRoot 'pins') 'online-files.txt'
+  $realPins = @(Read-OnlinePins $realList)
+  $allFiles = @(Get-OnlineFiles $repoRoot 'EE') + @(Get-OnlineFiles $repoRoot 'NeoEE')
+  Check 'Read-OnlinePins: the real list has 230 pins' $realPins.Count 230
+  $byRelPath = @{}
+  foreach ($pin in $realPins) { $byRelPath[$pin.RelPath] = $pin }
+  Check 'Read-OnlinePins: Language.dll of de' $byRelPath['Game/de/EE/Language.dll'].Sha256 '61dda16a22fe64f0956ea2a580483d8c5efdb3d2edd0b5dd1bb4dd401cb8d8c7'
+  Check 'Read-OnlinePins: size of Language.dll of de' $byRelPath['Game/de/EE/Language.dll'].Size 249856
+  Check 'Read-OnlinePins: the voices of es (the largest file)' $byRelPath['Game/es/EE/Data/data.ssa'].Size 172046353
+  Check 'Read-OnlinePins: a path with a space' $byRelPath.ContainsKey('Game/de/EE/Data/Movies/Empire Earth.bik') $true
+  Check 'Read-OnlinePins: sizes are [long]' ($byRelPath['Game/es/EE/Data/data.ssa'].Size -is [long]) $true
+  $coverage = Test-OnlinePinCoverage $allFiles $realPins
+  Check 'Test-OnlinePinCoverage: the real list pins every online file' $coverage.Missing.Count 0
+  Check 'Test-OnlinePinCoverage: the real list pins nothing else' $coverage.Stale.Count 0
+  Check 'Format-OnlinePinList: the real list is in the format it writes' (Format-OnlinePinList $realPins (([System.IO.File]::ReadAllText($realList) -split "`n" | Where-Object { $_ -like '# Source: *' }) -replace '^# Source: ', '')) ([System.IO.File]::ReadAllText($realList))
+
+  $three = @([pscustomobject]@{ RelPath = 'b/c d.ssa'; Sha256 = ('A' * 64); Size = 5L },
+    [pscustomobject]@{ RelPath = 'a/b.dll'; Sha256 = ('1' * 64); Size = 4294967296L })
+  $listText = Format-OnlinePinList $three 'test'
+  Check 'Format-OnlinePinList: header, source, sorted, lowercase, LF' ($listText.EndsWith("# Source: test`n$('1' * 64) 4294967296 a/b.dll`n$('a' * 64) 5 b/c d.ssa`n")) $true
+  $testList = Join-Path $temp 'online-files.txt'
+  [System.IO.File]::WriteAllText($testList, $listText, [System.Text.UTF8Encoding]::new($false))
+  $back = @(Read-OnlinePins $testList)
+  Check 'Read-OnlinePins: reads Format-OnlinePinList back' (($back | ForEach-Object { "$($_.Sha256)|$($_.Size)|$($_.RelPath)" }) -join ';') "$('1' * 64)|4294967296|a/b.dll;$('a' * 64)|5|b/c d.ssa"
+  $good = "$('1' * 64) 4 a/b.dll"
+  $bad = [ordered]@{
+    'a BOM' = [byte[]](0xEF, 0xBB, 0xBF) + [System.Text.Encoding]::ASCII.GetBytes("$good`n")
+    'CRLF' = [System.Text.Encoding]::ASCII.GetBytes("$good`r`n")
+    'no LF at the end' = [System.Text.Encoding]::ASCII.GetBytes($good)
+    'an empty line' = [System.Text.Encoding]::ASCII.GetBytes("$good`n`n")
+    'invalid UTF-8' = [System.Text.Encoding]::ASCII.GetBytes("$good`n") + [byte[]](0xFF, 10)
+    'uppercase hex' = [System.Text.Encoding]::ASCII.GetBytes("$('A' * 64) 4 a/b.dll`n")
+    'size 0' = [System.Text.Encoding]::ASCII.GetBytes("$('1' * 64) 0 a/b.dll`n")
+    'size with sign' = [System.Text.Encoding]::ASCII.GetBytes("$('1' * 64) +4 a/b.dll`n")
+    'size with 16 digits' = [System.Text.Encoding]::ASCII.GetBytes("$('1' * 64) 1000000000000000 a/b.dll`n")
+    'two spaces' = [System.Text.Encoding]::ASCII.GetBytes("$('1' * 64)  4 a/b.dll`n")
+    'a backslash' = [System.Text.Encoding]::ASCII.GetBytes("$('1' * 64) 4 a\b.dll`n")
+    'a colon' = [System.Text.Encoding]::ASCII.GetBytes("$('1' * 64) 4 a/b.dll:x`n")
+    'a leading slash' = [System.Text.Encoding]::ASCII.GetBytes("$('1' * 64) 4 /a/b.dll`n")
+    'a trailing space' = [System.Text.Encoding]::ASCII.GetBytes("$good `n")
+    'an empty segment' = [System.Text.Encoding]::ASCII.GetBytes("$('1' * 64) 4 a//b.dll`n")
+    'a .. segment' = [System.Text.Encoding]::ASCII.GetBytes("$('1' * 64) 4 a/../b.dll`n")
+    'a tab in the path' = [System.Text.Encoding]::ASCII.GetBytes("$('1' * 64) 4 a/b`t.dll`n")
+    'unsorted' = [System.Text.Encoding]::ASCII.GetBytes("$('1' * 64) 4 b`n$('1' * 64) 4 a`n")
+    'unsorted by case (ordinal)' = [System.Text.Encoding]::ASCII.GetBytes("$('1' * 64) 4 a`n$('1' * 64) 4 B`n")
+    'a duplicate' = [System.Text.Encoding]::ASCII.GetBytes("$good`n$good`n")
+  }
+  foreach ($name in $bad.Keys) {
+    [System.IO.File]::WriteAllBytes($testList, $bad[$name])
+    CheckThrows "Read-OnlinePins refuses $name" { Read-OnlinePins $testList }
+  }
+  CheckThrows 'Read-OnlinePins refuses a missing file' { Read-OnlinePins (Join-Path $temp 'missing.txt') }
+  [System.IO.File]::WriteAllBytes($testList, [System.Text.Encoding]::ASCII.GetBytes("# only a comment`n"))
+  Check 'Read-OnlinePins: comments only' @(Read-OnlinePins $testList).Count 0
+
+  $files = @([pscustomobject]@{ RelPath = 'a/b.dll'; PinPath = 'a/b.dll'; IsCode = $true },
+    [pscustomobject]@{ RelPath = 'Lobby/zh-CN/x.cfg'; PinPath = 'Lobby/zh/x.cfg'; IsCode = $false },
+    [pscustomobject]@{ RelPath = 'c.ssa'; PinPath = 'c.ssa'; IsCode = $false })
+  $pins = @([pscustomobject]@{ RelPath = 'a/b.dll'; Sha256 = ('1' * 64); Size = 4L },
+    [pscustomobject]@{ RelPath = 'Lobby/zh-CN/x.cfg'; Sha256 = ('2' * 64); Size = 4L },
+    [pscustomobject]@{ RelPath = 'z.ssa'; Sha256 = ('3' * 64); Size = 4L })
+  $coverage = Test-OnlinePinCoverage $files $pins
+  Check 'Test-OnlinePinCoverage: missing' ($coverage.Missing -join '|') 'c.ssa'
+  Check 'Test-OnlinePinCoverage: stale' ($coverage.Stale -join '|') 'z.ssa'
+  $localList = Join-Path $temp 'local.sha256'
+  [System.IO.File]::WriteAllLines($localList, [string[]]@("$('1' * 64)  a/b.dll", "$('9' * 64)  Lobby/zh/x.cfg", "$('8' * 64)  c.ssa"))
+  $conflicts = @(Test-PinConsistency $files $pins $localList)
+  Check 'Test-PinConsistency: one conflict, by the pin path of the hash list' (($conflicts | ForEach-Object { "$($_.RelPath)|$($_.PinPath)|$($_.Local)|$($_.Online)" }) -join ';') "Lobby/zh-CN/x.cfg|Lobby/zh/x.cfg|$('9' * 64)|$('2' * 64)"
+  [System.IO.File]::WriteAllLines($localList, [string[]]@("$('1' * 64)  A/B.DLL", "$('2' * 64)  Lobby/zh/x.cfg"))
+  Check 'Test-PinConsistency: equal pins, other paths: no conflict' @(Test-PinConsistency $files $pins $localList).Count 0
+  Check 'Test-PinConsistency: without a hash list' @(Test-PinConsistency $files $pins (Join-Path $temp 'missing.sha256')).Count 0
+
+  # Write-OnlinePins: from a folder with the layout of /localized/, every file needed, a second copy
+  # must be identical
+  $copyA = Join-Path $temp 'copyA'
+  $copyB = Join-Path $temp 'copyB'
+  foreach ($folder in @($copyA, $copyB)) {
+    foreach ($file in $files) {
+      $target = Join-Path $folder ($file.RelPath.Replace('/', [System.IO.Path]::DirectorySeparatorChar))
+      New-Item -ItemType Directory -Path (Split-Path -Parent $target) -Force | Out-Null
+      [System.IO.File]::WriteAllText($target, 'abc')
+    }
+  }
+  $written = @(Write-OnlinePins $copyA $files $testList 'unit test' $copyB)
+  Check 'Write-OnlinePins: one pin per server path' (($written | ForEach-Object { $_.RelPath }) -join '|') 'Lobby/zh-CN/x.cfg|a/b.dll|c.ssa'
+  Check 'Write-OnlinePins: SHA-256 and size' "$($written[0].Sha256) $($written[0].Size)" "$abc 3"
+  Check 'Write-OnlinePins: source line' (([System.IO.File]::ReadAllText($testList) -split "`n") -ccontains '# Source: unit test') $true
+  [System.IO.File]::WriteAllText((Join-Path $copyB 'c.ssa'), 'abd')
+  $before = [System.IO.File]::ReadAllText($testList)
+  CheckThrows 'Write-OnlinePins refuses a second copy that differs' { Write-OnlinePins $copyA $files $testList 'unit test' $copyB }
+  Remove-Item -LiteralPath (Join-Path $copyA 'c.ssa')
+  CheckThrows 'Write-OnlinePins refuses a missing file' { Write-OnlinePins $copyA $files $testList 'unit test' $null }
+  Check 'Write-OnlinePins writes nothing after an error' ([System.IO.File]::ReadAllText($testList)) $before
 
   # --- Get-OnlineFiles reads the code, not a copy of the list: changed copies of the script
   $variantRoot = Join-Path $temp 'variant'
@@ -333,10 +435,13 @@ try {
     Copy-Item -LiteralPath (Join-Path $ciDir $name) -Destination $repoCi
   }
   # The real scripts: the release build reads the online file list from them (the fake ISCC
-  # ignores their content)
+  # ignores their content), and the real pins of the online files
   foreach ($name in @('setup_is6.iss', 'utils.iss')) {
     Copy-Item -LiteralPath (Join-Path $repoRoot $name) -Destination $repo
   }
+  New-Item -ItemType Directory -Path (Join-Path $repo 'pins') | Out-Null
+  $repoPins = Join-Path (Join-Path $repo 'pins') 'online-files.txt'
+  Copy-Item -LiteralPath $realList -Destination $repoPins
   # The copy is a Git checkout (if Git exists), so that test builds get test<TestID>-<commit>; the
   # dry runs are no CI runs unless a case says so
   $repoCommit = ''
@@ -398,26 +503,20 @@ exit 0
   }
   Check 'dry run: only setups and SHA-256 files in out' @(Get-ChildItem -LiteralPath (Join-Path $repo 'out') -Recurse -File | Where-Object { $_.Name -notlike '*.exe' -and $_.Name -notlike '*.exe.sha256' }).Count 0
 
-  # A test build does not list the online files without a pin
-  Check 'dry run -TestID 1: no list of online files without a pin' @($buildOutput | Where-Object { $_ -like '*without a SHA-256 pin*' }).Count 0
+  # pins\online-files.txt pins every online file: no warning, no list
+  Check 'dry run -TestID 1: the pins are counted' @($buildOutput | Where-Object { $_ -ceq 'Pins: 230 online file(s) in pins\online-files.txt.' }).Count 1
+  Check 'dry run -TestID 1: no list of online files' @($buildOutput | Where-Object { $_ -like '    *' -or $_ -like '*without a pin*' -or $_ -like '*no pin*' }).Count 0
 
-  # A release build warns with every online file without a pin, per product (ADR 0008 point 6);
-  # without data\localized-text there is no hash list, so every data file is listed
+  # A release build checks the same; without data\localized-text there is nothing to compare
   Remove-Item -LiteralPath $calls
   $buildOutput = @(& $build @common 3>&1 6>&1 | ForEach-Object { "$_" })
   Check 'dry run without -TestID: exit code' $LASTEXITCODE 0
   Check 'dry run without -TestID: no /DTestID (default of setup_is6.iss)' @(Get-Content -LiteralPath $calls | Where-Object { $_ -like '*/DTestID*' }).Count 0
   Check 'dry run without -TestID, not in CI: no /DSetupBuild' @(Get-Content -LiteralPath $calls | Where-Object { $_ -like '*/DSetupBuild*' }).Count 0
   Check 'dry run without -TestID, not in CI: no SetupBuild printed' @($buildOutput | Where-Object { $_ -like 'SetupBuild: none*' }).Count 1
-  Check 'dry run release: warning for EE' @($buildOutput | Where-Object { $_ -like 'Release build: the EE setups download 160 online file(s) without a SHA-256 pin.*' }).Count 1
-  Check 'dry run release: warning for NeoEE' @($buildOutput | Where-Object { $_ -like 'Release build: the NeoEE setups download 170 online file(s) without a SHA-256 pin.*' }).Count 1
-  Check 'dry run release: the files are listed' @($buildOutput | Where-Object { $_ -ceq '    Game/de/EE/Data/Movies/Empire Earth.bik' }).Count 2
-  Check 'dry run release: listed lines (160 + 170)' @($buildOutput | Where-Object { $_ -like '    *' }).Count 330
+  Check 'dry run release: the pins are counted' @($buildOutput | Where-Object { $_ -ceq 'Pins: 230 online file(s) in pins\online-files.txt.' }).Count 1
+  Check 'dry run release: the hash list agrees' @($buildOutput | Where-Object { $_ -like 'Pins: data\localized-text and pins\online-files.txt agree*' }).Count 1
 
-  # With data\localized-text the list written in the same run counts: a file placed there is pinned
-  $pinned = Join-Path $repo 'data\localized-text\Game\de\EE\Data\data.ssa'
-  New-Item -ItemType Directory -Path (Split-Path -Parent $pinned) -Force | Out-Null
-  [System.IO.File]::WriteAllText($pinned, 'voices')
   # ... and in CI (GitHub Actions) a release build gets the short commit as SetupBuild
   Remove-Item -LiteralPath $calls
   $env:GITHUB_ACTIONS = 'true'
@@ -432,19 +531,69 @@ exit 0
   } else {
     Check 'dry run -TestID 0 in CI without Git: no /DSetupBuild' @(Get-Content -LiteralPath $calls | Where-Object { $_ -like '*/DSetupBuild*' }).Count 0
   }
-  Check 'dry run -TestID 0: warning without the pinned file' @($buildOutput | Where-Object { $_ -like 'Release build: the EE setups download 159 online file(s)*' }).Count 1
-  Check 'dry run -TestID 0: the pinned file is not listed' @($buildOutput | Where-Object { $_ -ceq '    Game/de/EE/Data/data.ssa' }).Count 0
-  Remove-Item -LiteralPath (Join-Path $repo 'data') -Recurse -Force
 
-  # A placeholder build (CI) computes the list too, but only prints the number: its pins are
-  # placeholders. The fake Python stands in for the placeholder generator.
+  # Runs build.ps1 and returns its output and the message of the exception that stopped it ('' if none)
+  function Invoke-DryBuild([hashtable]$Parameters) {
+    $message = ''
+    $output = [System.Collections.Generic.List[string]]::new()
+    try {
+      & $build @Parameters 3>&1 6>&1 | ForEach-Object { $output.Add("$_") }
+    } catch {
+      $message = $_.Exception.Message
+    }
+    return [pscustomobject]@{ Output = $output.ToArray(); Error = $message }
+  }
+
+  # A file in data\localized-text that pins another file than pins\online-files.txt (the hash list
+  # of the same run counts): a release build stops before ISCC compiles, a test build warns
+  $pinned = Join-Path $repo 'data\localized-text\Game\de\EE\Data\data.ssa'
+  New-Item -ItemType Directory -Path (Split-Path -Parent $pinned) -Force | Out-Null
+  [System.IO.File]::WriteAllText($pinned, 'voices')
+  Remove-Item -LiteralPath $calls
+  $run = Invoke-DryBuild ($common + @{ TestID = 0 })
+  Check 'dry run release, other file in data\localized-text: stops' $run.Error 'Release build: data\localized-text and pins\online-files.txt pin different files (listed above).'
+  Check 'dry run release, other file in data\localized-text: names it' @($run.Output | Where-Object { $_ -like '    Game/de/EE/Data/data.ssa (Game/de/EE/Data/data.ssa): * here, a52c99648a3e4f6511253c6c0386fd26fffeb96443a1ae1f9ae87611e990e4e6 in pins\online-files.txt' }).Count 1
+  Check 'dry run release, other file in data\localized-text: no compile' @(Get-Content -LiteralPath $calls | Where-Object { $_ -like '*/DInstallType=*' -and $_ -notlike '*/O- *' }).Count 0
+  $run = Invoke-DryBuild ($common + @{ TestID = 1 })
+  Check 'dry run test build, other file in data\localized-text: no stop' $run.Error ''
+  Check 'dry run test build, other file in data\localized-text: warning' @($run.Output | Where-Object { $_ -like 'Test build: 1 online file(s) are pinned differently*' }).Count 1
+  # -DownloadHashesOnly writes the list and names the difference too
+  $run = Invoke-DryBuild @{ DownloadHashesOnly = $true }
+  Check '-DownloadHashesOnly, other file in data\localized-text: warning' @($run.Output | Where-Object { $_ -like 'Hash list: 1 online file(s) are pinned differently*' }).Count 1
+
+  # A placeholder build (CI) does not compare: its data\localized-text holds placeholders. The fake
+  # Python stands in for the placeholder generator.
   $fakePython = Join-Path $temp 'fake_python.ps1'
   [System.IO.File]::WriteAllText($fakePython, 'exit 0')
   Remove-Item -LiteralPath $calls
   $buildOutput = @(& $build -Iscc $fakeIscc -Variants @('EE/Regular') -Placeholders -Python $fakePython 3>&1 6>&1 | ForEach-Object { "$_" })
   Check 'dry run -Placeholders: exit code' $LASTEXITCODE 0
-  Check 'dry run -Placeholders: number of online files without a pin' @($buildOutput | Where-Object { $_ -like 'Online files of the EE setups without a SHA-256 pin: 160 (placeholder pins;*' }).Count 1
+  Check 'dry run -Placeholders: not compared' @($buildOutput | Where-Object { $_ -like 'Pins: data\localized-text holds placeholders, not compared*' }).Count 1
   Check 'dry run -Placeholders: no list' @($buildOutput | Where-Object { $_ -like '    *' -or $_ -like 'Release build:*' }).Count 0
+  Remove-Item -LiteralPath (Join-Path $repo 'data') -Recurse -Force
+
+  # An online file without a pin in pins\online-files.txt stops a release build, also the
+  # placeholder build of CI; a test build warns and names the files without any pin. A pin of a
+  # path that no setup downloads stops every build.
+  $realText = [System.IO.File]::ReadAllText($realList)
+  $voices = @($realText -split "`n" | Where-Object { $_ -like '* Game/de/EE/Data/data.ssa' })[0]
+  [System.IO.File]::WriteAllText($repoPins, $realText.Replace("$voices`n", ''), [System.Text.UTF8Encoding]::new($false))
+  $run = Invoke-DryBuild ($common + @{ TestID = 0 })
+  Check 'dry run release, missing pin: stops' $run.Error 'Release build: 1 online file(s) have no pin in pins\online-files.txt (listed above); pin them with ci\online_pins.ps1 -Update (docs\SERVER-OPERATIONS.md, section 6).'
+  Check 'dry run release, missing pin: names it' @($run.Output | Where-Object { $_ -ceq '    Game/de/EE/Data/data.ssa' }).Count 1
+  $run = Invoke-DryBuild @{ Iscc = $fakeIscc; Variants = @('EE/Regular'); Placeholders = $true; Python = $fakePython }
+  Check 'dry run -Placeholders, missing pin: stops' ($run.Error -like 'Release build: 1 online file(s) have no pin*') $true
+  $run = Invoke-DryBuild ($common + @{ TestID = 1 })
+  Check 'dry run test build, missing pin: no stop' $run.Error ''
+  Check 'dry run test build, missing pin: warning' @($run.Output | Where-Object { $_ -like 'Test build: 1 online file(s) have no pin in pins\online-files.txt; 1 of them*' }).Count 1
+  Check 'dry run test build, missing pin: names it' @($run.Output | Where-Object { $_ -ceq '    Game/de/EE/Data/data.ssa' }).Count 1
+  [System.IO.File]::WriteAllText($repoPins, $realText + "$('0' * 64) 1 Mods/NeoEE/Lobby/zz/EE/WONLobby.cfg`n", [System.Text.UTF8Encoding]::new($false))
+  $run = Invoke-DryBuild ($common + @{ TestID = 1 })
+  Check 'dry run test build, stale pin: stops' ($run.Error -like 'pins\online-files.txt pins 1 path(s) that no setup downloads*') $true
+  [System.IO.File]::WriteAllText($repoPins, $realText.Replace("`n", "`r`n"), [System.Text.UTF8Encoding]::new($false))
+  $run = Invoke-DryBuild ($common + @{ TestID = 1 })
+  Check 'dry run, malformed pin list: stops' ($run.Error -like '*online-files.txt: has a CR*') $true
+  Copy-Item -LiteralPath $realList -Destination $repoPins -Force
 
   # -SetupBuild wins over the default, also in a test build; '' passes none
   Remove-Item -LiteralPath $calls

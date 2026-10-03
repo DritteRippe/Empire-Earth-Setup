@@ -9,11 +9,13 @@
     2. With -Placeholders: create a dummy file for every asset the resolved scripts reference
        but that does not exist (ci/make_placeholder_assets.py). Existing files are never touched.
     3. Write data\localized-text.sha256, the SHA-256 list of data\localized-text: the setups only
-       install a downloaded Language.dll whose hash is in this list, and a listed data file only
-       if it matches (see downloads.iss). A release build (TestID 0, also without -TestID) then
-       warns with every online file the setups would download without a pin: the built-in
-       downloads follow a redirect from https:// to http:// (ADR 0008), so these files are only
-       as safe as the configuration of the file servers (docs\SERVER-OPERATIONS.md, section 6).
+       install a downloaded Language.dll whose hash is in this list or in pins\online-files.txt,
+       and a pinned data file only if it matches (see downloads.iss). Then check
+       pins\online-files.txt, the checked-in pins of every online file (ADR 0012): a path that no
+       setup downloads stops every build; an online file without a pin there stops a release build
+       (TestID 0, also without -TestID) and is a warning in a test build; and without
+       -Placeholders a file that both lists pin differently stops a release build (a warning in a
+       test build): data\localized-text is then not the data of the file servers.
     4. Compile every variant with ISCC /DInstallType /DInstallMode /DEE_AppID /DNeoEE_AppID
        [/DTestID] [/DSetupBuild] into its own output folder and check that the file name proves the
        variant took effect.
@@ -205,13 +207,32 @@ function Show-LogErrors([string]$LogFile) {
 
 # Write-DownloadHashes, ConvertTo-DerCertificateFile, ConvertTo-Thumbprint, Get-TestIdDefine,
 # Get-SetupBuild, Assert-SetupBuild, Get-SetupBuildDefine, Get-GitShortCommit, Write-FileSha256,
-# Get-OnlineFiles, Get-UnpinnedOnlineFiles
+# Get-OnlineFiles, Get-UnpinnedOnlineFiles, Read-OnlinePins, Test-OnlinePinCoverage,
+# Test-PinConsistency
 . (Join-Path $PSScriptRoot 'build_helpers.ps1')
 
 $LocalizedFolder = Join-Path $Root 'data\localized-text'
 $DownloadHashList = Join-Path $Root 'data\localized-text.sha256'
+$OnlinePinList = Join-Path $Root 'pins\online-files.txt'
+
+# The pins of pins\online-files.txt against the hash list of this build: the online files that
+# both pin, but differently (Test-PinConsistency), printed as a warning; returns their number
+function Show-PinConflicts([object[]]$Files, [object[]]$Pins, [string]$Kind) {
+  $conflicts = @(Test-PinConsistency $Files $Pins $DownloadHashList)
+  if ($conflicts.Count -eq 0) {
+    Write-Host 'Pins: data\localized-text and pins\online-files.txt agree on every online file both pin.'
+    return 0
+  }
+  Write-Warning ("${Kind}: $($conflicts.Count) online file(s) are pinned differently by data\localized-text and pins\online-files.txt. " +
+    'Either data\localized-text is not the data of the file servers, or a file changed on the servers (docs\SERVER-OPERATIONS.md, section 6):')
+  foreach ($conflict in $conflicts) { Write-Host "    $($conflict.RelPath) ($($conflict.PinPath)): $($conflict.Local) here, $($conflict.Online) in pins\online-files.txt" }
+  return $conflicts.Count
+}
+
 if ($DownloadHashesOnly) {
   Write-DownloadHashes $LocalizedFolder $DownloadHashList
+  $files = @(Get-OnlineFiles $Root 'EE') + @(Get-OnlineFiles $Root 'NeoEE')
+  [void](Show-PinConflicts $files @(Read-OnlinePins $OnlinePinList) 'Hash list')
   exit 0
 }
 
@@ -321,29 +342,37 @@ try {
 
   Write-DownloadHashes $LocalizedFolder $DownloadHashList
 
-  # Release builds list the online files the setups download without a pin, accepted as the HTTPS
-  # server sends them. Inno Setup's built-in downloads follow a redirect from https:// to http://
-  # (Wine probe, ADR 0008 "Implementation"), so these files are only as safe as the configuration
-  # of the file servers. A warning, not an error: whether to pin them is the maintainers' choice
-  # (docs\SERVER-OPERATIONS.md, section 6). The list comes from the code of RegisterOnlineFiles
-  # (Get-OnlineFiles); a change there that Get-OnlineFiles does not understand stops the build,
-  # also the placeholder build of CI, which only prints the number (its pins are placeholders).
-  if (-not $PSBoundParameters.ContainsKey('TestID') -or $TestID -eq 0) {
-    foreach ($type in @($Variants | ForEach-Object { ($_ -split '/')[0] } | Select-Object -Unique)) {
-      $unpinned = @(Get-UnpinnedOnlineFiles @(Get-OnlineFiles $Root $type) $DownloadHashList)
-      if ($unpinned.Count -eq 0) {
-        Write-Host "Online files of the $type setups: all pinned."
-        continue
-      }
-      if ($Placeholders) {
-        Write-Host "Online files of the $type setups without a SHA-256 pin: $($unpinned.Count) (placeholder pins; a release build with the real data lists them)."
-        continue
-      }
-      Write-Warning ("Release build: the $type setups download $($unpinned.Count) online file(s) without a SHA-256 pin. " +
-        'The downloads follow a redirect from https:// to http://, so a file server that redirects could deliver them unencrypted (ADR 0008). ' +
-        'Pin the files known at build time by placing them in data\localized-text at their server path (docs\SERVER-OPERATIONS.md, section 6):')
-      foreach ($path in $unpinned) { Write-Host "    $path" }
+  # The pins of every online file (pins\online-files.txt, ADR 0012), against the online files of
+  # both products as the code of RegisterOnlineFiles registers them (Get-OnlineFiles; a change there
+  # that it does not understand stops the build). A pinned file is downloaded even from a server
+  # whose certificate is invalid, a file without pin only over validated TLS, and Inno Setup's
+  # downloads follow a redirect from https:// to http:// (ADR 0008), so a release pins every file.
+  # The placeholder build of CI is a release build too: it checks the list, not the data.
+  $release = -not $PSBoundParameters.ContainsKey('TestID') -or $TestID -eq 0
+  $buildKind = 'Test build'
+  if ($release) { $buildKind = 'Release build' }
+  $onlinePins = @(Read-OnlinePins $OnlinePinList)
+  $onlineFiles = @(Get-OnlineFiles $Root 'EE') + @(Get-OnlineFiles $Root 'NeoEE')
+  $coverage = Test-OnlinePinCoverage $onlineFiles $onlinePins
+  Write-Host "Pins: $($onlinePins.Count) online file(s) in pins\online-files.txt."
+  if ($coverage.Stale.Count -gt 0) {
+    foreach ($path in $coverage.Stale) { Write-Host "    $path" }
+    throw "pins\online-files.txt pins $($coverage.Stale.Count) path(s) that no setup downloads (listed above); update it with ci\online_pins.ps1 -Update (docs\SERVER-OPERATIONS.md, section 6)."
+  }
+  if ($coverage.Missing.Count -gt 0) {
+    if ($release) {
+      foreach ($path in $coverage.Missing) { Write-Host "    $path" }
+      throw "Release build: $($coverage.Missing.Count) online file(s) have no pin in pins\online-files.txt (listed above); pin them with ci\online_pins.ps1 -Update (docs\SERVER-OPERATIONS.md, section 6)."
     }
+    $unpinned = @(Get-UnpinnedOnlineFiles $onlineFiles $DownloadHashList $onlinePins)
+    Write-Warning ("Test build: $($coverage.Missing.Count) online file(s) have no pin in pins\online-files.txt; " +
+      "$($unpinned.Count) of them have none in data\localized-text either and are only downloaded from a server with a valid certificate:")
+    foreach ($path in $unpinned) { Write-Host "    $path" }
+  }
+  if ($Placeholders) {
+    Write-Host 'Pins: data\localized-text holds placeholders, not compared with pins\online-files.txt.'
+  } elseif ((Show-PinConflicts $onlineFiles $onlinePins $buildKind) -gt 0 -and $release) {
+    throw 'Release build: data\localized-text and pins\online-files.txt pin different files (listed above).'
   }
 
   # Pass 2: the real compile, one output folder per variant.

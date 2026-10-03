@@ -40,6 +40,7 @@ on:
       - 'ci/build.ps1'
       - 'ci/build_helpers.ps1'
       - 'ci/e2e/**'
+      - 'pins/**'
       - '.github/workflows/e2e-realdata.yml'
 
 permissions:

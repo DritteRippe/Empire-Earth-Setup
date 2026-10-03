@@ -494,20 +494,27 @@ function Test-E2EDownloads([hashtable]$Ctx, [bool]$MirrorOk) {
       'Main online files server unreachable or without a valid certificate (see the HTTP GET line above), downloading from the mirror first',
       'Downloading 17 online files, one at a time',
       'All 20 online files accepted'))
+  # Every online file is pinned (pins\online-files.txt, ADR 0012): no file without pin, so no check
+  # of redirects either
   $registeredPinned = @(Select-E2ELogLines $lines '^Online file registered, SHA-256 pinned: ').Count
   $registeredOpen = @(Select-E2ELogLines $lines '^Online file registered, TLS-verified, not pinned: ').Count
-  if ($registeredPinned -ne 10 -or $registeredOpen -ne 10) { $problems += "registered $registeredPinned pinned and $registeredOpen unpinned online files, expected 10 and 10" }
-  $redirects = @(Select-E2ELogLines $lines ('^Online file redirect check: https://' + [regex]::Escape($E2EConst.MirrorHost) + '/localized/.+ answers HTTP 2\d\d over https after \d+ redirects, none to http$')).Count
-  if ($redirects -ne 10) { $problems += "$redirects redirect checks of unpinned files over https, expected 10" }
+  if ($registeredPinned -ne 20 -or $registeredOpen -ne 0) { $problems += "registered $registeredPinned pinned and $registeredOpen unpinned online files, expected 20 and 0" }
+  $redirects = @(Select-E2ELogLines $lines '^Online file redirect check: ').Count
+  if ($redirects -ne 0) { $problems += "$redirects redirect checks, expected none (every file is pinned)" }
   $records = @(Get-E2EDownloadRecords $lines)
   $pinned = @($records | Where-Object { $_.Pinned })
-  if ($pinned.Count -ne 7 -or ($records.Count - $pinned.Count) -ne 10) {
-    $problems += "$($pinned.Count) pinned and $($records.Count - $pinned.Count) unpinned downloads verified, expected 7 and 10"
+  if ($pinned.Count -ne 17 -or ($records.Count - $pinned.Count) -ne 0) {
+    $problems += "$($pinned.Count) pinned and $($records.Count - $pinned.Count) unpinned downloads verified, expected 17 and 0"
   }
+  # The pins the setup used: the hash list of the build (by its path in data\localized-text, the
+  # server path for German) and pins\online-files.txt (by server path)
   $pins = @{}
-  $pinFile = Join-Path $Ctx.Repo 'data\localized-text.sha256'
-  if (Test-Path -LiteralPath $pinFile) { $pins = ConvertFrom-E2EPinList ([System.IO.File]::ReadAllText($pinFile)) }
-  else { $problems += "$pinFile missing" }
+  foreach ($pinFile in @((Join-Path $Ctx.Repo 'pins\online-files.txt'), (Join-Path $Ctx.Repo 'data\localized-text.sha256'))) {
+    if (Test-Path -LiteralPath $pinFile) {
+      $list = ConvertFrom-E2EPinList ([System.IO.File]::ReadAllText($pinFile))
+      foreach ($key in $list.Keys) { $pins[$key] = $list[$key] }
+    } else { $problems += "$pinFile missing" }
+  }
   foreach ($record in $records) {
     if ($record.Pinned -and $pins[$record.RelPath] -cne $record.Hash) { $problems += "$($record.RelPath): the verified hash is not the pin" }
     $targets = @(Get-E2EOnlineFileTargets $record.RelPath $Ctx.Games)

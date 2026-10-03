@@ -67,6 +67,17 @@ jobs:
         shell: pwsh
         run: python ci/compare_contract.py --self-test
 
+      # pins/online-files.txt pins every online file of both products by its server path (ADR 0012):
+      # its format, no online file without a pin (read from the code of RegisterOnlineFiles), no pin
+      # of a path that no setup downloads; then the self-test (changed copies must fail)
+      - name: Check the pins of the online files
+        shell: pwsh
+        run: ./ci/online_pins.ps1
+
+      - name: Check the pins of the online files (self-test)
+        shell: pwsh
+        run: ./ci/online_pins.ps1 -SelfTest
+
       # Unit tests of the [Code] helpers: a tiny test setup that only computes (no network)
       - name: Unit tests
         shell: pwsh

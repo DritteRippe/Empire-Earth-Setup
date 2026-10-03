@@ -234,6 +234,10 @@ try {
   $pins = ConvertFrom-E2EPinList "$h1  Game/de/EE/Language.dll`r`n$h2  Lobby/de/EE/WONLobby.cfg`n"
   Check 'pins: CRLF list' $pins['Game/de/EE/Language.dll'] $h1
   Check 'pins: LF list' $pins['Lobby/de/EE/WONLobby.cfg'] $h2
+  $pins = ConvertFrom-E2EPinList "# comment, $h2 1 x`n$h1 249856 Game/de/EE/Language.dll`n$h2 9678 Lobby/de/shared/Data/WONLobby Resources/_WONStatus.cfg`n"
+  Check 'pins: pins\online-files.txt' $pins['Game/de/EE/Language.dll'] $h1
+  Check 'pins: pins\online-files.txt, path with a space' $pins['Lobby/de/shared/Data/WONLobby Resources/_WONStatus.cfg'] $h2
+  Check 'pins: pins\online-files.txt, comment skipped' $pins.Count 2
 
   # --- Hosts file
   $hosts = "# Copyright`r`n127.0.0.1 localhost`r`n"

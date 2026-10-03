@@ -535,11 +535,13 @@ function Get-E2EOnlineFileTargets([string]$RelPath, [string[]]$Games) {
   return $targets
 }
 
-# path -> lowercase SHA-256 of data\localized-text.sha256 ('<hash>  <path>' lines, LF or CRLF)
+# path -> lowercase SHA-256 of data\localized-text.sha256 ('<hash>  <path>' lines, LF or CRLF) or
+# of pins\online-files.txt ('<hash> <size> <server path>' lines; '#' comment lines are skipped)
 function ConvertFrom-E2EPinList([string]$Text) {
   $pins = @{}
   foreach ($line in ($Text -split "`r?`n")) {
     if ($line -cmatch '^([0-9a-fA-F]{64}) [ *](.+)$') { $pins[$Matches[2]] = $Matches[1].ToLowerInvariant() }
+    elseif ($line -cmatch '^([0-9a-f]{64}) [1-9][0-9]* (.+)$') { $pins[$Matches[2]] = $Matches[1] }
   }
   return $pins
 }

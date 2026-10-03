@@ -34,19 +34,24 @@
 // logged and reported as a notice, and the setup installs the file it contains itself. Nothing of
 // this stops the installation.
 //
-// The pins come from a list in sha256sum format ("<SHA-256 in hex>  <path>", one file per line,
-// paths relative to data\localized-text, whose layout the "localized" folder of the file servers
-// has too; the servers also have a lobby folder per language tag where data\localized-text has
-// one for several languages, see RegisterGameOnlineFiles). ISPP 6.2 can only compute MD5 and
-// SHA-1 (GetSHA256OfFile is missing until Inno Setup 6.3), so the list is created before
-// compiling: ci\build.ps1 writes it from data\localized-text, see README.md "Online localized
-// files". Without the list the setup compiles with a warning, and no Language.dll is downloaded.
+// The pins come from two lists, both compiled into the setup (GetOnlineFilePin):
+//  - pins\online-files.txt, checked in (ADR 0012): SHA-256 and size of every file a setup can
+//    download, by its server path ("<SHA-256> <size> <server path>"). Every online file of both
+//    products is pinned there; ci\online_pins.ps1 and ci\build.ps1 check that.
+//  - the hash list of the build in sha256sum format ("<SHA-256 in hex>  <path>", one file per
+//    line, paths relative to data\localized-text, whose layout the "localized" folder of the file
+//    servers has too; the servers also have a lobby folder per language tag where
+//    data\localized-text has one for several languages, see RegisterGameOnlineFiles). ISPP 6.2 can
+//    only compute MD5 and SHA-1 (GetSHA256OfFile is missing until Inno Setup 6.3), so the list is
+//    created before compiling: ci\build.ps1 writes it from data\localized-text, see README.md
+//    "Online localized files". It applies first, so that a test build can pin a file differently;
+//    a release build stops if the two lists pin different files.
 //
 // Requires: EEDir, AoCDir (ISPP, setup_is6.iss), OnlineFilesURL, OnlineFilesMirrorURL,
 // GetHttpStatus, HttpRequest, IsRedirectStatus, ResolveRedirectUrl, RequestResolveTimeoutMs,
-// HttpRequestFailed, GetOnlineFileCheck, IsHttpsUrl, NextDownloadAction and the DownloadOutcome*
-// and DownloadAction* constants (utils.iss), SilentInstall, SuppressMsgBoxes (extension.iss), the
-// Download* messages (messages.iss).
+// HttpRequestFailed, GetOnlineFileCheck, IsHttpsUrl, NextDownloadAction, ParsePinnedSize and the
+// DownloadOutcome* and DownloadAction* constants (utils.iss), SilentInstall, SuppressMsgBoxes
+// (extension.iss), the Download* messages (messages.iss).
 
 // DownloadHashFile: the hash list, relative to setup_is6.iss unless absolute (ISCC /DDownloadHashFile=...)
 #ifndef DownloadHashFile
@@ -95,10 +100,69 @@
   #endif
 #endsub
 
+// OnlinePinFile: the pins of every online file by its server path, with its size
+// (pins\online-files.txt, checked in; docs/adr/0012-pinned-downloads-despite-invalid-certificates.md),
+// relative to setup_is6.iss unless absolute (ISCC /DOnlinePinFile=...). Format:
+// "<SHA-256, 64 lowercase hex digits> <size in bytes> <server path>", '#' starts a comment line;
+// ci\online_pins.ps1 checks it more strictly (order, coverage of every online file).
+#ifndef OnlinePinFile
+  #define OnlinePinFile "pins\online-files.txt"
+#endif
+#if Copy(OnlinePinFile, 2, 1) == ":" || Copy(OnlinePinFile, 1, 2) == "\\"
+  #define OnlinePinPath OnlinePinFile
+#else
+  #define OnlinePinPath AddBackslash(SourcePath) + OnlinePinFile
+#endif
+#if !FileExists(OnlinePinPath)
+  #pragma error OnlinePinPath + " not found: the pins of the online files are part of the repository (ADR 0012)"
+#endif
+
+#define OnlinePinCount 0
+#define OnlinePinHandle 0
+#define OnlinePinLineNo 0
+#define OnlinePinLine ""
+#define OnlinePinRest ""
+#define OnlinePinSize ""
+#define OnlinePinSizeEnd 0
+#define OnlinePinDigitIndex 0
+
+#sub CheckOnlinePinSizeDigit
+  #if Pos(Copy(OnlinePinSize, OnlinePinDigitIndex, 1), "0123456789") == 0
+    #expr DownloadPinValid = 0
+  #endif
+#endsub
+
+// Emits one AddOnlinePin call per line of the pin list; a malformed line stops the build
+#sub ParseOnlinePinLine
+  #expr OnlinePinLineNo++
+  #expr OnlinePinLine = Trim(FileRead(OnlinePinHandle))
+  #if OnlinePinLine != "" && Copy(OnlinePinLine, 1, 1) != "#"
+    #expr DownloadPinHash = Copy(OnlinePinLine, 1, 64)
+    #expr OnlinePinRest = Copy(OnlinePinLine, 66, Len(OnlinePinLine))
+    #expr OnlinePinSizeEnd = Pos(" ", OnlinePinRest)
+    #expr OnlinePinSize = Copy(OnlinePinRest, 1, OnlinePinSizeEnd - 1)
+    #expr DownloadPinPath = Copy(OnlinePinRest, OnlinePinSizeEnd + 1, Len(OnlinePinRest))
+    #expr DownloadPinValid = Len(OnlinePinLine) > 67 && Copy(OnlinePinLine, 65, 1) == " " && OnlinePinSizeEnd > 1 && OnlinePinSizeEnd <= 16 && Copy(OnlinePinSize, 1, 1) != "0" && DownloadPinPath != ""
+    #for {DownloadPinHexIndex = 1; DownloadPinHexIndex <= 64; DownloadPinHexIndex++} CheckDownloadPinHexDigit
+    #for {OnlinePinDigitIndex = 1; OnlinePinDigitIndex < OnlinePinSizeEnd; OnlinePinDigitIndex++} CheckOnlinePinSizeDigit
+    #if !DownloadPinValid
+      #pragma error "Line " + Str(OnlinePinLineNo) + " of " + OnlinePinPath + " is not '<SHA-256, 64 lowercase hex digits> <size in bytes> <server path>' (see ci\online_pins.ps1)"
+    #endif
+  AddOnlinePin('{#StringChange(DownloadPinPath, "'", "''")}', '{#DownloadPinHash}', '{#OnlinePinSize}');
+    #expr OnlinePinCount++
+  #endif
+#endsub
+
 type
   TDownloadPin = record
     RelPath: String;  // path below data\localized-text
     SHA256: String;   // lowercase hex
+  end;
+
+  TOnlinePin = record
+    RelPath: String;  // server path below "localized" (pins\online-files.txt)
+    SHA256: String;   // lowercase hex
+    Size: Int64;      // bytes (ParsePinnedSize; -1 if the list had an invalid size)
   end;
 
   TOnlineFile = record
@@ -107,6 +171,7 @@ type
     RelPath: String;
     RelDest: String;  // download target relative to {tmp}, e.g. EE\Language.dll
     SHA256: String;   // the pin, '' for a data file accepted without one (TLS-verified only)
+    Size: Int64;      // the pinned size (pins\online-files.txt), -1 if unknown
     CopyOf: Integer;  // -1, or the entry with the same URL: its verified file is copied to RelDest
     // Result of DownloadOnlineFiles: '' if downloaded (and matching its pin), else the custom
     // message that describes the problem (DownloadFileMissing, DownloadFileRejected,
@@ -121,6 +186,7 @@ type
 
 var
   DownloadPins: array of TDownloadPin;
+  OnlinePins: array of TOnlinePin;
   OnlineFiles: array of TOnlineFile;
   // Selected files that are not downloaded at all (GetOnlineFileCheck refused them)
   RefusedOnlineFiles: array of TRefusedOnlineFile;
@@ -145,7 +211,18 @@ begin
   DownloadPins[N].SHA256 := SHA256;
 end;
 
-// Hashes of {#DownloadHashPath}, generated at compile time
+procedure AddOnlinePin(const RelPath, SHA256, SizeText: String);
+var
+  N: Integer;
+begin
+  N := GetArrayLength(OnlinePins);
+  SetArrayLength(OnlinePins, N + 1);
+  OnlinePins[N].RelPath := RelPath;
+  OnlinePins[N].SHA256 := SHA256;
+  OnlinePins[N].Size := ParsePinnedSize(SizeText);
+end;
+
+// Hashes of {#DownloadHashPath} and the pins of {#OnlinePinPath}, generated at compile time
 procedure RegisterDownloadPins;
 begin
   SetArrayLength(DownloadPins, 0);
@@ -156,9 +233,18 @@ begin
   #endif
 #endif
   Log('Online files: ' + IntToStr(GetArrayLength(DownloadPins)) + ' SHA-256 hashes known');
+  SetArrayLength(OnlinePins, 0);
+  #for {OnlinePinHandle = FileOpen(OnlinePinPath); OnlinePinHandle && !FileEof(OnlinePinHandle); ""} ParseOnlinePinLine
+  #if OnlinePinHandle
+    #expr FileClose(OnlinePinHandle)
+  #endif
+  Log('Online files: ' + IntToStr(GetArrayLength(OnlinePins)) + ' SHA-256 pins with sizes of {#OnlinePinFile}');
 end;
 #if DownloadPinCount == 0
-  #pragma warning "No SHA-256 hashes in " + DownloadHashPath + ": this setup will not download any Language.dll, only data files over HTTPS (see README.md, Online localized files)"
+  #pragma warning "No SHA-256 hashes in " + DownloadHashPath + ": only the pins of " + OnlinePinFile + " apply (see README.md, Online localized files)"
+#endif
+#if OnlinePinCount == 0
+  #pragma warning "No pins in " + OnlinePinPath + ": this setup downloads no Language.dll, and only data files from servers with a valid certificate (ADR 0012)"
 #endif
 
 // SHA-256 pin of a path of the hash list (exact match), '' if none
@@ -175,13 +261,42 @@ begin
     end;
 end;
 
+// The pin of the online file RelPath (server path) whose entry in the hash list of the build is
+// PinPath: SHA256 (lowercase hex) and Size (bytes, -1 if unknown); False and '' if it has none.
+// The hash list of the build (data\localized-text) applies first, so that a test build can pin a
+// file differently (TEST-PLAN TP-13, TP-16); the size comes from pins\online-files.txt if both
+// pin the same file. A release build stops if they differ (ci\build.ps1, Test-PinConsistency),
+// the log notes it here. Without an entry in the hash list the pin of pins\online-files.txt
+// applies.
+function GetOnlineFilePin(const RelPath, PinPath: String; var SHA256: String; var Size: Int64): Boolean;
+var
+  I: Integer;
+  Local: String;
+begin
+  Local := GetDownloadPin(PinPath);
+  SHA256 := Local;
+  Size := -1;
+  for I := 0 to GetArrayLength(OnlinePins) - 1 do
+    if CompareStr(OnlinePins[I].RelPath, RelPath) = 0 then
+    begin
+      if (Local = '') or (Local = OnlinePins[I].SHA256) then
+      begin
+        SHA256 := OnlinePins[I].SHA256;
+        Size := OnlinePins[I].Size;
+      end else
+        Log('Online file ' + RelPath + ': the hash list of this build pins another file at ' + PinPath + ' than {#OnlinePinFile}; the hash list applies, the size is not known');
+      Break;
+    end;
+  Result := SHA256 <> '';
+end;
+
 // Can any localized file be downloaded? Files with a pin, and data files without one from an https
 // server (GetOnlineFileCheck). Also the Check of the component language\update, so only
 // compile-time values and constants (component checks may run before InitializeWizard, where
 // RegisterDownloadPins runs).
 function CanDownloadOnlineFiles: Boolean;
 begin
-  Result := ({#DownloadPinCount} > 0) or IsHttpsUrl(OnlineFilesURL) or IsHttpsUrl(OnlineFilesMirrorURL);
+  Result := ({#DownloadPinCount} > 0) or ({#OnlinePinCount} > 0) or IsHttpsUrl(OnlineFilesURL) or IsHttpsUrl(OnlineFilesMirrorURL);
 end;
 
 // Chooses the server the files are downloaded from (OnlineFilesURL and OnlineFilesMirrorURL,
@@ -238,6 +353,7 @@ procedure AddOnlineFile(const RelPath, PinPath, RelDest: String);
 var
   I, N, CopyOf, Check: Integer;
   Hash, Url, MirrorUrl: String;
+  Size: Int64;
 begin
   for I := 0 to GetArrayLength(OnlineFiles) - 1 do
     if CompareText(OnlineFiles[I].RelDest, RelDest) = 0 then
@@ -246,7 +362,7 @@ begin
       Exit;
     end;
 
-  Hash := GetDownloadPin(PinPath);
+  GetOnlineFilePin(RelPath, PinPath, Hash, Size);
   Url := OnlineFilesPrimaryURL + '/' + RelPath;
   MirrorUrl := OnlineFilesSecondaryURL + '/' + RelPath;
   Check := GetOnlineFileCheck(RelDest, Hash, Url);
@@ -288,6 +404,7 @@ begin
   OnlineFiles[N].RelPath := RelPath;
   OnlineFiles[N].RelDest := RelDest;
   OnlineFiles[N].SHA256 := Hash;
+  OnlineFiles[N].Size := Size;
   OnlineFiles[N].CopyOf := CopyOf;
   OnlineFiles[N].DownloadProblem := 'DownloadFileMissing';
   if Hash <> '' then
