@@ -1,0 +1,376 @@
+# Real-data end-to-end test of the v2 setups on a GitHub-hosted Windows runner (README.md, "End-to-end
+# test on Windows"; docs/TEST-PLAN.de.md, section 12).
+#
+# The job downloads the two OFFICIAL setups 1.7.2 (public downloads, cached unchanged), extracts them
+# with innoextract 1.10-dev (built here with MSYS2, the binary is cached), puts their files where the
+# build reads them (ci/e2e/assets-map.tsv: paths, sizes, SHA-1 values, times; no content), builds the
+# real-data installers with Inno Setup 6.2.2, blocks every server of the setups in the hosts file and
+# runs the scenarios A, B, E, D and C (ci/e2e/run_e2e.ps1): silent installations, updates, repairs and
+# uninstallations with the checks of the contract, and the launcher core of the launcher fork against
+# each installation. The job is red if any check fails.
+#
+# Game data never leaves the runner: the extracted files, the placed asset folders and the built
+# installers are never committed, cached, uploaded or printed. Only two caches exist (the unchanged
+# official setups and innoextract.exe), each saved explicitly by path; the only upload is the report
+# folder (logs, NUnit results, report), and ci/e2e/guard_upload.py refuses it unless it holds small
+# text files only, none of them a file of the map.
+name: E2E real data
+
+on:
+  workflow_dispatch:
+    inputs:
+      launcher_ref:
+        description: Branch, tag or commit of the launcher fork whose real-machine checks run
+        required: false
+        default: v2
+  pull_request:
+    paths:
+      - '**/*.iss'
+      - 'internal/lib/**'
+      - 'internal/unofficial_isl/**'
+      - 'ci/**'
+      - '.github/workflows/e2e-realdata.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-realdata-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  OFFICIAL_EE_URL: https://r2.empireearth.eu/setup/game/EE_Setup.exe
+  OFFICIAL_EE_SHA256: da66d954b7135104ac4c63adb5955f251647e7736bb915f27d3f8398d5bd2105
+  OFFICIAL_NEOEE_URL: https://r2.empireearth.eu/setup/game/neo/NeoEE_Setup.exe
+  OFFICIAL_NEOEE_SHA256: b84e2c0f6bf7c0e8bf4f5594b20230df252d9fc6d7649a5507d6323c2b518c33
+  # innoextract 1.10-dev: 1.9 cannot read setups of Inno Setup 6.2.2
+  INNOEXTRACT_COMMIT: 6e9e34ed0876014fdb46e684103ef8c3605e382e
+  LAUNCHER_REPOSITORY: DritteRippe/empire-earth-launcher
+  # The real AppIds of the official setups (an update over 1.7.2 needs them)
+  EE_APPID: 4C0B46D8-E7EB-4B95-97D4-A578D9B914C6
+  NEOEE_APPID: A24FCC7A-5491-4FEA-837B-4E4430C349DA
+  REFASM_PACKAGE: Microsoft.NETFramework.ReferenceAssemblies.net48
+  REFASM_VERSION: 1.0.3
+
+jobs:
+  e2e:
+    name: Install, check and uninstall the real-data setups
+    runs-on: windows-latest
+    timeout-minutes: 240
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Game data and installers only below E2E_ROOT and in the gitignored asset folders of the
+      # workspace; the report folder is separate, and the only thing uploaded
+      - name: Job folders and time zone
+        shell: pwsh
+        run: |
+          $root = Join-Path $env:RUNNER_TEMP 'ee-e2e'
+          $folders = [ordered]@{
+            E2E_ROOT = $root
+            E2E_OFFICIAL = Join-Path $root 'official'
+            E2E_IX = Join-Path $root 'innoextract'
+            E2E_BUILD = Join-Path $root 'build'
+            E2E_WORK = Join-Path $root 'work'
+            E2E_REPORT = Join-Path $env:RUNNER_TEMP 'ee-e2e-report'
+          }
+          foreach ($name in $folders.Keys) {
+            New-Item -ItemType Directory -Force -Path $folders[$name] | Out-Null
+            "$name=$($folders[$name])" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          }
+          # ISCC stores the time stamps of the files in local time; the map assumes UTC
+          if ((tzutil /g) -ne 'UTC') { tzutil /s 'UTC' }
+          "Time zone: $(tzutil /g)"
+          Get-PSDrive -PSProvider FileSystem | ForEach-Object { '{0}: {1:N1} GB free' -f $_.Name, ($_.Free / 1GB) }
+
+      # The rules of the checks, with fake data (also in build.yml): fail fast before any download
+      - name: Self-tests of the end-to-end tools
+        shell: pwsh
+        run: |
+          python -m unittest discover -s ci/e2e/tests -p "test_*.py"
+          if ($LASTEXITCODE) { exit 1 }
+          powershell -NoProfile -ExecutionPolicy Bypass -File ci/e2e/tests/e2e_helpers.tests.ps1
+          if ($LASTEXITCODE) { exit 1 }
+
+      # --- The official setups 1.7.2: public downloads, cached unchanged, verified every time
+      - name: Restore the official setups 1.7.2
+        id: official-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}\ee-e2e\official
+          key: ee-official-setups-1.7.2-da66d954-b84e2c0f
+
+      - name: Download the official setups 1.7.2 (cache miss)
+        if: steps.official-cache.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          foreach ($setup in @(@{ Url = $env:OFFICIAL_EE_URL; File = 'EE_Setup.exe' }, @{ Url = $env:OFFICIAL_NEOEE_URL; File = 'NeoEE_Setup.exe' })) {
+            curl.exe -fsSL --proto '=https' --proto-redir '=https' --retry 3 --retry-delay 10 -o (Join-Path $env:E2E_OFFICIAL $setup.File) $setup.Url
+            if ($LASTEXITCODE) { throw "Download of $($setup.Url) failed (curl exit code $LASTEXITCODE)" }
+          }
+
+      - name: Verify the official setups (SHA-256)
+        shell: pwsh
+        run: |
+          $expected = @{ 'EE_Setup.exe' = $env:OFFICIAL_EE_SHA256; 'NeoEE_Setup.exe' = $env:OFFICIAL_NEOEE_SHA256 }
+          foreach ($file in $expected.Keys) {
+            $hash = (Get-FileHash -LiteralPath (Join-Path $env:E2E_OFFICIAL $file) -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($hash -ne $expected[$file]) { throw "$file has the SHA-256 $hash, expected $($expected[$file])" }
+            "${file}: SHA-256 as expected"
+          }
+          $other = @(Get-ChildItem -LiteralPath $env:E2E_OFFICIAL -Force | Where-Object { $expected.Keys -notcontains $_.Name })
+          if ($other.Count) { throw "Unexpected files next to the official setups: $($other.Name -join ', ')" }
+
+      # Saved right away: a cache of a red job would otherwise be lost (the post step skips it)
+      - name: Save the official setups (cache miss)
+        if: steps.official-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}\ee-e2e\official
+          key: ee-official-setups-1.7.2-da66d954-b84e2c0f
+
+      # --- innoextract 1.10-dev: no Windows binary is published, so it is built once and cached
+      - name: Restore innoextract
+        id: innoextract-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}\ee-e2e\innoextract
+          key: innoextract-${{ env.INNOEXTRACT_COMMIT }}-mingw64-static-r1
+
+      - name: Check out innoextract (cache miss)
+        if: steps.innoextract-cache.outputs.cache-hit != 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: dscharrer/innoextract
+          ref: ${{ env.INNOEXTRACT_COMMIT }}
+          path: _innoextract-src
+          persist-credentials: false
+
+      - name: Set up MSYS2 (cache miss)
+        if: steps.innoextract-cache.outputs.cache-hit != 'true'
+        uses: msys2/setup-msys2@ec48f7c5447b3140e2b088413ae3a55687bccb6e # v2.33.0
+        with:
+          msystem: MINGW64
+          update: true
+          # no cache of its own: only the two caches above exist
+          cache: false
+          install: >-
+            mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-ninja mingw-w64-x86_64-boost
+            mingw-w64-x86_64-xz mingw-w64-x86_64-zlib mingw-w64-x86_64-bzip2 mingw-w64-x86_64-zstd
+
+      # A static binary: only system DLLs (without the bzip2 override FindBZip2 links libbz2.dll.a;
+      # -static also drops libwinpthread-1.dll)
+      - name: Build innoextract (cache miss)
+        if: steps.innoextract-cache.outputs.cache-hit != 'true'
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          cmake -S _innoextract-src -B _ixb -G Ninja -DCMAKE_BUILD_TYPE=Release -DUSE_STATIC_LIBS=ON -DUSE_LTO=OFF \
+            -DCMAKE_EXE_LINKER_FLAGS='-static -s' -DBZIP2_LIBRARY_RELEASE=/mingw64/lib/libbz2.a
+          cmake --build _ixb
+          objdump -p _ixb/innoextract.exe | grep 'DLL Name' | tee _ixb/dlls.txt
+          grep -q 'KERNEL32.dll' _ixb/dlls.txt
+          if grep -viE 'DLL Name: (KERNEL32|msvcrt|SHELL32)\.dll$' _ixb/dlls.txt; then
+            echo "innoextract.exe needs more than system DLLs"
+            exit 1
+          fi
+          pacman -Q mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-boost mingw-w64-x86_64-xz \
+            mingw-w64-x86_64-zlib mingw-w64-x86_64-bzip2 mingw-w64-x86_64-zstd
+          cp _ixb/innoextract.exe "$(cygpath -u "$E2E_IX")/"
+
+      - name: Save innoextract (cache miss)
+        if: steps.innoextract-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}\ee-e2e\innoextract
+          key: innoextract-${{ env.INNOEXTRACT_COMMIT }}-mingw64-static-r1
+
+      - name: innoextract version
+        shell: pwsh
+        run: |
+          $version = & (Join-Path $env:E2E_IX 'innoextract.exe') --version | Select-Object -First 1
+          "innoextract: $version"
+          if ($version -notmatch '^innoextract 1\.10-dev') { throw "innoextract 1.10-dev expected, found $version" }
+          "E2E_INNOEXTRACT=$version" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      # --- The launcher's checks against a real installation (Empire-Earth-Launcher.RealMachineTests),
+      # built before the game data exists so that a failure shows early
+      - name: Check out the launcher fork
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ env.LAUNCHER_REPOSITORY }}
+          ref: ${{ inputs.launcher_ref || 'v2' }}
+          path: _launcher
+          persist-credentials: false
+
+      - name: Set up NuGet
+        uses: NuGet/setup-nuget@d105a947828025cd7a980103c35ba2bfae586d0f # v2.0.2
+
+      - name: Set up MSBuild
+        uses: microsoft/setup-msbuild@6fb02220983dee41ce7ae257b6f4d8f9bf5ed4ce # v2.0.0
+
+      - name: Build the launcher's real-machine checks and run their self-tests
+        shell: pwsh
+        working-directory: _launcher
+        run: |
+          nuget restore Empire-Earth.sln -NonInteractive
+          if ($LASTEXITCODE) { exit 1 }
+          nuget install $env:REFASM_PACKAGE -Version $env:REFASM_VERSION -OutputDirectory "$env:RUNNER_TEMP\refasm" -NonInteractive
+          if ($LASTEXITCODE) { exit 1 }
+          $root = Join-Path $env:RUNNER_TEMP "refasm\$env:REFASM_PACKAGE.$env:REFASM_VERSION\build"
+          msbuild Empire-Earth-Launcher.RealMachineTests\Empire-Earth-Launcher.RealMachineTests.csproj /nologo /v:minimal /p:Configuration=Release `
+            "/p:TargetFrameworkRootPath=$root" "/p:FrameworkPathOverride=$root\.NETFramework\v4.8"
+          if ($LASTEXITCODE) { exit 1 }
+          $exe = (Resolve-Path 'Empire-Earth-Launcher.RealMachineTests\bin\Release\Empire-Earth-Launcher.RealMachineTests.exe').Path
+          & $exe --where "cat == SelfTest"
+          if ($LASTEXITCODE) { exit 1 }
+          "LAUNCHER_RM=$exe" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "E2E_LAUNCHER_COMMIT=$(git rev-parse HEAD)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      # --- Game data: only in the job workspace (gitignored asset folders) and below E2E_ROOT
+      - name: Extract the official setups and place their files
+        shell: pwsh
+        run: |
+          $ix = Join-Path $env:E2E_IX 'innoextract.exe'
+          foreach ($product in 'EE', 'NeoEE') {
+            $setup = Join-Path $env:E2E_OFFICIAL "${product}_Setup.exe"
+            # -q: no file list in the job log
+            & $ix -e --collisions=rename-all -q -c 0 -p 0 -d (Join-Path $env:E2E_ROOT "x\$product") $setup
+            if ($LASTEXITCODE) { throw "innoextract failed for $product (exit code $LASTEXITCODE)" }
+            python ci/e2e/inno_headers.py $setup (Join-Path $env:E2E_ROOT "hd\$product")
+            if ($LASTEXITCODE) { throw "inno_headers.py failed for $product" }
+          }
+          python ci/e2e/place_assets.py --map ci/e2e/assets-map.tsv --root . `
+            --extract "EE=$env:E2E_ROOT\x\EE" "NeoEE=$env:E2E_ROOT\x\NeoEE" --headers "EE=$env:E2E_ROOT\hd\EE" "NeoEE=$env:E2E_ROOT\hd\NeoEE"
+          $code = $LASTEXITCODE
+          Remove-Item -LiteralPath (Join-Path $env:E2E_ROOT 'x'), (Join-Path $env:E2E_ROOT 'hd') -Recurse -Force
+          if ($code) { throw 'The official files could not be placed (PROBLEM lines above)' }
+
+      - name: Install Inno Setup 6.2.2
+        shell: pwsh
+        run: choco install innosetup --version=6.2.2 --allow-downgrade --no-progress -y
+
+      # Release build (TestID 0), Regular, the real AppIds, unsigned (no -SignSetup: certinclude is
+      # not compiled in); SetupBuild is the short commit in CI
+      - name: Build the real-data setups
+        shell: pwsh
+        run: |
+          ./ci/build.ps1 -Variants EE/Regular, NeoEE/Regular -EEAppID $env:EE_APPID -NeoEEAppID $env:NEOEE_APPID -TestID 0 `
+            -RequireVersion 6.2.2 -OutputDir $env:E2E_BUILD -KeepPreprocessed (Join-Path $env:E2E_ROOT 'pp')
+          if ($LASTEXITCODE) { exit 1 }
+
+      # Map drift: what the scripts read must be exactly the map, and the pin list the build wrote
+      # must be the one of the map
+      - name: Check the build inputs against the map
+        shell: pwsh
+        run: |
+          python ci/e2e/readset.py --root . --pp "EE=$env:E2E_ROOT\pp\EE_Regular.iss" --pp "NeoEE=$env:E2E_ROOT\pp\NeoEE_Regular.iss" --check-map ci/e2e/assets-map.tsv
+          if ($LASTEXITCODE) { exit 1 }
+          python ci/e2e/place_assets.py --map ci/e2e/assets-map.tsv --root . --verify-only
+          if ($LASTEXITCODE) { exit 1 }
+          $text = [IO.File]::ReadAllText((Join-Path (Get-Location) 'data\localized-text.sha256')).Replace("`r`n", "`n")
+          $sha1 = [BitConverter]::ToString([Security.Cryptography.SHA1]::Create().ComputeHash([Text.Encoding]::ASCII.GetBytes($text))).Replace('-', '').ToLowerInvariant()
+          $row = (Get-Content -LiteralPath ci/e2e/assets-map.tsv | Where-Object { $_ -like "generated`t*" }) -split "`t"
+          if ($sha1 -ne $row[3]) { throw 'data\localized-text.sha256 differs from the map (SHA-1 of its LF form)' }
+          "E2E_PIN_COUNT=$(@($text.Split("`n") | Where-Object { $_ }).Count)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "E2E_SETUP_BUILD=$(git rev-parse --short=7 HEAD)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      # --- The scenarios (Windows PowerShell 5.1). Prepare blocks every server in the hosts file
+      # (api.empireearth.eu with the statistics endpoints first) and seeds the CD key dummy; no setup
+      # runs unless it passed. Each scenario records its results and never stops the next one.
+      - name: Prepare the runner (hosts block, CD key dummy, clean state)
+        id: prepare
+        shell: pwsh
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File ci/e2e/run_e2e.ps1 -Phase Prepare
+          exit $LASTEXITCODE
+
+      - name: 'Scenario A: EE for all users, German, downloads from the mirror'
+        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
+        timeout-minutes: 60
+        shell: pwsh
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File ci/e2e/run_e2e.ps1 -Phase A
+          exit $LASTEXITCODE
+
+      - name: 'Scenario B: NeoEE for the current user, without the CD key task'
+        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
+        timeout-minutes: 60
+        shell: pwsh
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File ci/e2e/run_e2e.ps1 -Phase B
+          exit $LASTEXITCODE
+
+      - name: 'Scenario E: custom folder next to a foreign installation'
+        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
+        timeout-minutes: 45
+        shell: pwsh
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File ci/e2e/run_e2e.ps1 -Phase E
+          exit $LASTEXITCODE
+
+      - name: 'Scenario D: link guard and update without the wrapper'
+        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
+        timeout-minutes: 45
+        shell: pwsh
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File ci/e2e/run_e2e.ps1 -Phase D
+          exit $LASTEXITCODE
+
+      - name: 'Scenario C: official 1.7.2, v2 over it, damage and repair'
+        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
+        timeout-minutes: 90
+        shell: pwsh
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File ci/e2e/run_e2e.ps1 -Phase C
+          exit $LASTEXITCODE
+
+      # --- Report and the one upload (logs and report only)
+      - name: Remove the game data, the installers and the work folder
+        if: always()
+        shell: pwsh
+        run: |
+          $paths = @('data', 'internal\media', 'internal\misc', 'internal\runtime', $env:E2E_BUILD, $env:E2E_WORK)
+          if ($env:E2E_ROOT) { $paths += @('x', 'hd', 'pp' | ForEach-Object { Join-Path $env:E2E_ROOT $_ }) }
+          foreach ($path in $paths) {
+            if ($path -and (Test-Path -LiteralPath $path)) { Remove-Item -LiteralPath $path -Recurse -Force -ErrorAction Continue }
+          }
+
+      - name: Report
+        if: always()
+        shell: pwsh
+        run: |
+          if (-not $env:E2E_REPORT) { 'No report folder: the job stopped before the scenarios.'; exit 0 }
+          python ci/e2e/report.py --results (Join-Path $env:E2E_REPORT 'results.jsonl') --summary $env:GITHUB_STEP_SUMMARY `
+            --out (Join-Path $env:E2E_REPORT 'report.md') --context "Setup-Commit / setup commit=$env:GITHUB_SHA" `
+            "SetupBuild=$env:E2E_SETUP_BUILD" "Launcher=$env:LAUNCHER_REPOSITORY $env:E2E_LAUNCHER_COMMIT" `
+            "innoextract=$env:E2E_INNOEXTRACT" "Runner=$env:ImageOS $env:ImageVersion"
+
+      - name: Check the report folder before the upload
+        id: guard
+        if: always()
+        shell: pwsh
+        run: |
+          if (-not $env:E2E_REPORT) { exit 1 }
+          python ci/e2e/guard_upload.py --dir $env:E2E_REPORT --map ci/e2e/assets-map.tsv --forbid $env:GITHUB_WORKSPACE $env:E2E_ROOT
+          exit $LASTEXITCODE
+
+      - name: Upload logs and report (no game data)
+        if: ${{ always() && steps.guard.outcome == 'success' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: e2e-realdata-report
+          path: ${{ runner.temp }}\ee-e2e-report
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Verdict
+        if: always()
+        shell: pwsh
+        run: |
+          if (-not $env:E2E_REPORT) { exit 1 }
+          python ci/e2e/report.py --results (Join-Path $env:E2E_REPORT 'results.jsonl') --verdict
+          exit $LASTEXITCODE
