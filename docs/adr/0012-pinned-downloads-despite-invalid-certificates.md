@@ -191,7 +191,7 @@ S-WP12, 2026-10-03, four commits on `v2`:
 
 Run-time probe under Wine 9.0 (not in the repository: a probe setup with `downloads.iss` unchanged
 and `utils.iss` with the two server URLs pointed to loopback servers, run in a network namespace
-with only the loopback interface; a copy of the Wine prefix trusts the probe CA): 88 expectations,
+with only the loopback interface; a copy of the Wine prefix trusts the probe CA): 87 expectations,
 all met.
 
 | Scenario | Result |
