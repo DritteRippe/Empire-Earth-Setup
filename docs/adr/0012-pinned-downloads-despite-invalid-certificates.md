@@ -19,8 +19,9 @@ HTTP GET https://storage.ee.zocker-160.de/localized failed: ... Der Servername o
 Unable to reach the online files server! The setup will only use local files...
 ```
 
-and showed the notice `OnlineFilesUnreachable`: voices, campaigns and the intro movie stayed
-English. The facts (2026-10-03):
+and showed the notice `OnlineFilesUnreachable`: voices and campaigns stayed English. No intro movie
+was installed at all: the setup only installs and downloads it with the component "Install intro
+videos", which no setup type selects and which was not selected. The facts (2026-10-03):
 
 - `files.empireearth.eu` serves the certificate of its hosting provider,
   `CN=cluster131.hosting.ovh.net`, valid for that name and not for `files.empireearth.eu`
@@ -135,6 +136,12 @@ not the certificate. Files without pin keep the strict rule of ADR 0003 and ADR 
 - **Inno Setup 6.2.2** (`ScriptDlg.pas`): `TOutputProgressWizardPage.SetProgress` calls
   `ProcessMsgs`, so the stop button of the page is processed between two reads;
   `TDownloadWizardPage.Download` resets `AbortedByUser`, nothing else does.
+- **Laptop retest 2026-10-03** (TP-10 (a), installers built from `02afce0`, German, EE and AoC,
+  recommended settings, telemetry off): EE-admin and NeoEE-admin passed. Main server "certificate
+  invalid" (answers only without validation), mirror without DNS (WinHTTP 12007, not used); EE 17
+  and NeoEE 18 pinned downloads over WinHTTP, every SHA-256 and size equal to its pin,
+  `All 20` and `All 22 online files accepted` (these counts include the shared lobby files copied
+  for AoC), no notice. No intro movie: its component is not part of the recommended settings.
 
 ## Consequences
 
