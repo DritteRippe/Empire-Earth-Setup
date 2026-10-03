@@ -1,6 +1,8 @@
 # 0003. Replace the Inno Download Plugin by Inno Setup's built-in downloads
 
-- Status: Accepted, implemented (S-WP3, see [Implementation](#implementation))
+- Status: Accepted, implemented (S-WP3, see [Implementation](#implementation)); amended by
+  [0012](0012-pinned-downloads-despite-invalid-certificates.md) (pinned files from a server with an
+  invalid certificate come over WinHTTP)
 - Date: 2026-10-02
 - Requirements: D3, R16, R17
 - Revised: 2026-10-02, plan review before implementation (stop button vs. mirror, size check only
@@ -176,3 +178,11 @@ separate commit.
   but is synchronous (the wizard freezes during a 30 MB movie), has no progress and no stop button,
   and would need `ADODB.Stream` to write binary data.
 - **`[Files]` `download` flag:** only from Inno Setup 6.5.0 ([ADR 0002](0002-stay-on-inno-setup-6.2.2.md)).
+
+## Amendment (ADR 0012, 2026-10-03)
+
+The built-in downloads are still used for every file from a server with a valid certificate. A
+server that only answers without certificate validation (the main server since its certificate is
+that of the hosting provider) delivers pinned files only, over WinHTTP with the certificate errors
+ignored and the SHA-256 checked before the file is kept; every online file is pinned in
+`pins/online-files.txt`. See [ADR 0012](0012-pinned-downloads-despite-invalid-certificates.md).

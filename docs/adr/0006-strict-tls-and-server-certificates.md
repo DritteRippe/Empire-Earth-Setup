@@ -1,6 +1,7 @@
 # 0006. Strict TLS everywhere, TLS 1.2 on Windows 7, operator guide for the file server certificate
 
-- Status: Accepted, implemented (S-WP3, see [Implementation](#implementation))
+- Status: Accepted, implemented (S-WP3, see [Implementation](#implementation)); points 1 and 5
+  amended by [0012](0012-pinned-downloads-despite-invalid-certificates.md)
 - Date: 2026-10-02
 - Requirements: R16, D3
 - Revised: 2026-10-02, plan review before implementation (TLS 1.2 on Windows 7 is a hypothesis to
@@ -132,3 +133,19 @@ S-WP3, 2026-10-02:
 - **Always set the protocol option:** would pin TLS 1.2 and lose TLS 1.3 on Windows 11.
 - **Switch the main URL to the mirror:** a server-side problem should be fixed on the server; the
   fallback already covers it.
+
+## Amendment (ADR 0012, 2026-10-03)
+
+The mirror no longer exists in DNS, and `files.empireearth.eu` still presents the certificate of its
+hosting provider, so v2 installed no localized files at all. The maintainers amended two points:
+
+- **Point 1:** certificates are still validated for every request and every file without SHA-256
+  pin. A pinned online file (every online file is pinned now, `pins/online-files.txt`) may be
+  downloaded from a server that only answers without certificate validation; it is only installed
+  if it matches its pin. The only code that ignores certificate errors is checked by
+  `ci/check_tls_policy.py`.
+- **Point 5, release criterion:** a release needs at least one file server that serves the
+  `/localized/` files over HTTPS, with a valid certificate or, for the pinned files, without one,
+  and `pins/online-files.txt` must match the files on that server (SERVER-OPERATIONS section 5).
+
+See [ADR 0012](0012-pinned-downloads-despite-invalid-certificates.md).

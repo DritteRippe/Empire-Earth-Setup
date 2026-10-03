@@ -12,6 +12,8 @@
   the redirect from `https://` to `http://` is probed and a release build lists its unpinned online
   files); security review of v2: the setup checks the redirects of a file without pin before its
   download (point 6, Implementation)
+- Amended: point 6 by [0012](0012-pinned-downloads-despite-invalid-certificates.md): every online
+  file is pinned in the checked-in `pins/online-files.txt`, and a release build stops if one is not
 
 ## Context
 
@@ -212,6 +214,17 @@ release build.
   tests of `IsRedirectStatus` and `ResolveRedirectUrl`, its run time on Windows by no test case (a
   redirecting server with a valid certificate for the setup's server names cannot be set up in a
   test VM).
+
+## Amendment of point 6 (ADR 0012, 2026-10-03)
+
+Pinning the files known at build time by placing them in `data\localized-text` was a
+recommendation, and the voices, campaigns and movies only exist on the servers, so the release
+builds kept 110 unpinned files per product. Since [ADR 0012](0012-pinned-downloads-despite-invalid-certificates.md)
+every online file of both products is pinned in the checked-in `pins/online-files.txt` (SHA-256 and
+size per server path): the warning of a release build became an error (an online file without a pin
+there stops it, also the placeholder build of CI), `ci/online_pins.ps1` checks the list in CI, and
+`data\localized-text` must pin the same files. For a pinned file the SHA-256 decides, whatever
+redirect it took; the check of the redirects stays for files without pin (test builds).
 
 ## Alternatives considered
 

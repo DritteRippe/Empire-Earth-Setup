@@ -13,7 +13,8 @@ header.
 ## Unreleased
 
 Setup v2: the refactoring and quality fixes of the base branch and the work packages of the v2
-plan (`docs/ARCHITECTURE.md`, "Plan", all done): built-in downloads instead of a plug-in, the
+plan (`docs/ARCHITECTURE.md`, "Plan", all done): built-in downloads instead of a plug-in, every
+online file pinned by its SHA-256 (also downloaded from a server with an invalid certificate), the
 compatibility defaults, a log of every run and checksums of the setups, the install record and the
 integrity manifest for the Empire Earth Launcher, hints before the installation, no elevated
 installation through links, and a complete German test plan for Windows. No new game content; the
@@ -426,6 +427,16 @@ setup version stays 1.7.2 until the release.
   contributors), and the launcher checks come from a pinned full commit that must be on the
   launcher branch. README: when it runs, the approval setting, the pin, the caches.
 
+- `pins/online-files.txt`: the SHA-256 and size of every online localized file both setups can
+  download, by its server path (230 paths, hashes only, no game data), compiled into every setup
+  ([ADR 0012](docs/adr/0012-pinned-downloads-despite-invalid-certificates.md)).
+  `ci/online_pins.ps1` checks it (format; every online file of EE and NeoEE pinned as the code of
+  `RegisterOnlineFiles` registers it; no other path), rewrites it from a copy of the `localized`
+  folder (`-Update -Source <folder> [-CrossCheck <second copy>]`) and has a `-SelfTest`;
+  `ci/check_tls_policy.py` (with `--self-test`) checks that certificate errors are only ignored for
+  pinned files. CI runs all four. SERVER-OPERATIONS section 6 explains when and how the operators
+  regenerate the pins.
+
 ### Changed
 - The hidden setup data folder (holds `EEStatsSetup.dll` for the uninstaller) is now
   `{app}\_setupdata_EE` or `{app}\_setupdata_NeoEE` instead of `{app}\<AppId>`: a fixed name, but
@@ -548,6 +559,30 @@ setup version stays 1.7.2 until the release.
 - The DirectX wrapper preselection of the graphics card page is unchanged; the README explains the
   evidence and how to install without a wrapper ("Native"), the test plan has the graphics matrix
   (TP-23).
+
+- Online localized files when a file server presents an invalid certificate (today
+  `files.empireearth.eu`, whose certificate is that of its hosting provider; the mirror
+  `storage.ee.zocker-160.de` no longer exists): the setup asks such a server once more without
+  certificate validation and, if it answers, downloads the **pinned** files from it with WinHTTP,
+  streamed to a temporary file that is only kept if its size and SHA-256 match the pin (ADR 0012).
+  Every online file is pinned now, so the voices, campaigns and intro movie of the chosen language
+  arrive again; the notice `OnlineFilesUnreachable` only comes when no server answers at all. From
+  a server with a valid certificate everything is downloaded as before; the mirror is not asked
+  while the main server has one. A file without pin is never downloaded from a server whose
+  certificate is invalid; the notice names it with the new message `DownloadFileServerCertificate`
+  (English, German, French). The log names the state of each server and the transport of every
+  file (`transport WinHTTP without certificate validation`), and a summary line counts both
+  transports.
+- Every pinned download (both transports) stops as soon as its announced or received size cannot
+  match the pin, and such a file counts as "not the version this setup knows" (discarded). The
+  stop button also works for the WinHTTP downloads (between two reads); their timeouts are 8 s for
+  the name, 15 s to connect and send, 30 s per read.
+- `ci/build.ps1`: instead of warning with the online files without a pin, every build checks
+  `pins/online-files.txt`: a pinned path that no setup downloads stops every build, an online file
+  without a pin stops a release build (also the placeholder build of CI) and is a warning in a test
+  build, and a release build with the real data stops if `data\localized-text` pins a file
+  differently. `-DownloadHashesOnly` names such files too. The end-to-end check expects every
+  download to be pinned.
 
 ### Removed
 - Entries for Windows XP and older: the WIN98 compatibility mode and the pre-Vista `netsh
@@ -726,6 +761,17 @@ setup version stays 1.7.2 until the release.
   The consent box is no longer pre-checked because of the consent given for the other product
   (EE/NeoEE). The request uses HTTPS only (no HTTP fallback), all values are URL-encoded, and the
   log no longer contains the query with the anonymous user id.
+
+- Certificate validation has one exception now (ADR 0012): a pinned online file (every online
+  file of a release) may be downloaded from a file server whose certificate is invalid, because it
+  is only installed if its size and SHA-256 match the pin compiled into the setup. Nothing else
+  ignores a certificate: not the update check, not the statistics, not a file without pin, which
+  still needs a validated certificate and the check of its redirects. The flags that ignore
+  certificate errors (`WINHTTP_OPTION_SECURITY_FLAGS`, `$3300`) are set in one function, only for
+  the probe of a server and the download of a pinned file, which refuses a file without pin;
+  `ci/check_tls_policy.py` checks that in CI. Without a valid certificate, someone on the network
+  path can see which files are requested and make downloads fail, but cannot get anything else
+  installed (setup 1.7.2 accepted any file in that situation).
 
 ### Internal
 Refactoring without any change to what the setups install or do: the preprocessed scripts of all

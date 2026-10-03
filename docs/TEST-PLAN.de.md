@@ -11,7 +11,9 @@ TP-30) aus S-WP5, Block 4 (Installationseintrag und `install.ini`, TP-40 und TP-
 Block 5 (Integritätsmanifest, TP-50) aus S-WP7, Block 6 (Umgebung, TP-60 bis TP-63) aus S-WP8,
 Block 8 (Links in `Data` und `Users`, TP-80) aus S-WP11; S-WP9 hat die Build-Art A+ für das Update
 über 1.7.2 ohne Daten der Maintainer, die Fälle TP-71 bis TP-79 von Block 7, die
-Windows-8.1-Variante von TP-22 und die Entscheidungsregeln in TP-23 und TP-71 ergänzt. Alle Fälle
+Windows-8.1-Variante von TP-22 und die Entscheidungsregeln in TP-23 und TP-71 ergänzt; S-WP12 hat
+TP-00 und Block 1 an die gepinnten Downloads von einem Server mit ungültigem Zertifikat angepasst
+(ADR 0012). Alle Fälle
 sind ausgearbeitet; jeder hat eine Priorität (P1 bis P3, [Abschnitt 4](#4-vorlage-je-fall)).
 `ci/check_test_plan.py` prüft die Form dieses Dokuments (siehe
 [Abschnitt 11](#11-automatische-prüfung-dieses-dokuments)).
@@ -104,8 +106,8 @@ Nummer ihres Blocks. Ein neues Arbeitspaket mit eigenen Fällen bekommt den näc
 
 | IDs | Block | Paket | Inhalt |
 |---|---|---|---|
-| TP-00 | Vorabprüfung | S-WP2 | Zustand der beiden Dateiserver vor jedem Testtag mit Downloads |
-| TP-1x | Downloads | S-WP3 | eingebaute Downloads statt IDP: Hauptserver ungültig und Spiegel (TP-10), offline (TP-11), Stopp-Knopf am ersten und am zweiten Server (TP-12, TP-13), Silent (TP-14), Koreanisch (TP-15), verworfener Download (TP-16), TLS 1.2 unter Windows 7 (TP-17) |
+| TP-00 | Vorabprüfung | S-WP2, S-WP12 | Zustand der beiden Dateiserver vor jedem Testtag mit Downloads, Stichprobe gegen die Pins |
+| TP-1x | Downloads | S-WP3, S-WP12 | eingebaute Downloads statt IDP und gepinnte Downloads trotz ungültigem Zertifikat: Hauptserver mit ungültigem Zertifikat, fremder Server unter seinem Namen (TP-10), offline (TP-11), Stopp-Knopf am ersten und am zweiten Server (TP-12, TP-13), Silent (TP-14), Koreanisch (TP-15), verworfener Download (TP-16), TLS 1.2 unter Windows 7 (TP-17) |
 | TP-2x | Kompatibilität und Grafik | S-WP4, S-WP10 | Windows 7 ohne Kompatibilitätswerte und mit der freiwilligen Aufgabe `compatibility_legacy` (TP-20), Bereinigung beim Update unter Windows 7, auch mit `compatibility_legacy` (TP-21), Windows 10/11 unverändert, optional Windows 8.1 (TP-22), Grafikmatrix mit und ohne DirectX-Wrapper und die Entscheidungsregel aus ADR 0010 (TP-23), 150 % Anzeigeskalierung mit und ohne `compatibility` bzw. `compatibility_legacy` (TP-24) |
 | TP-3x | Build und Log | S-WP5 | SHA-256-Dateien der Setups und Setup-Log ohne `/LOG`, auch bei Over-the-Shoulder-Erhöhung (TP-30) |
 | TP-4x | Installationseintrag und `install.ini` | S-WP6 | Installationseintrag, `install.ini`, Defaults-Marker, `SetupBuild` und der Wert `Empire Earth Community: ContractVersion` im Uninstall-Schlüssel je Variante, auch bei schreibgeschützter oder geöffneter `install.ini` und nach dem Setup 1.7.2, Deinstallation (TP-40); Spieleinstellungen und Marker beim installierenden und bei einem zweiten Konto, Over-the-Shoulder-Erhöhung (TP-41) |
@@ -284,9 +286,10 @@ Dateien, Downloads, Deinstallation). Das Spiel startet damit nicht.
      `/MERGETASKS="!dxwebsetup"`.
    - NeoEE: Die CD-Key-Registrierung scheitert am Platzhalter von `authtools.dll` (Hinweis
      `CDKeysToolMissing`).
-   - Downloads: Die Pins entstehen aus den Platzhaltern in `data\localized-text`. Eine echte
-     `Language.dll` vom Server passt nicht dazu und wird verworfen und gemeldet; ungepinnte
-     Datendateien (Stimmen, Kampagnen, Video, Lobby-Dateien) werden über geprüftes TLS angenommen.
+   - Downloads: Die Hashliste des Builds entsteht aus den Platzhaltern in `data\localized-text` und
+     gilt vor `pins/online-files.txt`. Eine echte `Language.dll` vom Server passt nicht dazu und
+     wird verworfen und gemeldet; Stimmen, Kampagnen, Video und Lobby-Dateien sind über
+     `pins/online-files.txt` gepinnt und werden angenommen.
    - Keine Musik, Platzhalterbilder im Assistenten.
 
 ### 6.3 Weg B: echter Build aus eigenen Daten
@@ -470,24 +473,24 @@ P1-Teilen im Protokoll „bestanden“ hat oder mit Grund ausgenommen ist. Gült
 
 - „nicht durchgeführt: keine Daten“ für die Teile mit Weg B, wenn es keine Daten der Maintainer
   gibt (Schritt K10 unten);
-- die Ausnahmen, die ein Fall selbst nennt (z. B. TP-10, wenn nach TP-00 nur der Hauptserver
-  gültig ist: „nicht durchgeführt: Spiegel ungültig“).
+- die Ausnahmen, die ein Fall selbst nennt (z. B. TP-13 „nicht durchgeführt: nur ein Server“, wenn
+  TP-00 nur einen erreichbaren Dateiserver findet).
 
 Ein „Fehler“ in einem P1-Teil verhindert die Freigabe, bis eine Korrektur ihn in einem neuen
 Kurzdurchlauf behebt. Über eine „Abweichung“ entscheiden die Maintainer; die Entscheidung steht in
-der Bemerkung des Protokolls. Findet [TP-00](#tp-00-server-vorabprüfung) keinen Dateiserver mit
-gültigem Zertifikat, ist das ein Release-Blocker auf Serverseite (ADR 0006), keine Ausnahme. P2- und
+der Bemerkung des Protokolls. Findet [TP-00](#tp-00-server-vorabprüfung) keinen Dateiserver, der die
+Dateien ausliefert (mit gültigem Zertifikat oder, für die gepinnten Dateien, ohne), oder passt die
+Stichprobe nicht zu den Pins, ist das ein Release-Blocker auf Serverseite (ADR 0006, ADR 0012), keine
+Ausnahme. P2- und
 P3-Fälle verhindern die Freigabe nicht; ein ausgelassener P2-Fall steht mit Grund im Protokoll. Die
 Freigabe gilt für den getesteten Commit: Ändert ein späterer Commit das kompilierte Setup, braucht
 er einen neuen Kurzdurchlauf.
 
-Kein Teil des Kriteriums, sondern eine bewusste Entscheidung der Maintainer (Planentscheidung K6,
-ADR 0008 Punkt 6): Online-Dateien ohne Pin. Ein Release-Build listet sie als Warnung (mit den Daten
-von 1.7.2 je Produkt 110 Pfade: Stimmen, Kampagnen, Filme). Das Setup prüft vor jedem ihrer
-Downloads die Weiterleitungen mit `HEAD`; einen Server, der `HEAD` und `GET` verschieden beantwortet
-und `GET` auf `http://` umleitet, erkennt es nicht. Die Maintainer entscheiden vor der Freigabe, ob
-sie die Dateien pinnen, die sie kennen (SERVER-OPERATIONS.md, Abschnitt 6), und vermerken die
-Entscheidung im Protokoll.
+Seit S-WP12 ([ADR 0012](adr/0012-pinned-downloads-despite-invalid-certificates.md)) ist jede
+Online-Datei in `pins/online-files.txt` gepinnt: Ein Release-Build bricht ab, wenn eine Datei
+fehlt, und CI prüft die Liste bei jedem Push. Online-Dateien ohne Pin gibt es in einer Freigabe also
+nicht mehr; die frühere Entscheidung K6 (ADR 0008 Punkt 6) ist damit erledigt. Die Maintainer prüfen
+vor der Freigabe, dass die Pins zum Server passen (TP-00, Schritt 3).
 
 **Vorbereitung** (einmal, nicht in den drei Stunden): Inno Setup 6.2.2, Python 3 und Git auf dem
 Laptop, eine Arbeitskopie des Branches ([6.1](#61-voraussetzungen-alle-wege)); die Windows-Sandbox
@@ -512,7 +515,7 @@ Downloads, und `install.ini` nennt `language\en` statt `language\de`.
 | K1 | Laptop | Server-Vorabprüfung; ihr Ergebnis bestimmt K4 | TP-00 | 5 |
 | K2 | Laptop | Weg A bauen ([6.2](#62-weg-a-placeholder-build), alle vier Varianten) und Weg A+ (`-Variants EE/Regular -OutputDir out\aplus`), die Setups aus `out` nach `C:\EE-Test\setups\A` und aus `out\aplus` nach `C:\EE-Test\setups\A+` kopieren (gleiche Dateinamen) | - | 10 |
 | K3 | Laptop | die SHA-256-Dateien der vier Setups von Weg A prüfen | TP-30 (a) | 5 |
-| K4 | Sandbox, Netz | EE-admin neu installieren (Deutsch, „Empfohlene Einstellungen“ mit EE und AoC, Telemetrie aus) und prüfen: TP-70 (a) Schritte 1 bis 5; derselbe Lauf belegt TP-10 (ist der Hauptserver laut K1 inzwischen gültig, vorher die `hosts`-Zeile aus TP-10 eintragen), TP-22 (a) (mit den empfohlenen Einstellungen sind beide Kompatibilitätsaufgaben gewählt; die Aufgabenseite entfällt), TP-40 (a) und TP-50 (a). Dann TP-40 (e) Teil a (schreibgeschützte `install.ini`), dann TP-73 (a) (die Reparatur nach dem Schaden ist zugleich die letzte Reparatur von TP-40 (e)). Dann NeoEE-admin: TP-70 (a), TP-40 (d), TP-50 (a); zum Schluss beide deinstallieren (TP-70 Schritt 7, TP-40 (d)) | TP-10, TP-22, TP-40, TP-50, TP-70, TP-73 | 43 |
+| K4 | Sandbox, Netz | EE-admin neu installieren (Deutsch, „Empfohlene Einstellungen“ mit EE und AoC, Telemetrie aus) und prüfen: TP-70 (a) Schritte 1 bis 5; derselbe Lauf belegt TP-10 (a) (gepinnte Dateien vom Hauptserver mit ungültigem Zertifikat; ist er laut K1 inzwischen gültig, der Weg mit Zertifikatsprüfung), TP-22 (a) (mit den empfohlenen Einstellungen sind beide Kompatibilitätsaufgaben gewählt; die Aufgabenseite entfällt), TP-40 (a) und TP-50 (a). Dann TP-40 (e) Teil a (schreibgeschützte `install.ini`), dann TP-73 (a) (die Reparatur nach dem Schaden ist zugleich die letzte Reparatur von TP-40 (e)). Dann NeoEE-admin: TP-70 (a), TP-40 (d), TP-50 (a); zum Schluss beide deinstallieren (TP-70 Schritt 7, TP-40 (d)) | TP-10, TP-22, TP-40, TP-50, TP-70, TP-73 | 43 |
 | K5 | Sandbox, Netz | EE-user mit der „Virenscanner“-Schleife: TP-50 (b) ohne den stillen Lauf; dieselbe Installation belegt TP-70 (a) EE-user (der Hinweis zu fehlenden Dateien ist hier erwartet) und TP-22 (d) (Werte in HKCU); nach der Reparatur ohne Schleife TP-40 (b); deinstallieren (TP-70 Schritt 7) | TP-22, TP-40, TP-50, TP-70 | 21 |
 | K6 | Sandbox, Netz | EE-portable: TP-70 (a), TP-40 (c), TP-50 (a); dann EE-admin still: TP-14 (a) | TP-14, TP-40, TP-50, TP-70 | 16 |
 | K7 | Sandbox, ohne Netz (`EE-Test-offline.wsb`) | EE-admin per Doppelklick ohne `/LOG`: TP-11 (a) und zugleich TP-30 (b) (das Log aus `%TEMP%` als `C:\EE-Test\logs\TP-11a_EE-admin.log` sichern); dann TP-14 (b) still, hier als Reparatur über diese Installation (die Downloads laufen ohne Netz bei einer Reparatur genauso ab) | TP-11, TP-14, TP-30 | 13 |
@@ -538,14 +541,14 @@ stimmt und höchstens 180 Minuten beträgt.
 
 - **Status:** ausgearbeitet
 - **Priorität:** P1
-- **Bezug:** R16, ADR 0006 (Freigabekriterium: mindestens ein Dateiserver mit gültigem
-  Zertifikat), ADR 0003; Forum §8 Nr. 15
-- **Ziel:** Vor allen Download-Tests klären, ob der Hauptserver und der Spiegel über HTTPS mit
-  gültigem Zertifikat antworten, damit ein Download-Fehler im Test nicht dem Setup angelastet
-  wird.
+- **Bezug:** R16, ADR 0006 und ADR 0012 (Freigabekriterium: mindestens ein Dateiserver liefert die
+  Dateien, und sie passen zu `pins/online-files.txt`), ADR 0003; Forum §8 Nr. 15
+- **Ziel:** Vor allen Download-Tests klären, wie der Hauptserver und der Spiegel antworten (gültiges
+  Zertifikat, nur ohne Zertifikatsprüfung oder gar nicht) und ob die Dateien dort noch die gepinnten
+  sind, damit ein Download-Fehler im Test nicht dem Setup angelastet wird.
 - **Build-Art:** keine (kein Setup nötig)
 - **Ausgangszustand:** Laptop mit Internetzugang, ohne Proxy, der TLS aufbricht (sonst prüft man
-  den Proxy).
+  den Proxy); die Arbeitskopie des Branches (für `pins\online-files.txt`, [6.1](#61-voraussetzungen-alle-wege)).
 - **Snapshot:** `Laptop` (nichts wird verändert)
 - **Varianten:** keine (gilt für alle; die Setups nutzen dieselben Server)
 - **Schritte:**
@@ -568,52 +571,78 @@ stimmt und höchstens 180 Minuten beträgt.
 
      Die erste Zeile schaltet TLS 1.2 für Windows PowerShell 5.1 ein (PowerShell 7 braucht sie
      nicht, sie schadet dort nicht). Die Ordner-URL ist dieselbe, die das Setup vor den Downloads
-     prüft (`SelectOnlineFilesServer`); `Data/data.ssa` ist eine ungepinnte Datei, für die die
-     Größe zählt.
-  2. Alternative ohne PowerShell: `curl.exe -sSI https://files.empireearth.eu/localized/` und
-     dasselbe für den Spiegel (Windows 10 ab 1803 hat `curl.exe`).
-  3. Ausgabe und Datum ins Protokoll übernehmen.
-- **Erwartetes Ergebnis:** Je Server gilt:
-  - **gültig**: eine HTTP-Antwort ohne TLS-Fehler. Für den Ordner sind `200`, `403` oder `404`
-    möglich (das Setup wertet jede HTTP-Antwort als erreichbar); für `data.ssa` `200` mit einer
-    `Content-Length` größer als 0. Fehlt `Content-Length`, ist das ein Hinweis an die
-    Serverbetreiber (das Setup kann die Größe ungepinnter Dateien dann nicht prüfen, ADR 0003),
-    kein Testabbruch. Die Zeile von `data.ssa` ist eine `HEAD`-Anfrage wie die Prüfung der
-    Weiterleitungen, die das Setup vor jeder ungepinnten Datei macht: Scheitert nur sie, während
-    der Ordner antwortet, beantwortet der Server `HEAD` nicht, und das Setup lädt von ihm keine
-    ungepinnte Datei (Hinweis an die Betreiber, SERVER-OPERATIONS.md Anforderung 4).
-  - **ungültig**: `FEHLER` mit einer Zertifikats- oder TLS-Meldung (Windows PowerShell z. B.
-    „Für den geschützten SSL/TLS-Kanal konnte keine Vertrauensstellung hergestellt werden“,
-    PowerShell 7 „The SSL connection could not be established“), oder keine Verbindung (Name nicht
-    auflösbar, Zeitüberschreitung).
+     prüft (`SelectOnlineFilesServer`).
+  2. Für jeden Server, der in Schritt 1 mit `FEHLER` und einer Zertifikats- oder TLS-Meldung
+     antwortet: wie das Setup ohne Zertifikatsprüfung fragen, nur die Kopfzeilen:
+     `curl.exe -sSI -k https://files.empireearth.eu/localized/Game/de/EE/Data/data.ssa`
+     (bzw. der Spiegel; Windows 10 ab 1803 hat `curl.exe`). `-k` schaltet die Prüfung nur für diese
+     Anfrage ab, genau wie das Setup für gepinnte Dateien.
+  3. Stichprobe gegen die Pins, für den Server, den das Setup zuerst nimmt (gültig vor ungültig,
+     der Hauptserver bei Gleichstand), in der Arbeitskopie:
+
+     ```powershell
+     $rel = 'Lobby/de/EE/WONLobby.cfg'
+     $pin = (Select-String -Path pins\online-files.txt -SimpleMatch -Pattern " $rel").Line.Split(' ')[0]
+     curl.exe -sS -k -o "$env:TEMP\tp00.cfg" "https://files.empireearth.eu/localized/$rel"
+     '{0}  Pin {1}  Server {2}' -f $rel, $pin, (Get-FileHash "$env:TEMP\tp00.cfg" -Algorithm SHA256).Hash.ToLower()
+     Remove-Item "$env:TEMP\tp00.cfg"
+     ```
+
+  4. Ausgabe und Datum ins Protokoll übernehmen.
+- **Erwartetes Ergebnis:** Je Server gilt eines davon:
+  - **gültig**: eine HTTP-Antwort ohne TLS-Fehler in Schritt 1. Für den Ordner sind `200`, `403`
+    oder `404` möglich (das Setup wertet jede HTTP-Antwort als erreichbar); für `data.ssa` `200`
+    mit einer `Content-Length` größer als 0. Fehlt `Content-Length`, ist das ein Hinweis an die
+    Serverbetreiber, kein Testabbruch.
+  - **ungültiges Zertifikat**: `FEHLER` mit einer Zertifikats- oder TLS-Meldung in Schritt 1
+    (Windows PowerShell z. B. „Für den geschützten SSL/TLS-Kanal konnte keine Vertrauensstellung
+    hergestellt werden“, PowerShell 7 „The SSL connection could not be established“), aber in
+    Schritt 2 eine HTTP-Antwort (`HTTP/1.1 200`, `Content-Length` > 0). Das Setup lädt von diesem
+    Server die gepinnten Dateien ohne Zertifikatsprüfung (ADR 0012), also seit S-WP12 alle
+    Online-Dateien, und keine ungepinnte.
+  - **nicht erreichbar**: auch Schritt 2 ohne HTTP-Antwort (Name nicht auflösbar, keine
+    Verbindung, Zeitüberschreitung).
+
+  Schritt 3: Die beiden Hashes sind gleich. Sind sie verschieden, wurden die Dateien auf dem
+  Server nach dem Erzeugen der Pins geändert: Jedes Setup verwirft sie dann
+  ([TP-16](#tp-16-manipulierter-download-wird-verworfen)); vor einer Freigabe müssen die Pins neu
+  erzeugt werden (SERVER-OPERATIONS.md, Abschnitt 6).
 
   Bewertung:
-  - **Beide gültig**: Alle Download-Fälle (TP-1x) sind uneingeschränkt testbar.
-  - **Nur einer gültig**: Freigabekriterium erfüllt. Ist nur der Spiegel gültig, ist der Weg
-    „Hauptserver ungültig, Spiegel übernimmt“ der Normalfall; die Fälle, die einen funktionierenden
-    Hauptserver brauchen, werden als eingeschränkt protokolliert.
-  - **Keiner gültig**: **Release-Blocker auf Serverseite** (ADR 0006), kein Fehler des Setups.
-    Die Download-Tests sind nur eingeschränkt möglich: Prüfbar bleiben nur „beide Server
-    scheitern“ (Hinweis `OnlineFilesUnreachable`, Installation mit den eigenen Dateien) und das
-    Verhalten ohne Netz; erfolgreiche Downloads, Pins gegen echte Serverdateien und der Wechsel
-    zum Spiegel nicht. Im Protokoll vermerken und die Maintainer informieren.
+  - **Mindestens ein Server gültig oder mit ungültigem Zertifikat erreichbar, Stichprobe gleich**:
+    Freigabekriterium erfüllt. Hat der Hauptserver ein ungültiges Zertifikat, ist der Weg „gepinnte
+    Dateien ohne Zertifikatsprüfung“ ([TP-10](#tp-10-hauptserver-mit-ungültigem-zertifikat-gepinnte-dateien-trotzdem)
+    Teil a) der Normalfall; ist er gültig, belegt Teil a den Weg mit Zertifikatsprüfung.
+  - **Stichprobe verschieden**: Release-Blocker (Pins veraltet), die Download-Fälle sind trotzdem
+    durchführbar; die geänderten Dateien erscheinen als verworfen.
+  - **Kein Server erreichbar**: **Release-Blocker auf Serverseite** (ADR 0006), kein Fehler des
+    Setups. Prüfbar bleiben nur „kein Server“ (Hinweis `OnlineFilesUnreachable`, Installation mit
+    den eigenen Dateien) und das Verhalten ohne Netz. Im Protokoll vermerken und die Maintainer
+    informieren.
 
-  Beobachtung aus der Analyseumgebung am 2026-10-02 (zum Vergleich, kein Ersatz für den Test):
+  Beobachtung aus der Analyseumgebung am 2026-10-03 (zum Vergleich, kein Ersatz für den Test):
   `files.empireearth.eu` lieferte das Standardzertifikat des Hosters
-  (`CN=cluster131.hosting.ovh.net`), also **ungültig**; der Spiegel war von dort nicht erreichbar
-  (Proxy-Fehler 502) und ist damit **unbekannt**.
-- **Log-Hinweis:** kein Setup-Log. In den Download-Fällen (TP-1x) zeigt das Setup-Log die Ursache
-  (`HTTP GET https://files.empireearth.eu/localized failed: <Ursache>`) und den Serverwechsel
-  (`Main online files server unreachable or without a valid certificate (see the HTTP GET line above), downloading from the mirror first`,
-  `downloads.iss`); was die Betreiber prüfen, steht in [SERVER-OPERATIONS.md](SERVER-OPERATIONS.md).
+  (`CN=cluster131.hosting.ovh.net`), also **ungültiges Zertifikat**, antwortete aber mit allen
+  Dateien (die Pins stammen von dort); `storage.ee.zocker-160.de` hat keinen DNS-Eintrag mehr, ist
+  also **nicht erreichbar**.
+- **Log-Hinweis:** kein Setup-Log. In den Download-Fällen (TP-1x) zeigt das Setup-Log je Server die
+  Ursache (`HTTP GET https://files.empireearth.eu/localized failed: <Ursache>`), die Probe ohne
+  Zertifikatsprüfung (`HTTP GET https://files.empireearth.eu/localized without certificate validation: status <n>, answer not read`)
+  und den Zustand
+  (`Online files server https://files.empireearth.eu/localized: answers only without certificate validation (HTTP <n>); pinned files are downloaded from it with WinHTTP, …`
+  bzw. `…: no answer, neither with nor without certificate validation`), dann die Reihenfolge
+  (`Online files: <URL> first (<Zustand>), then <URL> (<Zustand>)`); was die Betreiber prüfen, steht
+  in [SERVER-OPERATIONS.md](SERVER-OPERATIONS.md).
 
-### Block 1: Downloads (S-WP3)
+### Block 1: Downloads (S-WP3, S-WP12)
 
-Diese Fälle prüfen, was ADR 0003 und ADR 0006 nur auf Windows zeigen können: die eingebauten
-Downloads von Inno Setup statt IDP (eine Datei nach der anderen, erst der zuerst gewählte Server,
-dann einmal der andere), den Stopp-Knopf, den Silent-Modus, Koreanisch und TLS 1.2 unter
-Windows 7. Die Entscheidung nach jedem Versuch ist zusätzlich als Unit-Test abgedeckt
-(`NextDownloadAction` in `ci/tests/unit_tests.iss`).
+Diese Fälle prüfen, was ADR 0003, ADR 0006 und ADR 0012 nur auf Windows zeigen können: die
+eingebauten Downloads von Inno Setup statt IDP (eine Datei nach der anderen, erst der zuerst
+gewählte Server, dann einmal der andere), die gepinnten Downloads ohne Zertifikatsprüfung von einem
+Server mit ungültigem Zertifikat (WinHTTP), den Stopp-Knopf, den Silent-Modus, Koreanisch und
+TLS 1.2 unter Windows 7. Die Entscheidungen (Zustand eines Servers, Reihenfolge, Transport je Datei
+und Server, nächster Schritt nach jedem Versuch, Größengrenze) sind zusätzlich als Unit-Tests
+abgedeckt (`ci/tests/unit_tests.iss`), der Ablauf mit Testservern in der Wine-Probe von ADR 0012.
 
 Gemeinsam für alle Fälle dieses Blocks:
 
@@ -624,97 +653,120 @@ Gemeinsam für alle Fälle dieses Blocks:
   in allen Installationsarten vorausgewählt). Wenn nicht anders gesagt: Spielsprache „Deutsch“.
 - Die Download-Seite heißt „Lokalisierte Dateien werden heruntergeladen“; unter dem
   Fortschrittsbalken steht die URL der Datei, die gerade geladen wird, darunter der Knopf
-  „Download abbrechen“.
-- **Weg A:** Die Pins stammen aus Platzhaltern ([6.2](#62-weg-a-placeholder-build)). Jede gepinnte
-  Datei (mindestens `Language.dll`) passt deshalb nicht zum Server, wird auf beiden Servern
-  verworfen und im Hinweis als „nicht die Version, die dieses Setup kennt … verworfen“ gemeldet.
-  Das ist bei Weg A in jedem Fall dieses Blocks erwartet und genau der Inhalt von
-  [TP-16](#tp-16-manipulierter-download-wird-verworfen).
+  „Download abbrechen“. Das gilt für beide Transporte.
+- Seit S-WP12 sind alle Online-Dateien gepinnt (`pins/online-files.txt`, SHA-256 und Größe je
+  Serverpfad); eine Datei wird nur installiert, wenn sie dazu passt.
+- **Weg A:** Die Hashliste des Builds stammt aus Platzhaltern ([6.2](#62-weg-a-placeholder-build))
+  und gilt vor `pins/online-files.txt`. Die `Language.dll`-Dateien (die einzigen Platzhalter mit
+  Online-Gegenstück) passen deshalb nicht zum Server, werden auf beiden Servern verworfen und im
+  Hinweis als „nicht die Version, die dieses Setup kennt … verworfen“ gemeldet. Das ist bei Weg A in
+  jedem Fall dieses Blocks erwartet und genau der Inhalt von
+  [TP-16](#tp-16-manipulierter-download-wird-verworfen). Stimmen, Kampagnen, Video und Lobby-Dateien
+  kommen auch bei Weg A an (ihre Pins stammen aus `pins/online-files.txt`).
 - Langsame Leitung für die Stopp-Fälle: Damit man den Knopf rechtzeitig trifft, in der VM die
   Bandbreite begrenzen (VirtualBox: *Netzwerk › Bandbreitengruppe*, etwa 1 MBit/s; Hyper-V:
   *Netzwerkkarte › Bandbreitenverwaltung*) und die Komponente „Intro-Videos installieren“ wählen
-  (nur in der benutzerdefinierten Installation; das lokalisierte Video ist die größte Datei).
-- Log-Zeilen des Download-Teils (`downloads.iss`), die die Fälle zitieren:
-  `Downloading <n> online files, one at a time`; vor jedem Versuch einer ungepinnten Datei die
-  Prüfung der Weiterleitungen `HTTP HEAD <URL>` mit `HTTP HEAD <URL>: status <n>, 0 characters read`
-  und `Online file redirect check: <URL> answers HTTP <n> over https after <k> redirects, none to http`
-  (sonst `Online file refused, it has no SHA-256 and <URL> redirects to "<Ziel>", not to https: <URL>`
-  oder `Online file not downloaded from <URL>: no answer to the check of its redirects (HEAD <URL>)`,
-  dann ohne Download weiter wie nach einem gescheiterten Versuch); je Versuch
-  `Downloading temporary file from <URL>: <Ziel>` (Inno Setup) und danach
-  `Online file downloaded, SHA-256 pinned: <URL>`,
-  `Online file downloaded, TLS-verified, size checked: <URL>`,
-  `Online file downloaded, TLS-verified, accepted without size check (the server sent no Content-Length): <URL>`,
-  `Online file download failed from <URL>: <Ursache>` oder
-  `Online file rejected, SHA-256 mismatch: <URL> (got <SHA-256>)`; der Wechsel
-  `Online file: trying the other server, <URL>`; bei `ssInstall` je Datei
-  `Online file verified, SHA-256 pinned: …`, `Online file accepted, TLS-verified, not pinned: …`
-  oder `Online file not downloaded: …` und am Ende
-  `<k> of <n> selected online files are missing, the setup installs its own files instead:` mit der
-  Liste (bzw. `All <n> online files accepted`).
+  (nur in der benutzerdefinierten Installation; das lokalisierte Video ist die größte Datei nach
+  den Stimmen).
+- Log-Zeilen des Download-Teils (`downloads.iss`), die die Fälle zitieren: die Zeilen der
+  Serverauswahl aus [TP-00](#tp-00-server-vorabprüfung); je Datei
+  `Online file registered, SHA-256 pinned: <Pfad>` (ohne Pin: `…, TLS-verified, not pinned: …`, bei
+  einem Server mit ungültigem Zertifikat stattdessen
+  `Online file not downloaded, no SHA-256 is known for <Pfad> and <URL> has no valid certificate …`);
+  `Other server not used for <Pfad>: <URL> (<Zustand>)`, wenn der andere Server die Datei nicht
+  liefern darf; `Downloading <n> online files, one at a time`; je Versuch über den eingebauten
+  Download `Downloading temporary file from <URL>: <Ziel>` (Inno Setup) und danach
+  `Online file downloaded, SHA-256 pinned: <URL>`, über WinHTTP
+  `Downloading pinned online file without certificate validation (WinHTTP) from <URL>: <Ziel>`, alle
+  10 % `  <k> of <n> bytes done.` und danach
+  `Online file downloaded, SHA-256 pinned, transport WinHTTP without certificate validation: <URL> (<n> bytes, <ms> ms)`;
+  bei Fehlern `Online file download failed from <URL>: <Ursache>` (WinHTTP: `WinHTTP error <Nummer> (<Text>)`),
+  `Online file rejected, SHA-256 mismatch: <URL> (got <SHA-256>)`,
+  `Online file rejected, the server announces <n> bytes, its pinned size is <m>: <URL>` oder
+  `Online file rejected, its size cannot match the pin (…): <URL>`; der Wechsel
+  `Online file: trying the other server, <URL>`; die Summe
+  `Online files: <a> downloaded with validated TLS (Inno Setup), <b> pinned ones with WinHTTP without certificate validation, of <n>`;
+  bei `ssInstall` je Datei `Online file verified, SHA-256 pinned: …` (ohne Pin
+  `Online file accepted, TLS-verified, not pinned: …`) oder `Online file not downloaded: …` und am
+  Ende `<k> of <n> selected online files are missing, the setup installs its own files instead:` mit
+  der Liste (bzw. `All <n> online files accepted`).
 
-#### TP-10: Hauptserver ungültig, Download vom Spiegel
+#### TP-10: Hauptserver mit ungültigem Zertifikat: gepinnte Dateien trotzdem
 
 - **Status:** ausgearbeitet
-- **Priorität:** P1 (EE-admin; NeoEE-admin mit Weg B: P2)
-- **Bezug:** ADR 0003, ADR 0006, R16; Forum §8 Nr. 15 („nur mit Spiegel erreichbar“), Forum
-  §8 Nr. 12 des Problemabgleichs (t=5741, t=3763: kaputte Downloads)
-- **Ziel:** Mit ungültigem Zertifikat des Hauptservers lädt das Setup die lokalisierten Dateien
-  vom Spiegel und nennt die Ursache im Log; ein ungültiges Zertifikat wird nie akzeptiert.
-- **Build-Art:** A oder B (B zeigt den Normalfall ohne verworfene Dateien)
-- **Ausgangszustand:** TP-00: Spiegel gültig. Ist der Hauptserver noch ungültig (Stand
-  2026-10-02), ist das der Fall selbst. Ist er inzwischen gültig, wird der Fehler nachgestellt:
-  in der VM als Administrator die Adresse des Spiegels ermitteln (`nslookup storage.ee.zocker-160.de`)
-  und in `C:\Windows\System32\drivers\etc\hosts` die Zeile `<diese IPv4-Adresse> files.empireearth.eu`
-  eintragen, dann `ipconfig /flushdns`. `curl.exe -sSI https://files.empireearth.eu/localized/`
-  muss jetzt mit einem Zertifikatsfehler scheitern.
+- **Priorität:** P1 (Teil a mit EE-admin; Teil b und NeoEE-admin mit Weg B: P2)
+- **Bezug:** ADR 0012, ADR 0003, ADR 0006, R16; Laptoptest vom 2026-10-03 (Stimmen, Kampagnen und
+  Video blieben englisch); Forum §8 Nr. 15 („nur mit Spiegel erreichbar“), Forum §8 Nr. 12 des
+  Problemabgleichs (t=5741, t=3763: kaputte Downloads)
+- **Ziel:** (a) Mit dem echten Hauptserver, dessen Zertifikat nicht zu seinem Namen passt, lädt das
+  Setup alle gepinnten Dateien ohne Zertifikatsprüfung und installiert jede nur, wenn sie zu ihrem
+  Pin passt; die deutschen Stimmen, Kampagnen und das Video kommen an. (b) Ein fremder Server unter
+  dem Namen des Hauptservers kann nichts unterschieben: Er antwortet zwar ohne Zertifikatsprüfung,
+  aber keine Datei passt zu ihrem Pin, nichts davon wird installiert.
+- **Build-Art:** A oder B (B zeigt den Normalfall ohne verworfene `Language.dll`)
+- **Ausgangszustand:** (a) TP-00: Hauptserver „ungültiges Zertifikat“ und Stichprobe gleich (Stand
+  2026-10-03). Ist er inzwischen gültig, prüft (a) den Weg mit Zertifikatsprüfung (eingebaute
+  Downloads; im Protokoll vermerken), der Weg ohne bleibt dann durch die Wine-Probe von ADR 0012
+  belegt. (b) Netz an; in der VM als Administrator die Adresse eines fremden HTTPS-Servers ermitteln,
+  dessen Zertifikat nicht zu `files.empireearth.eu` passt, z. B. `nslookup www.gog.com`, und in
+  `C:\Windows\System32\drivers\etc\hosts` die Zeile `<diese IPv4-Adresse> files.empireearth.eu`
+  eintragen, dann `ipconfig /flushdns`. Nicht die Adresse von `empireearth.eu` nehmen: Deren
+  Wildcard-Zertifikat gilt auch für `files.empireearth.eu`.
 - **Snapshot:** `S-Basis` (die Zeile in `hosts` verschwindet mit dem Zurücksetzen)
 - **Varianten:** EE-admin; NeoEE-admin bei Weg B (lädt die NeoEE-Fassungen aus `Mods/NeoEE/`).
   Die anderen Varianten nutzen denselben Code.
 - **Schritte:**
-  1. Setup mit `/LOG="C:\EE-Test\logs\TP-10_EE-admin.log"` starten (bei Weg A zusätzlich
+  1. (a) Setup mit `/LOG="C:\EE-Test\logs\TP-10_EE-admin.log"` starten (bei Weg A zusätzlich
      `/MERGETASKS="!dxwebsetup"`), Spielsprache Deutsch, empfohlene Einstellungen mit „Empire
      Earth und Die Kunst der Eroberungen“, Telemetrie aus.
   2. Auf „Bereit zur Installation“ „Installieren“ klicken; die Download-Seite beobachten (die URLs
-     müssen mit `https://storage.ee.zocker-160.de/` beginnen) und die Installation fertigstellen.
+     beginnen mit `https://files.empireearth.eu/`, der Fortschrittsbalken läuft, der Knopf
+     „Download abbrechen“ ist da) und die Installation fertigstellen.
   3. `certutil -hashfile "C:\Program Files (x86)\Empire Earth\Empire Earth\Data\data.ssa" SHA256`
-     ausführen und mit der Zeile `Online file accepted, TLS-verified, not pinned: Game/de/EE/Data/data.ssa (SHA-256 …)`
-     im Log vergleichen.
-  4. Bei nachgestelltem Fehler die Zeile in `hosts` wieder entfernen (oder den Snapshot
-     zurücksetzen).
-- **Erwartetes Ergebnis:** Keine Fehlermeldung und kein Hinweis `OnlineFilesUnreachable`. Weg B:
-  kein Hinweis `DownloadIncomplete` (sofern der Spiegel vollständig ist); Weg A: der Hinweis listet
-  nur die gepinnten Dateien als verworfen. Die SHA-256 aus Schritt 3 gleicht der im Log. Keine
-  Anfrage an den Hauptserver lädt eine Datei.
-- **Log-Hinweis:** `HTTP GET https://files.empireearth.eu/localized failed: <Ursache>` (ein
-  Zertifikatsfehler, z. B. „Die Zertifizierungsstelle ist ungültig oder falsch“ oder „Der
-  Zertifikatsname ist ungültig oder stimmt nicht überein“), danach
-  `Main online files server unreachable or without a valid certificate (see the HTTP GET line above), downloading from the mirror first`
-  und `Downloading temporary file from https://storage.ee.zocker-160.de/localized/…`. Scheitert
-  eine Datei am Spiegel, folgt `Online file: trying the other server, https://files.empireearth.eu/…`
-  und bei einer gepinnten Datei `Online file download failed from https://files.empireearth.eu/…:
-  <Zertifikatsfehler>`, bei einer ungepinnten schon die Prüfung der Weiterleitungen:
-  `HTTP HEAD https://files.empireearth.eu/… failed: <Zertifikatsfehler>` und `Online file not
-  downloaded from https://files.empireearth.eu/…: no answer to the check of its redirects (…)`. Steht
-  bei einer ungepinnten Datei `accepted without size check`, sendet der Spiegel kein
-  `Content-Length`: ins Protokoll und an die Serverbetreiber (SERVER-OPERATIONS.md, Abschnitt 2).
+     ausführen und mit der Zeile von `Game/de/EE/Data/data.ssa` in `pins\online-files.txt` der
+     Arbeitskopie vergleichen; ebenso `…\Empire Earth\Data\Campaigns\EETheGermans.ssa`.
+  4. (b) Snapshot zurücksetzen, `hosts` wie oben, Schritte 1 und 2 mit `TP-10b` im Log-Namen; den
+     Hinweis nach den Downloads lesen und bestätigen, fertigstellen; die `hosts`-Zeile wieder
+     entfernen (oder den Snapshot zurücksetzen).
+- **Erwartetes Ergebnis:**
+  - (a) Keine Fehlermeldung und kein Hinweis `OnlineFilesUnreachable`. Weg B: kein Hinweis
+    `DownloadIncomplete`; Weg A: der Hinweis nennt nur die `Language.dll` von Empire Earth und AoC
+    als verworfen. Die SHA-256 aus Schritt 3 gleicht den Pins. Im Spielordner sind die deutschen
+    Kampagnen und `data.ssa` (etwa 170 MB) installiert.
+  - (b) Kein Fehler, die Installation läuft durch. Der Hinweis „Einige lokalisierte Dateien konnten
+    nicht aus dem Download installiert werden: …“ nennt alle heruntergeladenen Dateien als „nicht
+    heruntergeladen“ (der fremde Server antwortet mit 404) oder „verworfen“; das Spiel enthält nur
+    die eigenen Dateien des Setups (Stimmen und Kampagnen englisch).
+- **Log-Hinweis:** (a) `HTTP GET https://files.empireearth.eu/localized failed: <Ursache>` (z. B.
+  „Der Hostname des Zertifikats ist ungültig oder stimmt nicht überein“), danach
+  `HTTP GET https://files.empireearth.eu/localized without certificate validation: status <n>, answer not read`,
+  `Online files server https://files.empireearth.eu/localized: answers only without certificate validation …`,
+  für den Spiegel `…: no answer, neither with nor without certificate validation`, dann
+  `Online files: https://files.empireearth.eu/localized first (invalid certificate: pinned files only, without certificate validation), then https://storage.ee.zocker-160.de/localized (no answer: not used)`,
+  je Datei `Downloading pinned online file without certificate validation (WinHTTP) from https://files.empireearth.eu/…`
+  und `Online file downloaded, SHA-256 pinned, transport WinHTTP without certificate validation: …`,
+  die Summe `Online files: 0 downloaded with validated TLS (Inno Setup), <n> pinned ones with WinHTTP …`
+  und `All <n> online files accepted`. Unter Windows 7 und 8 zusätzlich keine Zeile
+  `WinHTTP: unable to request TLS 1.0, 1.1 and 1.2 explicitly`. (b) Dieselbe Serverauswahl, je Datei
+  `Online file download failed from https://files.empireearth.eu/…: HTTP status 404` (oder
+  `rejected, …`), `Online file not downloaded, not retried: …` und am Ende die Liste nach
+  `… selected online files are missing …`; keine Zeile `Online file verified`.
 
 #### TP-11: Keiner der Server erreichbar
 
 - **Status:** ausgearbeitet
 - **Priorität:** P1 (Teil a mit EE-admin; Teil b und EE-user: P2)
-- **Bezug:** ADR 0006 (Hinweis `OnlineFilesUnreachable`); Forum §8 Nr. 15 („ohne Internet“)
-- **Ziel:** Ohne Netz bzw. ohne gültigen Server installiert das Setup seine eigenen Dateien und
+- **Bezug:** ADR 0006, ADR 0012 (Hinweis `OnlineFilesUnreachable`); Forum §8 Nr. 15 („ohne Internet“)
+- **Ziel:** Ohne Netz bzw. ohne antwortenden Server installiert das Setup seine eigenen Dateien und
   erklärt das verständlich: Server nicht erreichbar oder ohne gültiges Zertifikat, ein Problem der
   Server, später erneut ausführen.
 - **Build-Art:** A oder B
 - **Ausgangszustand:** beliebiges Ergebnis von TP-00. (a) Netzwerk aus: in der VM die
-  Netzwerkkarte trennen. (b) Netz an, aber beide Dateiserver ohne gültiges Zertifikat: in
-  `C:\Windows\System32\drivers\etc\hosts` beide Namen auf einen fremden HTTPS-Server umleiten,
-  dessen Zertifikat nicht zu ihnen passt, z. B. `www.gog.com` (Adresse mit `nslookup www.gog.com`):
-  `<diese IPv4-Adresse> files.empireearth.eu` und `<diese IPv4-Adresse> storage.ee.zocker-160.de`,
-  dann `ipconfig /flushdns`. Nicht die Adresse von `empireearth.eu` nehmen: Deren
-  Wildcard-Zertifikat gilt auch für `files.empireearth.eu`.
+  Netzwerkkarte trennen. (b) Netz an, aber beide Dateiserver nicht erreichbar: in
+  `C:\Windows\System32\drivers\etc\hosts` die Zeilen `127.0.0.1 files.empireearth.eu` und
+  `127.0.0.1 storage.ee.zocker-160.de` eintragen (auf Port 443 antwortet dort nichts), dann
+  `ipconfig /flushdns`. Ein fremder HTTPS-Server mit unpassendem Zertifikat genügt seit S-WP12
+  nicht mehr: Er antwortet ohne Zertifikatsprüfung, das ist [TP-10](#tp-10-hauptserver-mit-ungültigem-zertifikat-gepinnte-dateien-trotzdem) (b).
 - **Snapshot:** `S-Basis`
 - **Varianten:** EE-admin (a und b), EE-user (a)
 - **Schritte:**
@@ -731,22 +783,26 @@ Gemeinsam für alle Fälle dieses Blocks:
   führen Sie dieses Setup später erneut aus.“ Die Download-Seite erscheint nicht, die Installation
   läuft zu Ende, `Language.dll` und die Lobby-Dateien sind die des Setups (deutsch), Stimmen und
   Kampagnen englisch.
-- **Log-Hinweis:** zwei Zeilen `HTTP GET https://…/localized failed: <Ursache>` (a: Name nicht
-  auflösbar bzw. keine Verbindung; b: Zertifikatsfehler), danach
-  `Unable to reach the online files server! The setup will only use local files...`; keine Zeile
-  `Downloading temporary file`.
+- **Log-Hinweis:** je Server `HTTP GET https://…/localized failed: <Ursache>` (a: Name nicht
+  auflösbar bzw. keine Verbindung; b: keine Verbindung), `HTTP GET https://…/localized without certificate validation failed: WinHTTP error <Nummer> (…)`
+  und `Online files server https://…/localized: no answer, neither with nor without certificate validation`,
+  danach `Unable to reach the online files server! The setup will only use local files...`; keine
+  Zeile `Downloading temporary file` und keine `Downloading pinned online file`.
 
 #### TP-12: Stopp beim zuerst verwendeten Server
 
 - **Status:** ausgearbeitet
 - **Priorität:** P2
-- **Bezug:** ADR 0003 (Stopp-Knopf beendet alle Anfragen, nie der Spiegel), Review „Stopp vs
-  Mirror“; Unit-Test `NextDownloadAction stop at the main server`
+- **Bezug:** ADR 0003 (Stopp-Knopf beendet alle Anfragen, nie der Spiegel), ADR 0012 (Stopp auch
+  beim Transport WinHTTP, zwischen zwei Lesevorgängen), Review „Stopp vs Mirror“; Unit-Test
+  `NextDownloadAction stop at the main server`
 - **Ziel:** Ein Stopp während des Downloads vom zuerst verwendeten Server beendet alle Downloads:
   keine Anfrage an den anderen Server, keine weitere Datei; die Installation läuft mit den
   eigenen Dateien weiter und meldet die übersprungenen Dateien.
 - **Build-Art:** A oder B
-- **Ausgangszustand:** TP-00: mindestens ein Server gültig. Bandbreite begrenzt (siehe oben).
+- **Ausgangszustand:** TP-00: mindestens ein Server erreichbar. Bandbreite begrenzt (siehe oben).
+  Mit dem Stand vom 2026-10-03 ist das der Hauptserver mit ungültigem Zertifikat, der Stopp trifft
+  also den Transport WinHTTP; ist er gültig, den eingebauten Download.
 - **Snapshot:** `S-Basis`
 - **Varianten:** EE-admin
 - **Schritte:**
@@ -756,16 +812,17 @@ Gemeinsam für alle Fälle dieses Blocks:
      `Data/Movies/Empire Earth.bik` zeigt, „Download abbrechen“ klicken und die Frage „Sind Sie
      sicher, dass Sie den Download abbrechen wollen?“ mit „Ja“ beantworten.
   3. Den Hinweis lesen, bestätigen, die Installation fertigstellen.
-- **Erwartetes Ergebnis:** Die Download-Seite schließt sich sofort, ohne weitere Datei zu laden;
-  die Installation läuft weiter. Der Hinweis „Einige lokalisierte Dateien konnten nicht aus dem
-  Download installiert werden: …“ listet die abgebrochene und alle folgenden Dateien mit
-  „(Download abgebrochen, nicht heruntergeladen)“; vorher fertig geladene Dateien fehlen in der
-  Liste (bei Weg A stehen die gepinnten als verworfen darin). Kein Fehler.
-- **Log-Hinweis:** `Online file download stopped by the user: <URL>` und direkt danach
+- **Erwartetes Ergebnis:** Die Download-Seite schließt sich nach höchstens wenigen Sekunden, ohne
+  weitere Datei zu laden; die Installation läuft weiter. Der Hinweis „Einige lokalisierte Dateien
+  konnten nicht aus dem Download installiert werden: …“ listet die abgebrochene und alle folgenden
+  Dateien mit „(Download abgebrochen, nicht heruntergeladen)“; vorher fertig geladene Dateien fehlen
+  in der Liste (bei Weg A stehen die `Language.dll` als verworfen darin). Kein Fehler.
+- **Log-Hinweis:** `Online file download stopped by the user: <URL>` (beim Transport WinHTTP mit
+  `(<n> bytes received)`) und direkt danach
   `Online files: downloads stopped by the user, no further request (neither the other server nor the remaining files)`,
   dann je restlicher Datei `Online file skipped, downloads stopped by the user: <Pfad>`. **Nach**
-  der Stopp-Zeile gibt es keine Zeile `Downloading temporary file from` und keine Zeile
-  `Online file: trying the other server` mehr.
+  der Stopp-Zeile gibt es keine Zeile `Downloading temporary file from`, keine
+  `Downloading pinned online file` und keine `Online file: trying the other server` mehr.
 
 #### TP-13: Stopp beim zweiten Server
 
@@ -776,17 +833,18 @@ Gemeinsam für alle Fälle dieses Blocks:
 - **Ziel:** Ein Stopp während des Versuchs am zweiten Server (nach einem Fehlschlag am ersten)
   beendet ebenfalls alle Downloads.
 - **Build-Art:** A (mit dem Video-Pin aus Schritt 1)
-- **Ausgangszustand:** TP-00: **beide** Server gültig (sonst scheitert der zweite Versuch sofort
-  und der Fall ist nicht durchführbar: im Protokoll „nicht durchgeführt: nur ein gültiger Server“).
-  Bandbreite begrenzt.
+- **Ausgangszustand:** TP-00: **beide** Server erreichbar (gültig oder mit ungültigem Zertifikat;
+  sonst gibt es keinen zweiten Server und der Fall ist nicht durchführbar: im Protokoll „nicht
+  durchgeführt: nur ein Server“, Stand 2026-10-03). Bandbreite begrenzt.
 - **Snapshot:** `S-Basis`
 - **Varianten:** EE-admin
 - **Schritte:**
   1. Vor dem Bauen eine beliebige kleine Datei als
      `data\localized-text\Game\de\EE\Data\Movies\Empire Earth.bik` anlegen (z. B. eine Textdatei
-     mit dem Inhalt `x`), dann wie in [6.2](#62-weg-a-placeholder-build) bauen. Die Hashliste pinnt
-     das Video damit auf einen falschen Wert: Das echte Video wird am ersten Server verworfen, und
-     das Setup lädt es noch einmal vom zweiten. Die Datei nach dem Test wieder löschen.
+     mit dem Inhalt `x`), dann wie in [6.2](#62-weg-a-placeholder-build) bauen. Die Hashliste des
+     Builds gilt vor `pins/online-files.txt` und pinnt das Video damit auf einen falschen Wert: Das
+     echte Video wird am ersten Server verworfen, und das Setup lädt es noch einmal vom zweiten. Die
+     Datei nach dem Test wieder löschen.
   2. Setup mit `/LOG="C:\EE-Test\logs\TP-13_EE-admin.log"` starten, Spielsprache Deutsch,
      benutzerdefinierte Installation mit „Intro-Videos installieren“.
   3. Warten, bis die Download-Seite das Video vom **zweiten** Server zeigt (die URL wechselt von
@@ -796,21 +854,22 @@ Gemeinsam für alle Fälle dieses Blocks:
 - **Erwartetes Ergebnis:** wie [TP-12](#tp-12-stopp-beim-zuerst-verwendeten-server): Die Seite
   schließt sich, die Installation läuft weiter, das Video und alle folgenden Dateien stehen mit
   „(Download abgebrochen, nicht heruntergeladen)“ im Hinweis.
-- **Log-Hinweis:** `Online file rejected, SHA-256 mismatch: <URL des ersten Servers>/…/Empire Earth.bik (got …)`,
+- **Log-Hinweis:** bei der Registrierung `Online file Game/de/EE/Data/Movies/Empire Earth.bik: the hash list of this build pins another file at … than pins\online-files.txt; …`, `Online file rejected, SHA-256 mismatch: <URL des ersten Servers>/…/Empire Earth.bik (got …)`,
   `Online file: trying the other server, <URL des zweiten Servers>`,
   `Online file download stopped by the user: <URL des zweiten Servers>`, dann die Stopp-Zeile wie
-  in TP-12 und danach keine Zeile `Downloading temporary file from` mehr.
+  in TP-12 und danach keine Zeile `Downloading temporary file from` und keine
+  `Downloading pinned online file` mehr.
 
 #### TP-14: Silent-Installation ohne Dialog
 
 - **Status:** ausgearbeitet
 - **Priorität:** P1 (Teile a und b; c, d und EE-portable: P2)
-- **Bezug:** ADR 0003; ARCHITECTURE Abschnitt 5 (Hinweise nicht im Silent-Modus und nicht mit
-  `/SUPPRESSMSGBOXES`); Forum §8 Nr. 15
+- **Bezug:** ADR 0003, ADR 0012; ARCHITECTURE Abschnitt 5 (Hinweise nicht im Silent-Modus und nicht
+  mit `/SUPPRESSMSGBOXES`); Forum §8 Nr. 15
 - **Ziel:** Mit `/SILENT`, `/VERYSILENT` oder `/SUPPRESSMSGBOXES` erscheint wegen der Downloads
   kein Dialog; alles, was sonst ein Hinweis wäre, steht im Log.
 - **Build-Art:** A oder B
-- **Ausgangszustand:** TP-00: mindestens ein Server gültig (für a und c). Für b und d Netzwerk
+- **Ausgangszustand:** TP-00: mindestens ein Server erreichbar (für a und c). Für b und d Netzwerk
   aus.
 - **Snapshot:** `S-Basis` (vor jedem Lauf)
 - **Varianten:** EE-admin, EE-portable (nur a)
@@ -827,8 +886,8 @@ Gemeinsam für alle Fälle dieses Blocks:
   `OnlineFilesUnreachable` noch `DownloadIncomplete` noch die Testwarnung). (a) und (c) zeigen
   höchstens das Fortschrittsfenster (c) bzw. gar nichts (a), die Installation endet von selbst mit
   den heruntergeladenen deutschen Dateien. (b) und (d) installieren mit den eigenen Dateien.
-- **Log-Hinweis:** (a), (c): die Download-Zeilen wie in TP-10 und `All <n> online files accepted`
-  bzw. bei Weg A die Liste `… selected online files are missing …`; (b), (d):
+- **Log-Hinweis:** (a), (c): die Download-Zeilen wie in TP-10 (a) und `All <n> online files accepted`
+  bzw. bei Weg A die Liste `… selected online files are missing …` mit den `Language.dll`; (b), (d):
   `Unable to reach the online files server! The setup will only use local files...`. In allen
   Läufen `Installation process succeeded.`
 
@@ -842,7 +901,7 @@ Gemeinsam für alle Fälle dieses Blocks:
   Download-Seite und die Hinweise dazu erscheinen englisch, weil die inoffizielle koreanische
   Sprachdatei sie nicht hat (bekannte Lücke, kein Fehler).
 - **Build-Art:** A oder B
-- **Ausgangszustand:** TP-00: mindestens ein Server gültig.
+- **Ausgangszustand:** TP-00: mindestens ein Server erreichbar.
 - **Snapshot:** `S-Basis`
 - **Varianten:** EE-admin
 - **Schritte:**
@@ -855,24 +914,30 @@ Gemeinsam für alle Fälle dieses Blocks:
   „Downloading localized files“, „Downloading additional files...“ und den Knopf „Stop download“,
   die Frage „Are you sure you want to stop the download?“, danach den englischen Hinweis „Some
   localized files could not be installed from the download: …“ mit „(download stopped, not
-  downloaded)“. Keine Fehlermeldung, keine leeren Texte.
-- **Log-Hinweis:** `Downloading temporary file from https://…/localized/Game/ko/EE/…` (bzw.
-  `Lobby/ko/…`), die Stopp-Zeile wie in TP-12; keine Zeile mit `Exception`.
+  downloaded)“. Keine Fehlermeldung, keine leeren Texte. Bekannt (kein Fehler des Setups): Die
+  koreanischen Stimmen, Kampagnen und das Video auf dem Server sind byte-gleich mit den englischen
+  Dateien des Setups (Hash-Lauf vom 2026-10-03).
+- **Log-Hinweis:** `Downloading pinned online file without certificate validation (WinHTTP) from https://…/localized/Game/ko/EE/…`
+  bzw. `Downloading temporary file from https://…/localized/Game/ko/EE/…` (je nach Zustand des
+  Servers; auch `Lobby/ko/…`), die Stopp-Zeile wie in TP-12; keine Zeile mit `Exception`.
 
 #### TP-16: Manipulierter Download wird verworfen
 
 - **Status:** ausgearbeitet
 - **Priorität:** P2
-- **Bezug:** ADR 0003 (Pin direkt nach dem Download, `DownloadFileRejected`); Forum §8 Nr. 15
-  („manipulierter Download“), Forum §8 Nr. 12 des Problemabgleichs (t=5741, t=3763)
+- **Bezug:** ADR 0003 (Pin direkt nach dem Download, `DownloadFileRejected`), ADR 0012 (auch ohne
+  Zertifikatsprüfung entscheidet der Pin); Forum §8 Nr. 15 („manipulierter Download“), Forum §8
+  Nr. 12 des Problemabgleichs (t=5741, t=3763)
 - **Ziel:** Eine heruntergeladene Datei, die nicht zu ihrem Pin passt, wird verworfen, auf dem
-  anderen Server noch einmal versucht, gemeldet und durch die eigene Version ersetzt; sie wird nie
-  installiert.
-- **Build-Art:** A (die Platzhalter-Pins passen nie zu den Serverdateien). Mit Weg B nur, wenn
-  vor `ci\build.ps1 -DownloadHashesOnly` eine Datei in `data\localized-text` verändert wird (z. B.
-  ein Zeichen in `Lobby\de\EE\WONLobby.cfg`); danach die Originaldatei zurücklegen und neu bauen.
-- **Ausgangszustand:** TP-00: mindestens ein Server gültig (mit beiden gültigen wird zusätzlich der
-  zweite Versuch geprüft).
+  anderen Server noch einmal versucht (falls er sie liefern darf), gemeldet und durch die eigene
+  Version ersetzt; sie wird nie installiert, auch nicht von einem Server ohne gültiges Zertifikat.
+- **Build-Art:** A (die Platzhalter-Pins der `Language.dll` passen nie zu den Serverdateien). Mit
+  Weg B nur, wenn vor `ci\build.ps1 -DownloadHashesOnly` eine Datei in `data\localized-text`
+  verändert wird (z. B. ein Zeichen in `Lobby\de\EE\WONLobby.cfg`; der Build ist dann ein
+  Testbuild, `-TestID 1`, der Release-Build würde wegen des abweichenden Pins abbrechen); danach die
+  Originaldatei zurücklegen und neu bauen.
+- **Ausgangszustand:** TP-00: mindestens ein Server erreichbar (mit zwei erreichbaren wird
+  zusätzlich der zweite Versuch geprüft).
 - **Snapshot:** `S-Basis`
 - **Varianten:** EE-admin, NeoEE-admin (NeoEE pinnt die NeoEE-Fassungen aus `Mods\NeoEE`)
 - **Schritte:**
@@ -883,15 +948,15 @@ Gemeinsam für alle Fälle dieses Blocks:
      ausführen und mit `certutil -hashfile data\localized-text\Game\de\EE\Language.dll SHA256` in
      der Arbeitskopie vergleichen (NeoEE: `data\localized-text\Mods\NeoEE\Game\de\EE\Language.dll`).
 - **Erwartetes Ergebnis:** Der Hinweis „Einige lokalisierte Dateien konnten nicht aus dem
-  Download installiert werden: …“ nennt `Empire Earth\Language.dll` (und die anderen gepinnten
-  Dateien) mit „(nicht die Version, die dieses Setup kennt: inzwischen auf dem Server
-  aktualisiert oder beschädigt, verworfen)“. Die installierte `Language.dll` hat die SHA-256 der
-  Datei des Setups (Schritt 3), nicht die der Serverdatei aus dem Log. Ungepinnte Dateien
-  (`data.ssa`, Kampagnen) sind installiert.
-- **Log-Hinweis:** je gepinnter Datei `Online file rejected, SHA-256 mismatch: <URL> (got <SHA-256>)`,
-  `Online file: trying the other server, <URL>`, ein zweites `rejected` (oder
-  `download failed` bei ungültigem zweiten Server) und
-  `Online file not downloaded, it failed on both servers: <Pfad>`; bei `ssInstall`
+  Download installiert werden: …“ nennt `Empire Earth\Language.dll` und
+  `Empire Earth - The Art of Conquest\Language.dll` (Weg B: die veränderte Datei) mit „(nicht die
+  Version, die dieses Setup kennt: inzwischen auf dem Server aktualisiert oder beschädigt,
+  verworfen)“. Die installierte `Language.dll` hat die SHA-256 der Datei des Setups (Schritt 3),
+  nicht die der Serverdatei aus dem Log. Die übrigen Dateien (`data.ssa`, Kampagnen, Lobby-Dateien)
+  passen zu `pins/online-files.txt` und sind installiert.
+- **Log-Hinweis:** je verworfener Datei `Online file rejected, SHA-256 mismatch: <URL> (got <SHA-256>)`,
+  mit zwei erreichbaren Servern `Online file: trying the other server, <URL>` und ein zweites
+  `rejected`, sonst `Online file not downloaded, not retried: …`; bei `ssInstall`
   `Online file not downloaded: <Pfad>` und die Liste nach
   `… selected online files are missing, the setup installs its own files instead:`.
 
@@ -899,13 +964,14 @@ Gemeinsam für alle Fälle dieses Blocks:
 
 - **Status:** ausgearbeitet
 - **Priorität:** P3
-- **Bezug:** R16, ADR 0006 (Hypothese: explizit angeforderte Protokolle genügen ohne KB3140245);
-  README „Support“; SERVER-OPERATIONS.md Abschnitt 3.3
-- **Ziel:** Zeigen, ob Updateprüfung, Erreichbarkeitsprüfung und Downloads unter Windows 7 SP1
-  ohne KB3140245 und ohne SChannel-Änderungen TLS 1.2 schaffen, und dass das Setup selbst nie
-  SChannel- oder WinHTTP-Werte schreibt.
+- **Bezug:** R16, ADR 0006 (Hypothese: explizit angeforderte Protokolle genügen ohne KB3140245),
+  ADR 0012 (WinHTTP mit `WINHTTP_OPTION_SECURE_PROTOCOLS` unter Windows 7); README „Support“;
+  SERVER-OPERATIONS.md Abschnitt 3.3
+- **Ziel:** Zeigen, ob Updateprüfung, Erreichbarkeitsprüfung und Downloads (beide Transporte) unter
+  Windows 7 SP1 ohne KB3140245 und ohne SChannel-Änderungen TLS 1.2 schaffen, und dass das Setup
+  selbst nie SChannel- oder WinHTTP-Werte schreibt.
 - **Build-Art:** A oder B
-- **Ausgangszustand:** TP-00: mindestens ein Dateiserver gültig, und die SSL-Labs-Simulation
+- **Ausgangszustand:** TP-00: mindestens ein Dateiserver erreichbar, und die SSL-Labs-Simulation
   „IE 11 / Win 7“ (SERVER-OPERATIONS.md 3.3) für `api.empireearth.eu` und diesen Server notiert
   (scheitert sie dort, scheitert auch dieser Fall; das ist dann ein Serverbefund).
   (a) `S-Win7` ohne KB3140245 und ohne SChannel-Werte; (b) dieselbe VM mit KB3140245 und den
@@ -931,20 +997,22 @@ Gemeinsam für alle Fälle dieses Blocks:
   zeigt keine Änderung durch das Setup. Bestanden ist der Fall, wenn das gilt; das Ergebnis der
   Hypothese steht zusätzlich in der Bemerkung des Protokolls:
   - **Hypothese bestätigt**, wenn in (a) die Updateprüfung `status 200` meldet und die Dateien
-    heruntergeladen werden.
+    heruntergeladen werden (vom Hauptserver mit ungültigem Zertifikat über WinHTTP).
   - **Hypothese widerlegt**, wenn (a) mit TLS- oder Verbindungsfehlern scheitert (dann erscheint
     `OnlineFilesUnreachable` und das Spiel wird mit den eigenen Dateien installiert) und (b)
     funktioniert. Dann gilt für Windows 7 der Weg aus der README („Support“: KB3140245), und
     ADR 0006 wird angepasst.
-  - Scheitern (a) und (b) mit einem Zertifikatsfehler, fehlen der VM vermutlich aktuelle
-    Stammzertifikate (in `certmgr.msc` unter „Vertrauenswürdige Stammzertifizierungsstellen“
-    nachsehen); das ist kein Befund zum Setup.
+  - Scheitert in (a) und (b) nur die Updateprüfung mit einem Zertifikatsfehler, die gepinnten
+    Downloads aber nicht, fehlen der VM vermutlich aktuelle Stammzertifikate (in `certmgr.msc` unter
+    „Vertrauenswürdige Stammzertifizierungsstellen“ nachsehen); das ist kein Befund zum Setup.
 - **Log-Hinweis:** `HTTP GET https://api.empireearth.eu/setup/?product=…: TLS 1.0, 1.1 and 1.2 requested explicitly (Windows 6.1)`
   (bzw. `unable to request TLS 1.0, 1.1 and 1.2 explicitly (Windows 6.1), …: <Ursache>`), danach
   `HTTP GET …: status 200, …` oder `HTTP GET … failed: <Ursache>`; dasselbe für
-  `https://files.empireearth.eu/localized` bzw. den Spiegel; bei den Downloads
-  `Online file downloaded, …` oder `Online file download failed from <URL>: <Ursache>`. Die
-  Ursachen wörtlich ins Protokoll übernehmen.
+  `https://files.empireearth.eu/localized` und die Zeilen der Serverauswahl aus TP-00; bei den
+  Downloads über WinHTTP keine Zeile `WinHTTP: unable to request TLS 1.0, 1.1 and 1.2 explicitly`
+  und `Online file downloaded, SHA-256 pinned, transport WinHTTP without certificate validation: …`
+  oder `Online file download failed from <URL>: WinHTTP error <Nummer> (…)`. Die Ursachen wörtlich
+  ins Protokoll übernehmen.
 
 ### Block 2: Kompatibilität und Grafik (S-WP4, S-WP10)
 
@@ -2664,8 +2732,9 @@ nur, ob es den Schlüssel gibt, nie seine Werte (Regel 3).
   letzte Epoche und die Zivilisationen mit Spezialkräften wählbar, und die deutschen Kampagnen beider
   Spiele starten.
 - **Build-Art:** B (Schritt 2, die Dateien, auch A)
-- **Ausgangszustand:** [TP-00](#tp-00-server-vorabprüfung): mindestens ein Dateiserver gültig (sonst
-  bleiben Stimmen und Kampagnen englisch, Hinweis `OnlineFilesUnreachable`); kein Empire Earth.
+- **Ausgangszustand:** [TP-00](#tp-00-server-vorabprüfung): mindestens ein Dateiserver erreichbar
+  (gültig oder mit ungültigem Zertifikat; sonst bleiben Stimmen und Kampagnen englisch, Hinweis
+  `OnlineFilesUnreachable`); kein Empire Earth.
 - **Snapshot:** `Laptop` oder eine VM mit 3D-Beschleunigung (Weg B); `S-Sandbox` für Schritt 2 mit
   Weg A
 - **Varianten:** EE-admin und NeoEE-admin (NeoEE lädt die Lobby-Dateien aus `Mods/NeoEE/`). user und
@@ -2697,12 +2766,12 @@ nur, ob es den Schlüssel gibt, nie seine Werte (Regel 3).
   - Schritt 2: Für Empire Earth stammen `data.ssa` und die fünf Kampagnen `EELearningCampaign.ssa`,
     `EETheBritish.ssa`, `EETheFuture.ssa`, `EETheGermans.ssa`, `EETheGreeks.ssa`, für AoC `data.ssa`
     und `AOCAsian.ssa`, `AOCPacific.ssa`, `AOCRoman.ssa` vom Server; mit Weg B kein Hinweis
-    `DownloadIncomplete` (Weg A: nur die gepinnten Dateien als verworfen,
+    `DownloadIncomplete` (Weg A: nur die beiden `Language.dll` als verworfen,
     [TP-16](#tp-16-manipulierter-download-wird-verworfen)).
   - Schritte 3 und 4 wie beschrieben. Jede Abweichung (englische Texte, eine fehlende Epoche oder
     fehlende Spezialkräfte, Einfrieren) mit Spiel und Kampagne ins Protokoll; sie betrifft die
     Sprachdateien auf den Servern bzw. in `data\localized-text`, nicht den Code des Setups.
-- **Log-Hinweis:** `Online file accepted, TLS-verified, not pinned: Game/de/EE/Data/Campaigns/EETheGermans.ssa (SHA-256 …)`
+- **Log-Hinweis:** `Online file verified, SHA-256 pinned: Game/de/EE/Data/Campaigns/EETheGermans.ssa (SHA-256 …)`
   und die anderen Kampagnen, `Online file verified, SHA-256 pinned: …Language.dll` (Weg B), am Ende
   `All <n> online files accepted`.
 
@@ -2977,7 +3046,7 @@ Requests aus Forks (README, „When it runs“):
 
 | Szenario | Ablauf |
 |---|---|
-| A | EE-admin, Deutsch, Typ „full“; der Hauptserver ist per `hosts` gesperrt, der Spiegel nur während dieses Setups frei (der einzige Lauf mit Downloads); Launcher-Prüfung für das installierende und ein frisches Konto; Deinstallation |
+| A | EE-admin, Deutsch, Typ „full“; der Hauptserver ist per `hosts` gesperrt, der Spiegel nur während dieses Setups frei (der einzige Lauf mit Downloads; seit der Spiegel keinen DNS-Eintrag mehr hat, meldet die Download-Prüfung `SERVER`); Launcher-Prüfung für das installierende und ein frisches Konto; Deinstallation |
 | B | NeoEE-user, Englisch, ohne CD-Key-Aufgabe; Reparatur mit einer Junction in `Data`; Deinstallation |
 | E | EE-admin in einen eigenen Ordner neben Spuren einer fremden Installation (alter NeoEE-Schlüssel in HKLM, `C:\Sierra\Empire Earth`, ein GOG-Uninstall-Eintrag auf den gewählten Ordner, zwei Einträge, die nicht zählen dürfen) |
 | D | auf E: Junction in `Data` und feste Verknüpfung in `Users` (Exitcode 7, nichts geändert), dann Update ohne DirectX-Wrapper; Deinstallation |
@@ -3001,8 +3070,8 @@ einzigen Administratorkonto und ohne Bildschirm für den Assistenten.
 
 | Fall | Abdeckung | Wo im Test | Bleibt beim Tester |
 |---|---|---|---|
-| TP-00 | teilweise | A: HEAD-Anfragen an den Spiegel (`/localized/` und `Game/de/EE/Data/data.ssa`) direkt vor dem Setup, Ergebnis als Zeile `install/TP-00` | der Hauptserver und sein Zertifikat; der Zustand der Server aus Sicht des Testrechners |
-| TP-10 | teilweise | A, DL: Hauptserver nicht erreichbar (per `hosts` gesperrt statt ungültigem Zertifikat, derselbe Zweig im Code), alle Downloads vom Spiegel, 10 gepinnte und 10 ungepinnte Dateien registriert, Weiterleitungsprüfung über https, jede Datei mit ihrem Pin bzw. im Manifest mit demselben Hash | ein echtes ungültiges Zertifikat, NeoEE-admin (`Mods/NeoEE/`), die Download-Seite |
+| TP-00 | teilweise | A: HEAD-Anfragen an den Spiegel (`/localized/` und `Game/de/EE/Data/data.ssa`) direkt vor dem Setup, Ergebnis als Zeile `install/TP-00` | der Hauptserver und sein Zertifikat, die Stichprobe gegen die Pins; der Zustand der Server aus Sicht des Testrechners |
+| TP-10 | nur bei erreichbarem Spiegel | A, DL: Hauptserver per `hosts` gesperrt (nicht erreichbar, auch ohne Zertifikatsprüfung), alle Downloads vom Spiegel, 20 gepinnte Dateien registriert, keine ungepinnte, jede Datei mit ihrem Pin und im Manifest mit demselben Hash. Ohne Spiegel (Stand 2026-10-03) nichts davon | der ganze Fall: die gepinnten Downloads vom Hauptserver mit ungültigem Zertifikat (a), der fremde Server (b), NeoEE-admin (`Mods/NeoEE/`), die Download-Seite |
 | TP-11 | nur bei Spiegelausfall | A, DL: antwortet der Spiegel nicht, erwartet die Prüfung den Zweig ohne Server (`Unable to reach the online files server! …`) und meldet `SERVER` statt eines Fehlers | der ganze Fall |
 | TP-12, TP-13 | nein | | Stopp-Knopf der Download-Seite (interaktiv) |
 | TP-14 | teilweise | A ist Teil a: `/VERYSILENT /SUPPRESSMSGBOXES /ALLUSERS /LANG=de` endet ohne Bedienung innerhalb des Zeitlimits mit Exitcode 0 und `Installation process succeeded.` (K14), Downloads wie TP-10 | b bis d und EE-portable |

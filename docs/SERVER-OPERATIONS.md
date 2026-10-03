@@ -3,31 +3,43 @@
 This guide is for the people who run the servers the Empire Earth Community Setup talks to. It
 says what the servers must provide so that the setup can use them, how to check that, and how to
 fix the problem known today. Background: [ADR 0003](adr/0003-built-in-downloads-instead-of-idp.md)
-(downloads) and [ADR 0006](adr/0006-strict-tls-and-server-certificates.md) (strict TLS); the
-setup side is described in the README, "Online localized files".
+(downloads), [ADR 0006](adr/0006-strict-tls-and-server-certificates.md) (strict TLS) and
+[ADR 0012](adr/0012-pinned-downloads-despite-invalid-certificates.md) (pinned files from a server with
+an invalid certificate); the setup side is described in the README, "Online localized files".
+**If you change a file below `/localized/`, the pins must be regenerated** ([section 6](#6-pins-of-every-online-file)).
 
 ## 1. What the setup requests
 
 | Host | Used for | Code |
 |---|---|---|
 | `api.empireearth.eu` | update check (`/setup/?product=<AppId>`), setup statistics with consent (`/eestats/setup/`) | `HttpGet` (`utils.iss`), WinHTTP |
-| `files.empireearth.eu` | localized files below `/localized/` (main server) | `downloads.iss`, Inno Setup's built-in downloads |
+| `files.empireearth.eu` | localized files below `/localized/` (main server) | `downloads.iss`: Inno Setup's built-in downloads; from a server with an invalid certificate WinHTTP, pinned files only |
 | `storage.ee.zocker-160.de` | the same files below `/localized/` (mirror) | as above |
 
-Only `https://` is used. **Every certificate is validated, and there is no fallback to `http://`
-and no option to ignore a certificate error.** A server with an invalid certificate is treated
-like a server that is down.
+Only `https://` is used, and there is no fallback to `http://`. Every certificate is validated, with
+one exception: a file whose SHA-256 and size are compiled into the setup ("pinned",
+[section 6](#6-pins-of-every-online-file); since setup v2 every online file is) may also come from a
+server whose certificate is invalid, because the setup only installs it if it is exactly the pinned
+file ([ADR 0012](adr/0012-pinned-downloads-despite-invalid-certificates.md)). Nothing else ignores a
+certificate error: not the update check, not the statistics, not a file without pin.
 
 How the setup uses the two file servers:
 
 1. Before the first download it sends one request to `https://files.empireearth.eu/localized`
    (no trailing slash). **Any HTTP answer** (200, 301, 403, 404, ...) over a valid TLS connection
-   counts as "reachable". If there is none (no connection, timeout, invalid certificate), it sends
-   the same request to the mirror and, if the mirror answers, downloads from the mirror first.
-2. It downloads one file at a time from the server chosen in step 1. If a file fails (network,
-   certificate, HTTP status outside 200 to 299, size, or a SHA-256 mismatch for a file the setup
-   has a hash of), it requests the same path from the other server once.
-3. If neither server answers in step 1, the setup shows the notice `OnlineFilesUnreachable`
+   makes the server "verified"; the mirror is then not asked. If there is none (no connection,
+   timeout, invalid certificate), it sends the same request once more **without certificate
+   validation** (and without reading the answer): an HTTP answer now makes the server
+   "certificate invalid", none "unreachable". Then the same for the mirror. The server in the
+   better state is used first (verified, then certificate invalid; the main server on a tie).
+2. It downloads one file at a time from the server chosen in step 1: from a verified server every
+   file with Inno Setup's built-in downloads; from a server with an invalid certificate only the
+   pinned files, with WinHTTP and the certificate errors ignored, each kept only if its size and
+   SHA-256 match the pin. A file without pin is never requested from such a server (the setup
+   names it in its notice). If a file fails (network, HTTP status outside 200 to 299, another size,
+   a SHA-256 mismatch), it requests the same path from the other server once, if that server may
+   deliver the file.
+3. If neither server can be used in step 1, the setup shows the notice `OnlineFilesUnreachable`
    ("could not be reached or did not present a valid security certificate, a problem of the
    servers") and installs only its own files. Files that fail on both servers are listed in the
    notice `DownloadIncomplete`; the setup installs its own version of each.
@@ -55,9 +67,11 @@ Each file server (main server **and** mirror) must:
 
 1. **Present a certificate for its exact host name** (`files.empireearth.eu`,
    `storage.ee.zocker-160.de`) that chains to a root certificate Windows trusts, and **send the
-   full chain** (leaf and intermediate certificates). A certificate for another name (for
+   full chain** (leaf and intermediate certificates). With a certificate for another name (for
    example the hosting provider's default certificate), a self-signed or an expired certificate
-   makes every request fail.
+   the setup still downloads the pinned files (every online file of a release, as long as it is
+   the pinned version), but no file without pin, and players see "certificate invalid" in their
+   logs. Fix it anyway (section 4).
 2. **Speak TLS 1.2** with at least one cipher suite that Windows 7 SP1 supports (see the handshake
    check below). The setup asks for TLS 1.0 to 1.2 on Windows 7 and 8 and uses the defaults of the
    system on Windows 8.1 and later (TLS 1.2 and, on Windows 11, TLS 1.3).
@@ -77,16 +91,18 @@ Each file server (main server **and** mirror) must:
    delivered over plain HTTP, and the setup still logs it as "TLS-verified". Only the server
    operator can send such a redirect (nobody else can inject one into a validated TLS connection),
    so the guarantee "never over `http://`" for these files depends on this rule; check 3.4 shows it,
-   and [section 6](#6-pins-for-the-files-known-at-build-time) removes the dependency for the files a
-   build pins. `HEAD` must not fail either: a `405` or another status without redirect is fine, but
-   a server that drops the connection on `HEAD` makes the setup skip every file without SHA-256.
-   (The update check and the reachability check use WinHTTP, which refuses redirects from
-   `https://` to `http://`.)
-5. **Serve identical files** on main server and mirror at the same paths. The setup checks a
-   downloaded file against the SHA-256 compiled into it where it has one (always for
-   `Language.dll`); a file that differs on one server is discarded there, and the setup tries the
-   other server. Update both servers together, and if a pinned file changes, a new setup build is
-   needed (the README, "Online localized files", explains the hash list).
+   and [section 6](#6-pins-of-every-online-file) removes the dependency: a release pins every
+   online file, and for a pinned file the SHA-256 decides, whatever redirect it took. `HEAD` must not
+   fail either: a `405` or another status without redirect is fine, but a server that drops the
+   connection on `HEAD` makes the setup skip every file without SHA-256 (only test builds have such
+   files). (The update check, the reachability check and the downloads of pinned files from a server
+   with an invalid certificate use WinHTTP, which refuses redirects from `https://` to `http://`.)
+5. **Serve identical files** on main server and mirror at the same paths, **and the files that the
+   setups pin.** The setup checks every downloaded file against the SHA-256 and size compiled into
+   it (`pins/online-files.txt`); a file that differs on one server is discarded there, and the setup
+   tries the other server. Update both servers together, and **after any change of a file below
+   `/localized/` regenerate the pins and release a new setup** ([section 6](#6-pins-of-every-online-file)):
+   until then every setup discards the changed file and installs its own (English) version.
 6. Answer `/localized` (the reachability check) with any HTTP status, quickly. A server that
    accepts connections but answers slowly costs the player the full timeout of the download code
    per file before the other server is tried; the timeouts of Inno Setup's downloads cannot be set
@@ -164,16 +180,26 @@ for P in 'Game/de/EE/Language.dll' 'Game/de/EE/Data/data.ssa' 'Lobby/zh-CN/EE/WO
 done
 ```
 
-Extend the list to every path you changed. For the files a setup has a hash of, compare with
-`data/localized-text.sha256` of the build (the README, "Online localized files").
+Extend the list to every path you changed. Compare the hashes with `pins/online-files.txt` of the
+setup repository (`<SHA-256> <size> <path>` per line): a file whose hash differs there is discarded
+by every released setup.
 
-## 4. Known problem and its fix (2026-10-02)
+## 4. Known problems and their fix (2026-10-03)
 
 `files.empireearth.eu` presents the default certificate of its hosting provider,
 `CN=cluster131.hosting.ovh.net`, not a certificate for `files.empireearth.eu` (`curl` error 60,
-`hostname mismatch` in check 3.1). Setups up to 1.7.2 did not notice because their download
-plug-in ignored certificate errors; setup v2 does not, so every request to the main server fails
-and the setup falls back to the mirror.
+`hostname mismatch` in check 3.1), and the mirror `storage.ee.zocker-160.de` no longer exists in DNS
+(NXDOMAIN, checked 2026-10-03). Setups up to 1.7.2 did not notice the certificate because their
+download plug-in ignored certificate errors. The first v2 test builds validated it and therefore
+installed no localized files at all; since [ADR 0012](adr/0012-pinned-downloads-despite-invalid-certificates.md)
+setup v2 downloads the pinned files (every online file) from the main server without certificate
+validation and installs each only if it matches its pin. The log of such a run says
+`Online files server https://files.empireearth.eu/localized: answers only without certificate validation`
+and, per file, `transport WinHTTP without certificate validation`.
+
+The certificate should still be fixed: then every file comes over validated TLS again (also for
+players behind a proxy that refuses invalid certificates), and the warning lines disappear from
+the logs.
 
 Fix on the hosting side (OVHcloud web hosting, the host is a "multisite" entry of the hosting
 plan):
@@ -187,48 +213,62 @@ plan):
    Alternatively import a certificate that covers the name; a hosting plan holds one certificate.
 4. Run checks 3.1 to 3.4 for `files.empireearth.eu`.
 
-Nothing has to change in the setup. The mirror's state could not be checked from the analysis
-environment; it is part of the release check below.
+Nothing has to change in the setup. The mirror: either remove its name from the setup
+(`OnlineFilesMirrorURL` in `utils.iss`; today it only costs a DNS lookup) or bring it back with
+the same files and a valid certificate.
 
 ## 5. Release criterion
 
-A release of setup v2 needs **at least one file server (main server or mirror) that passes checks
-3.1 to 3.4 and serves the `/localized/` files**, and `api.empireearth.eu` passing 3.1 to 3.3. If
-neither file server does, that is a **release blocker on the server side**, not a defect of the
-setup: v2 would install no localized files at all (1.7.2 still downloaded them because it ignored
-the certificate), so fix the server first. The Windows test plan starts with the same check
+A release of setup v2 needs **at least one file server that serves the `/localized/` files over
+HTTPS** (checks 3.4 and 3.5; a valid certificate, checks 3.1 to 3.3, is strongly recommended, see
+section 4) **and `pins/online-files.txt` matching the files on that server** (section 6), and
+`api.empireearth.eu` passing 3.1 to 3.3. If no file server serves the pinned files, that is a
+**release blocker on the server side**, not a defect of the setup: v2 would install no localized
+files at all. The Windows test plan starts with the same check
 ([TP-00](TEST-PLAN.de.md#tp-00-server-vorabprüfung)) before any download test, and the download
 cases (`TP-1x`) cover the setup's side.
 
-## 6. Pins for the files known at build time
+## 6. Pins of every online file
 
-A recommendation for every release, not a release criterion.
+**What.** `pins/online-files.txt` in the setup repository pins every file the setups can download
+from `/localized/`: one line per server path, `<SHA-256, 64 lowercase hex digits> <size in bytes>
+<server path>`, for both products (230 paths with the data of setup 1.7.2). The setups are built
+with it; a downloaded file is only installed if it has exactly that size and SHA-256. That is what
+lets the setup take pinned files even from a server whose certificate is invalid, and what makes a
+redirect to `http://` harmless for them (requirement 4).
 
-**Why.** A setup accepts a file without a SHA-256 pin as the HTTPS server sends it. With the data
-of setup 1.7.2 that are 110 server paths per product: the voices (`data.ssa`), the campaigns and
-the localized movie of every language, which only exist on the servers. Because the downloads
-follow a redirect to `http://` (requirement 4), one misconfigured redirect on a file server that
-the setup's check with `HEAD` does not see (a server that answers `HEAD` and `GET` differently) is
-enough to deliver them over plain HTTP, where anyone on the network path can replace them, and
-the setup logs them as "TLS-verified" all the same. A pinned file is safe whatever path it took:
-the setup compares its SHA-256 and discards anything else.
+**Why it must be regenerated.** A file that changes on the servers no longer matches the pin: every
+setup built before the change downloads it, discards it (`DownloadFileRejected`, "not the version
+this setup knows ... discarded") and installs its own (English) version, until a setup with new
+pins is released. So:
 
-**What to do.** Before building a release, place every such file whose final content you have at
-its server path below `data\localized-text` (e.g. `data\localized-text\Game\de\EE\Data\data.ssa`).
-`ci\build.ps1` writes the hash list from that folder, so the file is pinned; files below
-`Game\<tag>\<game>\Data\` are only hashed, not packed into the setup (`[Files]` takes only
-`Language.dll` and the lobby folders from `data\localized-text`), so the setup does not grow. Take
-the files from your own master copy, not freshly from the servers: a pin of a downloaded file only
-freezes what the server served that day (if you have to download them, take them from both
-servers and compare, check 3.5). A release build (`TestID` 0) prints a warning that lists every
-file that is still downloaded without a pin, per product; the list comes from the code of the
-setup (`Get-OnlineFiles` in `ci\build_helpers.ps1`), so it is complete. A placeholder build only
-prints the number.
+- **Do not overwrite a file in place** if you can avoid it. If a translation must change, change
+  it on both servers at the same time, then regenerate the pins and release a new setup right away.
+- **A new file** (a new language, a new campaign) needs code in `setup_is6.iss` and a pin; a
+  release build of the setup stops when the code registers a file that `pins/online-files.txt` does
+  not pin (and when the list pins a path that no setup downloads).
 
-**Trade-off.** A pinned file that later changes on the servers is discarded by every setup built
-before the change: those setups install their own (English) version and name the file in the
-notice `DownloadIncomplete` until a new setup is released (README, "Online localized files").
-Pin the files that are final; leave a file unpinned only if you expect to change it between
-releases, and then keep requirement 4 and run check 3.4 after every change of the server
-configuration. Whether to pin is the maintainers' choice, which is why the build warns instead of
-failing.
+**How to regenerate the pins** (on any machine with PowerShell 5.1 or 7):
+
+1. Get a copy of the `localized` folder **over a channel that does not depend on the certificate of
+   the web server**: the master copy you upload from, or SFTP/FTP of the hosting (OVHcloud: FTP or
+   SFTP login of the hosting plan). The folder must have the layout of `/localized/` (`Game\<tag>\...`,
+   `Lobby\<tag>\...`, `Mods\NeoEE\...`, including `Lobby\zh-CN\` and `Lobby\zh-TW\`).
+2. In the setup repository:
+   `pwsh ci/online_pins.ps1 -Update -Source <copy> -SourceNote "<date>, <where the copy comes from>"`.
+   It hashes exactly the files the setups download (read from the code), writes nothing if one is
+   missing, and then checks the list.
+3. Review `git diff pins/online-files.txt`: only the files you changed may have new hashes. Commit
+   it, build and release the setups.
+
+Without access to the hosting: download the files twice, over two independent networks (for
+example at home and over a mobile connection), into two folders, and add
+`-CrossCheck <second folder>`: every file must be byte-identical in both, or nothing is written.
+That still trusts the server on the day of the download ("trust on first use"); record it in
+`-SourceNote`. `ci/online_pins.ps1` without switches only checks the list (CI does that on every
+push).
+
+**Placeholder and test builds.** The hash list that `ci/build.ps1` writes from `data\localized-text`
+(the files the setup ships) applies before `pins/online-files.txt`, so a test build can pin a file
+differently on purpose (TEST-PLAN, TP-13 and TP-16). A release build with the real data stops if
+the two pin different files: then `data\localized-text` is not the data of the servers.

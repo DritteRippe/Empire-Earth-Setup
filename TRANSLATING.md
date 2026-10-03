@@ -57,15 +57,15 @@ has no translation for (they are shown in English) and the `zh_TW` texts that ar
 `zh_CN` ones. Its output is the current to-do list; the overview below is the state when this
 file was last updated.
 
-Custom messages to translate: 112 (14 of them only used by NeoEE setups; the Mute/Unmute button
+Custom messages to translate: 113 (14 of them only used by NeoEE setups; the Mute/Unmute button
 texts `SoundCtrlButtonCaptionSoundOn/Off` stay English on purpose and are not counted).
 
 | Language | Translated | Missing |
 |---|---|---|
-| English (default) | 112 | - |
-| German `de`, French `fr` | 112 | - |
-| Spanish `es`, Italian `it`, Polish `pl`, Russian `ru`, Korean `ko`, Chinese Simplified `zh_CN`, Chinese Traditional `zh_TW` | 35 | 77: the messages added after setup 1.7.2 |
-| Brazilian Portuguese `pt_BR` | 13 | 99: everything except the game language page (`LIQP_*`), see below |
+| English (default) | 113 | - |
+| German `de`, French `fr` | 113 | - |
+| Spanish `es`, Italian `it`, Polish `pl`, Russian `ru`, Korean `ko`, Chinese Simplified `zh_CN`, Chinese Traditional `zh_TW` | 35 | 78: the messages added after setup 1.7.2 |
+| Brazilian Portuguese `pt_BR` | 13 | 100: everything except the game language page (`LIQP_*`), see below |
 | Setup-only languages (`hy`, `bg`, `ca`, ...) | 0 | all; these languages only have Inno Setup's own texts |
 
 The numbers are those of `python ci/check_messages.py --coverage` for setup v2 (all work packages
@@ -87,7 +87,9 @@ texts of the installation mode page and the `GPUIQP_*` texts of the graphics car
 These exist in English, German and French only (`--coverage` lists them by name): installation
 types, task and component descriptions, the DirectX wrapper part of the graphics card page,
 status texts, the title and description of the download page, the reports about online
-localized files and random map scripts, the page that checks the installed files at the end of the
+localized files (including `DownloadFileServerCertificate`: a file without SHA-256 pin that the setup
+does not download from a server whose certificate is invalid; "security certificate" as in
+`OnlineFilesUnreachable`) and random map scripts, the page that checks the installed files at the end of the
 installation (`ManifestPage*`) and the notice about files that were missing then, e.g. deleted by an
 antivirus program (`FilesMissingAfterInstall*`), the hints before the installation (a screen lower
 than 768 pixels, `LowScreenResolution`; traces of other or old Empire Earth installations,
