@@ -289,7 +289,8 @@ Dateien, Downloads, Deinstallation). Das Spiel startet damit nicht.
    - Downloads: Die Hashliste des Builds entsteht aus den Platzhaltern in `data\localized-text` und
      gilt vor `pins/online-files.txt`. Eine echte `Language.dll` vom Server passt nicht dazu und
      wird verworfen und gemeldet; Stimmen, Kampagnen, Video und Lobby-Dateien sind über
-     `pins/online-files.txt` gepinnt und werden angenommen.
+     `pins/online-files.txt` gepinnt und werden angenommen (das Video wird nur mit der Komponente
+     „Intro-Videos installieren“ geladen).
    - Keine Musik, Platzhalterbilder im Assistenten.
 
 ### 6.3 Weg B: echter Build aus eigenen Daten
@@ -651,6 +652,12 @@ Gemeinsam für alle Fälle dieses Blocks:
 - Downloads gibt es nur mit einer anderen Spielsprache als Englisch und mit der Komponente
   „Lokalisierte Sprachausgabe und Kampagnen herunterladen“ (in den empfohlenen Einstellungen und
   in allen Installationsarten vorausgewählt). Wenn nicht anders gesagt: Spielsprache „Deutsch“.
+  Mit den empfohlenen Einstellungen lädt das Setup die Stimmen (`data.ssa`), die Kampagnen, die
+  `Language.dll` und die Lobby-Dateien, aber kein Intro-Video: Das lokalisierte Video
+  (`Game/<Sprache>/EE/Data/Movies/Empire Earth.bik`) kommt nur mit der Komponente „Intro-Videos
+  installieren“, die in keiner Installationsart vorausgewählt und nur unter „Benutzerdefinierte
+  Installationseinstellungen“ wählbar ist. Bei einem Update behält das Setup die Komponentenauswahl
+  der vorigen Installation.
 - Die Download-Seite heißt „Lokalisierte Dateien werden heruntergeladen“; unter dem
   Fortschrittsbalken steht die URL der Datei, die gerade geladen wird, darunter der Knopf
   „Download abbrechen“. Das gilt für beide Transporte.
@@ -661,8 +668,9 @@ Gemeinsam für alle Fälle dieses Blocks:
   Online-Gegenstück) passen deshalb nicht zum Server, werden auf beiden Servern verworfen und im
   Hinweis als „nicht die Version, die dieses Setup kennt … verworfen“ gemeldet. Das ist bei Weg A in
   jedem Fall dieses Blocks erwartet und genau der Inhalt von
-  [TP-16](#tp-16-manipulierter-download-wird-verworfen). Stimmen, Kampagnen, Video und Lobby-Dateien
-  kommen auch bei Weg A an (ihre Pins stammen aus `pins/online-files.txt`).
+  [TP-16](#tp-16-manipulierter-download-wird-verworfen). Stimmen, Kampagnen und Lobby-Dateien (mit
+  der Komponente „Intro-Videos installieren“ auch das Video) kommen auch bei Weg A an (ihre Pins
+  stammen aus `pins/online-files.txt`).
 - Langsame Leitung für die Stopp-Fälle: Damit man den Knopf rechtzeitig trifft, in der VM die
   Bandbreite begrenzen (VirtualBox: *Netzwerk › Bandbreitengruppe*, etwa 1 MBit/s; Hyper-V:
   *Netzwerkkarte › Bandbreitenverwaltung*) und die Komponente „Intro-Videos installieren“ wählen
@@ -688,21 +696,28 @@ Gemeinsam für alle Fälle dieses Blocks:
   `Online files: <a> downloaded with validated TLS (Inno Setup), <b> pinned ones with WinHTTP without certificate validation, of <n>`;
   bei `ssInstall` je Datei `Online file verified, SHA-256 pinned: …` (ohne Pin
   `Online file accepted, TLS-verified, not pinned: …`) oder `Online file not downloaded: …` und am
-  Ende `<k> of <n> selected online files are missing, the setup installs its own files instead:` mit
-  der Liste (bzw. `All <n> online files accepted`).
+  Ende `<k> of <s> selected online files are missing, the setup installs its own files instead:` mit
+  der Liste (bzw. `All <s> online files accepted`). `<s>` zählt anders als `<n>` der Summe auch die
+  Kopien der gemeinsamen Lobby-Dateien für AoC (siehe „Log-Hinweis“ von
+  [TP-10](#tp-10-hauptserver-mit-ungültigem-zertifikat-gepinnte-dateien-trotzdem)).
 
 #### TP-10: Hauptserver mit ungültigem Zertifikat: gepinnte Dateien trotzdem
 
 - **Status:** ausgearbeitet
-- **Priorität:** P1 (Teil a mit EE-admin; Teil b und NeoEE-admin mit Weg B: P2)
-- **Bezug:** ADR 0012, ADR 0003, ADR 0006, R16; Laptoptest vom 2026-10-03 (Stimmen, Kampagnen und
-  Video blieben englisch); Forum §8 Nr. 15 („nur mit Spiegel erreichbar“), Forum §8 Nr. 12 des
+- **Priorität:** P1 (Teil a mit EE-admin; Teil b, NeoEE-admin mit Weg B und die optionale
+  Variante a2 mit dem Intro-Video: P2)
+- **Bezug:** ADR 0012, ADR 0003, ADR 0006, R16; erster Laptoptest vom 2026-10-03 (Stimmen und
+  Kampagnen blieben englisch; ein Intro-Video wurde nicht installiert, die Komponente war nicht
+  gewählt); Forum §8 Nr. 15 („nur mit Spiegel erreichbar“), Forum §8 Nr. 12 des
   Problemabgleichs (t=5741, t=3763: kaputte Downloads)
 - **Ziel:** (a) Mit dem echten Hauptserver, dessen Zertifikat nicht zu seinem Namen passt, lädt das
   Setup alle gepinnten Dateien ohne Zertifikatsprüfung und installiert jede nur, wenn sie zu ihrem
-  Pin passt; die deutschen Stimmen, Kampagnen und das Video kommen an. (b) Ein fremder Server unter
-  dem Namen des Hauptservers kann nichts unterschieben: Er antwortet zwar ohne Zertifikatsprüfung,
-  aber keine Datei passt zu ihrem Pin, nichts davon wird installiert.
+  Pin passt; mit den empfohlenen Einstellungen kommen die deutschen Stimmen (`data.ssa`), Kampagnen,
+  `Language.dll` und Lobby-Dateien an. Das Intro-Video kommt nur mit „Benutzerdefinierte
+  Installationseinstellungen“ und der Komponente „Intro-Videos installieren“ (optionale Variante
+  a2). (b) Ein fremder Server unter dem Namen des Hauptservers kann nichts unterschieben: Er
+  antwortet zwar ohne Zertifikatsprüfung, aber keine Datei passt zu ihrem Pin, nichts davon wird
+  installiert.
 - **Build-Art:** A oder B (B zeigt den Normalfall ohne verworfene `Language.dll`)
 - **Ausgangszustand:** (a) TP-00: Hauptserver „ungültiges Zertifikat“ und Stichprobe gleich (Stand
   2026-10-03). Ist er inzwischen gültig, prüft (a) den Weg mit Zertifikatsprüfung (eingebaute
@@ -714,7 +729,8 @@ Gemeinsam für alle Fälle dieses Blocks:
   Wildcard-Zertifikat gilt auch für `files.empireearth.eu`.
 - **Snapshot:** `S-Basis` (die Zeile in `hosts` verschwindet mit dem Zurücksetzen)
 - **Varianten:** EE-admin; NeoEE-admin bei Weg B (lädt die NeoEE-Fassungen aus `Mods/NeoEE/`).
-  Die anderen Varianten nutzen denselben Code.
+  Die anderen Varianten nutzen denselben Code. Die optionale Variante a2 (Intro-Video) nur mit
+  EE-admin: Ein lokalisiertes Video gibt es nur für Empire Earth, NeoEE lädt dieselbe Datei.
 - **Schritte:**
   1. (a) Setup mit `/LOG="C:\EE-Test\logs\TP-10_EE-admin.log"` starten (bei Weg A zusätzlich
      `/MERGETASKS="!dxwebsetup"`), Spielsprache Deutsch, empfohlene Einstellungen mit „Empire
@@ -725,14 +741,24 @@ Gemeinsam für alle Fälle dieses Blocks:
   3. `certutil -hashfile "C:\Program Files (x86)\Empire Earth\Empire Earth\Data\data.ssa" SHA256`
      ausführen und mit der Zeile von `Game/de/EE/Data/data.ssa` in `pins\online-files.txt` der
      Arbeitskopie vergleichen; ebenso `…\Empire Earth\Data\Campaigns\EETheGermans.ssa`.
-  4. (b) Snapshot zurücksetzen, `hosts` wie oben, Schritte 1 und 2 mit `TP-10b` im Log-Namen; den
+  4. (a2) Optional: Snapshot zurücksetzen, Schritt 1 mit `TP-10a2` im Log-Namen, aber
+     „Benutzerdefinierte Installationseinstellungen“ mit Empire Earth und AoC und zusätzlich der
+     Komponente „Intro-Videos installieren“ (unter „Empfohlene Zusatzinhalte“); Schritt 2; dann
+     `certutil -hashfile "C:\Program Files (x86)\Empire Earth\Empire Earth\Data\Movies\Empire Earth.bik" SHA256`
+     ausführen und mit der Zeile von `Game/de/EE/Data/Movies/Empire Earth.bik` in
+     `pins\online-files.txt` der Arbeitskopie vergleichen.
+  5. (b) Snapshot zurücksetzen, `hosts` wie oben, Schritte 1 und 2 mit `TP-10b` im Log-Namen; den
      Hinweis nach den Downloads lesen und bestätigen, fertigstellen; die `hosts`-Zeile wieder
      entfernen (oder den Snapshot zurücksetzen).
 - **Erwartetes Ergebnis:**
   - (a) Keine Fehlermeldung und kein Hinweis `OnlineFilesUnreachable`. Weg B: kein Hinweis
     `DownloadIncomplete`; Weg A: der Hinweis nennt nur die `Language.dll` von Empire Earth und AoC
     als verworfen. Die SHA-256 aus Schritt 3 gleicht den Pins. Im Spielordner sind die deutschen
-    Kampagnen und `data.ssa` (etwa 170 MB) installiert.
+    Kampagnen und `data.ssa` (etwa 170 MB) installiert. Ein Intro-Video wird nicht geladen und nicht
+    installiert (die Komponente ist nicht gewählt; kein Fehler).
+  - (a2) Wie (a), aber mit dem Intro-Video: `Game/de/EE/Data/Movies/Empire Earth.bik` ist über
+    WinHTTP geladen und gegen seinen Pin geprüft, `…\Empire Earth\Data\Movies\Empire Earth.bik` ist
+    installiert (21102520 Bytes), und die SHA-256 aus Schritt 4 gleicht der Pin-Zeile.
   - (b) Kein Fehler, die Installation läuft durch. Der Hinweis „Einige lokalisierte Dateien konnten
     nicht aus dem Download installiert werden: …“ nennt alle heruntergeladenen Dateien als „nicht
     heruntergeladen“ (der fremde Server antwortet mit 404) oder „verworfen“; das Spiel enthält nur
@@ -745,8 +771,18 @@ Gemeinsam für alle Fälle dieses Blocks:
   `Online files: https://files.empireearth.eu/localized first (invalid certificate: pinned files only, without certificate validation), then https://storage.ee.zocker-160.de/localized (no answer: not used)`,
   je Datei `Downloading pinned online file without certificate validation (WinHTTP) from https://files.empireearth.eu/…`
   und `Online file downloaded, SHA-256 pinned, transport WinHTTP without certificate validation: …`,
-  die Summe `Online files: 0 downloaded with validated TLS (Inno Setup), <n> pinned ones with WinHTTP …`
-  und `All <n> online files accepted`. Unter Windows 7 und 8 zusätzlich keine Zeile
+  die Summe `Online files: 0 downloaded with validated TLS (Inno Setup), <d> pinned ones with WinHTTP without certificate validation, of <d>`
+  und `All <a> online files accepted`. Die beiden Zahlen sind verschieden, und das ist kein Fehler:
+  `<d>` zählt nur die Downloads (wie `Downloading <d> online files, one at a time`), `<a>` auch die
+  Kopien. Die gemeinsamen Lobby-Dateien (`_WONStatus.cfg`, `_GameResource.cfg`,
+  `_LobbyResource.cfg`, bei NeoEE auch `_NeoEEResource.cfg`) lädt das Setup einmal und kopiert sie
+  für AoC, also `<a>` = `<d>` + 3 (NeoEE: + 4). Mit den empfohlenen Einstellungen und Deutsch: EE
+  `<d>` 17 und `<a>` 20, NeoEE 18 und 22 (Weg B, Nachtest auf dem Laptop vom 2026-10-03); mit a2
+  bei EE je eins mehr (18 und 21) und zusätzlich
+  `Online file registered, SHA-256 pinned: Game/de/EE/Data/Movies/Empire Earth.bik`,
+  `Online file downloaded, SHA-256 pinned, transport WinHTTP without certificate validation: https://files.empireearth.eu/localized/Game/de/EE/Data/Movies/Empire Earth.bik (21102520 bytes, <ms> ms)`
+  und `Online file verified, SHA-256 pinned: Game/de/EE/Data/Movies/Empire Earth.bik (SHA-256 …)`.
+  Unter Windows 7 und 8 zusätzlich keine Zeile
   `WinHTTP: unable to request TLS 1.0, 1.1 and 1.2 explicitly`. (b) Dieselbe Serverauswahl, je Datei
   `Online file download failed from https://files.empireearth.eu/…: HTTP status 404` (oder
   `rejected, …`), `Online file not downloaded, not retried: …` und am Ende die Liste nach
