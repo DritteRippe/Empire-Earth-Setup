@@ -771,10 +771,12 @@ begin
     12044: Text := 'the server asks for a client certificate';
     12045: Text := 'the certificate authority is not trusted';
     12152: Text := 'invalid answer of the server';
+    12156: Text := 'redirect refused: to http, or too many';
     12157: Text := 'secure channel error (TLS handshake or certificate)';
     12169: Text := 'invalid certificate';
     12175: Text := 'secure connection failure (TLS or certificate)';
     12179: Text := 'the certificate is not valid for server authentication';
+    10060: Text := 'timeout of the connection (Windows Sockets)';
   else
     Text := '';
   end;
@@ -853,7 +855,8 @@ end;
 // (SECURITY_FLAG_IGNORE_UNKNOWN_CA, $100), a wrong certificate usage ($200), a certificate for
 // another host name (SECURITY_FLAG_IGNORE_CERT_CN_INVALID, $1000) and an expired one
 // (SECURITY_FLAG_IGNORE_CERT_DATE_INVALID, $2000). Only OpenWinHttpRequest calls it, and only for
-// the two callers that may ignore certificate errors. True if WinHTTP accepted the option.
+// the two callers that may ignore certificate errors (ci/check_tls_policy.py checks both). True if
+// WinHTTP accepted the option.
 function ApplyCertificateErrorIgnoreFlags(const Request: Cardinal): Boolean;
 var
   Flags: Cardinal;

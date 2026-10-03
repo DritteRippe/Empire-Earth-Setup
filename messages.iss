@@ -177,7 +177,8 @@ de.LinkInGameFolder=Das Setup hat angehalten, bevor es etwas geändert hat. Es l
 fr.LinkInGameFolder=Le programme d'installation s'est arrêté avant de modifier quoi que ce soit. Il s'exécute avec des droits d'administrateur, et tout utilisateur peut modifier les dossiers Data et Users du jeu. Il y a trouvé des liens (jonctions, liens symboliques ou liens physiques) ou des dossiers et fichiers qu'il ne peut pas vérifier, à travers lesquels il pourrait modifier ou divulguer des fichiers en dehors du dossier du jeu :%1%n%nSupprimez chaque lien ou remplacez-le par un dossier ou un fichier normal, puis relancez le programme d'installation. Ou relancez-le et choisissez « Installer seulement pour moi » pour installer le jeu pour votre compte uniquement.
 
 ; Online files (RegisterOnlineFiles, downloads.iss)
-; Neither file server answered over https with a valid certificate (SelectOnlineFilesServer)
+; Neither file server can be used (SelectOnlineFilesServer): no answer at all, or, in a setup without
+; SHA-256 pins, no answer with a valid certificate
 OnlineFilesUnreachable=The servers of the localized files could not be reached, or they did not present a valid security certificate (a problem of the servers, not of your computer).%n%nThe game is installed with the files included in this setup, so some content (for example voices and campaigns) may stay in English. To add the localized files, run this setup again later.
 de.OnlineFilesUnreachable=Die Server der lokalisierten Dateien waren nicht erreichbar oder haben kein gültiges Sicherheitszertifikat vorgelegt (ein Problem der Server, nicht Ihres Computers).%n%nDas Spiel wird mit den Dateien installiert, die dieses Setup enthält, daher bleiben einige Inhalte (zum Beispiel Stimmen und Kampagnen) möglicherweise englisch. Um die lokalisierten Dateien hinzuzufügen, führen Sie dieses Setup später erneut aus.
 fr.OnlineFilesUnreachable=Les serveurs des fichiers traduits sont injoignables ou n'ont pas présenté de certificat de sécurité valide (un problème des serveurs, pas de votre ordinateur).%n%nLe jeu est installé avec les fichiers inclus dans ce programme d'installation, certains contenus (par exemple les voix et les campagnes) pourraient donc rester en anglais. Pour ajouter les fichiers traduits, relancez ce programme d'installation plus tard.
@@ -209,6 +210,10 @@ fr.DownloadFileUnsaved=%1 (téléchargé, mais impossible de le stocker pour l'i
 DownloadFileUnverifiable=%1 (program file, no verified version known to this setup, not downloaded)
 de.DownloadFileUnverifiable=%1 (Programmdatei, diesem Setup ist keine geprüfte Version bekannt, nicht heruntergeladen)
 fr.DownloadFileUnverifiable=%1 (fichier programme, aucune version vérifiée connue de ce programme d'installation, non téléchargé)
+; A file without SHA-256 pin on a server whose certificate is invalid: only pinned files are downloaded from it (ADR 0012)
+DownloadFileServerCertificate=%1 (no verified version known to this setup, and the server did not present a valid security certificate: not downloaded)
+de.DownloadFileServerCertificate=%1 (diesem Setup ist keine geprüfte Version bekannt, und der Server hat kein gültiges Sicherheitszertifikat vorgelegt: nicht heruntergeladen)
+fr.DownloadFileServerCertificate=%1 (aucune version vérifiée connue de ce programme d'installation, et le serveur n'a pas présenté de certificat de sécurité valide : non téléchargé)
 
 ; Integrity manifest at the end of the installation (installstate.iss): title, description and
 ; status text of the progress page while the installed files are checked (CreateManifestProgressPage)

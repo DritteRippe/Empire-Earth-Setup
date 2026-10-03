@@ -682,6 +682,8 @@ begin
   Check('DescribeWinHttpError secure channel', DescribeWinHttpError(12157), 'WinHTTP error 12157 (secure channel error (TLS handshake or certificate))');
   Check('DescribeWinHttpError timeout', DescribeWinHttpError(12002), 'WinHTTP error 12002 (timeout)');
   Check('DescribeWinHttpError name not resolved', DescribeWinHttpError(12007), 'WinHTTP error 12007 (the server name cannot be resolved)');
+  Check('DescribeWinHttpError redirect refused', DescribeWinHttpError(12156), 'WinHTTP error 12156 (redirect refused: to http, or too many)');
+  Check('DescribeWinHttpError socket timeout (Wine)', DescribeWinHttpError(10060), 'WinHTTP error 10060 (timeout of the connection (Windows Sockets))');
   Check('DescribeWinHttpError unknown code', DescribeWinHttpError(5), 'WinHTTP error 5');
 end;
 

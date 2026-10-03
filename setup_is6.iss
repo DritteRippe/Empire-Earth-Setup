@@ -1784,12 +1784,14 @@ begin
   // Register Online Files (the game files are English, the online files replace them with the
   // localized ones if asked)
   // Mirror Order
-  // EE Community (Energy) => Zocker (SelectOnlineFilesServer starts with the mirror if only it answers)
+  // EE Community (Energy) => Zocker (SelectOnlineFilesServer starts with the mirror if it is in a
+  // better state: a valid certificate, or an answer at all)
   // Storage Localized structure : {base_url}/localized/{scope}/{language}/{GameType}/
   // Note: EELearningCampaign.ssa is the same for AoC, [Files] installs the one of EE for both
   // AddOnlineFile (downloads.iss) registers the file on both servers (same path on the mirror),
   // if the download policy allows it: files with code only with a known SHA-256, data files
-  // without one only over https; every download is checked before it is installed.
+  // without one only over https with a valid certificate; a pinned file also from a server whose
+  // certificate is invalid (ADR 0012); every download is checked before it is installed.
   // Only selected content is registered (setups up to 1.7.2 gave the download plug-in the
   // condition 'game or ...', and 'game' is always selected, so every file was downloaded).
   // DownloadOnlineFiles (downloads.iss) downloads what is registered here.

@@ -78,6 +78,17 @@ jobs:
         shell: pwsh
         run: ./ci/online_pins.ps1 -SelfTest
 
+      # Certificate errors may only be ignored for pinned online files (ADR 0012): the flags in one
+      # function, called once, only for the probe and the download of pinned files; then the
+      # self-test (changed copies of the scripts must fail)
+      - name: Check where certificate errors may be ignored
+        shell: pwsh
+        run: python ci/check_tls_policy.py
+
+      - name: Check where certificate errors may be ignored (self-test)
+        shell: pwsh
+        run: python ci/check_tls_policy.py --self-test
+
       # Unit tests of the [Code] helpers: a tiny test setup that only computes (no network)
       - name: Unit tests
         shell: pwsh
