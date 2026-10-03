@@ -104,7 +104,14 @@ not the certificate. Files without pin keep the strict rule of ADR 0003 and ADR 
    `OpenWinHttpRequest` ignores certificate errors for any caller but the probe and the pinned
    download, if those are called from elsewhere, if the pinned download loses its guard against
    files without pin, if the pinned transport is chosen for a file without pin, or if the
-   certificate option of the COM object is used.
+   certificate option of the COM object is used. It reads every script compiled into the setup:
+   the root folder and every file of an `#include` line, also `internal/lib/bass/bass.iss`. So
+   that a call cannot escape these rules under another name, it also fails if a function of
+   `winhttp.dll` is declared outside `utils.iss`, under another name than its own (an alias), twice
+   or with another external text, if `winhttp.dll` is named anywhere else, if the address of a
+   WinHTTP function is taken, if another HTTP stack appears (`wininet`, `urlmon`, `XMLHTTP`), if
+   `OpenWinHttpRequest` sets another option than the named constant `WinHttpOptionSecureProtocols`
+   (a composed value such as `30 + 1` included), or if a named option constant has another value.
 9. **Operators:** a pinned file that changes on a server is discarded by every setup built before;
    the pins must be regenerated and a new setup released ([SERVER-OPERATIONS.md](../SERVER-OPERATIONS.md),
    section 6). A valid certificate for `files.empireearth.eu` is still wanted: then everything comes

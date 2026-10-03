@@ -434,7 +434,9 @@ setup version stays 1.7.2 until the release.
   `RegisterOnlineFiles` registers it; no other path), rewrites it from a copy of the `localized`
   folder (`-Update -Source <folder> [-CrossCheck <second copy>]`) and has a `-SelfTest`;
   `ci/check_tls_policy.py` (with `--self-test`) checks that certificate errors are only ignored for
-  pinned files. CI runs all four. SERVER-OPERATIONS section 6 explains when and how the operators
+  pinned files, in every script compiled into the setup (also the files of `#include` lines in
+  subfolders), with the functions of `winhttp.dll` declared only in `utils.iss`, each under its own
+  name (no alias). CI runs all four. SERVER-OPERATIONS section 6 explains when and how the operators
   regenerate the pins.
 
 ### Changed
