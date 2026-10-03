@@ -1,7 +1,8 @@
 ﻿[Code]
 // Base helpers of the [Code] part: the URL constants, string split, language tag, compatibility
 // flags, uninstall keys of EE and NeoEE, the HTTP requests, URL checks, the download policy of
-// the online localized files, the install state for the launcher (install mode, install.ini,
+// the online localized files, the states of their file servers and the WinHTTP requests for pinned
+// files, the install state for the launcher (install mode, install.ini,
 // writing a state file, the integrity manifest files.sha256), the environment checks before the
 // installation (game window size, low screen, folders and uninstall entries of other
 // installations) and the link check of the folders all users can write to (reparse points).
@@ -9,8 +10,10 @@
 // Requires: AppID, OtherAppID (ISPP, product configuration config_*.iss).
 // The functions without wizard access are tested by ci/tests/unit_tests.iss.
 
-// All requests use HTTPS with validated certificates and never fall back to HTTP: the answers
-// decide what the (elevated) setup opens or installs.
+// All requests use HTTPS and never fall back to HTTP: the answers decide what the (elevated) setup
+// opens or installs. All of them validate the certificate, except the two WinHTTP requests for
+// pinned online files (GetHttpStatusIgnoringCertificate, DownloadPinnedFileWinHttp in
+// downloads.iss), whose answer only counts if the file matches its SHA-256 pin (ADR 0012).
 const
   // Hosts: the EE community website and the mirror of its file server
   DomainMain = 'empireearth.eu';
@@ -557,6 +560,437 @@ begin
     Result := DownloadActionTryMirror
   else
     Result := DownloadActionGiveUp;
+end;
+
+// The file servers of the online localized files without a valid certificate (downloads.iss,
+// docs/adr/0012-pinned-downloads-despite-invalid-certificates.md): the state of each server, which
+// transport a file gets from it, the size limit of a pinned download, and WinHTTP itself for the
+// one transport that ignores certificate errors. That transport is only ever used for a file with a
+// SHA-256 pin: the file is only kept if it matches the pin, so the certificate does not decide
+// what is installed. A file without pin still needs a validated certificate (ADR 0003, ADR 0006).
+
+const
+  // State of a file server, as SelectOnlineFilesServer (downloads.iss) finds it before the first
+  // download (ClassifyOnlineFilesServer)
+  OnlineServerUnreachable = 0;         // no HTTP answer, neither with nor without certificate validation
+  OnlineServerVerified = 1;            // an HTTP answer over TLS with a validated certificate
+  OnlineServerCertificateInvalid = 2;  // an HTTP answer only without certificate validation
+  OnlineServerNotChecked = 3;          // not asked because the other server is verified: only the
+                                       // built-in downloads, which validate the certificate themselves
+  // Which server SelectOnlineFilesServer uses first (ChooseOnlineFilesServerOrder)
+  OnlineFilesOrderNone = 0;            // neither server can be used
+  OnlineFilesOrderMainFirst = 1;
+  OnlineFilesOrderMirrorFirst = 2;
+  // How an online file is downloaded from one server (GetOnlineFileTransport)
+  DownloadTransportNone = 0;           // not from this server
+  DownloadTransportBuiltIn = 1;        // Inno Setup's built-in download, the certificate is validated
+  DownloadTransportPinnedWinHttp = 2;  // WinHTTP with certificate errors ignored: pinned files only,
+                                       // the SHA-256 decides (DownloadPinnedFileWinHttp, downloads.iss)
+  // Largest pinned download whose size the setup does not know (a pin of the build's own hash list
+  // without an entry in pins\online-files.txt); the largest online file has 172 MB
+  UnsizedPinnedDownloadMaxBytes = 1073741824;
+
+// State of a file server from its two probes (SelectOnlineFilesServer): StrictStatus is the HTTP
+// status of the request with a validated certificate (GetHttpStatus), LenientStatus that of the
+// request without certificate validation (GetHttpStatusIgnoringCertificate; HttpRequestFailed if it
+// was not sent, e.g. because the setup has no pins), both HttpRequestFailed without an answer. Any
+// HTTP status counts as an answer.
+function ClassifyOnlineFilesServer(const StrictStatus, LenientStatus: Integer): Integer;
+begin
+  if StrictStatus <> HttpRequestFailed then
+    Result := OnlineServerVerified
+  else if LenientStatus <> HttpRequestFailed then
+    Result := OnlineServerCertificateInvalid
+  else
+    Result := OnlineServerUnreachable;
+end;
+
+// Order of the server states for ChooseOnlineFilesServerOrder: verified (or not checked, i.e. only
+// the validating built-in downloads) before an invalid certificate before no answer
+function OnlineServerRank(const State: Integer): Integer;
+begin
+  if (State = OnlineServerVerified) or (State = OnlineServerNotChecked) then
+    Result := 2
+  else if State = OnlineServerCertificateInvalid then
+    Result := 1
+  else
+    Result := 0;
+end;
+
+// Which file server SelectOnlineFilesServer uses first (OnlineFilesOrder*): the one in the better
+// state (OnlineServerRank), the main server if both are in the same state, none if neither answers
+function ChooseOnlineFilesServerOrder(const MainState, MirrorState: Integer): Integer;
+begin
+  if (OnlineServerRank(MainState) = 0) and (OnlineServerRank(MirrorState) = 0) then
+    Result := OnlineFilesOrderNone
+  else if OnlineServerRank(MirrorState) > OnlineServerRank(MainState) then
+    Result := OnlineFilesOrderMirrorFirst
+  else
+    Result := OnlineFilesOrderMainFirst;
+end;
+
+// How a file with the GetOnlineFileCheck result Check is downloaded from a server in the state
+// ServerState (DownloadTransport*): a server with a validated certificate (or one that was not
+// checked) gets the built-in download for every file the policy accepts; a server that only
+// answers without certificate validation only gets pinned files, with WinHTTP and certificate
+// errors ignored (the SHA-256 decides); a file without pin never comes from it, and nothing comes
+// from a server without an answer. Refused files (code without pin, http URL) get no transport.
+function GetOnlineFileTransport(const Check, ServerState: Integer): Integer;
+begin
+  Result := DownloadTransportNone;
+  if (Check <> OnlineFilePinned) and (Check <> OnlineFileTlsOnly) then
+    Exit;
+  if (ServerState = OnlineServerVerified) or (ServerState = OnlineServerNotChecked) then
+    Result := DownloadTransportBuiltIn
+  else if (ServerState = OnlineServerCertificateInvalid) and (Check = OnlineFilePinned) then
+    Result := DownloadTransportPinnedWinHttp;
+end;
+
+// True while a download of a pinned file stays within its pinned size: Progress bytes received so
+// far, ProgressMax the size the server announced (Content-Length; 0 or less if it sent none),
+// PinnedSize the size of the pin (pins\online-files.txt), -1 if unknown. A different announced
+// size or more bytes than pinned end the download early: it could never match the pin, and the
+// limit keeps a server from filling the disk. Without a known size only UnsizedPinnedDownloadMaxBytes
+// applies.
+function IsDownloadSizeAcceptable(const Progress, ProgressMax, PinnedSize: Int64): Boolean;
+begin
+  if PinnedSize >= 0 then
+    Result := (Progress >= 0) and (Progress <= PinnedSize) and ((ProgressMax <= 0) or (ProgressMax = PinnedSize))
+  else
+    Result := (Progress >= 0) and (Progress <= UnsizedPinnedDownloadMaxBytes) and (ProgressMax <= UnsizedPinnedDownloadMaxBytes);
+end;
+
+// The size of a pin as pins\online-files.txt writes it: a positive decimal number of at most 15
+// digits without sign, spaces or leading zero; -1 for anything else
+function ParsePinnedSize(const Text: String): Int64;
+var
+  I: Integer;
+  Value: Int64;
+begin
+  Result := -1;
+  if (Length(Text) = 0) or (Length(Text) > 15) or (Text[1] = '0') then
+    Exit;
+  Value := 0;
+  for I := 1 to Length(Text) do
+  begin
+    if (Text[I] < '0') or (Text[I] > '9') then
+      Exit;
+    Value := Value * 10 + (Ord(Text[I]) - Ord('0'));
+  end;
+  Result := Value;
+end;
+
+// Splits the https URL of an online file into what WinHTTP needs: the host (lowercase; letters,
+// digits, '.' and '-' only), the port (443 unless given, 1 to 65535) and the object name, the path
+// with every segment percent-encoded (UrlEncode: a space becomes %20, non-ASCII its UTF-8 bytes,
+// '/' stays), '/' if empty. The path is taken as it is written, unencoded, like the server paths of
+// RegisterOnlineFiles. False for anything else: another scheme, user info ('@'), a query or
+// fragment ('?', '#'), backslashes, control characters, an empty host or a bad port.
+function SplitDownloadUrl(const Url: String; var Host: String; var Port: Integer; var ObjectName: String): Boolean;
+var
+  I, P: Integer;
+  Rest, Authority, Path, PortText, Segment: String;
+  C: Char;
+begin
+  Result := False;
+  Host := '';
+  Port := 443;
+  ObjectName := '';
+  if CompareText(Copy(Url, 1, 8), 'https://') <> 0 then
+    Exit;
+  for I := 1 to Length(Url) do
+    if (Ord(Url[I]) < 32) or (Ord(Url[I]) = 127) or (Url[I] = '\') or (Url[I] = '@') or (Url[I] = '?') or (Url[I] = '#') then
+      Exit;
+
+  Rest := Copy(Url, 9, Length(Url));
+  P := Pos('/', Rest);
+  if P > 0 then
+  begin
+    Authority := Copy(Rest, 1, P - 1);
+    Path := Copy(Rest, P, Length(Rest));
+  end else
+  begin
+    Authority := Rest;
+    Path := '/';
+  end;
+
+  P := Pos(':', Authority);
+  if P > 0 then
+  begin
+    PortText := Copy(Authority, P + 1, Length(Authority));
+    Authority := Copy(Authority, 1, P - 1);
+    if (Length(PortText) = 0) or (Length(PortText) > 5) then
+      Exit;
+    Port := 0;
+    for I := 1 to Length(PortText) do
+    begin
+      if (PortText[I] < '0') or (PortText[I] > '9') then
+        Exit;
+      Port := Port * 10 + (Ord(PortText[I]) - Ord('0'));
+    end;
+    if (Port < 1) or (Port > 65535) then
+      Exit;
+  end;
+  if Authority = '' then
+    Exit;
+  for I := 1 to Length(Authority) do
+  begin
+    C := Authority[I];
+    if not (((C >= 'a') and (C <= 'z')) or ((C >= 'A') and (C <= 'Z')) or ((C >= '0') and (C <= '9')) or (C = '.') or (C = '-')) then
+      Exit;
+  end;
+  Host := LowerCase(Authority);
+
+  Segment := '';
+  for I := 1 to Length(Path) do
+    if Path[I] = '/' then
+    begin
+      ObjectName := ObjectName + UrlEncode(Segment) + '/';
+      Segment := '';
+    end else
+      Segment := Segment + Path[I];
+  ObjectName := ObjectName + UrlEncode(Segment);
+  Result := True;
+end;
+
+// Text of a WinHTTP error code (GetLastError after a WinHTTP function) for the log, e.g.
+// 'WinHTTP error 12038 (the certificate is for another host name)'
+function DescribeWinHttpError(const Code: Integer): String;
+var
+  Text: String;
+begin
+  case Code of
+    12002: Text := 'timeout';
+    12005: Text := 'invalid URL';
+    12007: Text := 'the server name cannot be resolved';
+    12017: Text := 'the operation was cancelled';
+    12029: Text := 'cannot connect to the server';
+    12030: Text := 'the connection was closed or reset';
+    12037: Text := 'the certificate has expired or is not yet valid';
+    12038: Text := 'the certificate is for another host name';
+    12044: Text := 'the server asks for a client certificate';
+    12045: Text := 'the certificate authority is not trusted';
+    12152: Text := 'invalid answer of the server';
+    12157: Text := 'secure channel error (TLS handshake or certificate)';
+    12169: Text := 'invalid certificate';
+    12175: Text := 'secure connection failure (TLS or certificate)';
+    12179: Text := 'the certificate is not valid for server authentication';
+  else
+    Text := '';
+  end;
+  Result := 'WinHTTP error ' + IntToStr(Code);
+  if Text <> '' then
+    Result := Result + ' (' + Text + ')';
+end;
+
+const
+  // WinHttpOpen: the proxy settings WinHTTP finds itself (WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
+  // Windows 8.1 and later), else the WinHTTP proxy configuration (WINHTTP_ACCESS_TYPE_DEFAULT_PROXY)
+  WinHttpAccessTypeDefaultProxy = 0;
+  WinHttpAccessTypeAutomaticProxy = 4;
+  // WinHttpOpenRequest: TLS (WINHTTP_FLAG_SECURE)
+  WinHttpFlagSecure = $00800000;
+  // WinHttpSetOption on the session: the TLS protocols (WINHTTP_OPTION_SECURE_PROTOCOLS), asked for
+  // explicitly on Windows older than 8.1 like HttpRequest does (WinHttpSecureProtocolsTls10To12)
+  WinHttpOptionSecureProtocols = 84;
+  // WinHttpQueryHeaders: status code and Content-Length as numbers
+  WinHttpQueryStatusCode = 19;
+  WinHttpQueryContentLength = 5;
+  WinHttpQueryFlagNumber = $20000000;
+  // Timeouts of these requests (name resolution: DownloadResolveTimeoutMs); the receive timeout
+  // applies to every single read, as the 30 s of the download plug-in of setups up to 1.7.2
+  WinHttpConnectTimeoutMs = 15000;
+  WinHttpSendTimeoutMs = 15000;
+  WinHttpReceiveTimeoutMs = 30000;
+  // Bytes read at once by DownloadPinnedFileWinHttp (downloads.iss)
+  WinHttpReadChunkBytes = 65536;
+  WinHttpUserAgent = 'Empire Earth Community Setup';
+
+// WinHTTP (winhttp.dll) for the two requests without certificate validation: the probe of a file
+// server (GetHttpStatusIgnoringCertificate) and the download of a pinned file
+// (DownloadPinnedFileWinHttp, downloads.iss). The handles are Cardinal because setups of Inno Setup
+// 6.2.2 are always 32-bit processes (a 64-bit setup would need pointer-sized handles here). Delay
+// loaded: a function that cannot be called raises an exception in the request that calls it, which
+// fails that request, instead of stopping the setup at its start.
+function WinHttpOpen(Agent: String; AccessType: Cardinal; ProxyName, ProxyBypass: Cardinal; Flags: Cardinal): Cardinal;
+  external 'WinHttpOpen@winhttp.dll stdcall delayload';
+function WinHttpSetTimeouts(Handle: Cardinal; ResolveTimeout, ConnectTimeout, SendTimeout, ReceiveTimeout: Integer): BOOL;
+  external 'WinHttpSetTimeouts@winhttp.dll stdcall delayload';
+function WinHttpConnect(Session: Cardinal; ServerName: String; ServerPort: Cardinal; Reserved: Cardinal): Cardinal;
+  external 'WinHttpConnect@winhttp.dll stdcall delayload';
+function WinHttpOpenRequest(Connection: Cardinal; Verb, ObjectName: String; Version, Referrer, AcceptTypes: Cardinal; Flags: Cardinal): Cardinal;
+  external 'WinHttpOpenRequest@winhttp.dll stdcall delayload';
+function WinHttpSetOption(Handle: Cardinal; Option: Cardinal; var Value: Cardinal; ValueLength: Cardinal): BOOL;
+  external 'WinHttpSetOption@winhttp.dll stdcall delayload';
+function WinHttpSendRequest(Request: Cardinal; Headers: String; HeadersLength: Cardinal; Optional: Cardinal; OptionalLength, TotalLength, Context: Cardinal): BOOL;
+  external 'WinHttpSendRequest@winhttp.dll stdcall delayload';
+function WinHttpReceiveResponse(Request: Cardinal; Reserved: Cardinal): BOOL;
+  external 'WinHttpReceiveResponse@winhttp.dll stdcall delayload';
+function WinHttpQueryHeaders(Request: Cardinal; InfoLevel: Cardinal; Name: Cardinal; var Value: Cardinal; var ValueLength: Cardinal; Index: Cardinal): BOOL;
+  external 'WinHttpQueryHeaders@winhttp.dll stdcall delayload';
+function WinHttpReadData(Request: Cardinal; Buffer: AnsiString; BytesToRead: Cardinal; var BytesRead: Cardinal): BOOL;
+  external 'WinHttpReadData@winhttp.dll stdcall delayload';
+function WinHttpCloseHandle(Handle: Cardinal): BOOL;
+  external 'WinHttpCloseHandle@winhttp.dll stdcall delayload';
+// Writes the bytes WinHttpReadData put into an AnsiString buffer to TFileStream.Handle unchanged
+// (TStream.WriteBuffer takes a String and would convert them)
+function WriteFile(FileHandle: Integer; Buffer: AnsiString; BytesToWrite: Cardinal; var BytesWritten: Cardinal; Overlapped: Cardinal): BOOL;
+  external 'WriteFile@kernel32.dll stdcall';
+
+// WinHttpOpen access type for the Windows version WindowsMajor.WindowsMinor: the automatic proxy
+// detection from Windows 8.1 (6.3) on, where WinHTTP offers it, else the default proxy
+// configuration
+function GetWinHttpAccessType(const WindowsMajor, WindowsMinor: Cardinal): Cardinal;
+begin
+  if (WindowsMajor > 6) or ((WindowsMajor = 6) and (WindowsMinor >= 3)) then
+    Result := WinHttpAccessTypeAutomaticProxy
+  else
+    Result := WinHttpAccessTypeDefaultProxy;
+end;
+
+// THE place that switches the certificate validation of a WinHTTP request off: sets
+// WINHTTP_OPTION_SECURITY_FLAGS (31) of Request to ignore an unknown certification authority
+// (SECURITY_FLAG_IGNORE_UNKNOWN_CA, $100), a wrong certificate usage ($200), a certificate for
+// another host name (SECURITY_FLAG_IGNORE_CERT_CN_INVALID, $1000) and an expired one
+// (SECURITY_FLAG_IGNORE_CERT_DATE_INVALID, $2000). Only OpenWinHttpRequest calls it, and only for
+// the two callers that may ignore certificate errors. True if WinHTTP accepted the option.
+function ApplyCertificateErrorIgnoreFlags(const Request: Cardinal): Boolean;
+var
+  Flags: Cardinal;
+begin
+  Flags := $3300;
+  Result := WinHttpSetOption(Request, 31, Flags, 4);
+end;
+
+// Closes the handles of OpenWinHttpRequest (request, connection, session; 0 is skipped) and sets
+// them to 0
+procedure CloseWinHttpRequest(var Session, Connection, Request: Cardinal);
+begin
+  if Request <> 0 then
+    WinHttpCloseHandle(Request);
+  if Connection <> 0 then
+    WinHttpCloseHandle(Connection);
+  if Session <> 0 then
+    WinHttpCloseHandle(Session);
+  Request := 0;
+  Connection := 0;
+  Session := 0;
+end;
+
+// Opens a WinHTTP request (Method GET or HEAD) to the https URL Url without sending it: session
+// (proxy as GetWinHttpAccessType, TLS 1.0 to 1.2 asked for explicitly on Windows older than 8.1,
+// the timeouts above), connection and request over TLS (SplitDownloadUrl). With
+// IgnoreCertificateErrors the certificate errors of ApplyCertificateErrorIgnoreFlags are ignored;
+// only GetHttpStatusIgnoringCertificate and DownloadPinnedFileWinHttp pass True. WinHTTP follows
+// redirects itself, but never from https to http (its default redirect policy); the options of the
+// request apply to the redirect too. False with the cause in Error and no open handle if anything
+// fails; else the caller closes the handles with CloseWinHttpRequest. No exception escapes.
+function OpenWinHttpRequest(const Method, Url: String; const IgnoreCertificateErrors: Boolean;
+  var Session, Connection, Request: Cardinal; var Error: String): Boolean;
+var
+  Host, ObjectName: String;
+  Port: Integer;
+  Version: TWindowsVersion;
+  Protocols: Cardinal;
+begin
+  Result := False;
+  Session := 0;
+  Connection := 0;
+  Request := 0;
+  Error := '';
+  if not SplitDownloadUrl(Url, Host, Port, ObjectName) then
+  begin
+    Error := 'not an https URL that WinHTTP is given';
+    Exit;
+  end;
+  try
+    GetWindowsVersionEx(Version);
+    Session := WinHttpOpen(WinHttpUserAgent, GetWinHttpAccessType(Version.Major, Version.Minor), 0, 0, 0);
+    if Session = 0 then
+      Error := 'WinHttpOpen: ' + DescribeWinHttpError(DLLGetLastError)
+    else
+    begin
+      if NeedsExplicitTlsProtocols(Version.Major, Version.Minor) then
+      begin
+        Protocols := WinHttpSecureProtocolsTls10To12;
+        if not WinHttpSetOption(Session, WinHttpOptionSecureProtocols, Protocols, 4) then
+          Log('WinHTTP: unable to request TLS 1.0, 1.1 and 1.2 explicitly (Windows ' + IntToStr(Version.Major) + '.' +
+            IntToStr(Version.Minor) + '), the request uses the protocols of the system: ' + DescribeWinHttpError(DLLGetLastError));
+      end;
+      if not WinHttpSetTimeouts(Session, DownloadResolveTimeoutMs, WinHttpConnectTimeoutMs, WinHttpSendTimeoutMs, WinHttpReceiveTimeoutMs) then
+        Log('WinHTTP: unable to set the timeouts: ' + DescribeWinHttpError(DLLGetLastError));
+      Connection := WinHttpConnect(Session, Host, Port, 0);
+      if Connection = 0 then
+        Error := 'WinHttpConnect: ' + DescribeWinHttpError(DLLGetLastError)
+      else
+      begin
+        Request := WinHttpOpenRequest(Connection, Method, ObjectName, 0, 0, 0, WinHttpFlagSecure);
+        if Request = 0 then
+          Error := 'WinHttpOpenRequest: ' + DescribeWinHttpError(DLLGetLastError)
+        else if IgnoreCertificateErrors and not ApplyCertificateErrorIgnoreFlags(Request) then
+          Error := 'unable to ignore certificate errors: ' + DescribeWinHttpError(DLLGetLastError)
+        else
+          Result := True;
+      end;
+    end;
+  except
+    Error := GetExceptionMessage;
+  end;
+  if not Result then
+    CloseWinHttpRequest(Session, Connection, Request);
+end;
+
+// Sends the request of OpenWinHttpRequest and waits for the headers of the answer: its HTTP status,
+// or HttpRequestFailed with the cause in Error. The body is not read. No exception escapes.
+function SendWinHttpRequest(const Request: Cardinal; var Error: String): Integer;
+var
+  Status, Size: Cardinal;
+begin
+  Result := HttpRequestFailed;
+  Error := '';
+  try
+    if not WinHttpSendRequest(Request, '', 0, 0, 0, 0, 0) then
+      Error := DescribeWinHttpError(DLLGetLastError)
+    else if not WinHttpReceiveResponse(Request, 0) then
+      Error := DescribeWinHttpError(DLLGetLastError)
+    else
+    begin
+      Status := 0;
+      Size := 4;
+      if WinHttpQueryHeaders(Request, WinHttpQueryStatusCode or WinHttpQueryFlagNumber, 0, Status, Size, 0) then
+        Result := Status
+      else
+        Error := 'no status code: ' + DescribeWinHttpError(DLLGetLastError);
+    end;
+  except
+    Error := GetExceptionMessage;
+  end;
+end;
+
+// The probe of a file server without certificate validation (SelectOnlineFilesServer, only after
+// the probe with validation got no answer, and only if the setup has pins): the HTTP status of a GET
+// request to Url with the certificate errors of ApplyCertificateErrorIgnoreFlags ignored, or
+// HttpRequestFailed. The answer is never read: a status only tells that the server answers, so that
+// pinned files may be downloaded from it with DownloadPinnedFileWinHttp. Synchronous like
+// GetHttpStatus.
+function GetHttpStatusIgnoringCertificate(const Url: String): Integer;
+var
+  Session, Connection, Request: Cardinal;
+  Error: String;
+begin
+  Result := HttpRequestFailed;
+  Log('HTTP GET ' + Url + ' without certificate validation (WinHTTP)');
+  if not OpenWinHttpRequest('GET', Url, True, Session, Connection, Request, Error) then
+  begin
+    Log('HTTP GET ' + Url + ' without certificate validation failed: ' + Error);
+    Exit;
+  end;
+  Result := SendWinHttpRequest(Request, Error);
+  CloseWinHttpRequest(Session, Connection, Request);
+  if Result = HttpRequestFailed then
+    Log('HTTP GET ' + Url + ' without certificate validation failed: ' + Error)
+  else
+    Log('HTTP GET ' + Url + ' without certificate validation: status ' + IntToStr(Result) + ', answer not read');
 end;
 
 // Install state for the Empire Earth Launcher (installstate.iss): docs/CONTRACT.md 1.1 to 1.3,

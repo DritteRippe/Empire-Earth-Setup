@@ -6,7 +6,9 @@
 ; A tiny setup that includes utils.iss, runs every test in InitializeSetup, writes the results to
 ; a text file and exits without installing anything (InitializeSetup returns False). It sends no
 ; request and needs no network: only functions that compute something are tested, plus one run-time
-; test that sets the TLS protocol option on a WinHttpRequest object without sending anything, and
+; test that sets the TLS protocol option on a WinHttpRequest object without sending anything, one
+; that opens WinHTTP handles for a loopback address and sets the option that ignores certificate
+; errors on them without connecting (the transport of pinned downloads, ADR 0012), and
 ; file-level tests that write state files (install.ini, files.sha256) for files they create in a
 ; folder of their own temporary folder ({tmp}), and that walk a folder tree there for the link check.
 ; On Windows the link check is also tested with junctions that "cmd /c mklink /J" makes in {tmp}
@@ -538,6 +540,201 @@ begin
   Log('ApplyTlsProtocols on a WinHttpRequest object as on Windows 6.1: ' + Outcome);
   CheckBool('ApplyTlsProtocols run time, no exception escapes (' + Outcome + ')', Escaped, False);
   CheckBool('ApplyTlsProtocols run time, the option was attempted', Outcome <> '', True);
+end;
+
+// The state of a file server from its two probes (ADR 0012): StrictStatus, LenientStatus
+procedure TestClassifyOnlineFilesServer;
+begin
+  Check('ClassifyOnlineFilesServer valid certificate, 200', IntToStr(ClassifyOnlineFilesServer(200, HttpRequestFailed)), IntToStr(OnlineServerVerified));
+  Check('ClassifyOnlineFilesServer valid certificate, 404', IntToStr(ClassifyOnlineFilesServer(404, HttpRequestFailed)), IntToStr(OnlineServerVerified));
+  Check('ClassifyOnlineFilesServer valid certificate, lenient answer ignored', IntToStr(ClassifyOnlineFilesServer(403, 403)), IntToStr(OnlineServerVerified));
+  Check('ClassifyOnlineFilesServer invalid certificate, answers without validation', IntToStr(ClassifyOnlineFilesServer(HttpRequestFailed, 403)), IntToStr(OnlineServerCertificateInvalid));
+  Check('ClassifyOnlineFilesServer invalid certificate, 500 without validation', IntToStr(ClassifyOnlineFilesServer(HttpRequestFailed, 500)), IntToStr(OnlineServerCertificateInvalid));
+  Check('ClassifyOnlineFilesServer no answer at all', IntToStr(ClassifyOnlineFilesServer(HttpRequestFailed, HttpRequestFailed)), IntToStr(OnlineServerUnreachable));
+end;
+
+procedure CheckServerOrder(const Name: String; const MainState, MirrorState, Expected: Integer);
+begin
+  Check('ChooseOnlineFilesServerOrder ' + Name, IntToStr(ChooseOnlineFilesServerOrder(MainState, MirrorState)), IntToStr(Expected));
+end;
+
+// Every combination of the probed states (the mirror is only "not checked" if the main server is
+// verified; that case is covered too)
+procedure TestChooseOnlineFilesServerOrder;
+begin
+  CheckServerOrder('both verified', OnlineServerVerified, OnlineServerVerified, OnlineFilesOrderMainFirst);
+  CheckServerOrder('main verified, mirror not checked', OnlineServerVerified, OnlineServerNotChecked, OnlineFilesOrderMainFirst);
+  CheckServerOrder('main verified, mirror certificate invalid', OnlineServerVerified, OnlineServerCertificateInvalid, OnlineFilesOrderMainFirst);
+  CheckServerOrder('main verified, mirror unreachable', OnlineServerVerified, OnlineServerUnreachable, OnlineFilesOrderMainFirst);
+  CheckServerOrder('main certificate invalid, mirror verified', OnlineServerCertificateInvalid, OnlineServerVerified, OnlineFilesOrderMirrorFirst);
+  CheckServerOrder('both certificate invalid', OnlineServerCertificateInvalid, OnlineServerCertificateInvalid, OnlineFilesOrderMainFirst);
+  CheckServerOrder('main certificate invalid, mirror unreachable', OnlineServerCertificateInvalid, OnlineServerUnreachable, OnlineFilesOrderMainFirst);
+  CheckServerOrder('main unreachable, mirror verified', OnlineServerUnreachable, OnlineServerVerified, OnlineFilesOrderMirrorFirst);
+  CheckServerOrder('main unreachable, mirror certificate invalid', OnlineServerUnreachable, OnlineServerCertificateInvalid, OnlineFilesOrderMirrorFirst);
+  CheckServerOrder('both unreachable', OnlineServerUnreachable, OnlineServerUnreachable, OnlineFilesOrderNone);
+end;
+
+procedure CheckTransport(const Name: String; const PolicyCheck, ServerState, Expected: Integer);
+begin
+  Check('GetOnlineFileTransport ' + Name, IntToStr(GetOnlineFileTransport(PolicyCheck, ServerState)), IntToStr(Expected));
+end;
+
+// Every policy result against every server state. The core rule: certificate errors are only
+// ignored for a pinned file; a file without pin never comes from a server without a valid
+// certificate.
+procedure TestGetOnlineFileTransport;
+begin
+  CheckTransport('pinned, verified', OnlineFilePinned, OnlineServerVerified, DownloadTransportBuiltIn);
+  CheckTransport('pinned, not checked', OnlineFilePinned, OnlineServerNotChecked, DownloadTransportBuiltIn);
+  CheckTransport('pinned, certificate invalid', OnlineFilePinned, OnlineServerCertificateInvalid, DownloadTransportPinnedWinHttp);
+  CheckTransport('pinned, unreachable', OnlineFilePinned, OnlineServerUnreachable, DownloadTransportNone);
+  CheckTransport('without pin, verified', OnlineFileTlsOnly, OnlineServerVerified, DownloadTransportBuiltIn);
+  CheckTransport('without pin, not checked', OnlineFileTlsOnly, OnlineServerNotChecked, DownloadTransportBuiltIn);
+  CheckTransport('without pin, certificate invalid', OnlineFileTlsOnly, OnlineServerCertificateInvalid, DownloadTransportNone);
+  CheckTransport('without pin, unreachable', OnlineFileTlsOnly, OnlineServerUnreachable, DownloadTransportNone);
+  CheckTransport('code without pin, verified', OnlineFileRefusedCode, OnlineServerVerified, DownloadTransportNone);
+  CheckTransport('code without pin, certificate invalid', OnlineFileRefusedCode, OnlineServerCertificateInvalid, DownloadTransportNone);
+  CheckTransport('code without pin, unreachable', OnlineFileRefusedCode, OnlineServerUnreachable, DownloadTransportNone);
+  CheckTransport('http without pin, verified', OnlineFileRefusedInsecure, OnlineServerVerified, DownloadTransportNone);
+  CheckTransport('http without pin, certificate invalid', OnlineFileRefusedInsecure, OnlineServerCertificateInvalid, DownloadTransportNone);
+  CheckTransport('unknown server state', OnlineFilePinned, 99, DownloadTransportNone);
+end;
+
+// Progress, ProgressMax (Content-Length, <= 0: none), PinnedSize (-1: unknown)
+procedure TestIsDownloadSizeAcceptable;
+begin
+  CheckBool('IsDownloadSizeAcceptable start, announced size = pin', IsDownloadSizeAcceptable(0, 1000, 1000), True);
+  CheckBool('IsDownloadSizeAcceptable complete', IsDownloadSizeAcceptable(1000, 1000, 1000), True);
+  CheckBool('IsDownloadSizeAcceptable no Content-Length', IsDownloadSizeAcceptable(500, -1, 1000), True);
+  CheckBool('IsDownloadSizeAcceptable Content-Length 0', IsDownloadSizeAcceptable(0, 0, 1000), True);
+  CheckBool('IsDownloadSizeAcceptable other announced size', IsDownloadSizeAcceptable(0, 999, 1000), False);
+  CheckBool('IsDownloadSizeAcceptable larger announced size', IsDownloadSizeAcceptable(0, 1001, 1000), False);
+  CheckBool('IsDownloadSizeAcceptable more bytes than pinned', IsDownloadSizeAcceptable(1001, -1, 1000), False);
+  CheckBool('IsDownloadSizeAcceptable 172 MB file', IsDownloadSizeAcceptable(172046353, 172046353, 172046353), True);
+  CheckBool('IsDownloadSizeAcceptable above 2 GiB, as pinned', IsDownloadSizeAcceptable(3000000000, 3000000000, 3000000000), True);
+  CheckBool('IsDownloadSizeAcceptable unknown size, small', IsDownloadSizeAcceptable(1000, 1000, -1), True);
+  CheckBool('IsDownloadSizeAcceptable unknown size, at the limit', IsDownloadSizeAcceptable(UnsizedPinnedDownloadMaxBytes, -1, -1), True);
+  CheckBool('IsDownloadSizeAcceptable unknown size, above the limit', IsDownloadSizeAcceptable(UnsizedPinnedDownloadMaxBytes + 1, -1, -1), False);
+  CheckBool('IsDownloadSizeAcceptable unknown size, announced above the limit', IsDownloadSizeAcceptable(0, UnsizedPinnedDownloadMaxBytes + 1, -1), False);
+  CheckBool('IsDownloadSizeAcceptable negative progress', IsDownloadSizeAcceptable(-1, 1000, 1000), False);
+end;
+
+procedure TestParsePinnedSize;
+begin
+  Check('ParsePinnedSize 1', IntToStr(ParsePinnedSize('1')), '1');
+  Check('ParsePinnedSize 172046353', IntToStr(ParsePinnedSize('172046353')), '172046353');
+  Check('ParsePinnedSize above 32 bits', IntToStr(ParsePinnedSize('4294967296')), '4294967296');
+  Check('ParsePinnedSize 15 digits', IntToStr(ParsePinnedSize('999999999999999')), '999999999999999');
+  Check('ParsePinnedSize 16 digits', IntToStr(ParsePinnedSize('1000000000000000')), '-1');
+  Check('ParsePinnedSize empty', IntToStr(ParsePinnedSize('')), '-1');
+  Check('ParsePinnedSize zero', IntToStr(ParsePinnedSize('0')), '-1');
+  Check('ParsePinnedSize leading zero', IntToStr(ParsePinnedSize('0637')), '-1');
+  Check('ParsePinnedSize sign', IntToStr(ParsePinnedSize('-5')), '-1');
+  Check('ParsePinnedSize plus', IntToStr(ParsePinnedSize('+5')), '-1');
+  Check('ParsePinnedSize space', IntToStr(ParsePinnedSize('63 7')), '-1');
+  Check('ParsePinnedSize hex', IntToStr(ParsePinnedSize('1f')), '-1');
+end;
+
+procedure CheckDownloadUrl(const Url: String; const ExpectedOk: Boolean; const Expected: String);
+var
+  Host, ObjectName, Actual: String;
+  Port: Integer;
+  Ok: Boolean;
+begin
+  Ok := SplitDownloadUrl(Url, Host, Port, ObjectName);
+  Actual := '';
+  if Ok then
+    Actual := Host + ' ' + IntToStr(Port) + ' ' + ObjectName;
+  CheckBool('SplitDownloadUrl accepts ' + Url, Ok, ExpectedOk);
+  Check('SplitDownloadUrl parts of ' + Url, Actual, Expected);
+end;
+
+procedure TestSplitDownloadUrl;
+begin
+  CheckDownloadUrl(OnlineFilesURL + '/Game/de/EE/Data/Movies/Empire Earth.bik', True,
+    'files.empireearth.eu 443 /localized/Game/de/EE/Data/Movies/Empire%20Earth.bik');
+  CheckDownloadUrl('https://files.empireearth.eu/localized/Lobby/zh-CN/shared/Data/WONLobby Resources/_WONStatus.cfg', True,
+    'files.empireearth.eu 443 /localized/Lobby/zh-CN/shared/Data/WONLobby%20Resources/_WONStatus.cfg');
+  CheckDownloadUrl('https://127.0.0.1:18543/localized', True, '127.0.0.1 18543 /localized');
+  CheckDownloadUrl('HTTPS://Files.EmpireEarth.EU', True, 'files.empireearth.eu 443 /');
+  CheckDownloadUrl('https://h/', True, 'h 443 /');
+  CheckDownloadUrl('https://h:65535/a', True, 'h 65535 /a');
+  CheckDownloadUrl('https://h/' + #$00E9 + '/100%', True, 'h 443 /%C3%A9/100%25');
+  CheckDownloadUrl('http://files.empireearth.eu/localized', False, '');
+  CheckDownloadUrl('ftp://h/a', False, '');
+  CheckDownloadUrl('https://user@h/a', False, '');
+  CheckDownloadUrl('https://h/a?b=1', False, '');
+  CheckDownloadUrl('https://h/a#b', False, '');
+  CheckDownloadUrl('https://h\a/b', False, '');
+  CheckDownloadUrl('https:///localized', False, '');
+  CheckDownloadUrl('https://h:0/a', False, '');
+  CheckDownloadUrl('https://h:65536/a', False, '');
+  CheckDownloadUrl('https://h:/a', False, '');
+  CheckDownloadUrl('https://h:44x/a', False, '');
+  CheckDownloadUrl('https://h_x/a', False, '');
+  CheckDownloadUrl('https://[::1]/a', False, '');
+  CheckDownloadUrl('https://h/a' + #9 + 'b', False, '');
+end;
+
+procedure TestDescribeWinHttpError;
+begin
+  Check('DescribeWinHttpError name mismatch', DescribeWinHttpError(12038), 'WinHTTP error 12038 (the certificate is for another host name)');
+  Check('DescribeWinHttpError secure channel', DescribeWinHttpError(12157), 'WinHTTP error 12157 (secure channel error (TLS handshake or certificate))');
+  Check('DescribeWinHttpError timeout', DescribeWinHttpError(12002), 'WinHTTP error 12002 (timeout)');
+  Check('DescribeWinHttpError name not resolved', DescribeWinHttpError(12007), 'WinHTTP error 12007 (the server name cannot be resolved)');
+  Check('DescribeWinHttpError unknown code', DescribeWinHttpError(5), 'WinHTTP error 5');
+end;
+
+procedure TestGetWinHttpAccessType;
+begin
+  Check('GetWinHttpAccessType Windows 7 6.1', IntToStr(GetWinHttpAccessType(6, 1)), IntToStr(WinHttpAccessTypeDefaultProxy));
+  Check('GetWinHttpAccessType Windows 8 6.2', IntToStr(GetWinHttpAccessType(6, 2)), IntToStr(WinHttpAccessTypeDefaultProxy));
+  Check('GetWinHttpAccessType Windows 8.1 6.3', IntToStr(GetWinHttpAccessType(6, 3)), IntToStr(WinHttpAccessTypeAutomaticProxy));
+  Check('GetWinHttpAccessType Windows 10/11 10.0', IntToStr(GetWinHttpAccessType(10, 0)), IntToStr(WinHttpAccessTypeAutomaticProxy));
+end;
+
+// Run time, without network: the WinHTTP functions as declared in utils.iss open a session, a
+// connection and a request (WinHttpConnect and WinHttpOpenRequest send nothing; port 9 of the
+// loopback address would not even answer) and the certificate errors can be ignored on that
+// request. Proves the external declarations and the option on the running system (Wine in CI of
+// developers, Windows in CI), not only their compilation.
+procedure TestWinHttpRunTime;
+var
+  Session, Connection, Request: Cardinal;
+  Error: String;
+  Version: TWindowsVersion;
+  Opened, Applied: Boolean;
+begin
+  Session := 0;
+  Connection := 0;
+  Request := 0;
+  try
+    GetWindowsVersionEx(Version);
+    Session := WinHttpOpen(WinHttpUserAgent, GetWinHttpAccessType(Version.Major, Version.Minor), 0, 0, 0);
+    if Session <> 0 then
+      Connection := WinHttpConnect(Session, '127.0.0.1', 9, 0);
+    if Connection <> 0 then
+      Request := WinHttpOpenRequest(Connection, 'GET', '/localized', 0, 0, 0, WinHttpFlagSecure);
+    CheckBool('WinHTTP run time: session, connection and request opened', (Session <> 0) and (Connection <> 0) and (Request <> 0), True);
+    Applied := (Request <> 0) and ApplyCertificateErrorIgnoreFlags(Request);
+    CheckBool('WinHTTP run time: ApplyCertificateErrorIgnoreFlags accepted', Applied, True);
+  except
+    Failures := Failures + 1;
+    Results.Add('FAIL WinHTTP run time: ' + GetExceptionMessage);
+  end;
+  CloseWinHttpRequest(Session, Connection, Request);
+  CheckBool('WinHTTP run time: CloseWinHttpRequest resets the handles', (Session = 0) and (Connection = 0) and (Request = 0), True);
+
+  Opened := OpenWinHttpRequest('GET', 'https://127.0.0.1:9/localized/Game/de/EE/Data/Movies/Empire Earth.bik', True, Session, Connection, Request, Error);
+  CheckBool('OpenWinHttpRequest run time, ignoring certificate errors (' + Error + ')', Opened and (Request <> 0), True);
+  CloseWinHttpRequest(Session, Connection, Request);
+  Opened := OpenWinHttpRequest('HEAD', 'https://127.0.0.1:9/localized', False, Session, Connection, Request, Error);
+  CheckBool('OpenWinHttpRequest run time, validating (' + Error + ')', Opened and (Request <> 0), True);
+  CloseWinHttpRequest(Session, Connection, Request);
+  Opened := OpenWinHttpRequest('GET', 'http://127.0.0.1:9/localized', True, Session, Connection, Request, Error);
+  CheckBool('OpenWinHttpRequest refuses http', Opened, False);
+  CheckBool('OpenWinHttpRequest leaves no handle open after a failure', (Session = 0) and (Connection = 0) and (Request = 0), True);
+  Check('OpenWinHttpRequest names the cause', Error, 'not an https URL that WinHTTP is given');
 end;
 
 procedure TestInstallModeName;
@@ -1670,6 +1867,15 @@ begin
     TestNeedsExplicitTlsProtocols;
     TestApplyTlsProtocolsNotNeeded;
     TestApplyTlsProtocolsRunTime;
+    TestClassifyOnlineFilesServer;
+    TestChooseOnlineFilesServerOrder;
+    TestGetOnlineFileTransport;
+    TestIsDownloadSizeAcceptable;
+    TestParsePinnedSize;
+    TestSplitDownloadUrl;
+    TestDescribeWinHttpError;
+    TestGetWinHttpAccessType;
+    TestWinHttpRunTime;
     TestInstallModeName;
     TestIsAsciiText;
     TestBuildInstallIniText;
