@@ -2,7 +2,9 @@
 """Tests of the Python tools of the real-data end-to-end test with synthetic data (no game data,
 no network): inno_headers.py (a made-up setup with an LZMA1 header block), place_assets.py,
 readset.py and gen_map.py (a made-up asset tree, extraction and preprocessed script), guard_upload.py
-and report.py. Also checks that the committed map is well-formed and data-free.
+and report.py. Also checks that the committed map is well-formed and data-free, and the time limits
+of .github/workflows/e2e-realdata.yml against the scripts (read as text, the runner has no YAML
+library).
 
   python -m unittest discover -s ci/e2e/tests -p "test_*.py"
 """
@@ -13,6 +15,7 @@ import json
 import lzma
 import os
 import random
+import re
 import struct
 import sys
 import tempfile
@@ -31,6 +34,7 @@ import readset  # noqa: E402
 import report  # noqa: E402
 
 MAP = os.path.join(E2E, "assets-map.tsv")
+WORKFLOW = os.path.join(os.path.dirname(os.path.dirname(E2E)), ".github", "workflows", "e2e-realdata.yml")
 
 
 def quiet(func, *args):
@@ -376,6 +380,48 @@ class ReportTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             path = self.results(tmp, self.all_done([{"scenario": "C", "check": "x/RMS", "status": "WARN", "details": []}]))
             self.assertEqual(quiet(report.main, ["--results", path, "--verdict"])[0], 0)
+
+
+class WorkflowTests(unittest.TestCase):
+    """What the review of the workflow asked for and the workflow text must keep."""
+
+    @classmethod
+    def setUpClass(cls):
+        with open(WORKFLOW, encoding="utf-8") as f:
+            cls.text = f.read()
+        with open(os.path.join(E2E, "e2e_helpers.ps1"), encoding="ascii") as f:
+            cls.helpers = f.read()
+        with open(os.path.join(E2E, "run_e2e.ps1"), encoding="ascii") as f:
+            cls.run_e2e = f.read()
+
+    def constant(self, name):
+        match = re.search(r"(?m)^\s*%s\s*=\s*(\d+)\s*$" % name, self.helpers)
+        self.assertIsNotNone(match, name)
+        return int(match.group(1))
+
+    def test_every_action_is_pinned_to_a_commit(self):
+        uses = re.findall(r"(?m)^\s+(?:- )?uses: (\S+)", self.text)
+        self.assertGreater(len(uses), 5)
+        for action in uses:
+            self.assertRegex(action, r"^[\w.-]+/[\w.-]+(/[\w.-]+)*@[0-9a-f]{40}$")
+
+    def test_the_scripts_stop_their_programs_before_the_step_limits(self):
+        steps = re.findall(r"(?m)^        timeout-minutes: (\d+)\n        shell: pwsh\n        run: \|\n"
+                           r"          powershell [^\n]*run_e2e\.ps1 -Phase (\w+) -BudgetMinutes (\d+)$", self.text)
+        self.assertEqual([phase for _, phase, _ in steps], ["A", "B", "E", "D", "C"])
+        self.assertEqual(len(re.findall(r"run_e2e\.ps1 -Phase", self.text)), 6)  # and Prepare, without a budget
+        setup = self.constant("SetupTimeoutMinutes")
+        reserve = self.constant("CleanupReserveMinutes")
+        self.assertLessEqual(self.constant("UninstallTimeoutMinutes") + 4, reserve)
+        self.assertLessEqual(self.constant("LauncherTimeoutMinutes"), setup)
+        self.assertIn("if ($Phase -eq 'E' -or $Phase -eq 'Prepare') { $reserve = 0 }", self.run_e2e)
+        for limit, phase, budget in steps:
+            self.assertLessEqual(int(budget) + 5, int(limit), phase)
+            # A setup run fits in the budget before the reserve for the uninstallation (E keeps none)
+            self.assertGreaterEqual(int(budget) - (0 if phase == "E" else reserve), setup, phase)
+        job = int(re.search(r"(?m)^    timeout-minutes: (\d+)$", self.text).group(1))
+        self.assertLessEqual(sum(int(limit) for limit, _, _ in steps) + 45, job)
+        self.assertLessEqual(job, 360)
 
 
 if __name__ == "__main__":

@@ -67,6 +67,8 @@ function Invoke-E2ESetupStep {
   if ($null -ne $code) {
     if ($code -ne $ExpectExit) { $problems += "exit code $code, expected $ExpectExit" }
     if (-not (Wait-E2ESetupFinished $Ctx.Product 120)) { $problems += 'the setup is still running 120 s after its exit' }
+  } elseif (-not (Wait-E2ESetupFinished $Ctx.Product 60)) {
+    $problems += 'the setup is still running 60 s after it was stopped'
   }
   if (Test-Path -LiteralPath $Ctx.LogFile) { $Ctx.LogLines = ConvertFrom-E2ELogText ([System.IO.File]::ReadAllText($Ctx.LogFile)) }
   elseif ($null -ne $code) { $problems += "no setup log $($Ctx.LogFile)" }
@@ -161,8 +163,61 @@ function Invoke-E2ELauncherUninstalled([hashtable]$Ctx) {
 
 # --- Clean machine between scenarios -------------------------------------------------------------
 
+# The install roots in the administrative mode (default folders of both products, the custom root of
+# E and D) and in the user mode
+function Get-E2EAdminRoots {
+  return @((Join-Path ${env:ProgramFiles(x86)} (Get-E2EProduct 'EE').DirName), (Join-Path ${env:ProgramFiles(x86)} (Get-E2EProduct 'NeoEE').DirName), $CustomRoot)
+}
+
+function Get-E2EKnownRoots {
+  return @(@(Get-E2EAdminRoots) + @((Join-Path $env:LOCALAPPDATA "Programs\$((Get-E2EProduct 'EE').DirName)"), (Join-Path $env:LOCALAPPDATA "Programs\$((Get-E2EProduct 'NeoEE').DirName)")))
+}
+
+# Folders of the test that must not exist when a scenario starts (Prepare: before the first one): the
+# default roots, the folder of the custom root, the link targets and the retail folder E seeds
+function Get-E2ETestFolders {
+  return @(@(Get-E2EKnownRoots | Where-Object { $_ -ne $CustomRoot }) + @($TestFolder, $LinkFolder, $SierraFolder))
+}
+
+# The game programs below the administrative roots (firewall rules exist only in that mode)
+function Get-E2EFirewallPrograms {
+  $programs = @()
+  foreach ($root in Get-E2EAdminRoots) {
+    foreach ($game in @('EE', 'AoC')) { $programs += Join-Path (Join-Path $root $E2EGames[$game].Folder) $E2EGames[$game].Exe }
+  }
+  return $programs
+}
+
+# Compatibility layers and GPU preferences whose value name is a program below a known root:
+# @{ Hive; Key; Name }
+function Get-E2EProgramValues {
+  $found = @()
+  foreach ($view in @(@('HKLM64', $E2EConst.LayersKey), @('HKCU', $E2EConst.LayersKey), @('HKCU', $E2EConst.GpuKey))) {
+    $values = Get-E2ERegValues $view[0] $view[1]
+    if (-not $values) { continue }
+    foreach ($name in @(Select-E2EPathsBelow @($values.Keys) (Get-E2EKnownRoots))) { $found += @{ Hive = $view[0]; Key = $view[1]; Name = $name } }
+  }
+  return $found
+}
+
+# The start menu group "Empire Earth" (all users, current user) and the desktop shortcuts of both products
+function Get-E2EKnownShortcuts {
+  $paths = @()
+  foreach ($folder in @('CommonPrograms', 'Programs')) { $paths += Join-Path (Get-E2EKnownFolder $folder) 'Empire Earth' }
+  foreach ($desktop in @('CommonDesktopDirectory', 'DesktopDirectory')) {
+    foreach ($id in @('EE', 'NeoEE')) {
+      $name = (Get-E2EProduct $id).AppName
+      $paths += Join-Path (Get-E2EKnownFolder $desktop) "$name.lnk"
+      $paths += Join-Path (Get-E2EKnownFolder $desktop) "$name - AoC.lnk"
+    }
+  }
+  return $paths
+}
+
 # What a scenario must not find at its start: uninstall keys and records of both products, their
-# game settings in HKCU, the community keys
+# game settings in HKCU, the community keys, the seeds of E, files and folders of the test, the
+# compatibility layers, GPU preferences and firewall rules of programs below the known roots, and
+# the shortcuts (an earlier scenario that failed or was stopped before its uninstallation)
 function Get-E2EDirtyState {
   $found = @()
   foreach ($id in @('EE', 'NeoEE')) {
@@ -177,23 +232,57 @@ function Get-E2EDirtyState {
   foreach ($hive in @('HKLM64', 'HKLM32', 'HKCU')) {
     if (Test-E2ERegKey $hive $E2EConst.CommunityKey) { $found += "$hive\$($E2EConst.CommunityKey)" }
   }
+  foreach ($key in $SeedKeys) {
+    if (Test-E2ERegKey 'HKLM32' $key) { $found += "HKLM32\$key (a seed of scenario E)" }
+  }
+  foreach ($folder in Get-E2ETestFolders) {
+    if (Test-Path -LiteralPath $folder) { $found += "folder $folder ($(@(Get-E2EFileTree $folder | Where-Object { -not $_.IsDir }).Count) file(s))" }
+  }
+  foreach ($value in @(Get-E2EProgramValues)) { $found += "$($value.Hive)\$($value.Key): $($value.Name)" }
+  foreach ($program in Get-E2EFirewallPrograms) {
+    $rules = @(Get-E2EFirewallRules $program)
+    if ($rules.Count -gt 0) { $found += "$($rules.Count) firewall rule(s) of $program" }
+  }
+  foreach ($path in Get-E2EKnownShortcuts) {
+    if (Test-Path -LiteralPath $path) { $found += "shortcut $path" }
+  }
   return $found
 }
 
-# Uninstalls what an earlier scenario left and removes its keys (never Software\Sierra)
+# Uninstalls what an earlier scenario left, then removes every trace Get-E2EDirtyState looks for
+# (never Software\Sierra): an uninstall key without a working uninstaller, the keys, the seeds of E,
+# the values and firewall rules of the programs, the shortcuts and the folders of the test
 function Reset-E2EMachine([string]$Scenario) {
   foreach ($id in @('EE', 'NeoEE')) {
     $p = Get-E2EProduct $id
     foreach ($hive in @('HKLM64', 'HKLM32', 'HKCU')) {
       $values = Get-E2ERegValues $hive (Get-E2EUninstallKeyPath $p)
-      if (-not $values -or -not $values.ContainsKey('Inno Setup: App Path')) { continue }
-      $root = [string]$values['Inno Setup: App Path'].Value
-      $run = Invoke-E2EUninstall $p $root $hive (Join-Path $env:E2E_REPORT "logs\$Scenario-cleanup-$id.log")
-      if ($run.Problems.Count -gt 0) { Write-Host "Cleanup of $id in ${root}: $($run.Problems -join '; ')" }
+      if (-not $values) { continue }
+      if ($values.ContainsKey('Inno Setup: App Path')) {
+        $root = [string]$values['Inno Setup: App Path'].Value
+        try {
+          $run = Invoke-E2EUninstall $p $root $hive (Join-Path $env:E2E_REPORT "logs\$Scenario-cleanup-$id.log")
+          if ($run.Problems.Count -gt 0) { Write-Host "Cleanup of $id in ${root}: $($run.Problems -join '; ')" }
+        } catch {
+          Write-Host "Cleanup of $id in ${root}: $($_.Exception.Message)"
+        }
+      }
+      Remove-E2ERegTree $hive (Get-E2EUninstallKeyPath $p)
     }
     foreach ($game in @('EE', 'AoC')) { Remove-E2ERegTree 'HKCU' $p.SettingsKeys[$game] }
   }
   foreach ($hive in @('HKLM64', 'HKLM32', 'HKCU')) { Remove-E2ERegTree $hive $E2EConst.CommunityKey }
+  foreach ($key in $SeedKeys) { Remove-E2ERegTree 'HKLM32' $key }
+  foreach ($value in @(Get-E2EProgramValues)) { Remove-E2ERegValue $value.Hive $value.Key $value.Name }
+  foreach ($program in Get-E2EFirewallPrograms) { Remove-E2EFirewallRules $program }
+  foreach ($path in @(@(Get-E2EKnownShortcuts) + @(Get-E2ETestFolders))) {
+    try {
+      if (Test-Path -LiteralPath $path -PathType Container) { Remove-E2EFolder $path }
+      elseif (Test-Path -LiteralPath $path) { Remove-Item -LiteralPath $path -Force }
+    } catch {
+      Write-Host "Cleanup of ${path}: $($_.Exception.Message)"
+    }
+  }
 }
 
 # Start of a scenario: a clean machine, the dummy intact, every host blocked. False: skip it.

@@ -47,6 +47,14 @@ certificate.
    the downloads, the link guard, foreign installations, the update over 1.7.2 and the uninstallation;
    and the launcher core of the launcher fork against each installation.
 6. Agents and developers still never run a setup or the launcher outside such a runner.
+7. The scripts, not GitHub, stop what hangs: every program has a time limit well below the limit of
+   its workflow step (setup 25 minutes, uninstaller and launcher checks 10), and a phase never runs
+   past its budget (`run_e2e.ps1 -BudgetMinutes`, 5 minutes below the step limit, 15 of them kept for
+   the uninstallation at its end). A program that runs into a limit is stopped with its child
+   processes and recorded as `FAIL`, and the scenario still uninstalls. Each scenario starts on a
+   clean machine: it reports what earlier ones left (keys, the seeds of E, files and folders of the
+   test, compatibility, GPU and firewall entries of programs below them, shortcuts) as `WARN` and
+   removes it, so a failure is counted once, in the scenario that caused it.
 
 ## Evidence
 
@@ -78,6 +86,9 @@ certificate.
 - A self-hosted runner: not discarded after the job, and the data would stay on a machine.
 - Running the setups locally under Wine: forbidden by the briefing (live servers, statistics), and
   Wine is not Windows.
+- Leaving hangs to the step limits of GitHub: rejected after the first review. GitHub stops the
+  whole step, so the result line, the uninstallation and the cleanup of that scenario are missing,
+  and child processes may survive into the next scenario.
 
 ## Implementation
 
@@ -91,11 +102,19 @@ Verified locally (Linux, without running any setup): the self-tests; the placeme
 extraction against the reconstruction (byte equality and times of every file the build reads, the
 empty folders); the read set of the preprocessed scripts of `v2` against the map; the map
 regenerated with `gen_map.py` equal to the committed one; a run of every phase with the machine and
-the setups simulated (no runtime error of the scenario and check code); every expectation file the
-scenarios write accepted by the launcher's own parser.
+the setups simulated (no runtime error of the scenario and check code), also with an uninstaller
+that stops half way and with a setup and a launcher check stopped at their time limits (the failure
+is reported in its scenario, the next one reports the leftovers as `WARN` and starts clean); the
+time limits of `Invoke-E2EProcess` with real processes (PowerShell 7 on Linux); every expectation
+file the scenarios write accepted by the launcher's own parser.
 
 Open until the first run on GitHub: the behaviour of Inno Setup 6.2.2 in silent mode where the code
 does not decide it (log lines of Inno itself, exit code 7, the components and tasks after
 `/COMPONENTS` and `/MERGETASKS`, whether the finished page runs), the GPU vendor of the runner, the
-build of innoextract with the current MSYS2 packages, the time a run needs, and whether the mirror
-answers the runner.
+build of innoextract with the current MSYS2 packages, the time a run needs (whether the time limits
+of decision 7 fit), whether `taskkill /T` reaches the child processes of a stopped setup or
+uninstaller, and whether the mirror answers the runner.
+
+Revision after the first review (2026-10-03): decision 7 (time limits, clean machine);
+`ci/e2e/tests/test_e2e_tools.py` checks that every action is pinned and that each budget lies below
+its step limit and leaves room for a setup run and the uninstallation.

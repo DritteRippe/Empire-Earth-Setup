@@ -36,6 +36,14 @@ $E2EConst = @{
                          'www.empireearth.eu', 'www.gog.com')
   HostsBegin         = '# BEGIN ee-e2e (ci/e2e: hosts blocked for the end-to-end test)'
   HostsEnd           = '# END ee-e2e'
+  # Time limits of the programs the scenarios start (minutes), well below the step limits of the
+  # workflow, and the part of a phase budget kept for the uninstallation at the end of a scenario
+  # (the uninstaller limit plus its waits of up to 4 minutes; ci/e2e/tests/test_e2e_tools.py checks
+  # these numbers against the workflow)
+  SetupTimeoutMinutes     = 25
+  UninstallTimeoutMinutes = 10
+  LauncherTimeoutMinutes  = 10
+  CleanupReserveMinutes   = 15
 }
 
 $E2EGames = @{
@@ -141,6 +149,20 @@ function Complete-E2ECheck {
   return ($list.Count -eq 0)
 }
 
+# --- Time budget of a phase -------------------------------------------------------------------------
+
+# Seconds a program may run: at most Requested, and never past the end of the phase budget
+# (SecondsLeft; $null: no budget). A program that is not the cleanup itself must also leave
+# ReserveSeconds for the uninstallation at the end of the scenario. 0: do not start it (less than a
+# minute left, a setup stopped right after its start would only leave a half installation).
+function Get-E2EBudgetedSeconds([int]$Requested, $SecondsLeft, [int]$ReserveSeconds, [bool]$Cleanup) {
+  if ($null -eq $SecondsLeft) { return $Requested }
+  $available = [double]$SecondsLeft
+  if (-not $Cleanup) { $available -= $ReserveSeconds }
+  if ($available -lt 60) { return 0 }
+  return [int][Math]::Min([double]$Requested, [Math]::Floor($available))
+}
+
 # --- Text, lists and paths ----------------------------------------------------------------------
 
 # Uppercase like Pascal's UpperCase: only a-z change (GetInstallWithoutDriveLetterBase)
@@ -167,6 +189,16 @@ function Compare-E2ESets([string[]]$Expected, [string[]]$Actual) {
   $missing = @($exp | Where-Object { -not $act.Contains($_) } | Sort-Object)
   $extra = @($act | Where-Object { -not $exp.Contains($_) } | Sort-Object)
   return @{ Missing = $missing; Extra = $extra }
+}
+
+# The paths that are one of the roots or lie below one (case-insensitive, '/' and '\' alike), e.g.
+# the value names of the compatibility layers or GPU preferences that belong to a test folder
+function Select-E2EPathsBelow([string[]]$Paths, [string[]]$Roots) {
+  $prefixes = @($Roots | Where-Object { $_ } | ForEach-Object { $_.Replace('/', '\').TrimEnd('\').ToLowerInvariant() })
+  return @($Paths | Where-Object {
+    $path = ([string]$_).Replace('/', '\').ToLowerInvariant()
+    @($prefixes | Where-Object { $path -ceq $_ -or $path.StartsWith($_ + '\', [System.StringComparison]::Ordinal) }).Count -gt 0
+  })
 }
 
 # Problems for the lines of two snapshots (sorted text lines) that differ, at most Max of them

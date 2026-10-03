@@ -89,6 +89,26 @@ try {
   Check 'ascii upper leaves non-ASCII' (ConvertTo-E2EAsciiUpper ('a' + [char]0xE4)) ('A' + [char]0xE4)
   CheckProblems 'snapshot equal' (Compare-E2ESnapshot @('x|1', 'y|2') @('y|2', 'x|1') 'state') ''
   CheckProblems 'snapshot changed' (Compare-E2ESnapshot @('x|1') @('x|2') 'state') 'state new or changed: x\|2'
+  # Values of programs below the test folders (the leftovers a scenario must not find)
+  $roots = @('C:\Program Files (x86)\Empire Earth', 'C:\EE CI\Custom Root\')
+  $names = @('C:\Program Files (x86)\Empire Earth\Empire Earth\Empire Earth.exe', 'c:\program files (x86)\empire earth\Empire Earth - The Art of Conquest\EE-AOC.exe',
+             'C:\Program Files (x86)\Empire Earth II\EE2.exe', 'C:\EE CI\Custom Root', 'C:/EE CI/Custom Root/Empire Earth/Empire Earth.exe', 'D:\Other\Empire Earth.exe')
+  Check 'paths below roots' ((Select-E2EPathsBelow $names $roots) -join '|') ($names[0], $names[1], $names[3], $names[4] -join '|')
+  Check 'paths below no root' @(Select-E2EPathsBelow $names @()).Count 0
+  Check 'paths below: one stays a list' @(Select-E2EPathsBelow @('C:\EE CI\Custom Root\x.exe') $roots).Count 1
+
+  # --- Time budget of a phase: limit of the program, end of the budget, reserve for the cleanup
+  Check 'budget: none' (Get-E2EBudgetedSeconds 600 $null 900 $false) 600
+  Check 'budget: plenty' (Get-E2EBudgetedSeconds 600 3600 900 $false) 600
+  Check 'budget: limited by the reserve' (Get-E2EBudgetedSeconds 600 1200 900 $false) 300
+  Check 'budget: cleanup may use the reserve' (Get-E2EBudgetedSeconds 600 1200 900 $true) 600
+  Check 'budget: cleanup limited by the end' (Get-E2EBudgetedSeconds 600 400.7 900 $true) 400
+  Check 'budget: used up' (Get-E2EBudgetedSeconds 600 950 900 $false) 0
+  Check 'budget: past the end' (Get-E2EBudgetedSeconds 600 -30 900 $true) 0
+  Check 'budget: no reserve' (Get-E2EBudgetedSeconds 1500 1200 0 $false) 1200
+  # The limits of the programs fit the reserve and the uninstaller with its waits (4 minutes) fits in it
+  Check 'limits: uninstaller fits the reserve' (($E2EConst.UninstallTimeoutMinutes + 4) -le $E2EConst.CleanupReserveMinutes) $true
+  Check 'limits: launcher below the setup' ($E2EConst.LauncherTimeoutMinutes -le $E2EConst.SetupTimeoutMinutes) $true
 
   # --- Logs
   $log = "2026-10-03 10:00:00.123   Log opened.`r`n2026-10-03 10:00:00.124   Screen: 1024 x 768 pixels (primary screen, SM_CXSCREEN x SM_CYSCREEN), 96 DPI (LOGPIXELSX, 100 % scaling), game window 1024 x 768`r`n" +

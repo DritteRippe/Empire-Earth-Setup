@@ -177,6 +177,19 @@ function Get-E2EFileTree([string]$Root) {
   return $items.ToArray()
 }
 
+# Removes a folder and everything below it. A junction or symbolic link below it is removed itself,
+# never the files of its target (Directory.Delete does not follow reparse points, unlike
+# Remove-Item -Recurse in Windows PowerShell 5.1); read-only files are made writable first.
+function Remove-E2EFolder([string]$Path) {
+  if (-not (Test-Path -LiteralPath $Path)) { return }
+  foreach ($item in @(Get-E2EFileTree $Path)) {
+    if (-not $item.IsDir -and -not $item.Reparse -and $item.Attributes -match 'ReadOnly') {
+      [System.IO.File]::SetAttributes((Join-Path $Path $item.Rel), [System.IO.FileAttributes]::Normal)
+    }
+  }
+  [System.IO.Directory]::Delete($Path, $true)
+}
+
 # Sorted lines 'rel|size|ticks|attributes' of the tree, for the before/after comparisons
 function Get-E2EFileTreeLines([string]$Root) {
   return @(Get-E2EFileTree $Root | ForEach-Object { '{0}|{1}|{2}|{3}' -f $_.Rel, $_.Size, $_.Ticks, $_.Attributes } | Sort-Object)
@@ -205,16 +218,57 @@ function Import-E2EAssetMap([string]$Path) {
 
 # --- Processes ------------------------------------------------------------------------------------
 
-# Runs a program and returns its exit code; kills it and throws after TimeoutSeconds. With OutFile,
-# stdout and stderr go to that file. Environment adds variables for the child only.
+# The time budget of the phase (run_e2e.ps1 -BudgetMinutes): the end, and the minutes of it kept for
+# the uninstallation at the end of the scenario. No budget: only the limits of the programs.
+$script:E2EPhaseEnd = $null
+$script:E2EPhaseReserveSeconds = 0
+
+function Start-E2EPhaseBudget([int]$Minutes, [int]$ReserveMinutes) {
+  $script:E2EPhaseEnd = $null
+  $script:E2EPhaseReserveSeconds = $ReserveMinutes * 60
+  if ($Minutes -gt 0) { $script:E2EPhaseEnd = [DateTime]::UtcNow.AddMinutes($Minutes) }
+}
+
+# Seconds a program may run now (Get-E2EBudgetedSeconds); 0: the budget of the phase is used up
+function Get-E2EProcessSeconds([int]$TimeoutSeconds, [bool]$Cleanup) {
+  $left = $null
+  if ($null -ne $script:E2EPhaseEnd) { $left = ($script:E2EPhaseEnd - [DateTime]::UtcNow).TotalSeconds }
+  return (Get-E2EBudgetedSeconds $TimeoutSeconds $left $script:E2EPhaseReserveSeconds $Cleanup)
+}
+
+# Ends a process and its child processes (the .tmp process of a setup, the copy of an uninstaller):
+# taskkill /T (started directly: no stream redirection, which Windows PowerShell 5.1 would turn into
+# an error), then Kill for the process itself (also where taskkill does not exist)
+function Stop-E2EProcessTree([System.Diagnostics.Process]$Process) {
+  try {
+    $psi = New-Object System.Diagnostics.ProcessStartInfo
+    $psi.FileName = 'taskkill.exe'
+    $psi.Arguments = "/PID $($Process.Id) /T /F"
+    $psi.UseShellExecute = $false
+    $psi.CreateNoWindow = $true
+    [void]([System.Diagnostics.Process]::Start($psi)).WaitForExit(30000)
+  } catch { }
+  try { if (-not $Process.HasExited) { $Process.Kill() } } catch { }
+}
+
+# Runs a program and returns its exit code. It may run TimeoutSeconds, but never past the budget of
+# the phase (minus the reserve for the uninstallation, unless Cleanup); then it is stopped with its
+# child processes and the function throws. With OutFile, stdout and stderr go to that file.
+# Environment adds variables for the child only.
 function Invoke-E2EProcess {
   param(
     [Parameter(Mandatory = $true)][string]$FilePath,
     [string]$Arguments = '',
     [int]$TimeoutSeconds = 3600,
     [string]$OutFile,
-    [hashtable]$Environment = @{}
+    [hashtable]$Environment = @{},
+    [switch]$Cleanup
   )
+  $name = [System.IO.Path]::GetFileName($FilePath)
+  $seconds = Get-E2EProcessSeconds $TimeoutSeconds $Cleanup.IsPresent
+  if ($seconds -le 0) { throw "$name not started: the time budget of this phase is used up (run_e2e.ps1 -BudgetMinutes)" }
+  $limit = "its limit of $seconds s"
+  if ($seconds -lt $TimeoutSeconds) { $limit = "the time budget of this phase ($seconds s left of its limit of $TimeoutSeconds s)" }
   $psi = New-Object System.Diagnostics.ProcessStartInfo
   $psi.FileName = $FilePath
   $psi.Arguments = $Arguments
@@ -232,9 +286,9 @@ function Invoke-E2EProcess {
     $stdout = $process.StandardOutput.ReadToEndAsync()
     $stderr = $process.StandardError.ReadToEndAsync()
   }
-  if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
-    try { $process.Kill() } catch { }
-    throw "$([System.IO.Path]::GetFileName($FilePath)) did not finish within $TimeoutSeconds s (killed)"
+  if (-not $process.WaitForExit($seconds * 1000)) {
+    Stop-E2EProcessTree $process
+    throw "$name did not finish within $limit (stopped with its child processes)"
   }
   $process.WaitForExit()
   if ($OutFile) {
@@ -302,7 +356,7 @@ function Invoke-E2ESetup {
     [Parameter(Mandatory = $true)][string]$Product,
     [bool]$FirstInstall = $true,
     [string[]]$Unblocked = @(),
-    [int]$TimeoutMinutes = 45
+    [int]$TimeoutMinutes = $E2EConst.SetupTimeoutMinutes
   )
   $problems = @(Test-E2ESetupArguments $Arguments $Kind $Product $FirstInstall)
   $blocked = @($E2EConst.BlockedHosts | Where-Object { $Unblocked -notcontains $_ })
@@ -325,12 +379,14 @@ function Get-E2EUninstallKeyPath([hashtable]$Product) {
 }
 
 # Runs <Root>\unins000.exe silently and waits until the uninstaller (also its copy in %TEMP%) is
-# done and the uninstall key is gone. Returns @{ ExitCode; Problems }.
-function Invoke-E2EUninstall([hashtable]$Product, [string]$Root, [string]$Hive, [string]$LogFile, [int]$TimeoutSeconds = 1800) {
+# done and the uninstall key is gone; a copy still running after the wait is stopped. A cleanup: it
+# may use the reserve of the phase budget. Throws if the uninstaller hits its time limit (it is
+# stopped then). Returns @{ ExitCode; Problems }.
+function Invoke-E2EUninstall([hashtable]$Product, [string]$Root, [string]$Hive, [string]$LogFile, [int]$TimeoutSeconds = ($E2EConst.UninstallTimeoutMinutes * 60)) {
   $problems = @()
   $uninstaller = Join-Path $Root 'unins000.exe'
   if (-not (Test-Path -LiteralPath $uninstaller -PathType Leaf)) { return @{ ExitCode = $null; Problems = @("$uninstaller does not exist") } }
-  $code = Invoke-E2EProcess -FilePath $uninstaller -Arguments "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /LOG=`"$LogFile`"" -TimeoutSeconds $TimeoutSeconds
+  $code = Invoke-E2EProcess -FilePath $uninstaller -Arguments "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /LOG=`"$LogFile`"" -TimeoutSeconds $TimeoutSeconds -Cleanup
   $deadline = (Get-Date).AddSeconds(180)
   $keyPath = Get-E2EUninstallKeyPath $Product
   while ((Get-Date) -lt $deadline) {
@@ -340,7 +396,10 @@ function Invoke-E2EUninstall([hashtable]$Product, [string]$Root, [string]$Hive, 
   }
   if (Test-Path -LiteralPath $uninstaller) { $problems += "$uninstaller still exists 180 s after the uninstallation" }
   if (Test-E2ERegKey $Hive $keyPath) { $problems += "$Hive\$keyPath still exists 180 s after the uninstallation" }
-  if (-not (Wait-E2ESetupFinished $Product 60)) { $problems += 'the uninstaller is still running' }
+  if (-not (Wait-E2ESetupFinished $Product 60)) {
+    $problems += 'the uninstaller is still running (stopped now, so that the next step does not meet it)'
+    foreach ($copy in @(Get-Process | Where-Object { $_.ProcessName -like '_iu*' })) { Stop-E2EProcessTree $copy }
+  }
   return @{ ExitCode = $code; Problems = $problems }
 }
 
@@ -407,6 +466,13 @@ function Get-E2EFirewallRules([string]$Program) {
   return $rules
 }
 
+# Removes the firewall rules whose program is Program (leftovers of an earlier scenario)
+function Remove-E2EFirewallRules([string]$Program) {
+  foreach ($filter in @(Get-NetFirewallApplicationFilter -Program $Program -ErrorAction SilentlyContinue)) {
+    $filter | Get-NetFirewallRule -ErrorAction SilentlyContinue | Remove-NetFirewallRule -ErrorAction Continue
+  }
+}
+
 # @{ Target; Arguments } of a .lnk file, $null if it does not exist
 function Get-E2EShortcut([string]$Path) {
   if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $null }
@@ -454,7 +520,7 @@ function Invoke-E2ELauncher([string]$Scenario, [string]$Step, $Expectation) {
   $result = Join-Path $reportDir "$Scenario-$Step.xml"
   $console = Join-Path $reportDir "$Scenario-$Step.txt"
   $arguments = "--where `"cat == RealMachine`" `"--params=expect=$expect`" `"--params=work=$work`" `"--result=$result`" --labels=All"
-  $code = Invoke-E2EProcess -FilePath $exe -Arguments $arguments -TimeoutSeconds 1800 -OutFile $console `
+  $code = Invoke-E2EProcess -FilePath $exe -Arguments $arguments -TimeoutSeconds ($E2EConst.LauncherTimeoutMinutes * 60) -OutFile $console `
     -Environment @{ EE_LAUNCHER_REAL_MACHINE_TESTS = '1' }
   $failures = @()
   if ($code -ne 0 -and (Test-Path -LiteralPath $console)) {
@@ -466,7 +532,7 @@ function Invoke-E2ELauncher([string]$Scenario, [string]$Step, $Expectation) {
 # @{ code; data; mutable } manifest paths of the EE folder (pick-targets of the launcher harness)
 function Get-E2ETamperTargets([string]$Root, [string]$Product) {
   $out = Join-Path $env:E2E_WORK 'pick-targets.json'
-  $code = Invoke-E2EProcess -FilePath $env:LAUNCHER_RM -Arguments "pick-targets --root `"$Root`" --product $Product" -TimeoutSeconds 300 -OutFile $out
+  $code = Invoke-E2EProcess -FilePath $env:LAUNCHER_RM -Arguments "pick-targets --root `"$Root`" --product $Product" -TimeoutSeconds 120 -OutFile $out
   if ($code -ne 0) { throw "pick-targets failed with exit code $code" }
   $parsed = Get-Content -LiteralPath $out -Raw | ConvertFrom-Json
   return @{ code = [string]$parsed.code; data = [string]$parsed.data; mutable = [string]$parsed.mutable }

@@ -232,7 +232,13 @@ What the job does, in this order:
    not exist in any view; the job then seeds the dummy value `CI-Dummy` = `NOT-A-KEY-0000` in HKCU, HKLM (64-bit) and HKLM
    (32-bit) and checks after every setup run, uninstallation and launcher check that it is unchanged (only "intact or not"
    is ever printed). No setup runs unless this phase passed.
-6. **Scenarios** (Windows PowerShell 5.1, `ci/e2e/run_e2e.ps1 -Phase A|B|E|D|C`), each starting from a clean machine:
+6. **Scenarios** (Windows PowerShell 5.1, `ci/e2e/run_e2e.ps1 -Phase A|B|E|D|C`), each starting from a clean machine
+   (whatever an earlier scenario left, because it failed or was stopped, is reported as `WARN` and removed first: the
+   uninstall keys, records and game settings of both products, the seeds of E, the folders of the test, compatibility,
+   GPU and firewall entries of programs below them and the shortcuts; never `Software\Sierra`). Every program has a time
+   limit (setup 25 minutes, uninstaller and launcher checks 10) and no phase runs past its budget, 5 minutes below the
+   limit of its workflow step, of which 15 minutes are kept for the uninstallation: a program that hangs is stopped with
+   its child processes and recorded as `FAIL`, and the scenario still uninstalls, before GitHub would stop the step:
 
    | Scenario | What runs |
    |---|---|

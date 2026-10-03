@@ -31,13 +31,25 @@
   other than English. Game data never leaves the runner: nothing here prints, copies or uploads it.
   Windows PowerShell 5.1 compatible, ASCII only.
 
+  Time: every program the phase starts has its own limit (setup 25 minutes, uninstaller and
+  launcher checks 10, $E2EConst in e2e_helpers.ps1) and never runs past the budget of the phase;
+  15 minutes of it are kept for the uninstallation at the end of a scenario (not in E, which leaves
+  its installation to D). A program that hits a limit is stopped with its child processes and
+  recorded as FAIL, and the scenario goes on to its uninstallation, so the report names the cause
+  before GitHub would stop the step.
+
 .PARAMETER Phase
   Prepare, A, B, E, D or C.
+
+.PARAMETER BudgetMinutes
+  The time of the phase, below the timeout-minutes of its workflow step (0: no budget, only the
+  limits of the programs).
 #>
 #Requires -Version 5.1
 [CmdletBinding()]
 param(
-  [Parameter(Mandatory = $true)][ValidateSet('Prepare', 'A', 'B', 'E', 'D', 'C')][string]$Phase
+  [Parameter(Mandatory = $true)][ValidateSet('Prepare', 'A', 'B', 'E', 'D', 'C')][string]$Phase,
+  [ValidateRange(0, 360)][int]$BudgetMinutes = 0
 )
 
 Set-StrictMode -Version 2.0
@@ -55,6 +67,10 @@ foreach ($name in @('E2E_BUILD', 'E2E_OFFICIAL', 'E2E_REPORT', 'E2E_WORK', 'E2E_
 New-Item -ItemType Directory -Force -Path (Join-Path $env:E2E_REPORT 'logs'), $env:E2E_WORK | Out-Null
 Initialize-E2EResults (Join-Path $env:E2E_REPORT 'results.jsonl')
 $AssetMap = Import-E2EAssetMap (Join-Path $PSScriptRoot 'assets-map.tsv')
+# E keeps no reserve: its installation is uninstalled by D
+$reserve = $E2EConst.CleanupReserveMinutes
+if ($Phase -eq 'E' -or $Phase -eq 'Prepare') { $reserve = 0 }
+Start-E2EPhaseBudget $BudgetMinutes $reserve
 
 # --- Main ----------------------------------------------------------------------------------------------
 

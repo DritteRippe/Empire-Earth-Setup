@@ -417,6 +417,10 @@ setup version stays 1.7.2 until the release.
   checked that they are small text files and no file of the map; no game data is committed,
   cached, uploaded or printed. The tools are tested without game data in `build.yml`
   (`ci/e2e/tests`). `docs/TEST-PLAN.de.md`, section 12: which test cases the job covers.
+  After its review: every program the scenarios start has a time limit and each phase a budget
+  below its step limit (a hang is stopped with its child processes, recorded as a failure, and the
+  scenario still uninstalls), and each scenario reports and removes what earlier ones left (also
+  files, compatibility, GPU and firewall entries and shortcuts).
 
 ### Changed
 - The hidden setup data folder (holds `EEStatsSetup.dll` for the uninstaller) is now

@@ -531,9 +531,15 @@ function Invoke-E2EUninstallChecks([hashtable]$Ctx, [string[]]$AllowedLeftovers 
   $p = $Ctx.Product
   $hive = Get-E2EHive $Ctx
   $log = Join-Path $env:E2E_REPORT "logs\$($Ctx.Scenario)-$($Ctx.Step).log"
-  $run = Invoke-E2EUninstall $p $Ctx.Root $hive $log
+  try {
+    $run = Invoke-E2EUninstall $p $Ctx.Root $hive $log
+  } catch {
+    # Stopped at its time limit: the next scenario starts with the cleanup (Initialize-E2EScenario)
+    [void](Complete-E2ECheck $Ctx.Scenario (Get-E2ECheckId $Ctx 'U') @($_.Exception.Message))
+    return
+  }
   $problems = @($run.Problems)
-  if ($run.ExitCode -ne 0) { $problems += "unins000.exe exit code $($run.ExitCode)" }
+  if ($null -ne $run.ExitCode -and $run.ExitCode -ne 0) { $problems += "unins000.exe exit code $($run.ExitCode)" }
   if (Test-E2ERegKey $hive "$($E2EConst.CommunityKey)\Installations\$($p.Id)") { $problems += "the install record $hive\$($E2EConst.CommunityKey)\Installations\$($p.Id) is still there" }
   if (-not $OtherProductInstalled -and (Test-E2ERegKey $hive $E2EConst.CommunityKey)) { $problems += "$hive\$($E2EConst.CommunityKey) is still there" }
   if (Test-E2ERegKey 'HKCU' "$($E2EConst.CommunityKey)\GameDefaults\$($p.Id)") { $problems += 'the defaults marker is still there' }
@@ -569,11 +575,16 @@ function Invoke-E2EUninstallChecks([hashtable]$Ctx, [string[]]$AllowedLeftovers 
 
 # L: the launcher checks of one step; Expectation from New-E2ELauncherExpectation
 function Invoke-E2ELauncherCheck([string]$Scenario, [string]$Step, $Expectation) {
-  $run = Invoke-E2ELauncher $Scenario $Step $Expectation
   $problems = @()
-  if ($run.ExitCode -ne 0) {
-    $problems += "RealMachineTests exit code $($run.ExitCode) (launcher/$Scenario-$Step.txt)"
-    $problems += $run.Failures
+  try {
+    $run = Invoke-E2ELauncher $Scenario $Step $Expectation
+    if ($run.ExitCode -ne 0) {
+      $problems += "RealMachineTests exit code $($run.ExitCode) (launcher/$Scenario-$Step.txt)"
+      $problems += $run.Failures
+    }
+  } catch {
+    # A time limit (or a missing program) fails this check only; the scenario goes on to its uninstallation
+    $problems += "RealMachineTests did not run to its end: $($_.Exception.Message)"
   }
   [void](Complete-E2ECheck $Scenario "$Step/L" $problems 'discovery, integrity, game settings and machine state as expected')
   $problems = @(Test-E2ECdKeyDummy)

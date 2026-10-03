@@ -56,7 +56,10 @@ jobs:
   e2e:
     name: Install, check and uninstall the real-data setups
     runs-on: windows-latest
-    timeout-minutes: 240
+    # The scenario steps have their own limits (sum 270 minutes) and the scripts stop their programs
+    # before those (run_e2e.ps1 -BudgetMinutes); at least 45 minutes remain for the preparation and the
+    # report (ci/e2e/tests/test_e2e_tools.py)
+    timeout-minutes: 330
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -281,6 +284,10 @@ jobs:
       # --- The scenarios (Windows PowerShell 5.1). Prepare blocks every server in the hosts file
       # (api.empireearth.eu with the statistics endpoints first) and seeds the CD key dummy; no setup
       # runs unless it passed. Each scenario records its results and never stops the next one.
+      # -BudgetMinutes is the time of the phase, 5 minutes below the step limit: the script stops a
+      # program that runs into it (and every program at its own limit, setup 25 minutes, uninstaller,
+      # launcher checks 10), records FAIL and still uninstalls, before GitHub would stop the step
+      # (ci/e2e/tests/test_e2e_tools.py checks the numbers).
       - name: Prepare the runner (hosts block, CD key dummy, clean state)
         id: prepare
         shell: pwsh
@@ -290,26 +297,26 @@ jobs:
 
       - name: 'Scenario A: EE for all users, German, downloads from the mirror'
         if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
-        timeout-minutes: 60
+        timeout-minutes: 50
         shell: pwsh
         run: |
-          powershell -NoProfile -ExecutionPolicy Bypass -File ci/e2e/run_e2e.ps1 -Phase A
+          powershell -NoProfile -ExecutionPolicy Bypass -File ci/e2e/run_e2e.ps1 -Phase A -BudgetMinutes 45
           exit $LASTEXITCODE
 
       - name: 'Scenario B: NeoEE for the current user, without the CD key task'
         if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
-        timeout-minutes: 60
+        timeout-minutes: 50
         shell: pwsh
         run: |
-          powershell -NoProfile -ExecutionPolicy Bypass -File ci/e2e/run_e2e.ps1 -Phase B
+          powershell -NoProfile -ExecutionPolicy Bypass -File ci/e2e/run_e2e.ps1 -Phase B -BudgetMinutes 45
           exit $LASTEXITCODE
 
       - name: 'Scenario E: custom folder next to a foreign installation'
         if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
-        timeout-minutes: 45
+        timeout-minutes: 35
         shell: pwsh
         run: |
-          powershell -NoProfile -ExecutionPolicy Bypass -File ci/e2e/run_e2e.ps1 -Phase E
+          powershell -NoProfile -ExecutionPolicy Bypass -File ci/e2e/run_e2e.ps1 -Phase E -BudgetMinutes 30
           exit $LASTEXITCODE
 
       - name: 'Scenario D: link guard and update without the wrapper'
@@ -317,7 +324,7 @@ jobs:
         timeout-minutes: 45
         shell: pwsh
         run: |
-          powershell -NoProfile -ExecutionPolicy Bypass -File ci/e2e/run_e2e.ps1 -Phase D
+          powershell -NoProfile -ExecutionPolicy Bypass -File ci/e2e/run_e2e.ps1 -Phase D -BudgetMinutes 40
           exit $LASTEXITCODE
 
       - name: 'Scenario C: official 1.7.2, v2 over it, damage and repair'
@@ -325,7 +332,7 @@ jobs:
         timeout-minutes: 90
         shell: pwsh
         run: |
-          powershell -NoProfile -ExecutionPolicy Bypass -File ci/e2e/run_e2e.ps1 -Phase C
+          powershell -NoProfile -ExecutionPolicy Bypass -File ci/e2e/run_e2e.ps1 -Phase C -BudgetMinutes 85
           exit $LASTEXITCODE
 
       # --- Report and the one upload (logs and report only)
