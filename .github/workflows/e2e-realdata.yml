@@ -14,28 +14,44 @@
 # official setups and innoextract.exe), each saved explicitly by path; the only upload is the report
 # folder (logs, NUnit results, report), and ci/e2e/guard_upload.py refuses it unless it holds small
 # text files only, none of them a file of the map.
+#
+# When it runs (README.md, "End-to-end test on Windows"; ADR 0011): by hand, or for a pull request
+# from a branch of THIS repository that carries the label e2e and changes what the job tests. A pull
+# request from a fork never runs it (its workflow file and scripts would come from the fork and run
+# next to the game data); the repository setting "Require approval for all external contributors"
+# (Settings > Actions > General) is mandatory as well, because such a pull request could remove
+# this condition. Every run takes about two hours and downloads the localized files of one language
+# from the community mirror, so pushes to a pull request without the label start nothing.
 name: E2E real data
 
 on:
   workflow_dispatch:
     inputs:
-      launcher_ref:
-        description: Branch, tag or commit of the launcher fork whose real-machine checks run
+      launcher_commit:
+        description: Full commit (40 hex digits) on LAUNCHER_BRANCH of the launcher fork whose checks run; empty for LAUNCHER_COMMIT
         required: false
-        default: v2
+        default: ''
   pull_request:
+    types: [opened, synchronize, reopened, labeled]
     paths:
       - '**/*.iss'
       - 'internal/lib/**'
       - 'internal/unofficial_isl/**'
-      - 'ci/**'
+      - 'ci/build.ps1'
+      - 'ci/build_helpers.ps1'
+      - 'ci/e2e/**'
       - '.github/workflows/e2e-realdata.yml'
 
 permissions:
   contents: read
 
+# One run per branch: a dispatch on a branch and its pull request share the group, a newer run
+# cancels the older one. A run whose job does not qualify (same condition as jobs.e2e.if, which
+# ci/e2e/tests/test_e2e_tools.py compares) gets a group of its own, so that adding another label or
+# pushing to a pull request without the label never cancels a running test.
 concurrency:
-  group: e2e-realdata-${{ github.ref }}
+  group: >-
+    e2e-realdata-${{ (github.event_name == 'workflow_dispatch' || (github.event.pull_request.head.repo.full_name == github.repository && contains(github.event.pull_request.labels.*.name, 'e2e') && (github.event.action != 'labeled' || github.event.label.name == 'e2e'))) && (github.head_ref || github.ref_name) || github.run_id }}
   cancel-in-progress: true
 
 env:
@@ -46,6 +62,10 @@ env:
   # innoextract 1.10-dev: 1.9 cannot read setups of Inno Setup 6.2.2
   INNOEXTRACT_COMMIT: 6e9e34ed0876014fdb46e684103ef8c3605e382e
   LAUNCHER_REPOSITORY: DritteRippe/empire-earth-launcher
+  # The launcher code runs as administrator next to the game data: a full commit, reviewed and moved
+  # on purpose by a commit here (never a branch), and it must lie on LAUNCHER_BRANCH (ADR 0011)
+  LAUNCHER_BRANCH: v2
+  LAUNCHER_COMMIT: 93324a812dc7da4d029649cd82edaf778d0b0164
   # The real AppIds of the official setups (an update over 1.7.2 needs them)
   EE_APPID: 4C0B46D8-E7EB-4B95-97D4-A578D9B914C6
   NEOEE_APPID: A24FCC7A-5491-4FEA-837B-4E4430C349DA
@@ -55,6 +75,9 @@ env:
 jobs:
   e2e:
     name: Install, check and uninstall the real-data setups
+    # By hand, or a pull request from a branch of this repository with the label e2e (for the event
+    # "labeled" only when that label was added); the same condition is in concurrency.group
+    if: github.event_name == 'workflow_dispatch' || (github.event.pull_request.head.repo.full_name == github.repository && contains(github.event.pull_request.labels.*.name, 'e2e') && (github.event.action != 'labeled' || github.event.label.name == 'e2e'))
     runs-on: windows-latest
     # The scenario steps have their own limits (sum 270 minutes) and the scripts stop their programs
     # before those (run_e2e.ps1 -BudgetMinutes); at least 45 minutes remain for the preparation and the
@@ -200,14 +223,45 @@ jobs:
           "E2E_INNOEXTRACT=$version" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       # --- The launcher's checks against a real installation (Empire-Earth-Launcher.RealMachineTests),
-      # built before the game data exists so that a failure shows early
+      # built before the game data exists so that a failure shows early. Only a full commit (the pin
+      # LAUNCHER_COMMIT, or one given by hand): no branch, tag or pull request ref
+      - name: Choose the launcher commit
+        id: launcher
+        shell: pwsh
+        env:
+          REQUESTED_COMMIT: ${{ inputs.launcher_commit }}
+        run: |
+          $commit = $env:LAUNCHER_COMMIT
+          if ($env:REQUESTED_COMMIT) { $commit = $env:REQUESTED_COMMIT.Trim() }
+          if ($commit -cnotmatch '^[0-9a-f]{40}$') {
+            throw "The launcher commit must be a full commit (40 lowercase hex digits), not a branch, tag or pull request ref: '$commit'"
+          }
+          "Launcher commit: $commit"
+          "commit=$commit" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      # The whole history (a few MB), to prove that the commit is on LAUNCHER_BRANCH
       - name: Check out the launcher fork
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: ${{ env.LAUNCHER_REPOSITORY }}
-          ref: ${{ inputs.launcher_ref || 'v2' }}
+          ref: ${{ steps.launcher.outputs.commit }}
           path: _launcher
+          fetch-depth: 0
           persist-credentials: false
+
+      # A commit of the fork network that is not on the branch (e.g. of a foreign pull request) is refused
+      - name: Check that the launcher commit is on its branch
+        shell: pwsh
+        working-directory: _launcher
+        env:
+          EXPECTED_COMMIT: ${{ steps.launcher.outputs.commit }}
+        run: |
+          $head = git rev-parse HEAD
+          if ($head -cne $env:EXPECTED_COMMIT) { throw "Checked out $head, expected $env:EXPECTED_COMMIT" }
+          git merge-base --is-ancestor HEAD "refs/remotes/origin/$env:LAUNCHER_BRANCH"
+          if ($LASTEXITCODE -eq 1) { throw "$head is not on the branch $env:LAUNCHER_BRANCH of $env:LAUNCHER_REPOSITORY" }
+          if ($LASTEXITCODE) { throw "git merge-base failed (exit code $LASTEXITCODE)" }
+          "$head is on $env:LAUNCHER_BRANCH of $env:LAUNCHER_REPOSITORY"
 
       - name: Set up NuGet
         uses: NuGet/setup-nuget@d105a947828025cd7a980103c35ba2bfae586d0f # v2.0.2

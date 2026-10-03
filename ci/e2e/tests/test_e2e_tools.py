@@ -2,9 +2,9 @@
 """Tests of the Python tools of the real-data end-to-end test with synthetic data (no game data,
 no network): inno_headers.py (a made-up setup with an LZMA1 header block), place_assets.py,
 readset.py and gen_map.py (a made-up asset tree, extraction and preprocessed script), guard_upload.py
-and report.py. Also checks that the committed map is well-formed and data-free, and the time limits
-of .github/workflows/e2e-realdata.yml against the scripts (read as text, the runner has no YAML
-library).
+and report.py. Also checks that the committed map is well-formed and data-free, and the rules of
+.github/workflows/e2e-realdata.yml that its text must keep (gates, launcher pin, time limits; read
+as text, the runner has no YAML library).
 
   python -m unittest discover -s ci/e2e/tests -p "test_*.py"
 """
@@ -398,6 +398,31 @@ class WorkflowTests(unittest.TestCase):
         match = re.search(r"(?m)^\s*%s\s*=\s*(\d+)\s*$" % name, self.helpers)
         self.assertIsNotNone(match, name)
         return int(match.group(1))
+
+    def test_only_branches_of_this_repository_with_the_label_run(self):
+        job_if = re.search(r"(?m)^    if: (.+)$", self.text).group(1)
+        self.assertTrue(job_if.startswith("github.event_name == 'workflow_dispatch' || ("), job_if)
+        self.assertIn("github.event.pull_request.head.repo.full_name == github.repository", job_if)
+        self.assertIn("contains(github.event.pull_request.labels.*.name, 'e2e')", job_if)
+        self.assertIn("(github.event.action != 'labeled' || github.event.label.name == 'e2e')", job_if)
+        # The same condition decides the concurrency group: a run that does not qualify never cancels one
+        group = re.search(r"(?m)^  group: >-\n    e2e-realdata-\$\{\{ \((.+)\) && \(github\.head_ref \|\| github\.ref_name\) "
+                          r"\|\| github\.run_id \}\}$", self.text)
+        self.assertIsNotNone(group)
+        self.assertEqual(group.group(1), job_if)
+        self.assertRegex(self.text, r"(?m)^    types: \[opened, synchronize, reopened, labeled\]$")
+        self.assertNotIn("pull_request_target", self.text)
+        self.assertNotIn("'ci/**'", self.text)
+        # One job: another one would run without the gate
+        self.assertEqual(re.findall(r"(?m)^  ([\w-]+):$", self.text.split("\njobs:\n", 1)[1]), ["e2e"])
+
+    def test_the_launcher_is_a_pinned_commit_on_its_branch(self):
+        self.assertRegex(self.text, r"(?m)^  LAUNCHER_COMMIT: [0-9a-f]{40}$")
+        self.assertRegex(self.text, r"(?m)^  LAUNCHER_BRANCH: \S+$")
+        self.assertNotIn("launcher_ref", self.text)
+        self.assertIn("ref: ${{ steps.launcher.outputs.commit }}", self.text)
+        self.assertIn("-cnotmatch '^[0-9a-f]{40}$'", self.text)
+        self.assertIn('git merge-base --is-ancestor HEAD "refs/remotes/origin/$env:LAUNCHER_BRANCH"', self.text)
 
     def test_every_action_is_pinned_to_a_commit(self):
         uses = re.findall(r"(?m)^\s+(?:- )?uses: (\S+)", self.text)

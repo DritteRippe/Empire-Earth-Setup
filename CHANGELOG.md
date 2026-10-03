@@ -420,7 +420,11 @@ setup version stays 1.7.2 until the release.
   After its review: every program the scenarios start has a time limit and each phase a budget
   below its step limit (a hang is stopped with its child processes, recorded as a failure, and the
   scenario still uninstalls), and each scenario reports and removes what earlier ones left (also
-  files, compatibility, GPU and firewall entries and shortcuts).
+  files, compatibility, GPU and firewall entries and shortcuts). The job runs by hand and for pull
+  requests from branches of the repository with the label `e2e` that change the setup sources or
+  `ci/e2e` (never for forks; the repository must require approval of workflow runs for all external
+  contributors), and the launcher checks come from a pinned full commit that must be on the
+  launcher branch. README: when it runs, the approval setting, the pin, the caches.
 
 ### Changed
 - The hidden setup data folder (holds `EEStatsSetup.dll` for the uninstaller) is now

@@ -26,7 +26,13 @@ certificate.
 
 1. A GitHub Actions workflow (`.github/workflows/e2e-realdata.yml`) builds the real-data setups and
    installs, checks and uninstalls them on a GitHub-hosted Windows runner, which GitHub discards after
-   the job. It runs on pull requests that touch the setup sources or CI files and by hand.
+   the job. It runs by hand, and for a pull request only if the pull request comes from a branch of
+   the repository itself, carries the label `e2e` and changes the setup sources or the end-to-end
+   tools; a newer run for the same branch cancels the older one, a run that does not qualify cancels
+   nothing. Pull requests from forks never run it: a pull request runs the workflow file and the
+   scripts of its own branch, next to the game data. Because such a pull request could remove that
+   condition, every repository that holds the workflow must require approval of workflow runs for
+   all external contributors (repository setting, README).
 2. The game files come only from the official setups at run time: extracted with innoextract 1.10-dev
    and placed with a committed, data-free map (path, size, SHA-1, time, product, origin per file;
    `ci/e2e/assets-map.tsv`). Every placed file is checked; a source the scripts read that the map does
@@ -55,6 +61,11 @@ certificate.
    clean machine: it reports what earlier ones left (keys, the seeds of E, files and folders of the
    test, compatibility, GPU and firewall entries of programs below them, shortcuts) as `WARN` and
    removes it, so a failure is counted once, in the scenario that caused it.
+8. The launcher checks run from a full commit of the launcher fork fixed in the workflow
+   (`LAUNCHER_COMMIT`) and moved on purpose by a commit of this repository; a commit given by hand
+   must be a full commit too, and the job refuses any commit that is not on `LAUNCHER_BRANCH`. No
+   branch, tag or pull request ref is checked out: that code runs as administrator next to the game
+   data, so it must be reviewed code, and a run must be reproducible.
 
 ## Evidence
 
@@ -69,11 +80,21 @@ certificate.
 
 ## Consequences
 
-- The behaviour on Windows is tested on every relevant pull request, without a tester and without
-  any game data in the repository, the cache or the artifacts.
-- The job depends on `r2.empireearth.eu` once per cache period, on the mirror once per run (a
-  failing mirror is reported as `SERVER`, not as a failure of the setup) and on the image
-  `windows-latest`.
+- The behaviour on Windows is tested on demand, by hand and on the pull requests that carry the
+  label, without a tester and without any game data in the repository, the cache or the artifacts.
+- Expected frequency: one run per dispatch and per push to a labelled pull request of the
+  repository (the label is removed for pushes that do not need the test; GitHub matches the path
+  filter against the whole pull request, so without the label every push to a long pull request
+  would start a run). Each run that reaches scenario A downloads 17 localized files from the
+  mirror, 10 of them unpinned and large (the voices `data.ssa` of EE and AoC, 8 campaigns).
+- The job depends on `r2.empireearth.eu` once per cache scope and after 7 days without a run, on
+  the mirror once per run (a failing mirror is reported as `SERVER`, not as a failure of the
+  setup) and on the image `windows-latest`. Caches belong to the branch or pull request that made
+  them; a pull request also reads those of its base and of the default branch. Before the merge the
+  first run of every pull request downloads the official setups (about 1.25 GB); after the merge one
+  run by hand on the default branch fills the caches for all pull requests.
+- A change of the launcher checks reaches this job only with a new `LAUNCHER_COMMIT` here, and the
+  launcher branch must never be rewritten.
 - A change of the assets of `[Files]` needs a new map, which only a maintainer with the official
   setups can generate (`ci/e2e/gen_map.py`, README).
 - What needs a human, a GPU, Windows 7 or a game start stays in the manual test plan.
@@ -86,6 +107,15 @@ certificate.
 - A self-hosted runner: not discarded after the job, and the data would stay on a machine.
 - Running the setups locally under Wine: forbidden by the briefing (live servers, statistics), and
   Wine is not Windows.
+- Every pull request that touches the paths, without a label: rejected after the first review. The
+  path filter compares the whole pull request with its base, so every push to a long pull request
+  (also a documentation commit) would start a two-hour run with downloads from the mirror; a pull
+  request from a fork would also run without a review whenever its author had a contribution merged
+  before (GitHub's default).
+- The launcher checks from a branch of the launcher fork (the first version, input `launcher_ref`):
+  rejected after the first review. Code of another repository would run as administrator next to
+  the game data without a review here, any ref (also a foreign pull request) could be chosen by hand,
+  and no run was reproducible.
 - Leaving hangs to the step limits of GitHub: rejected after the first review. GitHub stops the
   whole step, so the result line, the uninstallation and the cleanup of that scenario are missing,
   and child processes may survive into the next scenario.
@@ -113,8 +143,12 @@ does not decide it (log lines of Inno itself, exit code 7, the components and ta
 `/COMPONENTS` and `/MERGETASKS`, whether the finished page runs), the GPU vendor of the runner, the
 build of innoextract with the current MSYS2 packages, the time a run needs (whether the time limits
 of decision 7 fit), whether `taskkill /T` reaches the child processes of a stopped setup or
-uninstaller, and whether the mirror answers the runner.
+uninstaller, whether the conditions of decision 1 behave as intended on the events `labeled` and
+`synchronize`, and whether the mirror answers the runner. The approval setting of decision 1 is a
+setting of each repository; nothing in the repository can check it, its owner must set it.
 
-Revision after the first review (2026-10-03): decision 7 (time limits, clean machine);
-`ci/e2e/tests/test_e2e_tools.py` checks that every action is pinned and that each budget lies below
-its step limit and leaves room for a setup run and the uninstallation.
+Revision after the first review (2026-10-03): decisions 1 (label and fork gate), 7 (time limits,
+clean machine) and 8 (pinned launcher commit), with the README sections on runs, approval,
+the pin and the caches; `ci/e2e/tests/test_e2e_tools.py` checks that the job condition and the
+concurrency group agree, that the launcher is a full commit, that every action is pinned and that
+each budget lies below its step limit and leaves room for a setup run and the uninstallation.

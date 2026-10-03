@@ -205,10 +205,40 @@ A new case gets the next free id of its block; `python ci/check_test_plan.py` ch
 ### End-to-end test on Windows
 `.github/workflows/e2e-realdata.yml` builds the real-data setups and installs, checks and uninstalls them on a GitHub-hosted
 Windows runner (`windows-latest`), which GitHub throws away after the job. The result is a red or green check in the pull
-request and a German/English table in the job summary. It runs for every pull request that changes a setup script
-(`*.iss`), `internal/lib`, `internal/unofficial_isl`, `ci/` or the workflow, and by hand: *Actions* > *E2E real data* >
-*Run workflow* (input `launcher_ref`: the branch of the launcher fork whose checks run, default `v2`). Run it once by hand
-on `v2` so that pull requests find the caches; expect about two hours per run.
+request and a German/English table in the job summary. Expect about two hours per run.
+
+**When it runs.** By hand: *Actions* > *E2E real data* > *Run workflow* (GitHub shows the button only once the workflow
+file is on the default branch; input `launcher_commit`: a full commit of the launcher fork on its branch
+`LAUNCHER_BRANCH`, empty for the pinned `LAUNCHER_COMMIT`, see below). For a pull request only if it comes from a branch
+of this repository, carries the label `e2e` (create it once) and changes a setup script (`*.iss`), `internal/lib`,
+`internal/unofficial_isl`, `ci/build.ps1`, `ci/build_helpers.ps1`, `ci/e2e/` or the workflow. GitHub compares the whole
+pull request with its base, not only the last push, so every push to a pull request with the label starts a run: add the
+label when a push needs the test and remove it before pushes that do not (documentation, review fixes elsewhere). Every
+run downloads the localized files of one language from the community mirror (17 files, among them the large voice files
+`data.ssa` of EE and AoC and 8 campaigns), so runs are not free for the community servers. A newer run for the same
+branch (a push to the pull request, or a dispatch on its branch) cancels the older one; adding another label or pushing
+to a pull request without the label cancels nothing.
+
+**Pull requests from forks never run it, and the repository must require approval.** A pull request runs the workflow
+file and the scripts of its own branch, next to the game data and the built installers, so a fork's pull request could
+publish them or send them anywhere. The condition in the workflow only stops harmless runs, because such a pull request
+could remove it. Every repository that holds this workflow (this fork, and upstream after a merge) must therefore set
+*Settings* > *Actions* > *General*, approval of fork pull request workflows: **Require approval for all external
+contributors** (GitHub's default asks only first-time contributors). Approve a run of an outside pull request only after
+reading its changes to `.github/` and `ci/`; to test such a change, push it to a branch of this repository.
+
+**The launcher checks come from a pinned commit.** `LAUNCHER_COMMIT` in the workflow is a full commit of the launcher
+fork (`LAUNCHER_REPOSITORY`), moved on purpose by a commit here; the job refuses a commit given by hand unless it has 40
+hex digits, and any commit that is not on `LAUNCHER_BRANCH` of the fork. No branch, tag or pull request ref is checked
+out: the launcher code runs as administrator next to the game data, and a run must be reproducible.
+
+**Caches.** The two caches (official setups, innoextract) belong to the branch or pull request that created them. A
+pull request run finds those of the pull request itself, of its base branch and of the default branch, not those of
+another branch: a dispatch on `v2` does not help a pull request from `v2` into `master`. Before the workflow is merged,
+the first run of each pull request therefore downloads both official setups again from `r2.empireearth.eu` (about
+1.25 GB) and builds innoextract; its later runs use the caches of the pull request. After the merge, start the workflow
+once by hand on the default branch, then every pull request finds the caches. GitHub deletes a cache that was not used
+for 7 days; the next run downloads again.
 
 What the job does, in this order:
 

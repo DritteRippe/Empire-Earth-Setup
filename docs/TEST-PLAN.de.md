@@ -2971,7 +2971,9 @@ Der Workflow `.github/workflows/e2e-realdata.yml` ([ADR 0011](adr/0011-real-data
 README „End-to-end test on Windows“) baut die Setups EE und NeoEE (Regular, echte AppIds,
 `-TestID 0`, unsigniert) aus den Dateien der offiziellen Setups 1.7.2 auf einem Windows-Runner von
 GitHub, den GitHub nach dem Lauf verwirft, und spielt dort fünf Szenarien still durch
-(`/VERYSILENT /SUPPRESSMSGBOXES`, Windows PowerShell 5.1, `ci/e2e/run_e2e.ps1`):
+(`/VERYSILENT /SUPPRESSMSGBOXES`, Windows PowerShell 5.1, `ci/e2e/run_e2e.ps1`). Er läuft von Hand
+oder für einen Pull Request aus einem Branch dieses Repositorys mit dem Label `e2e`, nie für Pull
+Requests aus Forks (README, „When it runs“):
 
 | Szenario | Ablauf |
 |---|---|
