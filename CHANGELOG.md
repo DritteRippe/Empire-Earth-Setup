@@ -583,7 +583,9 @@ setup version stays 1.7.2 until the release.
   `pins/online-files.txt`: a pinned path that no setup downloads stops every build, an online file
   without a pin stops a release build (also the placeholder build of CI) and is a warning in a test
   build, and a release build with the real data stops if `data\localized-text` pins a file
-  differently. `-DownloadHashesOnly` names such files too. The end-to-end check expects every
+  differently, or if `pins/online-files.txt` has another size for a file with the same SHA-256 than
+  the file in `data\localized-text` (the setups would reject the right file).
+  `-DownloadHashesOnly` names such files too. The end-to-end check expects every
   download to be pinned.
 
 ### Removed

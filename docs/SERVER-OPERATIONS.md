@@ -271,4 +271,7 @@ push).
 **Placeholder and test builds.** The hash list that `ci/build.ps1` writes from `data\localized-text`
 (the files the setup ships) applies before `pins/online-files.txt`, so a test build can pin a file
 differently on purpose (TEST-PLAN, TP-13 and TP-16). A release build with the real data stops if
-the two pin different files: then `data\localized-text` is not the data of the servers.
+the two pin different files: then `data\localized-text` is not the data of the servers. It also
+stops if `pins/online-files.txt` pins a file with the same SHA-256 as `data\localized-text`, but
+with another size than that file has: the size there is wrong (edited by hand, a merge conflict),
+and every setup would reject the right file. Regenerate the list (`-Update`) instead of editing it.

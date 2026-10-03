@@ -374,6 +374,20 @@ try {
   [System.IO.File]::WriteAllLines($localList, [string[]]@("$('1' * 64)  A/B.DLL", "$('2' * 64)  Lobby/zh/x.cfg"))
   Check 'Test-PinConsistency: equal pins, other paths: no conflict' @(Test-PinConsistency $files $pins $localList).Count 0
   Check 'Test-PinConsistency: without a hash list' @(Test-PinConsistency $files $pins (Join-Path $temp 'missing.sha256')).Count 0
+  # The same SHA-256 in both lists, but pins\online-files.txt has another size than the file in
+  # data\localized-text: the setup would reject the right file
+  $pinFolder = Join-Path $temp 'pinfolder'
+  New-Item -ItemType Directory -Path (Join-Path $pinFolder 'a') -Force | Out-Null
+  [System.IO.File]::WriteAllText((Join-Path (Join-Path $pinFolder 'a') 'b.dll'), 'abcd')
+  [System.IO.File]::WriteAllLines($localList, [string[]]@("$('1' * 64)  a/b.dll", "$('2' * 64)  Lobby/zh/x.cfg"))
+  Check 'Test-PinConsistency: same hashes and sizes (Lobby/zh/x.cfg not in the folder): no conflict' @(Test-PinConsistency $files $pins $localList $pinFolder).Count 0
+  [System.IO.File]::WriteAllText((Join-Path (Join-Path $pinFolder 'a') 'b.dll'), 'abcde')
+  $conflicts = @(Test-PinConsistency $files $pins $localList $pinFolder)
+  Check 'Test-PinConsistency: same SHA-256, another size: a conflict with both sizes' (($conflicts | ForEach-Object { "$($_.RelPath)|$($_.PinPath)|$($_.Local)|$($_.Online)|$($_.LocalSize)|$($_.OnlineSize)" }) -join ';') "a/b.dll|a/b.dll|$('1' * 64)|$('1' * 64)|5|4"
+  Check 'Test-PinConsistency: another size, without the folder: not compared' @(Test-PinConsistency $files $pins $localList).Count 0
+  [System.IO.File]::WriteAllLines($localList, [string[]]@("$('7' * 64)  a/b.dll"))
+  $conflicts = @(Test-PinConsistency $files $pins $localList $pinFolder)
+  Check 'Test-PinConsistency: another SHA-256 and another size: one conflict' (($conflicts | ForEach-Object { "$($_.RelPath)|$($_.Local)|$($_.Online)|$($_.LocalSize)|$($_.OnlineSize)" }) -join ';') "a/b.dll|$('7' * 64)|$('1' * 64)|5|4"
 
   # Write-OnlinePins: from a folder with the layout of /localized/, every file needed, a second copy
   # must be identical
@@ -551,7 +565,7 @@ exit 0
   [System.IO.File]::WriteAllText($pinned, 'voices')
   Remove-Item -LiteralPath $calls
   $run = Invoke-DryBuild ($common + @{ TestID = 0 })
-  Check 'dry run release, other file in data\localized-text: stops' $run.Error 'Release build: data\localized-text and pins\online-files.txt pin different files (listed above).'
+  Check 'dry run release, other file in data\localized-text: stops' $run.Error 'Release build: data\localized-text and pins\online-files.txt pin different files or sizes (listed above).'
   Check 'dry run release, other file in data\localized-text: names it' @($run.Output | Where-Object { $_ -like '    Game/de/EE/Data/data.ssa (Game/de/EE/Data/data.ssa): * here, a52c99648a3e4f6511253c6c0386fd26fffeb96443a1ae1f9ae87611e990e4e6 in pins\online-files.txt' }).Count 1
   Check 'dry run release, other file in data\localized-text: no compile' @(Get-Content -LiteralPath $calls | Where-Object { $_ -like '*/DInstallType=*' -and $_ -notlike '*/O- *' }).Count 0
   $run = Invoke-DryBuild ($common + @{ TestID = 1 })
@@ -560,6 +574,31 @@ exit 0
   # -DownloadHashesOnly writes the list and names the difference too
   $run = Invoke-DryBuild @{ DownloadHashesOnly = $true }
   Check '-DownloadHashesOnly, other file in data\localized-text: warning' @($run.Output | Where-Object { $_ -like 'Hash list: 1 online file(s) are pinned differently*' }).Count 1
+
+  # pins\online-files.txt pins the same file (SHA-256) as data\localized-text, but with another
+  # size (hand edit, merge conflict): a release build stops, a test build warns; with the right
+  # size they agree
+  $voicesHash = (Get-FileHash -LiteralPath $pinned -Algorithm SHA256).Hash.ToLowerInvariant()
+  function Set-TestPin([long]$Size) {
+    $text = [System.IO.File]::ReadAllText($realList)
+    $pattern = '(?m)^[0-9a-f]{64} [0-9]+ Game/de/EE/Data/data\.ssa$'
+    if ([regex]::Matches($text, $pattern).Count -ne 1) { throw 'Set-TestPin: the pin of Game/de/EE/Data/data.ssa not found once' }
+    [System.IO.File]::WriteAllText($repoPins, [regex]::Replace($text, $pattern, "$voicesHash $Size Game/de/EE/Data/data.ssa"), [System.Text.UTF8Encoding]::new($false))
+  }
+  Set-TestPin 7
+  Remove-Item -LiteralPath $calls
+  $run = Invoke-DryBuild ($common + @{ TestID = 0 })
+  Check 'dry run release, pinned size not the size of the file: stops' $run.Error 'Release build: data\localized-text and pins\online-files.txt pin different files or sizes (listed above).'
+  Check 'dry run release, pinned size not the size of the file: names both sizes' @($run.Output | Where-Object { $_ -ceq '    Game/de/EE/Data/data.ssa (Game/de/EE/Data/data.ssa): 6 bytes here, 7 in pins\online-files.txt with the same SHA-256 (its size is wrong)' }).Count 1
+  Check 'dry run release, pinned size not the size of the file: no compile' @(Get-Content -LiteralPath $calls | Where-Object { $_ -like '*/DInstallType=*' -and $_ -notlike '*/O- *' }).Count 0
+  $run = Invoke-DryBuild ($common + @{ TestID = 1 })
+  Check 'dry run test build, pinned size not the size of the file: no stop' $run.Error ''
+  Check 'dry run test build, pinned size not the size of the file: warning' @($run.Output | Where-Object { $_ -like 'Test build: 1 online file(s) are pinned differently*a size in pins\online-files.txt is wrong*' }).Count 1
+  Set-TestPin 6
+  $run = Invoke-DryBuild ($common + @{ TestID = 0 })
+  Check 'dry run release, same SHA-256 and size: no stop' $run.Error ''
+  Check 'dry run release, same SHA-256 and size: they agree' @($run.Output | Where-Object { $_ -like 'Pins: data\localized-text and pins\online-files.txt agree*' }).Count 1
+  Copy-Item -LiteralPath $realList -Destination $repoPins -Force
 
   # A placeholder build (CI) does not compare: its data\localized-text holds placeholders. The fake
   # Python stands in for the placeholder generator.

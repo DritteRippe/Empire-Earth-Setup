@@ -56,7 +56,8 @@ not the certificate. Files without pin keep the strict rule of ADR 0003 and ADR 
    `ci/build.ps1`: a pinned path that no setup downloads stops every build, an online file without a
    pin stops a release build (`TestID` 0, also the placeholder build of CI) and is a warning in a test
    build, and without `-Placeholders` a file that `data\localized-text` pins differently stops a
-   release build. `ci/online_pins.ps1 -Update -Source <copy of /localized/> [-CrossCheck <second
+   release build, as does a file with the same SHA-256 there whose pinned size is not its size (the
+   setup takes the size from `pins/online-files.txt` and would reject the right file). `ci/online_pins.ps1 -Update -Source <copy of /localized/> [-CrossCheck <second
    copy>]` writes the list.
 3. **State of each file server** (`SelectOnlineFilesServer`, `ClassifyOnlineFilesServer`): the
    request with certificate validation (`GetHttpStatus`, as before) gets an answer: **verified**.

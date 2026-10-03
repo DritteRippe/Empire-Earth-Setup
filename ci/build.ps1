@@ -15,7 +15,9 @@
        setup downloads stops every build; an online file without a pin there stops a release build
        (TestID 0, also without -TestID) and is a warning in a test build; and without
        -Placeholders a file that both lists pin differently stops a release build (a warning in a
-       test build): data\localized-text is then not the data of the file servers.
+       test build): data\localized-text is then not the data of the file servers. So does a file
+       that both pin with the same SHA-256 when its size in pins\online-files.txt is not the size
+       of the file in data\localized-text: the setups would reject the right file.
     4. Compile every variant with ISCC /DInstallType /DInstallMode /DEE_AppID /DNeoEE_AppID
        [/DTestID] [/DSetupBuild] into its own output folder and check that the file name proves the
        variant took effect.
@@ -215,17 +217,24 @@ $LocalizedFolder = Join-Path $Root 'data\localized-text'
 $DownloadHashList = Join-Path $Root 'data\localized-text.sha256'
 $OnlinePinList = Join-Path $Root 'pins\online-files.txt'
 
-# The pins of pins\online-files.txt against the hash list of this build: the online files that
-# both pin, but differently (Test-PinConsistency), printed as a warning; returns their number
+# The pins of pins\online-files.txt against the hash list and the files of this build: the online
+# files that both pin, but differently (Test-PinConsistency: another SHA-256, or the same one with
+# another size), printed as a warning; returns their number
 function Show-PinConflicts([object[]]$Files, [object[]]$Pins, [string]$Kind) {
-  $conflicts = @(Test-PinConsistency $Files $Pins $DownloadHashList)
+  $conflicts = @(Test-PinConsistency $Files $Pins $DownloadHashList $LocalizedFolder)
   if ($conflicts.Count -eq 0) {
     Write-Host 'Pins: data\localized-text and pins\online-files.txt agree on every online file both pin.'
     return 0
   }
   Write-Warning ("${Kind}: $($conflicts.Count) online file(s) are pinned differently by data\localized-text and pins\online-files.txt. " +
-    'Either data\localized-text is not the data of the file servers, or a file changed on the servers (docs\SERVER-OPERATIONS.md, section 6):')
-  foreach ($conflict in $conflicts) { Write-Host "    $($conflict.RelPath) ($($conflict.PinPath)): $($conflict.Local) here, $($conflict.Online) in pins\online-files.txt" }
+    'Either data\localized-text is not the data of the file servers, a file changed on the servers, or a size in pins\online-files.txt is wrong (docs\SERVER-OPERATIONS.md, section 6):')
+  foreach ($conflict in $conflicts) {
+    if ($conflict.Local -cne $conflict.Online) {
+      Write-Host "    $($conflict.RelPath) ($($conflict.PinPath)): $($conflict.Local) here, $($conflict.Online) in pins\online-files.txt"
+    } else {
+      Write-Host "    $($conflict.RelPath) ($($conflict.PinPath)): $($conflict.LocalSize) bytes here, $($conflict.OnlineSize) in pins\online-files.txt with the same SHA-256 (its size is wrong)"
+    }
+  }
   return $conflicts.Count
 }
 
@@ -372,7 +381,7 @@ try {
   if ($Placeholders) {
     Write-Host 'Pins: data\localized-text holds placeholders, not compared with pins\online-files.txt.'
   } elseif ((Show-PinConflicts $onlineFiles $onlinePins $buildKind) -gt 0 -and $release) {
-    throw 'Release build: data\localized-text and pins\online-files.txt pin different files (listed above).'
+    throw 'Release build: data\localized-text and pins\online-files.txt pin different files or sizes (listed above).'
   }
 
   # Pass 2: the real compile, one output folder per variant.

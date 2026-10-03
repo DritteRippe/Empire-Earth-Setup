@@ -639,19 +639,35 @@ function Test-OnlinePinCoverage([object[]]$Files, [object[]]$Pins) {
   return [pscustomobject]@{ Missing = [string[]]@($missing); Stale = [string[]]@($stale) }
 }
 
-# The online files of $Files whose pin in the hash list of the build ($HashList, by PinPath) differs
-# from their pin in pins\online-files.txt ($Pins, by RelPath): one object with RelPath, PinPath,
-# Local and Online (lowercase hashes) per file, sorted by RelPath, each once. The setup uses the pin
-# of the hash list then (downloads.iss, GetOnlineFilePin), so in a release build both must agree:
-# a difference means that data\localized-text is not the data the servers have.
-function Test-PinConsistency([object[]]$Files, [object[]]$Pins, [string]$HashList) {
+# The online files of $Files that the hash list of the build ($HashList, by PinPath) and
+# pins\online-files.txt ($Pins, by RelPath) both pin, but not alike: with another SHA-256, or with
+# the same SHA-256 while the file in $Folder (data\localized-text, by PinPath; not compared if
+# $Folder is omitted or the file is missing there) has another size than the pin. One object per
+# file with RelPath, PinPath, Local and Online (lowercase hashes), LocalSize (bytes of the file in
+# $Folder, -1 if not known) and OnlineSize (the size of the pin), sorted by RelPath, each once. The
+# setup uses the pin of the hash list if the hashes differ, and the size of pins\online-files.txt
+# if they agree (downloads.iss, GetOnlineFilePin), so in a release build both must agree: another
+# hash means that data\localized-text is not the data the servers have; another size with the same
+# hash means that the size in pins\online-files.txt is wrong, and the setup would reject the right
+# file.
+function Test-PinConsistency([object[]]$Files, [object[]]$Pins, [string]$HashList, [string]$Folder) {
   $local = Read-DownloadHashList $HashList
-  $online = [System.Collections.Generic.Dictionary[string, string]]::new([System.StringComparer]::Ordinal)
-  foreach ($pin in $Pins) { $online[$pin.RelPath] = $pin.Sha256.ToLowerInvariant() }
+  $online = [System.Collections.Generic.Dictionary[string, object]]::new([System.StringComparer]::Ordinal)
+  foreach ($pin in $Pins) { $online[$pin.RelPath] = $pin }
   $result = [System.Collections.Generic.SortedDictionary[string, object]]::new([System.StringComparer]::Ordinal)
   foreach ($file in $Files) {
-    if ($local.ContainsKey($file.PinPath) -and $online.ContainsKey($file.RelPath) -and $local[$file.PinPath] -cne $online[$file.RelPath]) {
-      $result[$file.RelPath] = [pscustomobject]@{ RelPath = $file.RelPath; PinPath = $file.PinPath; Local = $local[$file.PinPath]; Online = $online[$file.RelPath] }
+    if (-not $local.ContainsKey($file.PinPath) -or -not $online.ContainsKey($file.RelPath)) { continue }
+    $pin = $online[$file.RelPath]
+    $localHash = $local[$file.PinPath]
+    $onlineHash = $pin.Sha256.ToLowerInvariant()
+    $localSize = [long]-1
+    if ($Folder) {
+      $path = Join-Path $Folder ($file.PinPath.Replace('/', [System.IO.Path]::DirectorySeparatorChar))
+      if (Test-Path -LiteralPath $path -PathType Leaf) { $localSize = [long](Get-Item -LiteralPath $path).Length }
+    }
+    if ($localHash -cne $onlineHash -or ($localSize -ge 0 -and $localSize -ne [long]$pin.Size)) {
+      $result[$file.RelPath] = [pscustomobject]@{ RelPath = $file.RelPath; PinPath = $file.PinPath; Local = $localHash; Online = $onlineHash
+        LocalSize = $localSize; OnlineSize = [long]$pin.Size }
     }
   }
   return @($result.Values)
