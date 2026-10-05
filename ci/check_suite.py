@@ -42,7 +42,8 @@ to stay safe and installable:
             SuiteIsProductUninstaller) and ping for a pause; the data folders it offers are no link and not behind
             one, and not those of a product that stays installed; DelTree only in SuiteDeleteDataFolders, called only
             after the answer "Delete" (the second button, never in a silent run); DeleteFile and RemoveDir only
-            on the paths of the helpers of suite_common.iss; no registry deletion except RemoveSuiteRecord;
+            on the paths of the helpers of suite_common.iss, and RemoveDir on the empty {app} in
+            SuiteRemoveEmptyRoot (not a link, not behind one); no registry deletion except RemoveSuiteRecord;
             [UninstallDelete] names {app}\Logs only; no Setup-only function (WizardSilent)
   [Safety]  no suite file mentions the registry key of the CD keys of the original game, the library of the
             NeoEE CD key registration or its function (the suite never reimplements or bypasses the
@@ -425,10 +426,17 @@ def check_uninstaller(uninstaller, main, files, errors):
                           "SuiteLauncherDataFile")
     if "SuiteLauncherDataFile(" not in data:
         errors.append(f"{where}: SuiteRemoveUserData must take the files it deletes from SuiteLauncherDataFile")
+    # RemoveDir(Root) only in SuiteRemoveEmptyRoot, where Root is the folder of the suite and no link
+    empty_root = bodies.get("SuiteRemoveEmptyRoot", "")
+    root_ok = (re.findall(r"\bRoot\s*:=\s*([^;]*);", empty_root) == ["RemoveBackslash(ExpandConstant('{app}'))"]
+               and all_code.count("RemoveDir(Root)") == empty_root.count("RemoveDir(Root)") == 1)
     for argument in call_arguments(all_code, "RemoveDir"):
-        if argument != "Target":
+        if argument != "Target" and not (argument == "Root" and root_ok):
             errors.append(f"{where}: RemoveDir({argument}): the uninstaller removes only the folders of "
-                          "SuiteEmptyFolder and SuiteLauncherDataDir")
+                          "SuiteEmptyFolder and SuiteLauncherDataDir, and the empty {app} in SuiteRemoveEmptyRoot")
+    if empty_root and not re.search(r"if\s+not\s+DirExists\(Root\)\s+or\s+SuiteIsBehindLink\(Root,\s*Root\)\s+then\s+Exit;",
+                                    empty_root):
+        errors.append(f"{where}: SuiteRemoveEmptyRoot must leave {{app}} alone if it is a link (SuiteIsBehindLink)")
     if "SuiteEmptyFolder(" not in data or "SuiteLauncherDataDir(" not in data:
         errors.append(f"{where}: SuiteRemoveUserData must take the folders it removes from SuiteEmptyFolder and SuiteLauncherDataDir")
     if re.search(r"\bWizardSilent\b|\bSuiteSilent\b|\bWizardForm\b", all_code):
@@ -654,6 +662,12 @@ def self_test(source_root):
          "the uninstaller deletes only the launcher files"),
         ("RemoveDir of another folder", replace(uninstall, "RemoveDir(Target)", "RemoveDir(ExpandConstant('{app}'))", 2),
          "the uninstaller removes only the folders of SuiteEmptyFolder"),
+        ("RemoveDir(Root) of another folder", replace(uninstall, "Root := RemoveBackslash(ExpandConstant('{app}'));",
+                                                      "Root := ExpandConstant('{localappdata}');"),
+         "the uninstaller removes only the folders of SuiteEmptyFolder"),
+        ("empty {app} removed through a link", replace(uninstall, "if not DirExists(Root) or SuiteIsBehindLink(Root, Root) then",
+                                                       "if not DirExists(Root) then"),
+         "SuiteRemoveEmptyRoot must leave {app} alone if it is a link"),
         ("registry deletion in the uninstaller", replace(uninstall, "  Total := 0;\n", "  RegDeleteKeyIncludingSubkeys(HKLM, 'Software\\Microsoft');\n  Total := 0;\n"),
          "only RemoveSuiteRecord deletes registry keys"),
         ("WizardSilent in the uninstaller", replace(uninstall, "  Total := 0;\n", "  if WizardSilent then Total := 0;\n  Total := 0;\n"),

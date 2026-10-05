@@ -9,6 +9,7 @@
 //                         the launcher's settings and log of the account that uninstalls, then, only after
 //                         the answer "Delete", the exact folders with user data; Inno Setup removes the files
 //                         of the launcher, the Mod Creator and {app}\Logs ([UninstallDelete]) itself
+//   usDone                the folder of the suite, if Inno Setup could not remove it although it is empty
 // A silent uninstallation (/SILENT, /VERYSILENT) asks nothing, shows nothing and keeps every user data
 // folder. Nothing here touches the registry keys of the games (the product uninstallers do their own
 // cleanup, setup_is6.iss) or the keys of the CD key registration; the only registry deletion of the suite is
@@ -372,4 +373,28 @@ begin
   if (Target <> '') and DirExists(Target) then
     if RemoveDir(Target) then
       Log('Empty folder removed: ' + Target);
+end;
+
+// usDone: Inno Setup removes the folder of the suite right after it deleted unins000.exe; while a virus scanner
+// still holds the deleted file, the folder is not empty yet and stays behind, empty (seen on the Windows
+// runners of CI). Tries again for about 3 s; RemoveDir never removes a folder with content, and a folder that
+// is a link or behind one is left alone.
+procedure SuiteRemoveEmptyRoot;
+var
+  Root: String;
+  I: Integer;
+begin
+  Root := RemoveBackslash(ExpandConstant('{app}'));
+  if not DirExists(Root) or SuiteIsBehindLink(Root, Root) then
+    Exit;
+  for I := 1 to 15 do
+  begin
+    if RemoveDir(Root) then
+    begin
+      Log('Empty folder of the suite removed (try ' + IntToStr(I) + '): ' + Root);
+      Exit;
+    end;
+    Sleep(200);
+  end;
+  Log('The folder of the suite stays (not empty or still in use): ' + Root);
 end;

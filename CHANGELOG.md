@@ -614,7 +614,9 @@ setup version stays 1.7.2 until the release.
   (`Users`, `Data\Saved Games` below the install root of each product) and the launcher's `Backups` and
   `Mod Creator` folders are deleted only after the second button "Löschen" of one task dialog; "Behalten
   (empfohlen)" is the default, a silent uninstallation keeps all of it. Folders that are empty afterwards are
-  removed from the inside out. Nothing in the suite writes or deletes below `Software\Sierra`. The start menu
+  removed from the inside out; the empty folder of the suite is removed again at the end if Inno Setup could not
+  (a virus scanner still holding the deleted `unins000.exe`). Nothing in the suite writes or deletes below
+  `Software\Sierra`. The start menu
   folder `Empire Earth Community` also has `Mod Creator`, `Uninstall Empire Earth Community` and, for a product
   that has the tool, `Empire Earth Diagnostic` and `Neo Empire Earth Diagnostic`; the game shortcuts show the
   icon of the game program. `suite_common.iss` has the pure helpers (88 more unit tests); `ci/check_suite.py`

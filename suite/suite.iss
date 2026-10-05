@@ -529,7 +529,7 @@ end;
 
 // The uninstaller (suite_uninstall.iss): at usUninstall the uninstallers of the products run, at
 // usPostUninstall it removes what the suite created in code (shortcuts and record are not in its uninstall
-// log) and asks about the user data.
+// log) and asks about the user data, at usDone it removes the empty folder of the suite if Inno Setup could not.
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 begin
   if CurUninstallStep = usUninstall then
@@ -539,5 +539,7 @@ begin
     ApplySuiteShortcuts(True);
     RemoveSuiteRecord;
     SuiteRemoveUserData;
-  end;
+  end
+  else if CurUninstallStep = usDone then
+    SuiteRemoveEmptyRoot;
 end;
