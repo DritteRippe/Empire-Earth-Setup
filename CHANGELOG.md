@@ -34,6 +34,7 @@ setup version stays 1.7.2 until the release.
   pass 1, identical bytes required in pass 2 and 3, every slice at most 50,000,000 bytes, inputs checked
   against their `.sha256`, `SHA256SUMS.txt` and `BUILD-INFO.txt`); CI builds it with placeholder products
   and uploads it as an artifact. Tested by `ci/tests/suite_build.tests.ps1`.
+  `-TestWrongEEPin` (placeholders only) builds the suite with a wrong pin of the EE setup for the CI scenario S5.
 - `ci/make_placeholder_assets.py`: creates placeholder assets for contributors and CI, and lists
   the assets a variant needs (`--list`).
 - `ci/check_messages.py` (also run by the workflow): finds duplicate messages, `==` typos, unknown

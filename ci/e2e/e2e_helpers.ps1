@@ -51,8 +51,29 @@ $E2EGames = @{
   AoC = @{ Id = 'AoC'; Folder = 'Empire Earth - The Art of Conquest'; Exe = 'EE-AOC.exe';       Component = 'gameaoc'; EndingEpoch = 14 }
 }
 
-# The product configuration (config_ee.iss, config_neoee.iss) and the real AppIds of the builds
+# The AppIds of another build than the real-data one: the placeholder builds of the suite scenarios (CI job
+# suite-e2e of build.yml, ci/e2e/run_e2e_suite.ps1) use the dummy AppIds of ci/build.ps1. Set once at the start
+# of such a run; every function below that names a product (the uninstall keys, the cleanup, the checks) then
+# uses them. @{} (the default): the real AppIds.
+$script:E2EAppIdOverride = @{}
+
+function Set-E2EAppIdOverride([hashtable]$Ids) {
+  $script:E2EAppIdOverride = @{}
+  foreach ($name in $Ids.Keys) {
+    if (@('EE', 'NeoEE') -notcontains $name) { throw "Unknown product $name" }
+    if ([string]$Ids[$name] -cnotmatch '^[0-9A-Fa-f]{8}(-[0-9A-Fa-f]{4}){3}-[0-9A-Fa-f]{12}$') { throw "AppId of $name is not a GUID without braces" }
+    $script:E2EAppIdOverride[$name] = [string]$Ids[$name]
+  }
+}
+
+# The product configuration (config_ee.iss, config_neoee.iss) and the AppIds of the build
 function Get-E2EProduct([string]$Id) {
+  $product = Get-E2EProductRecord $Id
+  if ($script:E2EAppIdOverride.ContainsKey($Id)) { $product.AppId = $script:E2EAppIdOverride[$Id] }
+  return $product
+}
+
+function Get-E2EProductRecord([string]$Id) {
   switch ($Id) {
     'EE' {
       return @{

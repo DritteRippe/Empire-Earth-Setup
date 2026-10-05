@@ -304,6 +304,16 @@ try {
   Check 'product NeoEE setup' (Get-E2EProduct 'NeoEE').SetupFile 'NeoEE_v2.0.0.5_Setup_v1.7.2.exe'
   $script:Count++
   try { Get-E2EProduct 'Other' | Out-Null; $script:Failures++; Write-Host 'FAIL unknown product: no exception' } catch { }
+  # The AppIds of the placeholder builds of the suite scenarios replace the real ones, and only those
+  Set-E2EAppIdOverride @{ EE = '00000000-0000-0000-0000-0000000000EE' }
+  Check 'override: EE' (Get-E2EProduct 'EE').AppId '00000000-0000-0000-0000-0000000000EE'
+  Check 'override: NeoEE unchanged' (Get-E2EProduct 'NeoEE').AppId 'A24FCC7A-5491-4FEA-837B-4E4430C349DA'
+  $script:Count++
+  try { Set-E2EAppIdOverride @{ EE = 'not-a-guid' }; $script:Failures++; Write-Host 'FAIL override: a bad AppId accepted' } catch { }
+  $script:Count++
+  try { Set-E2EAppIdOverride @{ Other = '00000000-0000-0000-0000-0000000000EE' }; $script:Failures++; Write-Host 'FAIL override: an unknown product accepted' } catch { }
+  Set-E2EAppIdOverride @{}
+  Check 'override: reset' (Get-E2EProduct 'EE').AppId '4C0B46D8-E7EB-4B95-97D4-A578D9B914C6'
 } finally {
   Remove-Item -LiteralPath $temp -Recurse -Force -ErrorAction SilentlyContinue
 }

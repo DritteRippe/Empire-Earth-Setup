@@ -286,6 +286,21 @@ exit 0
   & $build -Placeholders -Iscc $fakeIscc -OutputDir $out 3>$null 6>$null
   Check 'second run: stale slice gone, foreign file kept' (Get-Names $out) "BUILD-INFO.txt|$base-1.bin|$base-2.bin|$base-3.bin|$base.exe|SHA256SUMS.txt|keep.txt"
 
+  # -TestWrongEEPin (CI scenario S5): the pin of the EE setup is wrong in the defines, the file is untouched
+  Reset-Fake ''
+  $outPin = Join-Path $temp 'out_suite_wrongpin'
+  & $build -Placeholders -Iscc $fakeIscc -OutputDir $outPin -TestWrongEEPin 3>$null 6>$null
+  $pinLines = @(Get-Calls)
+  $realPin = (Read-Sha256File (Join-Path $repo 'out\EE_Regular\EE_Setup_Test.exe.sha256')).Hash
+  $firstDigit = '0'
+  if ($realPin[0] -ceq '0') { $firstDigit = '1' }
+  Check 'wrong pin: ISCC gets the pin with another first digit' ($pinLines[2] -like "*/DEESetupSHA256=$($firstDigit + $realPin.Substring(1)) *") $true
+  Check 'wrong pin: not the real pin' ($pinLines[2] -like "*/DEESetupSHA256=$realPin *") $false
+  Check 'wrong pin: the NeoEE pin is the real one' ($pinLines[2] -like "*/DNeoEESetupSHA256=$((Read-Sha256File (Join-Path $repo 'out\NeoEE_Regular\NeoEE_Setup_Test.exe.sha256')).Hash) *") $true
+  Check 'wrong pin: BUILD-INFO says so' ([System.IO.File]::ReadAllText((Join-Path $outPin 'BUILD-INFO.txt')) -like '*WRONG EE PIN*') $true
+  Check 'wrong pin: the other build has no such line' ([System.IO.File]::ReadAllText((Join-Path $out 'BUILD-INFO.txt')) -like '*WRONG EE PIN*') $false
+  CheckThrows 'wrong pin: only with -Placeholders' { & $build -Iscc $fakeIscc -OutputDir (Join-Path $temp 'out_x') -TestWrongEEPin } '*only for -Placeholders*'
+
   # An explicit slice size, a test build, install sizes
   Reset-Fake ''
   $out2 = Join-Path $temp 'out_suite2'

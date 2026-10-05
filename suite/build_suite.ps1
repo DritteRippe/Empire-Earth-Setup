@@ -76,6 +76,12 @@
 .PARAMETER TestID
   Test build number (/DTestID, a whole number >= 0; 0 = release build).
 
+.PARAMETER TestWrongEEPin
+  Only with -Placeholders, for the CI scenario S5 (ci\e2e\run_e2e_suite.ps1): compiles a wrong SHA-256 of the
+  EE setup into the suite (the first hex digit of the real one changed). The embedded setup is untouched, so the
+  suite must refuse it before it runs anything (exit code 15). Put the output in its own -OutputDir. Useless,
+  never distribute.
+
 .PARAMETER Iscc
   Path to ISCC.exe. Default: $env:ISCC, the "Inno Setup 6" folder in Program Files, then PATH.
 
@@ -112,6 +118,7 @@ param(
   [long]$NeoEEInstallSize,
   [ValidateRange(0, 2147483647)]
   [int]$TestID = 0,
+  [switch]$TestWrongEEPin,
   [string]$Iscc,
   [string]$RequireVersion
 )
@@ -141,6 +148,7 @@ function Resolve-Input([string]$Path) {
 }
 
 if (-not (Test-Path -LiteralPath $SuiteScript -PathType Leaf)) { throw "suite.iss not found: $SuiteScript" }
+if ($TestWrongEEPin -and -not $Placeholders) { throw '-TestWrongEEPin is only for -Placeholders builds (a setup with a wrong pin must never be built from real inputs).' }
 $LauncherCommit = Assert-CommitText $LauncherCommit '-LauncherCommit'
 $ModCreatorCommit = Assert-CommitText $ModCreatorCommit '-ModCreatorCommit'
 
@@ -221,9 +229,18 @@ try {
   }
   Write-Host "ISCC $version ($IsccPath)"
 
+  # The pin compiled into the suite: the hash of the file, or with -TestWrongEEPin one with another first digit
+  $eePin = $ee.Hash
+  if ($TestWrongEEPin) {
+    $firstDigit = '0'
+    if ($eePin[0] -ceq '0') { $firstDigit = '1' }
+    $eePin = $firstDigit + $eePin.Substring(1)
+    Write-Warning 'TEST BUILD WITH A WRONG EE PIN (-TestWrongEEPin): the suite refuses the EE setup. Never distribute it.'
+  }
+
   $common = @(
     "/DSuiteAppID=$SuiteAppID", "/DEE_AppID=$EEAppID", "/DNeoEE_AppID=$NeoEEAppID",
-    "/DEESetupFile=$($ee.Path)", "/DEESetupSHA256=$($ee.Hash)", "/DEESetupSize=$($ee.Size)",
+    "/DEESetupFile=$($ee.Path)", "/DEESetupSHA256=$eePin", "/DEESetupSize=$($ee.Size)",
     "/DNeoEESetupFile=$($neo.Path)", "/DNeoEESetupSHA256=$($neo.Hash)", "/DNeoEESetupSize=$($neo.Size)",
     "/DLauncherDir=$LauncherDir", "/DModCreatorDir=$ModCreatorDir", "/DLicenseDir=$LicenseDir"
   )
@@ -318,6 +335,7 @@ try {
   if (-not $setupCommit) { $setupCommit = 'unknown (no Git checkout)' }
   $info = @()
   if ($Placeholders) { $info += 'PLACEHOLDER BUILD: dummy AppIds, placeholder product setups and stub launcher. Useless, never distribute.', '' }
+  if ($TestWrongEEPin) { $info += 'WRONG EE PIN (-TestWrongEEPin): the suite refuses the EE setup with exit code 15 (CI scenario S5). Never distribute.', '' }
   $info += @(
     "Empire Earth Community Setup $suiteVersion (suite installer, ADR 0013)",
     "Built (UTC):          $([DateTime]::UtcNow.ToString('yyyy-MM-dd HH:mm:ss'))",
