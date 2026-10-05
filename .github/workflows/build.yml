@@ -74,6 +74,17 @@ jobs:
         shell: pwsh
         run: python ci/check_suite.py --self-test
 
+      # The legal texts the suite shows itself (its product setups skip them when they run silently, contract
+      # 1.7 point 4) are the texts of the product setups: the legal question in en/de/fr, the EULA file and the
+      # NeoEE rules file; then the self-test (changed copies must fail)
+      - name: Check the legal texts of the suite installer
+        shell: pwsh
+        run: python ci/check_suite_texts.py
+
+      - name: Check the legal texts of the suite installer (self-test)
+        shell: pwsh
+        run: python ci/check_suite_texts.py --self-test
+
       # docs/CONTRACT.md must be identical in the launcher repository, which CI cannot reach: the
       # copy check runs locally (README, "Verify"); here only its self-test.
       - name: Contract copy check (self-test)
