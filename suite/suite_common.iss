@@ -456,3 +456,251 @@ begin
   else
     Result := SuiteCdKeyUnknown;
 end;
+
+// ---- the product runner (suite_run.iss) --------------------------------------------------------
+
+const
+  // What the product runner makes of the exit code of a product setup (SuiteChildExitKind)
+  SuiteChildOk = 0;                // 0
+  SuiteChildNotStarted = 1;        // 1: Setup did not start, in the WP0 spike a game mutex that was held
+  SuiteChildCancelled = 2;         // 2 and 5: cancelled by the user (the advanced mode shows the wizard)
+  SuiteChildFatal = 3;             // 3, 4 and 6: a fatal error while preparing, installing, or Setup was killed
+  SuiteChildPrecondition = 4;      // 7 and 8: the preparation found that the installation cannot go on
+  SuiteChildOther = 5;             // any other exit code
+
+  // How many old shortcut files of a product setup the suite deletes (SuiteLegacyShortcutPath)
+  SuiteLegacyShortcutCount = 5;
+
+// The product setup's AppName, the name its own shortcuts have (config_ee.iss and config_neoee.iss: MyAppName)
+function SuiteProductAppName(const Product: String): String;
+begin
+  if CompareText(Product, SuiteProductEE) = 0 then
+    Result := 'Empire Earth'
+  else if CompareText(Product, SuiteProductNeoEE) = 0 then
+    Result := 'NeoEE'
+  else
+    Result := '';
+end;
+
+// The old shortcut files that earlier standalone runs of a product setup left (contract 1.7 point 7),
+// exactly these and no others: Index 1 to SuiteLegacyShortcutCount, '' for any other number or product.
+// DesktopDir is {autodesktop}, GroupDir the start menu folder of the products ({autoprograms}\Empire Earth).
+function SuiteLegacyShortcutPath(const Product: String; Index: Integer; const DesktopDir, GroupDir: String): String;
+var
+  Name: String;
+begin
+  Result := '';
+  Name := SuiteProductAppName(Product);
+  if Name = '' then
+    Exit;
+  case Index of
+    1: Result := AddBackslash(DesktopDir) + Name + '.lnk';
+    2: Result := AddBackslash(DesktopDir) + Name + ' - AoC.lnk';
+    3: Result := AddBackslash(GroupDir) + Name + '.lnk';
+    4: Result := AddBackslash(GroupDir) + Name + ' - AoC.lnk';
+    5: Result := AddBackslash(GroupDir) + Name + ' Diagnostic.lnk';
+  end;
+end;
+
+// A value for the command line of a product setup: inside quotes, without a quote character of its own
+// (no Windows path has one), and a trailing backslash doubled so that it cannot escape the closing quote
+function SuiteQuoteArgument(const Value: String): String;
+var
+  Text: String;
+begin
+  Text := Value;
+  StringChangeEx(Text, '"', '', True);
+  if (Length(Text) > 0) and (Text[Length(Text)] = '\') then
+    Text := Text + '\';
+  Result := '"' + Text + '"';
+end;
+
+// The language name for /LANG of a product setup: letters, digits and the underscore of the language
+// names of the products (en, de, fr, pt_BR, ...); anything else is English
+function SuiteLanguageArgument(const Language: String): String;
+var
+  I: Integer;
+  C: Char;
+begin
+  Result := Language;
+  for I := 1 to Length(Result) do
+  begin
+    C := Result[I];
+    if not (((C >= 'a') and (C <= 'z')) or ((C >= 'A') and (C <= 'Z')) or ((C >= '0') and (C <= '9')) or (C = '_')) then
+    begin
+      Result := 'en';
+      Exit;
+    end;
+  end;
+  if Result = '' then
+    Result := 'en';
+end;
+
+// Removes every switch "<Switch>value" or "<Switch>"value"" (Switch like '/MERGETASKS=', compared without
+// case, only at the start of Args or after a blank) with one blank from Args and returns the values, comma separated
+function SuiteTakeSwitchValues(var Args: String; const Switch: String): String;
+var
+  Wanted, Value: String;
+  Offset, P, Start, Stop, After: Integer;
+begin
+  Result := '';
+  Wanted := LowerCase(Switch);
+  Offset := 1;
+  while Offset <= Length(Args) do
+  begin
+    P := Pos(Wanted, Copy(LowerCase(Args), Offset, Length(Args)));
+    if P = 0 then
+      Exit;
+    P := Offset + P - 1;
+    if (P > 1) and (Args[P - 1] <> ' ') then
+    begin
+      Offset := P + 1;
+      Continue;
+    end;
+    Start := P + Length(Switch);
+    if (Start <= Length(Args)) and (Args[Start] = '"') then
+    begin
+      Stop := Start + 1;
+      while (Stop <= Length(Args)) and (Args[Stop] <> '"') do
+        Stop := Stop + 1;
+      Value := Copy(Args, Start + 1, Stop - Start - 1);
+      After := Stop + 1;
+    end
+    else
+    begin
+      Stop := Start;
+      while (Stop <= Length(Args)) and (Args[Stop] <> ' ') do
+        Stop := Stop + 1;
+      Value := Copy(Args, Start, Stop - Start);
+      After := Stop;
+    end;
+    // the switch goes with one of its blanks, so that no double blank is left
+    if P > 1 then
+    begin
+      Delete(Args, P - 1, After - P + 1);
+      Offset := P - 1;
+    end
+    else
+    begin
+      if (After <= Length(Args)) and (Args[After] = ' ') then
+        After := After + 1;
+      Delete(Args, P, After - P);
+      Offset := 1;
+    end;
+    if Value <> '' then
+    begin
+      if Result <> '' then
+        Result := Result + ',';
+      Result := Result + Value;
+    end;
+  end;
+end;
+
+// The command line of a product setup (contract 1.7 point 3).
+//   default:  /SILENT /SUPPRESSMSGBOXES /NORESTART /ALLUSERS /LANG=<Lang> /NOICONS /MERGETASKS="!desktopicon"
+//             /LOG="<LogFile>", and /TYPE=full for the first installation of the product only: a repair or an
+//             update passes neither /TYPE nor /DIR, so the product keeps its folder, its components and its tasks
+//   advanced: /LANG /NOICONS /MERGETASKS /LOG only, the product setup shows its full wizard
+// ExtraArgs (the CI pass-through /EEArgs, /NeoEEArgs) is appended last. Its /MERGETASKS is merged into ours:
+// a second /MERGETASKS would leave open which of the two a product setup reads, and a lost "!neoee_cdkeys"
+// would let a test run register the CD keys. A /TYPE in ExtraArgs replaces /TYPE=full.
+function SuiteProductArguments(FirstInstall, Advanced: Boolean; const Lang, LogFile, ExtraArgs: String): String;
+var
+  Extra, Tasks, Merged: String;
+begin
+  Extra := Trim(ExtraArgs);
+  Tasks := SuiteTakeSwitchValues(Extra, '/MERGETASKS=');
+  Extra := Trim(Extra);
+  Merged := '!desktopicon';
+  if Tasks <> '' then
+    Merged := Merged + ',' + Tasks;
+  if Advanced then
+    Result := '/LANG=' + SuiteLanguageArgument(Lang) + ' /NOICONS'
+  else
+    Result := '/SILENT /SUPPRESSMSGBOXES /NORESTART /ALLUSERS /LANG=' + SuiteLanguageArgument(Lang) + ' /NOICONS';
+  Result := Result + ' /MERGETASKS=' + SuiteQuoteArgument(Merged) + ' /LOG=' + SuiteQuoteArgument(LogFile);
+  if FirstInstall and not Advanced and (Pos('/type=', LowerCase(Extra)) = 0) then
+    Result := Result + ' /TYPE=full';
+  if Extra <> '' then
+    Result := Result + ' ' + Extra;
+end;
+
+// True if the product has no uninstall entry yet, so its setup is a first installation
+function SuiteIsFirstInstall(State: Integer): Boolean;
+begin
+  Result := State = SuiteStateNone;
+end;
+
+// The file name of the log of a product setup: <Product>-<Stamp>.log (Stamp: yyyyMMdd-HHmm)
+function SuiteChildLogName(const Product, Stamp: String): String;
+begin
+  Result := Product + '-' + Stamp + '.log';
+end;
+
+// What an exit code of a product setup means (Inno Setup's documented codes): 0 success, 1 Setup failed to
+// initialize (the game mutex of the product setup), 2 and 5 cancelled, 3, 4 and 6 fatal error or killed,
+// 7 and 8 the installation cannot go on; anything else is another failure (e.g. a crash)
+function SuiteChildExitKind(ExitCode: Integer): Integer;
+begin
+  case ExitCode of
+    0: Result := SuiteChildOk;
+    1: Result := SuiteChildNotStarted;
+    2, 5: Result := SuiteChildCancelled;
+    3, 4, 6: Result := SuiteChildFatal;
+    7, 8: Result := SuiteChildPrecondition;
+  else
+    Result := SuiteChildOther;
+  end;
+end;
+
+// A product succeeded if its setup was started and ended with exit code 0 AND its uninstall entry is
+// there (contract 1.7 point 5)
+function SuiteRunSucceeded(Started: Boolean; ExitCode: Integer; UninstallEntryPresent: Boolean): Boolean;
+begin
+  Result := Started and (ExitCode = 0) and UninstallEntryPresent;
+end;
+
+// True if an extracted product setup is the one the build recorded: same size and same SHA-256 (hex digits,
+// compared without case). An empty hash never matches.
+function SuitePinMatches(const ActualHash, ExpectedHash: String; const ActualSize, ExpectedSize: Int64): Boolean;
+begin
+  Result := (ExpectedHash <> '') and (CompareText(Trim(ActualHash), Trim(ExpectedHash)) = 0) and (ActualSize = ExpectedSize);
+end;
+
+// The number of the last line "CD Keys generation result: <n>" in the text of a product's log (setup_is6.iss
+// logs it, contract 1.7 point 5); '' if there is none. Tolerant: any prefix on the line (the time stamp), upper
+// and lower case, blanks after the colon, text after the number; a line without a number is ignored. Only reads.
+function SuiteParseCdKeyResult(const LogText: String): String;
+var
+  Lower, Number: String;
+  Marker: String;
+  Start, P, I: Integer;
+begin
+  Result := '';
+  Marker := 'cd keys generation result:';
+  Lower := LowerCase(LogText);
+  Start := 1;
+  while Start <= Length(Lower) do
+  begin
+    P := Pos(Marker, Copy(Lower, Start, Length(Lower)));
+    if P = 0 then
+      Exit;
+    I := Start + P - 1 + Length(Marker);
+    Start := I;
+    while (I <= Length(Lower)) and ((Lower[I] = ' ') or (Lower[I] = #9)) do
+      I := I + 1;
+    Number := '';
+    if (I <= Length(Lower)) and (Lower[I] = '-') then
+    begin
+      Number := '-';
+      I := I + 1;
+    end;
+    while (I <= Length(Lower)) and (Lower[I] >= '0') and (Lower[I] <= '9') and (Length(Number) < 9) do
+    begin
+      Number := Number + Lower[I];
+      I := I + 1;
+    end;
+    if (Number <> '') and (Number <> '-') then
+      Result := Number;
+  end;
+end;

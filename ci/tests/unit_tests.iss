@@ -1918,6 +1918,7 @@ begin
     TestSuiteProducts;
     TestSuiteSilentArguments;
     TestSuitePages;
+    TestSuiteRunner;
   except
     Failures := Failures + 1;
     Results.Add('FAIL exception: ' + GetExceptionMessage);

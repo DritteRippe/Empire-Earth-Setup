@@ -234,3 +234,164 @@ begin
   Check('SuiteCdKeyKind empty', IntToStr(SuiteCdKeyKind('')), '2');
   Check('SuiteCdKeyKind no number', IntToStr(SuiteCdKeyKind('x')), '2');
 end;
+
+procedure TestSuiteRunner;
+var
+  Log1, Args, Rest: String;
+begin
+  Log1 := 'C:\Program Files\Empire Earth Community\Logs\EE-20261005-1804.log';
+
+  // the command line: first installation, repair, advanced mode (contract 1.7 point 3)
+  Check('SuiteProductArguments first install',
+    SuiteProductArguments(True, False, 'de', Log1, ''),
+    '/SILENT /SUPPRESSMSGBOXES /NORESTART /ALLUSERS /LANG=de /NOICONS /MERGETASKS="!desktopicon" /LOG="' + Log1 + '" /TYPE=full');
+  Check('SuiteProductArguments repair has no /TYPE',
+    SuiteProductArguments(False, False, 'en', Log1, ''),
+    '/SILENT /SUPPRESSMSGBOXES /NORESTART /ALLUSERS /LANG=en /NOICONS /MERGETASKS="!desktopicon" /LOG="' + Log1 + '"');
+  Check('SuiteProductArguments advanced first install',
+    SuiteProductArguments(True, True, 'fr', Log1, ''),
+    '/LANG=fr /NOICONS /MERGETASKS="!desktopicon" /LOG="' + Log1 + '"');
+  Check('SuiteProductArguments advanced repair',
+    SuiteProductArguments(False, True, 'fr', Log1, ''),
+    '/LANG=fr /NOICONS /MERGETASKS="!desktopicon" /LOG="' + Log1 + '"');
+  Args := SuiteProductArguments(False, False, 'de', Log1, '');
+  CheckBool('SuiteProductArguments repair has no /DIR', Pos('/DIR', Args) > 0, False);
+  Args := SuiteProductArguments(True, False, 'de', Log1, '');
+  CheckBool('SuiteProductArguments first install has no /DIR', Pos('/DIR', Args) > 0, False);
+  CheckBool('SuiteProductArguments never /VERYSILENT', Pos('/VERYSILENT', Args) > 0, False);
+  Check('SuiteProductArguments language is checked',
+    SuiteProductArguments(False, True, 'de /DIR=C:\x', Log1, ''), '/LANG=en /NOICONS /MERGETASKS="!desktopicon" /LOG="' + Log1 + '"');
+
+  // the CI pass-through is appended last
+  Check('SuiteProductArguments pass-through appended',
+    SuiteProductArguments(True, False, 'en', Log1, '/TASKS=full,!certinclude'),
+    '/SILENT /SUPPRESSMSGBOXES /NORESTART /ALLUSERS /LANG=en /NOICONS /MERGETASKS="!desktopicon" /LOG="' + Log1 +
+      '" /TYPE=full /TASKS=full,!certinclude');
+  Check('SuiteProductArguments pass-through with blanks around',
+    SuiteProductArguments(False, False, 'en', Log1, '  /X=1  '),
+    '/SILENT /SUPPRESSMSGBOXES /NORESTART /ALLUSERS /LANG=en /NOICONS /MERGETASKS="!desktopicon" /LOG="' + Log1 + '" /X=1');
+  Check('SuiteProductArguments pass-through in the advanced mode too',
+    SuiteProductArguments(False, True, 'en', Log1, '/X=1'), '/LANG=en /NOICONS /MERGETASKS="!desktopicon" /LOG="' + Log1 + '" /X=1');
+  // a /MERGETASKS of the pass-through is merged: one switch only, and the decision on the CD keys survives
+  Check('SuiteProductArguments merges /MERGETASKS',
+    SuiteProductArguments(False, False, 'en', Log1, '/MERGETASKS=!neoee_cdkeys'),
+    '/SILENT /SUPPRESSMSGBOXES /NORESTART /ALLUSERS /LANG=en /NOICONS /MERGETASKS="!desktopicon,!neoee_cdkeys" /LOG="' + Log1 + '"');
+  Check('SuiteProductArguments merges a quoted /MERGETASKS and keeps the rest',
+    SuiteProductArguments(True, False, 'en', Log1, '/TASKS=full /MERGETASKS="!neoee_cdkeys,!certinclude" /X=1'),
+    '/SILENT /SUPPRESSMSGBOXES /NORESTART /ALLUSERS /LANG=en /NOICONS /MERGETASKS="!desktopicon,!neoee_cdkeys,!certinclude" /LOG="' + Log1 +
+      '" /TYPE=full /TASKS=full /X=1');
+  Check('SuiteProductArguments merges two /MERGETASKS',
+    SuiteProductArguments(False, True, 'en', Log1, '/MERGETASKS=a /MERGETASKS=b'),
+    '/LANG=en /NOICONS /MERGETASKS="!desktopicon,a,b" /LOG="' + Log1 + '"');
+  Check('SuiteProductArguments /TYPE of the pass-through replaces /TYPE=full',
+    SuiteProductArguments(True, False, 'en', Log1, '/TYPE=compact'),
+    '/SILENT /SUPPRESSMSGBOXES /NORESTART /ALLUSERS /LANG=en /NOICONS /MERGETASKS="!desktopicon" /LOG="' + Log1 + '" /TYPE=compact');
+
+  // the quoting of a value
+  Check('SuiteQuoteArgument path with blanks', SuiteQuoteArgument('C:\Program Files\x.log'), '"C:\Program Files\x.log"');
+  Check('SuiteQuoteArgument quote removed', SuiteQuoteArgument('C:\a"b'), '"C:\ab"');
+  Check('SuiteQuoteArgument trailing backslash doubled', SuiteQuoteArgument('C:\Logs\'), '"C:\Logs\\"');
+  Check('SuiteQuoteArgument empty', SuiteQuoteArgument(''), '""');
+  Check('SuiteLanguageArgument de', SuiteLanguageArgument('de'), 'de');
+  Check('SuiteLanguageArgument pt_BR', SuiteLanguageArgument('pt_BR'), 'pt_BR');
+  Check('SuiteLanguageArgument empty', SuiteLanguageArgument(''), 'en');
+  Check('SuiteLanguageArgument with a blank', SuiteLanguageArgument('de fr'), 'en');
+  Check('SuiteLanguageArgument with a slash', SuiteLanguageArgument('de/DIR'), 'en');
+
+  // taking switches out of an argument string
+  Args := '/A=1 /MERGETASKS=x /B=2';
+  Check('SuiteTakeSwitchValues value', SuiteTakeSwitchValues(Args, '/MERGETASKS='), 'x');
+  Check('SuiteTakeSwitchValues rest', Args, '/A=1 /B=2');
+  Args := '/DIR=C:\x/MERGETASKS=y';
+  Check('SuiteTakeSwitchValues inside another value', SuiteTakeSwitchValues(Args, '/MERGETASKS='), '');
+  Check('SuiteTakeSwitchValues inside another value, untouched', Args, '/DIR=C:\x/MERGETASKS=y');
+  Args := '/mergetasks=a';
+  Check('SuiteTakeSwitchValues case', SuiteTakeSwitchValues(Args, '/MERGETASKS='), 'a');
+  Check('SuiteTakeSwitchValues case, rest', Args, '');
+  Args := '/MERGETASKS=';
+  Check('SuiteTakeSwitchValues empty value', SuiteTakeSwitchValues(Args, '/MERGETASKS='), '');
+  Check('SuiteTakeSwitchValues empty value, rest', Args, '');
+  Args := '/MERGETASKS=a /B=2 /MERGETASKS=b';
+  Check('SuiteTakeSwitchValues first and last', SuiteTakeSwitchValues(Args, '/MERGETASKS='), 'a,b');
+  Check('SuiteTakeSwitchValues first and last, rest', Args, '/B=2');
+  Args := '/MERGETASKS="a b"';
+  Check('SuiteTakeSwitchValues quoted blank', SuiteTakeSwitchValues(Args, '/MERGETASKS='), 'a b');
+  Rest := '/MERGETASKS="open';
+  Check('SuiteTakeSwitchValues unclosed quote', SuiteTakeSwitchValues(Rest, '/MERGETASKS='), 'open');
+  Check('SuiteTakeSwitchValues unclosed quote, rest', Rest, '');
+
+  CheckBool('SuiteIsFirstInstall none', SuiteIsFirstInstall(SuiteStateNone), True);
+  CheckBool('SuiteIsFirstInstall machine', SuiteIsFirstInstall(SuiteStateMachine), False);
+  Check('SuiteChildLogName', SuiteChildLogName('NeoEE', '20261005-1804'), 'NeoEE-20261005-1804.log');
+
+  // exit codes and success
+  Check('SuiteChildExitKind 0', IntToStr(SuiteChildExitKind(0)), '0');
+  Check('SuiteChildExitKind 1 (a game runs)', IntToStr(SuiteChildExitKind(1)), '1');
+  Check('SuiteChildExitKind 2', IntToStr(SuiteChildExitKind(2)), '2');
+  Check('SuiteChildExitKind 3', IntToStr(SuiteChildExitKind(3)), '3');
+  Check('SuiteChildExitKind 4', IntToStr(SuiteChildExitKind(4)), '3');
+  Check('SuiteChildExitKind 5', IntToStr(SuiteChildExitKind(5)), '2');
+  Check('SuiteChildExitKind 6', IntToStr(SuiteChildExitKind(6)), '3');
+  Check('SuiteChildExitKind 7', IntToStr(SuiteChildExitKind(7)), '4');
+  Check('SuiteChildExitKind 8', IntToStr(SuiteChildExitKind(8)), '4');
+  Check('SuiteChildExitKind 9', IntToStr(SuiteChildExitKind(9)), '5');
+  Check('SuiteChildExitKind negative', IntToStr(SuiteChildExitKind(-1073741819)), '5');
+  CheckBool('SuiteRunSucceeded 0 and entry', SuiteRunSucceeded(True, 0, True), True);
+  CheckBool('SuiteRunSucceeded 0 without entry', SuiteRunSucceeded(True, 0, False), False);
+  CheckBool('SuiteRunSucceeded entry of an earlier run, exit 1', SuiteRunSucceeded(True, 1, True), False);
+  CheckBool('SuiteRunSucceeded exit 3 with entry', SuiteRunSucceeded(True, 3, True), False);
+  CheckBool('SuiteRunSucceeded not started', SuiteRunSucceeded(False, 0, True), False);
+
+  // the pins of the embedded setups
+  CheckBool('SuitePinMatches equal', SuitePinMatches('ABCDEF0123', 'abcdef0123', 100, 100), True);
+  CheckBool('SuitePinMatches blanks around', SuitePinMatches(' abcdef0123 ', 'abcdef0123', 100, 100), True);
+  CheckBool('SuitePinMatches other hash', SuitePinMatches('abcdef0124', 'abcdef0123', 100, 100), False);
+  CheckBool('SuitePinMatches other size', SuitePinMatches('abcdef0123', 'abcdef0123', 101, 100), False);
+  CheckBool('SuitePinMatches empty pin', SuitePinMatches('', '', 100, 100), False);
+  CheckBool('SuitePinMatches above 4 GB', SuitePinMatches('a', 'a', StrToInt64('5000000000'), StrToInt64('5000000000')), True);
+
+  // the CD key line of the log of the NeoEE setup
+  Check('SuiteParseCdKeyResult registered',
+    SuiteParseCdKeyResult('2026-10-05 18:04:31.123   CD Keys generation result: 0' + #13#10 + '2026-10-05 18:04:31.200   CD Keys registered'), '0');
+  Check('SuiteParseCdKeyResult network', SuiteParseCdKeyResult('x' + #13#10 + 'CD Keys generation result: 3' + #13#10 + 'y'), '3');
+  Check('SuiteParseCdKeyResult only LF', SuiteParseCdKeyResult('a' + #10 + 'CD Keys generation result: 1' + #10 + 'b'), '1');
+  Check('SuiteParseCdKeyResult no line', SuiteParseCdKeyResult('Setup started' + #13#10 + 'CD Keys registered'), '');
+  Check('SuiteParseCdKeyResult empty log', SuiteParseCdKeyResult(''), '');
+  Check('SuiteParseCdKeyResult line without a number', SuiteParseCdKeyResult('CD Keys generation result:'), '');
+  Check('SuiteParseCdKeyResult text instead of a number', SuiteParseCdKeyResult('CD Keys generation result: ok'), '');
+  Check('SuiteParseCdKeyResult last valid line wins',
+    SuiteParseCdKeyResult('CD Keys generation result: 3' + #13#10 + 'CD Keys generation result: 0'), '0');
+  Check('SuiteParseCdKeyResult a broken last line is ignored',
+    SuiteParseCdKeyResult('CD Keys generation result: 2' + #13#10 + 'CD Keys generation result: x'), '2');
+  Check('SuiteParseCdKeyResult case', SuiteParseCdKeyResult('cd keys GENERATION result: 4'), '4');
+  Check('SuiteParseCdKeyResult blanks and tab', SuiteParseCdKeyResult('CD Keys generation result:' + #9 + '  5  (more)'), '5');
+  Check('SuiteParseCdKeyResult negative', SuiteParseCdKeyResult('CD Keys generation result: -1'), '-1');
+  Check('SuiteParseCdKeyResult minus only', SuiteParseCdKeyResult('CD Keys generation result: -'), '');
+  Check('SuiteParseCdKeyResult long number is cut', SuiteParseCdKeyResult('CD Keys generation result: 12345678901234'), '123456789');
+  Check('SuiteCdKeyKind of a parsed negative', IntToStr(SuiteCdKeyKind(SuiteParseCdKeyResult('CD Keys generation result: -1'))), '2');
+  Check('SuiteCdKeyKind of the parsed 0', IntToStr(SuiteCdKeyKind(SuiteParseCdKeyResult('CD Keys generation result: 0'))), '0');
+
+  // the old shortcuts of a standalone setup: exactly these paths (contract 1.7 point 7)
+  Check('SuiteProductAppName EE', SuiteProductAppName('EE'), 'Empire Earth');
+  Check('SuiteProductAppName NeoEE', SuiteProductAppName('NeoEE'), 'NeoEE');
+  Check('SuiteProductAppName unknown', SuiteProductAppName('AoC'), '');
+  Check('SuiteLegacyShortcutPath EE 1', SuiteLegacyShortcutPath('EE', 1, 'C:\Users\Public\Desktop', 'C:\ProgramData\Start\Programs\Empire Earth'),
+    'C:\Users\Public\Desktop\Empire Earth.lnk');
+  Check('SuiteLegacyShortcutPath EE 2', SuiteLegacyShortcutPath('EE', 2, 'C:\Users\Public\Desktop', 'C:\ProgramData\Start\Programs\Empire Earth'),
+    'C:\Users\Public\Desktop\Empire Earth - AoC.lnk');
+  Check('SuiteLegacyShortcutPath EE 3', SuiteLegacyShortcutPath('EE', 3, 'C:\Users\Public\Desktop', 'C:\ProgramData\Start\Programs\Empire Earth'),
+    'C:\ProgramData\Start\Programs\Empire Earth\Empire Earth.lnk');
+  Check('SuiteLegacyShortcutPath EE 4', SuiteLegacyShortcutPath('EE', 4, 'C:\Users\Public\Desktop', 'C:\ProgramData\Start\Programs\Empire Earth'),
+    'C:\ProgramData\Start\Programs\Empire Earth\Empire Earth - AoC.lnk');
+  Check('SuiteLegacyShortcutPath EE 5', SuiteLegacyShortcutPath('EE', 5, 'C:\Users\Public\Desktop', 'C:\ProgramData\Start\Programs\Empire Earth'),
+    'C:\ProgramData\Start\Programs\Empire Earth\Empire Earth Diagnostic.lnk');
+  Check('SuiteLegacyShortcutPath NeoEE 1', SuiteLegacyShortcutPath('NeoEE', 1, 'D:\Desk\', 'D:\Start\Empire Earth\'), 'D:\Desk\NeoEE.lnk');
+  Check('SuiteLegacyShortcutPath NeoEE 2', SuiteLegacyShortcutPath('NeoEE', 2, 'D:\Desk\', 'D:\Start\Empire Earth\'), 'D:\Desk\NeoEE - AoC.lnk');
+  Check('SuiteLegacyShortcutPath NeoEE 3', SuiteLegacyShortcutPath('NeoEE', 3, 'D:\Desk\', 'D:\Start\Empire Earth\'), 'D:\Start\Empire Earth\NeoEE.lnk');
+  Check('SuiteLegacyShortcutPath NeoEE 4', SuiteLegacyShortcutPath('NeoEE', 4, 'D:\Desk\', 'D:\Start\Empire Earth\'), 'D:\Start\Empire Earth\NeoEE - AoC.lnk');
+  Check('SuiteLegacyShortcutPath NeoEE 5', SuiteLegacyShortcutPath('NeoEE', 5, 'D:\Desk\', 'D:\Start\Empire Earth\'), 'D:\Start\Empire Earth\NeoEE Diagnostic.lnk');
+  Check('SuiteLegacyShortcutPath index 0', SuiteLegacyShortcutPath('EE', 0, 'D:\Desk', 'D:\Start'), '');
+  Check('SuiteLegacyShortcutPath index 6', SuiteLegacyShortcutPath('EE', SuiteLegacyShortcutCount + 1, 'D:\Desk', 'D:\Start'), '');
+  Check('SuiteLegacyShortcutPath unknown product', SuiteLegacyShortcutPath('AoC', 1, 'D:\Desk', 'D:\Start'), '');
+  Check('SuiteLegacyShortcutCount', IntToStr(SuiteLegacyShortcutCount), '5');
+end;
