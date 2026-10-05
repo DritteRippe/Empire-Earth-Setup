@@ -36,6 +36,8 @@ PrivilegesRequired=lowest
 CreateAppDir=no
 
 #include "..\..\utils.iss"
+// The pure helpers of the suite installer (suite/suite_common.iss), tested by suite_tests.iss below
+#include "..\..\suite\suite_common.iss"
 
 [Code]
 // For the file-level test of the state files: a read-only file (FILE_ATTRIBUTE_* are constants of
@@ -1837,6 +1839,9 @@ begin
   end;
 end;
 
+#include "suite_tests.iss"
+
+[Code]
 function InitializeSetup: Boolean;
 var
   Lines: TArrayOfString;
@@ -1903,6 +1908,15 @@ begin
     TestFormatFindingList;
     TestIsLinkGuardedFolder;
     TestFindLinksInGameFolder;
+    TestSuiteSliceFileName;
+    TestSuiteListedSizes;
+    TestSuiteSliceState;
+    TestSuiteFindSliceProblems;
+    TestSuitePaths;
+    TestSuiteSpace;
+    TestSuiteDotNet;
+    TestSuiteProducts;
+    TestSuiteSilentArguments;
   except
     Failures := Failures + 1;
     Results.Add('FAIL exception: ' + GetExceptionMessage);
