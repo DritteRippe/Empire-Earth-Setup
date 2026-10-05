@@ -254,6 +254,11 @@ Name: "fr"; MessagesFile: "compiler:Languages\french.isl"
 ; ---- the payload --------------------------------------------------------------------------------
 
 [Files]
+; The legal texts the wizard shows (suite_pages.iss): the files of the product setups themselves (the EULA
+; of setup_is6.iss LicenseFile, the rules of config_neoee.iss MyInfoBeforeFile), extracted to {tmp} by the
+; wizard, never installed. First, so they lie in the first slice. ci/check_suite_texts.py compares them.
+Source: "..\data\Empire Earth Base\Empire Earth\EULA_DSML.txt"; DestName: "EULA_DSML.txt"; Flags: dontcopy
+Source: "..\data\NeoEE Base\shared\neoee_rules.rtf"; DestName: "neoee_rules.rtf"; Flags: dontcopy
 ; The launcher, the Mod Creator and the license texts need .NET Framework 4.8: without it only the games
 ; are installed, and the game shortcuts start the game programs (contract 1.7 point 8). They lie outside
 ; both product roots, so no integrity manifest lists them (contract 2.3 unchanged).
@@ -264,6 +269,10 @@ Source: "{#LicenseDir}\*"; DestDir: "{app}\Lizenzen"; Flags: ignoreversion recur
 ; installed. nocompression: they are compressed already (lzma2) and the build must not touch their bytes.
 Source: "{#EESetupFile}"; DestName: "EE_Setup.exe"; Flags: dontcopy nocompression
 Source: "{#NeoEESetupFile}"; DestName: "NeoEE_Setup.exe"; Flags: dontcopy nocompression
+
+[Run]
+; The last page offers to start the launcher (only if it was installed)
+Filename: "{app}\{#LauncherExe}"; Description: "{cm:SuiteRunLauncher}"; Flags: postinstall runasoriginaluser nowait skipifsilent; Check: SuiteLauncherInstalled
 
 #include "suite_common.iss"
 
@@ -300,8 +309,16 @@ var
   // The product ids whose setup succeeded in this run, comma separated (EE before NeoEE): set by the
   // product runner, read by the shortcuts and the suite record (WP5)
   SuiteProductsOk: String;
-  // The products the user selected; both until the wizard pages let the user choose (WP4)
+  // The products the suite installs: the selection on the product page (suite_pages.iss), or /PRODUCTS in
+  // a silent run, without a product that is installed for one user only. The product runner (WP5) reads them.
   SuiteWantEE, SuiteWantNeoEE: Boolean;
+  // How each product is installed on this computer (SuiteStateNone, SuiteStateMachine, SuiteStateUserOnly)
+  SuiteStateEE, SuiteStateNeoEE: Integer;
+  // The "Advanced" box of the product page: the product setups show their full wizard (the product runner, WP5)
+  SuiteAdvanced: Boolean;
+  // The product runner (WP5) sets it to the number of the line "CD Keys generation result: <n>" of the NeoEE
+  // log, or leaves it empty if there is none; the last page shows it
+  SuiteCdKeyResult: String;
 
 procedure ExitProcess(ExitCode: Cardinal);
   external 'ExitProcess@kernel32.dll stdcall';
@@ -354,6 +371,7 @@ begin
   ExitProcess(ExitCode);
 end;
 
+#include "suite_pages.iss"
 #include "suite_shortcuts.iss"
 #include "suite_record.iss"
 
@@ -363,7 +381,7 @@ end;
 // the free space.
 function InitializeSetup(): Boolean;
 var
-  Src, TempRoot, Problems, Drive: String;
+  Src, TempRoot, Problems, Drive, Selected: String;
   TempFree, TargetFree, Total: Int64;
   TempNeeded, TargetNeeded: Int64;
   Target: String;
@@ -388,6 +406,20 @@ begin
       SuiteStop(SuiteExitSilentArguments, 'silent run with NeoEE but /NeoEEArgs does not decide about neoee_cdkeys ' +
         '(name neoee_cdkeys in /TASKS or /MERGETASKS, "!neoee_cdkeys" for no registration)', '');
   end;
+
+  // 1b. How the products are installed, and the products of a silent run (the wizard asks otherwise)
+  SuiteStateEE := SuiteInstallState(SuiteEEAppId);
+  SuiteStateNeoEE := SuiteInstallState(SuiteNeoEEAppId);
+  SuiteAdvanced := False;
+  if SuiteSilent then
+    Selected := SuiteSelectedProducts(SuiteListHasItem(ExpandConstant('{param:PRODUCTS|}'), SuiteProductEE),
+      SuiteListHasItem(ExpandConstant('{param:PRODUCTS|}'), SuiteProductNeoEE), SuiteStateEE, SuiteStateNeoEE)
+  else
+    Selected := SuiteSelectedProducts(True, True, SuiteStateEE, SuiteStateNeoEE);
+  SuiteWantEE := SuiteListHasItem(Selected, SuiteProductEE);
+  SuiteWantNeoEE := SuiteListHasItem(Selected, SuiteProductNeoEE);
+  Log('Products: state EE ' + IntToStr(SuiteStateEE) + ', NeoEE ' + IntToStr(SuiteStateNeoEE) +
+    ' (0 not installed, 1 for all users, 2 for one user only, skipped); selected "' + Selected + '"');
 
   // 2. Every slice next to the setup, with its exact size (exit code 11, or 12 if it looks like the ZIP view)
   Problems := SuiteFindSliceProblems(Src, SuiteSetupBaseName, SuiteSliceSizes, SuiteSliceCount, 6);

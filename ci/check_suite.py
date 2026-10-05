@@ -37,7 +37,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from check_contract import CheckError, logical_lines, parse_params  # noqa: E402
 
 SUITE_FILES = ["suite/suite.iss", "suite/suite_common.iss", "suite/suite_messages.iss",
-               "suite/suite_shortcuts.iss", "suite/suite_record.iss"]
+               "suite/suite_shortcuts.iss", "suite/suite_record.iss", "suite/suite_pages.iss"]
 SETUP_EXPECTED = {
     "MinVersion": "6.1sp1",
     "PrivilegesRequired": "admin",
@@ -55,6 +55,9 @@ SETUP_EXPECTED = {
     "CloseApplications": "no",
 }
 PRODUCT_SOURCES = ("{#EESetupFile}", "{#NeoEESetupFile}")
+# the legal texts of the wizard: files of the product setups, only extracted to {tmp} by the wizard
+# (ci/check_suite_texts.py compares them with the product's)
+LEGAL_DESTNAMES = ("EULA_DSML.txt", "neoee_rules.rtf")
 EXIT_CODES = {"SuiteExitSilentArguments": 10, "SuiteExitSlices": 11, "SuiteExitZipView": 12,
               "SuiteExitDiskSpace": 13, "SuiteExitRunning": 14, "SuiteExitProductSetup": 15}
 # the codes of the prechecks of suite.iss (the code of an embedded setup that does not match its pin
@@ -107,7 +110,7 @@ def check_setup(text, errors):
 
 def check_files(text, errors):
     entries = sections(text, "Files")
-    products = launcher = 0
+    products = launcher = legal = 0
     for no, line in entries:
         params = parse_params(line)
         flags = params.get("flags", "").lower().split()
@@ -122,6 +125,11 @@ def check_files(text, errors):
             if not params.get("destname"):
                 errors.append(f"{where}: the product setup {source} has no DestName (the product runner extracts it "
                               "by a fixed name)")
+        elif params.get("destname") in LEGAL_DESTNAMES:
+            legal += 1
+            if "dontcopy" not in flags:
+                errors.append(f"{where}: the legal text {source} has no flag dontcopy: it is shown by the wizard, "
+                              "never installed")
         elif params.get("destdir", "").lower().startswith("{app}"):
             launcher += 1
             if params.get("check", "") != "IsDotNet48":
@@ -131,13 +139,16 @@ def check_files(text, errors):
                 errors.append(f"{where}: {source} has no flag ignoreversion (contract 2.3 style: every run installs "
                               "every file)")
         else:
-            errors.append(f"{where}: {source or line.strip()} is neither a product setup nor a file below {{app}}")
+            errors.append(f"{where}: {source or line.strip()} is neither a product setup, a legal text nor a file below {{app}}")
     if products != 2:
         errors.append(f"suite/suite.iss: [Files] has {products} product setups, expected the two sources "
                       f"{', '.join(PRODUCT_SOURCES)}")
+    if legal != len(LEGAL_DESTNAMES):
+        errors.append(f"suite/suite.iss: [Files] has {legal} legal texts, expected {len(LEGAL_DESTNAMES)} "
+                      f"(DestName {', '.join(LEGAL_DESTNAMES)})")
     if launcher == 0:
         errors.append("suite/suite.iss: [Files] installs nothing below {app} (the launcher is missing)")
-    return products, launcher
+    return products, launcher + legal
 
 
 def code_lines(text):
@@ -196,7 +207,7 @@ def check(root):
     products, launcher = check_files(main, errors)
     codes = check_exit_codes(common, main, errors)
     return errors, (f"suite frame: {directives} [Setup] directives, {products} product setups and {launcher} "
-                    f"launcher/licenses entries in [Files], {codes} exit codes")
+                    f"launcher, license and legal text entries in [Files], {codes} exit codes")
 
 
 def self_test(source_root):
@@ -242,7 +253,13 @@ def self_test(source_root):
         ("product setup without a DestName",
          replace(main, 'DestName: "EE_Setup.exe"; ', ''), "has no DestName"),
         ("a file that is neither",
-         replace(main, '[Files]\n', '[Files]\nSource: "x.txt"; DestDir: "{tmp}"\n'), "is neither a product setup nor a file below {app}"),
+         replace(main, '[Files]\n', '[Files]\nSource: "x.txt"; DestDir: "{tmp}"\n'), "is neither a product setup, a legal text nor a file below {app}"),
+        ("legal text that is installed",
+         replace(main, 'DestName: "EULA_DSML.txt"; Flags: dontcopy', 'DestName: "EULA_DSML.txt"; Flags: ignoreversion'),
+         "has no flag dontcopy"),
+        ("a legal text missing",
+         replace(main, 'DestName: "neoee_rules.rtf"; Flags: dontcopy', 'DestName: "rules.rtf"; Flags: dontcopy'),
+         "[Files] has 1 legal texts, expected 2"),
         ("exit code 15 as 16", replace(common, "SuiteExitProductSetup = 15;", "SuiteExitProductSetup = 16;"),
          "SuiteExitProductSetup is [16], expected 15"),
         ("exit code twice", replace(common, "SuiteExitRunning = 14;", "SuiteExitRunning = 13;"), "SuiteExitRunning is [13], expected 14"),
