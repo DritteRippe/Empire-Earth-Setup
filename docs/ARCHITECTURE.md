@@ -414,14 +414,17 @@ four variants of sections 2 and 3 do not change for it.
   1.6) lists the products that succeeded and the folder the package was started from (`SourceDir`), for
   the launcher's repair advice. `SetupMutex=EmpireEarthCommunity_Suite`; `AppMutex` holds the game
   mutexes and the launcher's `EmpireEarthCommunityLauncher`.
-- **Uninstall:** one entry in Windows "Apps" for the package; it runs the uninstallers of the products
-  it lists and waits until their uninstall keys are gone, then removes the launcher, the shortcuts and
-  the record; game saves stay unless the user asks otherwise. The product entries stay visible for a
+- **Uninstall:** one entry in Windows "Apps" for the package (`suite_uninstall.iss`, ADR 0013 decision
+  11). One question lists what goes; the uninstallers of the products it lists run one after the other and
+  the suite waits until their uninstall keys and program files are gone (10 minutes at most; the exit
+  code of the first process decides nothing), then it removes the launcher, the shortcuts, the record and
+  `{app}\Logs`. Saves, profiles and the launcher's backups stay unless the user presses "Löschen" in the
+  one task dialog at the end; a silent uninstallation keeps them. The product entries stay visible for a
   single game.
 - **Files:** `suite/suite.iss` (`[Setup]`, payload, prechecks with the exit codes 10 to 15),
   `suite_common.iss` (pure helpers, tested by `ci/tests/suite_tests.iss`), `suite_messages.iss`
   (English, German, French), `suite_shortcuts.iss` and `suite_record.iss` (what the suite leaves
-  besides its files). Build values (AppIds, the pins and sizes of the embedded setups, the slice
+  besides its files), `suite_uninstall.iss` (its uninstaller). Build values (AppIds, the pins and sizes of the embedded setups, the slice
   count and sizes of a two-pass build) are `/D` defines, listed at the top of `suite.iss`.
 - **Checks:** `ci/check_contract.py` reads `suite/suite.iss` and its includes (`SetupMutex`,
   `AppMutex`, the record's value names and types written in code, the game shortcuts to the

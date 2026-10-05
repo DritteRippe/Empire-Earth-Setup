@@ -115,6 +115,26 @@ Facts the decision relies on, from the code at 332d877:
     unattended caller reads the log, the uninstall keys or the suite record. The runner starts nothing
     but the embedded setups and deletes only its extracted setup, the log of the product setup it
     starts and the legacy shortcut files; `ci/check_suite.py` enforces that.
+11. **The uninstaller removes what the suite created, and only that.** `InitializeUninstall` stops
+    while a game or the launcher runs or another suite setup holds `EmpireEarthCommunity_Suite` (the
+    uninstaller holds it itself, contract 4.2) and asks one question that lists what goes. At
+    `usUninstall` it runs the uninstaller of each product that the suite record lists and that still has its
+    uninstall key, NeoEE before EE, each only if it is an `unins*.exe` inside the product's install root.
+    Because the first process of an Inno Setup uninstaller only starts a copy of itself (Evidence), it
+    polls the uninstall key and the program file with a 10 minute timeout instead of trusting the exit
+    code; a product that is gone already is skipped silently, a failure is reported (not in a silent
+    run) with the way through Windows "Apps", and the rest goes on. At `usPostUninstall` it removes the
+    shortcuts and the record (they are not in the uninstall log), the launcher's `settings.json` and
+    `log.txt` of the account that uninstalls, and, only after the answer "Delete" (second button of one
+    task dialog, "Keep" is the default, never asked and never done in a silent run), the exact folders
+    `Users` and `Data\Saved Games` below the root of each removed game, and `Backups` and `Mod Creator`
+    of the launcher's data folder. The folders that are empty then are removed from the inside out; a
+    root with anything else in it stays. `{app}\Logs` is a folder of the suite and goes with
+    `[UninstallDelete]`. The suite never writes or deletes below `Software\Sierra`; the product
+    uninstallers keep their own cleanup. `ci/check_suite.py` enforces the places where `DelTree` and the
+    registry deletion may appear. Limitation: with over-the-shoulder elevation the account that
+    uninstalls is the administrator who confirmed it, so the launcher files below `%LOCALAPPDATA%` of the
+    standard user stay (README, test plan).
 
 ## Evidence
 

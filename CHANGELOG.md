@@ -585,6 +585,25 @@ setup version stays 1.7.2 until the release.
   `suite_common.iss` has the pure helpers (95 more unit tests); `ci/check_suite.py` checks the runner
   (one `Exec`, after the pin check; deletions limited to what the runner owns) and that no suite file
   names the CD key registry key or library (16 more self-test cases).
+- `suite/suite_uninstall.iss`: the uninstaller of the suite installer (WP6). It stops while a game or the
+  launcher runs or another suite setup holds the setup mutex, holds that mutex itself (contract 4.2) and
+  asks one question that lists the launcher, each game with its folder and the shortcuts. The uninstallers
+  of the products the suite record lists and that are still installed run one after the other (NeoEE, then
+  EE; only an `unins*.exe` inside the product root, with `/VERYSILENT /SUPPRESSMSGBOXES /NORESTART`). The
+  exit code of the first process decides nothing, because it only starts a copy of itself in `%TEMP%` (WP0
+  spike): the suite polls the uninstall key and the program file, 10 minutes at most. A product that is gone
+  already is skipped, one that fails is reported with the way through Windows "Apps" and the rest goes on.
+  Afterwards the shortcuts, the record, the `settings.json` and `log.txt` of the launcher of the account that
+  uninstalls and (`[UninstallDelete]`) `{app}\Logs` are removed. The profiles and saved games of both games
+  (`Users`, `Data\Saved Games` below the install root of each product) and the launcher's `Backups` and
+  `Mod Creator` folders are deleted only after the second button "Löschen" of one task dialog; "Behalten
+  (empfohlen)" is the default, a silent uninstallation keeps all of it. Folders that are empty afterwards are
+  removed from the inside out. Nothing in the suite writes or deletes below `Software\Sierra`. The start menu
+  folder `Empire Earth Community` also has `Mod Creator`, `Uninstall Empire Earth Community` and, for a product
+  that has the tool, `Empire Earth Diagnostic` and `Neo Empire Earth Diagnostic`; the game shortcuts show the
+  icon of the game program. `suite_common.iss` has the pure helpers (88 more unit tests); `ci/check_suite.py`
+  checks the uninstaller (12 rules, 21 more self-test cases: the programs it starts, where `DelTree` is
+  allowed, the answer "Löschen", no registry deletion outside the record).
 - `docs/CONTRACT.md`, revision 3 (still contract version 1, draft: only compatible clarifications
   by its section 5; the same text and commit subject in the launcher repository; no change of the
   setup's code): O11 names all three triggers of the question `SharedFolderQuestion`, also the

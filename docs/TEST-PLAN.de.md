@@ -115,6 +115,7 @@ Nummer ihres Blocks. Ein neues Arbeitspaket mit eigenen Fällen bekommt den näc
 | TP-6x | Umgebung | S-WP8 | Hinweis unter 768 Pixeln Höhe und Bildschirm, DPI und Spielfenster im Log (TP-60), fremde und alte Installationen: Schlüssel in HKLM, fremde Uninstall-Einträge, CD-Ordner, Wortlaut zu den CD-Keys (TP-61), EE und NeoEE in einem Ordner (TP-62), Installation in den Ordner einer GOG- oder CD-Installation (TP-63) |
 | TP-7x | Allgemeine Abläufe und Forumfälle | S-WP2, S-WP9 | Grundablauf mit Update über 1.7.2 (TP-70), Standardnutzer und VirtualStore (TP-71), Version und Mehrspieler (TP-72), Reparatur (TP-73), AoC ohne EE-Start (TP-74), EE und NeoEE getrennt, eines deinstalliert (TP-75), Firewall beim Hosten (TP-76), CD-Keys (TP-77), Deutsch (TP-78), laufendes Spiel (TP-79) |
 | TP-8x | Links in den für alle beschreibbaren Ordnern | S-WP11 | Ein Standardbenutzer ersetzt `Data\Movies` durch eine Junction; das Update als Administrator hält auf der Seite „Vorbereitung der Installation“ an, ändert nichts und läuft nach dem Entfernen des Links durch; still Exit-Code 7; ein Link im Spielerordner unter `Users` und eine feste Verknüpfung (Hardlink) dort halten ebenfalls an (TP-80) |
+| TP-9x | Suite „Empire Earth Community“ | Suite-Plan | Fälle zum Paket mit Launcher (Installation, Deinstallation, Reparatur); noch ohne ausgearbeitete Fälle, siehe Block 9 |
 
 ## 4. Vorlage je Fall
 
@@ -3007,6 +3008,33 @@ nur mit `rmdir <Link>` entfernen (ohne `/s`): Das löscht den Link, nicht den Or
   unreadable folders or files found, …` und `Installation process succeeded.`; (d) wie (c) mit
   `…\Users\Spieler`; (e) `Link check skipped: not the administrative install mode`; (f) `Link check:
   …\Users\Spieler\tp80f.ini is a hard link (the file has 2 names)`, in `TP-80f2` keine solche Zeile.
+
+### Block 9: Suite „Empire Earth Community“ (Deinstallation)
+
+Die Fälle der Suite (Paket mit Launcher, ADR 0013) werden mit dem Arbeitspaket für ihre Tests
+ausgearbeitet; hier steht, was jede Prüfung der Deinstallation der Suite beachten muss, weil es sich
+nur auf echtem Windows zeigt:
+
+- **Reihenfolge und Warten:** Die Suite startet die Deinstallationsprogramme der Spiele nacheinander
+  (NeoEE, dann EE) und wartet, bis der Uninstall-Schlüssel `{<AppId>}_is1` des Spiels weg ist und die
+  `unins000.exe` nicht mehr existiert (höchstens 10 Minuten). Zu prüfen: Das Fenster der Suite reagiert
+  dabei (kein „Keine Rückmeldung“), die Statuszeile nennt das Spiel, und nach dem Ende sind beide Schlüssel
+  weg. Ein Spiel, das vorher über „Apps“ entfernt wurde, wird still übersprungen.
+- **Behalten und Löschen:** Im Dialog am Ende ist „Behalten (empfohlen)“ die Vorgabe; die Ordner `Users`
+  und `Data\Saved Games` beider Spiele und `Backups` und `Mod Creator` im
+  `%LOCALAPPDATA%\Empire Earth Launcher` bleiben bei „Behalten“ und bei jeder stillen Deinstallation
+  (`/VERYSILENT`) unverändert; nur „Löschen“ entfernt genau diese Ordner. `settings.json` und `log.txt`
+  des Launchers sind in beiden Fällen weg. Ein Wert unter `HKLM` und `HKCU` in
+  `Software\Sierra\CDKeys` (nur prüfen, ob er noch da ist, nie seinen Inhalt ansehen, Regel 3) bleibt
+  bei Installation und Deinstallation erhalten.
+- **Over-the-Shoulder-Erhöhung:** Bestätigt ein Standardbenutzer die Abfrage der Benutzerkontensteuerung mit
+  den Daten eines Administrators, läuft die Deinstallation als dieser Administrator; `%LOCALAPPDATA%` ist
+  dann das Profil des Administrators. Settings, Log, `Backups` und `Mod Creator` des Launchers des
+  Standardbenutzers bleiben deshalb liegen (gewollt, dokumentiert in der README). Wer prüft, ob die
+  Deinstallation „alles“ entfernt, meldet sich als Administrator an oder zählt diese Ordner nicht mit.
+- **Zwei Fragen?** Inno Setup zeigt vor oder nach der Abfrage der Suite seine eigene Rückfrage
+  „Möchten Sie … wirklich entfernen?“, wenn es sie nicht unterdrückt. Im Protokoll festhalten, wie viele
+  Dialoge erscheinen und in welcher Reihenfolge.
 
 ## 9. Forum-Testfälle §8
 

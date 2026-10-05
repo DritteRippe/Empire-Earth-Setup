@@ -69,6 +69,16 @@ The setup records each installation for the [Empire Earth Launcher](https://gith
 
 The Windows test cases are TP-40, TP-41 and TP-50 of the [test plan](docs/TEST-PLAN.de.md).
 
+## Empire Earth Community suite: uninstalling
+The suite installer "Empire Earth Community" ([ADR 0013](docs/adr/0013-suite-installer.md)) has one entry in Windows "Apps". Its uninstaller removes exactly what the suite installed: the launcher with the Mod Creator, the games the suite lists (each through its own uninstaller; a game that you removed through its own entry before is skipped), the shortcuts of the suite and its registry record `HKLM\Software\Empire Earth Community\Suite`, and the logs in `{app}\Logs`. It asks once, with the list of what goes. It does not start while a game or the launcher runs.
+
+- **Saves and profiles stay** unless you choose otherwise at the end: a dialog lists the exact folders (`Users` and `Data\Saved Games` of Empire Earth and of The Art of Conquest in the folder of each removed game, and `Backups` and `Mod Creator` in `%LOCALAPPDATA%\Empire Earth Launcher`) and offers "Behalten (empfohlen)" (the default) and "Löschen". Only "Löschen" deletes those folders with everything in them. The launcher's `settings.json` and `log.txt` always go.
+- **A silent uninstallation** (`/SILENT`, `/VERYSILENT`) asks nothing and keeps all of these folders. A game that cannot be removed is logged, not shown; check `Software\Microsoft\Windows\CurrentVersion\Uninstall` for its `{<AppId>}_is1` key.
+- **A game that does not go:** the message names the way through Windows "Apps" (Settings, Apps; Windows 7: Control Panel, Programs and Features): select the entry of the game and uninstall it there. The uninstallation of the suite goes on with the rest.
+- **Standard account with over-the-shoulder elevation:** if a standard user confirms the elevation prompt with the credentials of an administrator, the uninstaller runs as that administrator, so `%LOCALAPPDATA%` is the administrator's: the launcher's settings, log, backups and Mod Creator folder of the standard user stay (the folders of the games below the installation folder are not affected). Uninstall from an administrator account, or delete `%LOCALAPPDATA%\Empire Earth Launcher` by hand.
+- **Standalone uninstall of EE:** if EE was once installed standalone with a desktop shortcut, uninstalling EE alone through Windows "Apps" can delete the suite's desktop shortcut `Empire Earth`; run the suite setup again to restore it (contract 1.7 point 8).
+- Neither the suite nor its uninstaller ever touches `Software\Sierra\CDKeys` (the NeoEE CD keys).
+
 ## Notes for Modders
 Empire Earth is very sensitive to version change (which leads to multiplayer incompatibility), some modders might be interested in using this setup to deliver their mods. Please do not do this unless you have created a really popular and functional modpack. We must avoid creating multiple versions of the game to avoid fracturing the community.
 
