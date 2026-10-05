@@ -11,7 +11,7 @@ const
   // ("The source file is corrupted", proven by the WP0 spike, ADR 0013 Evidence), 5 a cancelled
   // wizard, 7 a PrepareToInstall message in a silent run. Every code comes with a log line and, unless
   // the run is silent, a message. docs/TEST-PLAN.de.md and the README name them.
-  SuiteExitSilentArguments = 10;   // silent run without a valid /PRODUCTS or without the decision on neoee_cdkeys
+  SuiteExitSilentArguments = 10;   // silent run without a valid /PRODUCTS or without the decision on neoee_cdkeys; also not in the admin install mode
   SuiteExitSlices = 11;            // a slice (Empire Earth Community Setup-N.bin) is missing or has another size
   SuiteExitZipView = 12;           // as 11, and the setup was started from a temporary folder or from the ZIP view
   SuiteExitDiskSpace = 13;         // not enough free space on the drive of %TEMP% or of the installation folder
@@ -49,81 +49,48 @@ begin
       Result := Result + 1;
 end;
 
-// Item Index (1 is the first) of a comma separated list of sizes; -1 if there is no such item or it
-// is not a number (a size is never negative)
-function SuiteListedSize(const List: String; Index: Integer): Int64;
-var
-  Rest, Item: String;
-  P, N: Integer;
-begin
-  Result := -1;
-  Rest := List;
-  N := 1;
-  while True do
-  begin
-    P := Pos(',', Rest);
-    if P > 0 then
-      Item := Copy(Rest, 1, P - 1)
-    else
-      Item := Rest;
-    if N = Index then
-    begin
-      Result := StrToInt64Def(Trim(Item), -1);
-      if Result < 0 then
-        Result := -1;
-      Exit;
-    end;
-    if P = 0 then
-      Exit;
-    Rest := Copy(Rest, P + 1, Length(Rest));
-    N := N + 1;
-  end;
-end;
-
-// Compares a slice with what the build recorded: 0 = fine, 1 = missing, 2 = another size
-function SuiteSliceState(Exists: Boolean; const ActualSize, ExpectedSize: Int64): Integer;
+// Checks a slice: 0 = fine, 1 = missing, 2 = empty or larger than a slice may be (DiskSliceSize)
+function SuiteSliceState(Exists: Boolean; const ActualSize, MaxSize: Int64): Integer;
 begin
   if not Exists then
     Result := 1
-  else if ActualSize <> ExpectedSize then
+  else if (ActualSize <= 0) or (ActualSize > MaxSize) then
     Result := 2
   else
     Result := 0;
 end;
 
-// The slices of the package in Dir (<BaseName>-1.bin ... -Count.bin) against the sizes the build
-// recorded (Sizes: Count comma separated numbers). Returns '' if every slice is there with exactly
-// its size, else one line per problem (at most MaxLines, then "... and n more"), separated by CRLF.
-// Count = 0 means the build recorded no slices (first pass of the two-pass build): nothing to check.
-// A list that does not have Count numbers is a build error and reported as such.
-function SuiteFindSliceProblems(const Dir, BaseName, Sizes: String; Count, MaxLines: Integer): String;
+// The slices of the package in Dir (<BaseName>-1.bin ... -Count.bin) against what the build recorded:
+// every slice is there, none is empty or larger than MaxSize (DiskSliceSize), and all together have
+// exactly Total bytes. The single sizes are not recorded: slice 1 is DiskSliceSize minus the size of
+// setup.exe, and compiling its digits into setup.exe changed it (the build never became stable); the
+// total does not depend on setup.exe. A truncated or replaced slice changes the total, but then the
+// problem has no file name. Returns '' if all is fine, else one line per problem (at most MaxLines, then
+// "... and n more"), separated by CRLF. Count = 0 means the build recorded no slices (first pass of the
+// two-pass build, which is never shipped): nothing to check.
+function SuiteFindSliceProblems(const Dir, BaseName: String; Count: Integer; const MaxSize, Total: Int64; MaxLines: Integer): String;
 var
   I, Found, State: Integer;
-  Path: String;
-  Expected, Actual: Int64;
-  Line: String;
+  Path, Line: String;
+  Actual, Sum: Int64;
 begin
   Result := '';
   if Count <= 0 then
     Exit;
-  if SuiteListedCount(Sizes) <> Count then
-  begin
-    Result := 'The setup was built with ' + IntToStr(Count) + ' slices but ' + IntToStr(SuiteListedCount(Sizes)) + ' sizes (build error)';
-    Exit;
-  end;
   Found := 0;
+  Sum := 0;
   for I := 1 to Count do
   begin
     Path := AddBackslash(Dir) + SuiteSliceFileName(BaseName, I);
-    Expected := SuiteListedSize(Sizes, I);
     Actual := 0;
-    State := 0;
     if not FileExists(Path) then
       State := 1
     else if not FileSize64(Path, Actual) then
       State := 1
     else
-      State := SuiteSliceState(True, Actual, Expected);
+      State := SuiteSliceState(True, Actual, MaxSize);
+    if State = 0 then
+      Sum := Sum + Actual;
     if State <> 0 then
     begin
       Found := Found + 1;
@@ -132,7 +99,7 @@ begin
         if State = 1 then
           Line := SuiteSliceFileName(BaseName, I) + ' (missing)'
         else
-          Line := SuiteSliceFileName(BaseName, I) + ' (' + IntToStr(Actual) + ' bytes, expected ' + IntToStr(Expected) + ')';
+          Line := SuiteSliceFileName(BaseName, I) + ' (' + IntToStr(Actual) + ' bytes, at most ' + IntToStr(MaxSize) + ' and not empty expected)';
         if Result <> '' then
           Result := Result + #13#10;
         Result := Result + Line;
@@ -140,7 +107,10 @@ begin
     end;
   end;
   if Found > MaxLines then
-    Result := Result + #13#10 + '... and ' + IntToStr(Found - MaxLines) + ' more';
+    Result := Result + #13#10 + '... and ' + IntToStr(Found - MaxLines) + ' more'
+  else if (Found = 0) and (Sum <> Total) then
+    Result := SuiteSliceFileName(BaseName, 1) + ' to ' + SuiteSliceFileName(BaseName, Count) + ' together have ' + IntToStr(Sum) +
+      ' bytes, expected ' + IntToStr(Total) + ' (a slice is damaged or from another build)';
 end;
 
 // Folder name without trailing backslashes, in upper case, for comparisons

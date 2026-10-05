@@ -20,14 +20,16 @@ var
   SuiteLegalRequired: Boolean;
 
 // How a product is installed on this computer, from its uninstall entry (the AppId at run time, as
-// the product setup was built with it): HKLM in the 64-bit view for all users, HKCU for one user only
+// the product setup was built with it): HKLM for all users, HKCU for one user only. The suite installs
+// in the 64-bit mode, so both are the 64-bit views on a 64-bit Windows; HKLM64 and HKCU64 would raise
+// "Cannot access 64-bit registry keys" on a 32-bit Windows, which the suite supports.
 function SuiteInstallState(const AppId: String): Integer;
 var
   Key: String;
 begin
   Key := SuiteUninstallKey(AppId);
-  Result := SuiteProductState(RegValueExists(HKLM64, Key, 'UninstallString'),
-    RegValueExists(HKCU64, Key, 'UninstallString'));
+  Result := SuiteProductState(RegValueExists(HKLM, Key, 'UninstallString'),
+    RegValueExists(HKCU, Key, 'UninstallString'));
 end;
 
 // The launcher was installed by this run or an earlier one (Check of the entry of [Run])

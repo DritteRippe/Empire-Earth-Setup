@@ -9,7 +9,8 @@ the messages and the message boxes by ci/check_messages.py. This check reads wha
 to stay safe and installable:
 
   [Setup]   MinVersion=6.1sp1 (Windows 7 SP1 like the products and the launcher), the 64-bit install
-            mode, PrivilegesRequired=admin, DiskSpanning=yes with DiskSliceSize from the define
+            mode, PrivilegesRequired=admin without PrivilegesRequiredOverridesAllowed (no /CURRENTUSER
+            mode, contract 0), DiskSpanning=yes with DiskSliceSize from the define
             SliceSize (never a number written into the script: the build script and the CI pass the
             size, and a size below the setup program is refused by ISCC), no pages and no language
             dialog, SetupLogging=yes, CloseApplications=no
@@ -18,6 +19,11 @@ to stay safe and installable:
             product runner) or a file of the launcher, the Mod Creator or the licenses below {app}
             (ignoreversion, and Check: IsDotNet48: without .NET Framework 4.8 only the games are
             installed)
+  [Slices]  the build records the number and the total size of the slices (SliceCount, SliceTotal), never
+            their single sizes (the digits changed setup.exe and with it slice 1: the build never became
+            stable); the first pass is named "PASS1 DO NOT SHIP"
+  [Modes]   InitializeSetup stops outside the admin install mode; no HKLM64 or HKCU64 (they raise an error on a
+            32-bit Windows, which the suite supports; HKLM and HKCU are the 64-bit views in its install mode)
   [Code]    the exit codes SuiteExit* of suite_common.iss are the numbers 10 to 15, each once; every
             precheck exits through SuiteStop (the only caller of ExitProcess), which writes the log
             line first; the precheck codes 10 to 14 are used by suite.iss
@@ -61,7 +67,6 @@ SUITE_FILES = ["suite/suite.iss", "suite/suite_common.iss", "suite/suite_message
 SETUP_EXPECTED = {
     "MinVersion": "6.1sp1",
     "PrivilegesRequired": "admin",
-    "PrivilegesRequiredOverridesAllowed": "commandline",
     "DiskSpanning": "yes",
     "DiskSliceSize": "{#SliceSize}",
     "SolidCompression": "no",
@@ -126,6 +131,39 @@ def check_setup(text, errors):
         if not value.lower().startswith("lzma"):
             errors.append(f"suite/suite.iss:{no}: Compression={value}, expected lzma or lzma2")
     return len(found)
+
+
+def check_frame_rules(main, files, errors):
+    """Rules for the slice check, the install mode and the registry views; the number of rules checked."""
+    main_code = "\n".join(line for _, line in code_lines(main))
+    if re.search(r"SliceSizes", main):
+        errors.append("suite/suite.iss: SliceSizes: the build records the number and the total size of the slices "
+                      "(SliceCount, SliceTotal), not their single sizes (they change with setup.exe, the build "
+                      "never becomes stable)")
+    for needed, text in (("#define SliceTotal", "define SliceTotal"),
+                         ("SuiteSliceTotal = {#SliceTotal};", "compile SuiteSliceTotal from SliceTotal"),
+                         ("SuiteSliceMax = {#SliceSize};", "compile SuiteSliceMax from SliceSize"),
+                         ('#define SuiteOutputFile SuiteOutputName + " PASS1 DO NOT SHIP"', "name the output of the first pass "
+                          '"PASS1 DO NOT SHIP" (it has no slice check)'),
+                         ("OutputBaseFilename={#SuiteOutputFile}", "use SuiteOutputFile as OutputBaseFilename")):
+        if needed not in main:
+            errors.append(f"suite/suite.iss: must {text} ({needed})")
+    if not re.search(r"\bSuiteFindSliceProblems\(Src, SuiteSetupBaseName, SuiteSliceCount, SuiteSliceMax, SuiteSliceTotal,", main_code):
+        errors.append("suite/suite.iss: InitializeSetup must call SuiteFindSliceProblems with the count, the largest "
+                      "size and the total size of the slices")
+    if re.search(r"^\s*PrivilegesRequiredOverridesAllowed\s*=", main, re.MULTILINE):
+        errors.append("suite/suite.iss: PrivilegesRequiredOverridesAllowed is set: the suite is only installed for all "
+                      "users (contract 0), /CURRENTUSER must not work, not even in a test build")
+    init = function_bodies(code_lines(main)).get("InitializeSetup", "")
+    guard = re.search(r"if\s+not\s+IsAdminInstallMode\s+then\s+SuiteStop\(", init)
+    if not guard or guard.start() > init.find("SuiteSilentArgumentsProblem("):
+        errors.append("suite/suite.iss: InitializeSetup must stop first if not IsAdminInstallMode")
+    for rel, text in files.items():
+        for no, line in code_lines(text):
+            if re.search(r"\b(HKLM64|HKCU64|HKLM32|HKCU32)\b", line):
+                errors.append(f"{rel}:{no}: HKLM64, HKCU64, HKLM32 and HKCU32 raise an error on a 32-bit Windows (the "
+                              "suite supports it) or leave the 64-bit view: use HKLM and HKCU")
+    return 5
 
 
 def check_files(text, errors):
@@ -429,10 +467,11 @@ def check(root):
         errors.append(str(error))
         uninstaller = ""
     files = {rel: read(root, rel) for rel in SUITE_FILES if (root / rel).is_file()}
+    frame = check_frame_rules(main, files, errors)
     removal = check_uninstaller(uninstaller, main, files, errors)
     check_forbidden_words(root, errors)
     return errors, (f"suite frame: {directives} [Setup] directives, {products} product setups and {launcher} "
-                    f"launcher, license and legal text entries in [Files], {codes} exit codes, product runner "
+                    f"launcher, license and legal text entries in [Files], {codes} exit codes, {frame} slice, mode and registry view rules, product runner "
                     f"{steps} rules, uninstaller {removal} rules, no CD key registry or library reference")
 
 
@@ -462,6 +501,23 @@ def self_test(source_root):
          "PrivilegesRequired=lowest, expected admin"),
         ("32-bit install mode", replace(main, "ArchitecturesInstallIn64BitMode=x64 arm64\n", ""),
          "ArchitecturesInstallIn64BitMode=: the suite installs in the 64-bit mode"),
+        ("a list of the single slice sizes", replace(main, "  #define SliceTotal 0\n", "  #define SliceTotal 0\n  #define SliceSizes \"\"\n"),
+         "SliceSizes: the build records the number and the total size"),
+        ("slice total not compiled in", replace(main, "SuiteSliceTotal = {#SliceTotal};", "SuiteSliceTotal = 0;"),
+         "must compile SuiteSliceTotal from SliceTotal"),
+        ("first pass named like a release",
+         replace(main, '#define SuiteOutputFile SuiteOutputName + " PASS1 DO NOT SHIP"', '#define SuiteOutputFile SuiteOutputName'),
+         'must name the output of the first pass "PASS1 DO NOT SHIP"'),
+        ("slice check without the total",
+         replace(main, "SuiteSliceMax, SuiteSliceTotal, 6)", "SuiteSliceMax, 0, 6)"),
+         "InitializeSetup must call SuiteFindSliceProblems with the count"),
+        ("overrides of the privileges allowed",
+         replace(main, "PrivilegesRequired=admin\n", "PrivilegesRequired=admin\nPrivilegesRequiredOverridesAllowed=commandline\n"),
+         "PrivilegesRequiredOverridesAllowed is set"),
+        ("no admin install mode check",
+         replace(main, "  if not IsAdminInstallMode then\n", "  if False then\n"), "must stop first if not IsAdminInstallMode"),
+        ("64-bit registry view of HKLM",
+         replace("suite/suite_pages.iss", "RegValueExists(HKLM, Key,", "RegValueExists(HKLM64, Key,"), "HKLM64, HKCU64, HKLM32 and HKCU32 raise an error"),
         ("language dialog", replace(main, "ShowLanguageDialog=no", "ShowLanguageDialog=yes"),
          "ShowLanguageDialog=yes, expected no"),
         ("launcher files without Check: IsDotNet48",

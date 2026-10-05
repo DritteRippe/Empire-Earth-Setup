@@ -17,23 +17,14 @@ begin
   Check('SuiteListedCount blank', IntToStr(SuiteListedCount('  ')), '0');
   Check('SuiteListedCount one', IntToStr(SuiteListedCount('5')), '1');
   Check('SuiteListedCount three', IntToStr(SuiteListedCount('1,2,3')), '3');
-  Check('SuiteListedSize second', IntToStr(SuiteListedSize('10,20,30', 2)), '20');
-  Check('SuiteListedSize with blank', IntToStr(SuiteListedSize('10, 20 ,30', 2)), '20');
-  Check('SuiteListedSize last', IntToStr(SuiteListedSize('10,20,30', 3)), '30');
-  Check('SuiteListedSize past the end', IntToStr(SuiteListedSize('10,20,30', 4)), '-1');
-  Check('SuiteListedSize index 0', IntToStr(SuiteListedSize('10,20,30', 0)), '-1');
-  Check('SuiteListedSize empty list', IntToStr(SuiteListedSize('', 1)), '-1');
-  Check('SuiteListedSize no number', IntToStr(SuiteListedSize('10,x,30', 2)), '-1');
-  Check('SuiteListedSize negative', IntToStr(SuiteListedSize('-5', 1)), '-1');
-  Check('SuiteListedSize above 4 GB', IntToStr(SuiteListedSize('1,5000000000', 2)), '5000000000');
 end;
 
 procedure TestSuiteSliceState;
 begin
   Check('SuiteSliceState fine', IntToStr(SuiteSliceState(True, 5, 5)), '0');
+  Check('SuiteSliceState smaller than the maximum', IntToStr(SuiteSliceState(True, 1, 5)), '0');
   Check('SuiteSliceState missing', IntToStr(SuiteSliceState(False, 0, 5)), '1');
-  Check('SuiteSliceState smaller', IntToStr(SuiteSliceState(True, 4, 5)), '2');
-  Check('SuiteSliceState larger', IntToStr(SuiteSliceState(True, 6, 5)), '2');
+  Check('SuiteSliceState larger than a slice may be', IntToStr(SuiteSliceState(True, 6, 5)), '2');
   Check('SuiteSliceState empty file', IntToStr(SuiteSliceState(True, 0, 5)), '2');
 end;
 
@@ -59,17 +50,26 @@ begin
   WriteSuiteSlice(Dir, 'Pkg-1.bin', 3);
   WriteSuiteSlice(Dir, 'Pkg-2.bin', 5);
   WriteSuiteSlice(Dir, 'Pkg-3.bin', 4);
-  Check('SuiteFindSliceProblems all fine', SuiteFindSliceProblems(Dir, 'Pkg', '3,5,4', 3, 6), '');
-  Check('SuiteFindSliceProblems folder with backslash', SuiteFindSliceProblems(AddBackslash(Dir), 'Pkg', '3,5,4', 3, 6), '');
-  Check('SuiteFindSliceProblems no slices recorded', SuiteFindSliceProblems(Dir, 'Pkg', '', 0, 6), '');
-  Check('SuiteFindSliceProblems wrong size', SuiteFindSliceProblems(Dir, 'Pkg', '3,6,4', 3, 6), 'Pkg-2.bin (5 bytes, expected 6)');
-  Check('SuiteFindSliceProblems missing last', SuiteFindSliceProblems(Dir, 'Pkg', '3,5,4,7', 4, 6), 'Pkg-4.bin (missing)');
-  Check('SuiteFindSliceProblems two problems', SuiteFindSliceProblems(Dir, 'Pkg', '2,5,4,7', 4, 6),
-    'Pkg-1.bin (3 bytes, expected 2)' + Crlf + 'Pkg-4.bin (missing)');
-  Check('SuiteFindSliceProblems line limit', SuiteFindSliceProblems(Dir, 'Pkg', '1,1,1,1,1', 5, 2),
-    'Pkg-1.bin (3 bytes, expected 1)' + Crlf + 'Pkg-2.bin (5 bytes, expected 1)' + Crlf + '... and 3 more');
-  Check('SuiteFindSliceProblems other base name', SuiteFindSliceProblems(Dir, 'Other', '3', 1, 6), 'Other-1.bin (missing)');
-  CheckBool('SuiteFindSliceProblems list shorter than the count', Pos('3 slices but 2 sizes (build error)', SuiteFindSliceProblems(Dir, 'Pkg', '3,5', 3, 6)) > 0, True);
+  // slices of 3, 5 and 4 bytes, at most 6 each, together 12
+  Check('SuiteFindSliceProblems all fine', SuiteFindSliceProblems(Dir, 'Pkg', 3, 6, 12, 6), '');
+  Check('SuiteFindSliceProblems folder with backslash', SuiteFindSliceProblems(AddBackslash(Dir), 'Pkg', 3, 6, 12, 6), '');
+  Check('SuiteFindSliceProblems no slices recorded', SuiteFindSliceProblems(Dir, 'Pkg', 0, 6, 0, 6), '');
+  Check('SuiteFindSliceProblems slice at the maximum', SuiteFindSliceProblems(Dir, 'Pkg', 3, 5, 12, 6), '');
+  Check('SuiteFindSliceProblems total too small', SuiteFindSliceProblems(Dir, 'Pkg', 3, 6, 13, 6),
+    'Pkg-1.bin to Pkg-3.bin together have 12 bytes, expected 13 (a slice is damaged or from another build)');
+  Check('SuiteFindSliceProblems total too large', SuiteFindSliceProblems(Dir, 'Pkg', 3, 6, 11, 6),
+    'Pkg-1.bin to Pkg-3.bin together have 12 bytes, expected 11 (a slice is damaged or from another build)');
+  Check('SuiteFindSliceProblems slice above the maximum', SuiteFindSliceProblems(Dir, 'Pkg', 3, 4, 12, 6),
+    'Pkg-2.bin (5 bytes, at most 4 and not empty expected)');
+  Check('SuiteFindSliceProblems missing last', SuiteFindSliceProblems(Dir, 'Pkg', 4, 6, 19, 6), 'Pkg-4.bin (missing)');
+  Check('SuiteFindSliceProblems two problems', SuiteFindSliceProblems(Dir, 'Pkg', 4, 4, 19, 6),
+    'Pkg-2.bin (5 bytes, at most 4 and not empty expected)' + Crlf + 'Pkg-4.bin (missing)');
+  Check('SuiteFindSliceProblems line limit', SuiteFindSliceProblems(Dir, 'Pkg', 5, 2, 5, 2),
+    'Pkg-1.bin (3 bytes, at most 2 and not empty expected)' + Crlf + 'Pkg-2.bin (5 bytes, at most 2 and not empty expected)' + Crlf + '... and 3 more');
+  Check('SuiteFindSliceProblems other base name', SuiteFindSliceProblems(Dir, 'Other', 1, 6, 3, 6), 'Other-1.bin (missing)');
+  WriteSuiteSlice(Dir, 'Pkg-4.bin', 7);
+  Check('SuiteFindSliceProblems an extra slice after the last is not read', SuiteFindSliceProblems(Dir, 'Pkg', 3, 6, 12, 6), '');
+  DeleteFile(Dir + '\Pkg-4.bin');
   DeleteFile(Dir + '\Pkg-1.bin');
   DeleteFile(Dir + '\Pkg-2.bin');
   DeleteFile(Dir + '\Pkg-3.bin');

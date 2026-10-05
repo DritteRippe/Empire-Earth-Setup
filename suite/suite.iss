@@ -20,18 +20,23 @@
 ;   /DLauncherDir=<folder>           Release output of the launcher (no .pdb): installed below {app}
 ;   /DModCreatorDir=<folder>         Release output of the Mod Creator: installed below {app}\Mod Creator
 ;   /DLicenseDir=<folder>            LICENSE, THIRD-PARTY-NOTICES.md, licenses\, Quellcode.txt: {app}\Lizenzen
-;   /DSliceCount=<n> /DSliceSizes=<n1,n2,...>
-;                                    number and exact sizes of the slices of a build of this script: the
-;                                    suite checks them before it extracts anything (two-pass build, see below)
-;   /DSlicePass1=1                   instead of the two /D above in the first pass of the two-pass build
+;   /DSliceCount=<n> /DSliceTotal=<bytes>
+;                                    number of the slices of a build of this script and the sum of their sizes:
+;                                    the suite checks them before it extracts anything (two-pass build, see below)
+;   /DSlicePass1=1                   instead of the two /D above in the first pass of the two-pass build; the
+;                                    output of this pass is named "... PASS1 DO NOT SHIP" and has no slice check
 ;   /DSliceSize=<bytes>              DiskSliceSize (default 50000000); at least the size of the setup program
 ;   /DEEInstallSize=<bytes> /DNeoEEInstallSize=<bytes>
 ;                                    free space the installed product needs (default: twice the setup size)
 ;   /DTestID=<n>                     0 = release build (default), > 0 = test build
-; Two-pass build: slice sizes and count are only known after a build, and they are compiled into the
-; setup, so the build runs ISCC with /DSlicePass1=1, reads the slices, and runs it again with their
-; sizes (repeating until the sizes no longer change, as the list is part of the setup program). Without
-; the list a setup would start from a half package and ask for a disk (the WP0 spike: it hangs, even silent).
+; Two-pass build: the number and the total size of the slices are only known after a build, and they are
+; compiled into the setup, so the build runs ISCC with /DSlicePass1=1, sums up the slices, and runs it again
+; with their number and total. The single sizes are not compiled in: slice 1 is DiskSliceSize minus the size
+; of setup.exe, and the digits of the sizes change setup.exe, so a list of them never became stable (the
+; build alternated between two states). The total does not depend on setup.exe: the slices hold only the
+; payload. The build script runs a third pass and requires the same count, total and bytes as the second.
+; Without the check a setup would start from a half package and ask for a disk (the WP0 spike: it hangs,
+; even silent).
 ;
 ; Files are UTF-8 with BOM and CRLF (.editorconfig). The shortcuts and the suite record are created in
 ; code at ssPostInstall and removed by the uninstaller (ADR 0013 Evidence), not by [Icons] and [Registry].
@@ -167,24 +172,27 @@
   #define SlicePass1 Int(SlicePass1, 0)
 #endif
 #if SlicePass1
-  ; first pass: no slices known yet, the check of the slices stays off in this build
+  ; first pass: no slices known yet, the check of the slices stays off in this build, which therefore
+  ; must never be shipped: its output gets another name
   #define SliceCount 0
-  #define SliceSizes ""
+  #define SliceTotal 0
+  #define SuiteOutputFile SuiteOutputName + " PASS1 DO NOT SHIP"
 #else
+  #define SuiteOutputFile SuiteOutputName
   #ifndef SliceCount
     #define SliceCount -1
   #endif
-  #ifndef SliceSizes
-    #define SliceSizes ""
+  #ifndef SliceTotal
+    #define SliceTotal -1
   #endif
   #if TypeOf(SliceCount) != TYPE_INTEGER
     #define SliceCount Int(SliceCount, -1)
   #endif
-  #if SliceCount <= 0
-    #error SliceCount and SliceSizes must name the slices of an earlier build of this script (the second pass of the build); the first pass passes /DSlicePass1=1
+  #if TypeOf(SliceTotal) != TYPE_INTEGER
+    #define SliceTotal Int(SliceTotal, -1)
   #endif
-  #if StripChars(SliceSizes, "0123456789,") != "" || Len(SliceSizes) - Len(StringChange(SliceSizes, ",", "")) + 1 != SliceCount
-    #pragma error "SliceSizes '" + SliceSizes + "' is not a list of " + Str(SliceCount) + " numbers separated by commas"
+  #if SliceCount <= 0 || SliceTotal <= 0
+    #error SliceCount and SliceTotal must name the slices of an earlier build of this script (the second pass of the build); the first pass passes /DSlicePass1=1
   #endif
 #endif
 
@@ -216,9 +224,9 @@ VersionInfoCopyright={#SuiteName}
 UninstallDisplayName=Empire Earth Community (Launcher, EE, NeoEE)
 UninstallDisplayIcon={app}\{#LauncherExe}
 ; The suite is installed for all users, in the 64-bit mode like the products (its HKLM entries are in
-; the 64-bit view, contract 1.6); a per-user or portable installation does not exist (contract 0)
+; the 64-bit view, contract 1.6); a per-user or portable installation does not exist (contract 0), so
+; PrivilegesRequiredOverridesAllowed is not set: /CURRENTUSER is ignored, also in a test build
 PrivilegesRequired=admin
-PrivilegesRequiredOverridesAllowed=commandline
 ArchitecturesInstallIn64BitMode=x64 arm64
 ; The same Windows range as the products and the launcher: Windows 7 SP1 to 11 (Inno Setup 6 setups need 6.1sp1)
 MinVersion=6.1sp1
@@ -237,7 +245,7 @@ DiskSliceSize={#SliceSize}
 Compression=lzma2/max
 SolidCompression=no
 OutputDir=..\out\Suite
-OutputBaseFilename={#SuiteOutputName}
+OutputBaseFilename={#SuiteOutputFile}
 ; One suite at a time, and not while a game or the launcher runs (contract 0 "Suite and launcher", 4.2)
 SetupMutex=EmpireEarthCommunity_Suite
 AppMutex={#SuiteAppMutex}
@@ -303,10 +311,12 @@ const
   // AppIds of the product setups without braces (the suite record names them, contract 1.6)
   SuiteEEAppId = '{#EE_AppID}';
   SuiteNeoEEAppId = '{#NeoEE_AppID}';
-  // The slices of this build: base name, number and sizes (SuiteFindSliceProblems)
+  // The slices of this build: base name, number, the size one slice may have at most and the sum of
+  // all sizes (SuiteFindSliceProblems)
   SuiteSetupBaseName = '{#SuiteOutputName}';
   SuiteSliceCount = {#SliceCount};
-  SuiteSliceSizes = '{#SliceSizes}';
+  SuiteSliceMax = {#SliceSize};
+  SuiteSliceTotal = {#SliceTotal};
   // The game and launcher mutexes, as AppMutex (InitializeSetup checks them first, to exit with a code)
   SuiteMutexes = '{#SuiteAppMutex}';
   // 0 = release build
@@ -405,6 +415,11 @@ begin
   Log('Suite {#SuiteVersion} (contract {#ContractVersion}, test build ' + IntToStr(SuiteTestID) + '), started from ' + Src +
     ', temporary folder ' + TempRoot + ', silent ' + IntToStr(Ord(SuiteSilent)));
 
+  // 0. Only in the mode admin (contract 0); the privileges directive already guarantees it, this keeps the
+  // suite from writing a half record if it ever does not
+  if not IsAdminInstallMode then
+    SuiteStop(SuiteExitSilentArguments, 'not running in the administrative install mode', '');
+
   // 1. A silent run names its products and decides about the CD key registration of NeoEE (exit code 10)
   if SuiteSilent then
   begin
@@ -431,11 +446,12 @@ begin
     ' (0 not installed, 1 for all users, 2 for one user only, skipped); selected "' + Selected + '"');
 
   // 2. Every slice next to the setup, with its exact size (exit code 11, or 12 if it looks like the ZIP view)
-  Problems := SuiteFindSliceProblems(Src, SuiteSetupBaseName, SuiteSliceSizes, SuiteSliceCount, 6);
+  Problems := SuiteFindSliceProblems(Src, SuiteSetupBaseName, SuiteSliceCount, SuiteSliceMax, SuiteSliceTotal, 6);
   if SuiteSliceCount <= 0 then
-    Log('Slices: none recorded in this build (first pass of the two-pass build), not checked')
+    Log('Slices: none recorded in this build (first pass of the two-pass build, never to be shipped), not checked')
   else if Problems = '' then
-    Log('Slices: ' + IntToStr(SuiteSliceCount) + ' checked, all present with their sizes')
+    Log('Slices: ' + IntToStr(SuiteSliceCount) + ' checked, all present, none above ' + IntToStr(SuiteSliceMax) +
+      ' bytes, together ' + IntToStr(SuiteSliceTotal) + ' bytes')
   else if SuiteIsZipViewPath(Src, TempRoot) then
     SuiteStop(SuiteExitZipView, 'started from the ZIP view or a temporary folder, slices missing or wrong: ' + Problems,
       FmtMessage(CustomMessage('SuiteZipView'), [Problems]))
