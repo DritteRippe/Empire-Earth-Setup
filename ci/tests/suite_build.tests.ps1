@@ -278,7 +278,7 @@ exit 0
   Check 'BUILD-INFO: slice size' ($buildInfo -like '*DiskSliceSize:        393216*') $true
   Check 'BUILD-INFO: the output hashes' ($buildInfo -like "*  $($sums[0])*") $true
   Check 'BUILD-INFO: no AppId' ($buildInfo -like '*0000-0000*') $false
-  
+
   # A second run replaces what the first one wrote, and only that
   Set-Content -LiteralPath (Join-Path $out "$base-9.bin") -Value 'stale'
   Set-Content -LiteralPath (Join-Path $out 'keep.txt') -Value 'mine'
