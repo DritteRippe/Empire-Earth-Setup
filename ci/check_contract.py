@@ -52,6 +52,35 @@ is the setup script. This check reads only TABLES of the contract, never its pro
                                                entries for the same program and root that can both
                                                apply in one run are an error
 
+Suite (contract revision 4, setup ADR 0013): suite/suite.iss and the files its #include "..." lines
+name. While suite/suite.iss does not exist, the check prints "suite/suite.iss not present, suite
+rules skipped" and passes.
+
+  contract                                     suite/suite.iss
+  0 "Suite and launcher", rows "Suite setup    [Setup] SetupMutex names the suite setup mutex;
+  mutex (SetupMutex)", "Launcher mutex",       AppMutex names the launcher mutex and every name
+  "Suite AppMutex"                             of the row "Suite AppMutex" (every occurrence of
+                                               the directive, order free)
+  1.6, Value | Type, with the row "Suite       the [Registry] entries of that key: Root HKLM64, or
+  record key" of 0                             HKLM with ArchitecturesInstallIn64BitMode; exactly
+                                               the value names of the table with their types;
+                                               the flag uninsdeletekey; a plain ContractVersion
+                                               equal to the contract version
+  1.7, Shortcut | Product | Places | Target |  [Icons]: per row and place an entry
+       Parameters | Without .NET Framework 4.8 <place>\<shortcut> that starts the launcher (row
+                                               "Launcher program" of 0) with the row's
+                                               parameters ({group} is DefaultGroupName below
+                                               {autoprograms}); every entry with a game shortcut
+                                               name starts the launcher with exactly those
+                                               parameters, or the program of the fallback column
+                                               without parameters; every entry that passes
+                                               --product= starts the launcher
+
+The suite script is read as written, without evaluating #if: {#Name} is expanded from plain
+'#define Name "text"' and '#define Name <number>' lines (a name defined with two values, or
+another ISPP expression, stops the check with an error), so the game shortcut names must be
+written out (no {cm:...}).
+
 The [Registry] section is preprocessed for each of the four build variants (EE/NeoEE x
 Regular/Portable; Regular gives the install modes admin and user, Portable the mode portable) by a
 small interpreter of the ISPP directives it uses: #define, #expr, #sub/#endsub, #call,
@@ -88,8 +117,11 @@ only join names with 'and'.
 value per rule, e.g. Music Volume $2C -> $2D, a missing extension, another publisher, a window
 limit 1920 -> 2560,
 GpuPreference=2; -> GpuPreference=1;, WIN7RTM -> WIN8RTM, a missing row compatibility_legacy, a
-[Files] entry without ignoreversion, another component of a verified online file entry) that must
-fail with the expected message, and against copies that must pass.
+[Files] entry without ignoreversion, another component of a verified online file entry, and a
+minimal suite/suite.iss written by the self-test with one change: the launcher mutex missing in
+AppMutex, a record value missing or added, a game shortcut to the wrong target) that must fail
+with the expected message, and against copies that must pass (also without suite/suite.iss, and
+with the unchanged minimal suite script, checked by the text of the summary).
 
 --preprocessed <folder> takes the scripts that ISCC itself preprocessed (ci/build.ps1
 -KeepPreprocessed <folder>: EE_Regular.iss, NeoEE_Regular.iss, EE_Portable.iss,
@@ -1701,6 +1733,309 @@ def check_verified_online_files(root, errors):
 
 
 # ---------------------------------------------------------------------------------------------
+# Rules of the suite (contract 0 "Suite and launcher", 1.6, 1.7): suite/suite.iss
+
+SUITE_SCRIPT = "suite/suite.iss"
+SUITE_SKIPPED = f"{SUITE_SCRIPT} not present, suite rules skipped"
+SUITE_NAMES_SECTION = "Suite and launcher"
+# Rows of the table "Suite and launcher" (plain text of the column "Name")
+SUITE_SETUP_MUTEX_ROW = "Suite setup mutex (SetupMutex)"
+SUITE_LAUNCHER_MUTEX_ROW = "Launcher mutex"
+SUITE_APP_MUTEX_ROW = "Suite AppMutex"
+SUITE_LAUNCHER_ROW = "Launcher program"
+SUITE_RECORD_KEY_ROW = "Suite record key"
+SUITE_DEFINE = re.compile(r'^\s*#\s*define\s+([A-Za-z_]\w*)\s*(?:=\s*)?(?:"([^"]*)"|(\d+))\s*$')
+SUITE_DEFINE_REF = re.compile(r"\{#\s*([A-Za-z_]\w*)\s*\}")
+SUITE_RECORD_ROOTS = ("hklm", "hklm64")
+
+
+def contract_named_section(lines, title):
+    """[(line number, text)] of the section '#... <title>' of the contract (heading text compared
+    exactly), up to the next heading of the same or a higher level."""
+    result, inside, level = [], False, 0
+    for no, text in enumerate(lines, 1):
+        heading = re.match(r"^(#{1,6})\s+(.*?)\s*$", text)
+        if heading:
+            if inside and len(heading.group(1)) <= level:
+                break
+            if heading.group(2) == title:
+                inside, level = True, len(heading.group(1))
+                continue
+        if inside:
+            result.append((no, text))
+    if not result:
+        raise CheckError(f"{CONTRACT}: no section '{title}'")
+    return result
+
+
+def code_spans(cell):
+    return re.findall(r"`([^`]+)`", cell)
+
+
+def suite_include_closure(root):
+    """suite/suite.iss and the files of the repository its #include "..." lines name, recursively
+    (relative to the including file, else to the repository root)."""
+    found, queue = [], [Path(SUITE_SCRIPT)]
+    while queue:
+        rel = queue.pop(0)
+        if rel in found or not (root / rel).is_file():
+            continue
+        found.append(rel)
+        for _, text in logical_lines(read_text(root / rel)):
+            match = INCLUDE_LINE.match(text)
+            if match:
+                name = Path(match.group(1).replace("\\", "/"))
+                beside = rel.parent / name
+                queue.append(beside if (root / beside).is_file() else name)
+    return found
+
+
+class SuiteScript:
+    """The [Setup], [Registry] and [Icons] lines of suite/suite.iss and its #include files, as
+    written, and the plain #define lines (string or number) to expand {#Name}. #if blocks are not
+    evaluated: every entry of every branch is checked."""
+
+    def __init__(self, root):
+        self.lines, self.defines = [], {}
+        for rel in suite_include_closure(root):
+            for no, text in logical_lines(read_text(root / rel)):
+                where = f"{rel.as_posix()}:{no}"
+                self.lines.append((where, text))
+                match = SUITE_DEFINE.match(text)
+                if match:
+                    value = match.group(2) if match.group(2) is not None else match.group(3)
+                    if self.defines.get(match.group(1), value) != value:
+                        value = UNREADABLE
+                    self.defines[match.group(1)] = value
+
+    def expand(self, text, where):
+        for _ in range(20):
+            def value(match):
+                name = match.group(1)
+                found = self.defines.get(name)
+                if found is None or found == UNREADABLE:
+                    reason = "is defined with different values" if found == UNREADABLE else "has no plain #define"
+                    raise CheckError(f"{where}: cannot read '{{#{name}}}' ({name} {reason} in {SUITE_SCRIPT} "
+                                     "or its #include files; this check expands only plain string and "
+                                     "number #defines)")
+                return found
+            expanded = SUITE_DEFINE_REF.sub(value, text)
+            if expanded == text:
+                break
+            text = expanded
+        if "{#" in text:
+            raise CheckError(f"{where}: cannot read the ISPP expression in '{text}'")
+        return text
+
+    def section(self, name):
+        """[(where, text)] of the entry lines of the section (no comments, no ISPP directives)."""
+        result, inside = [], False
+        for where, text in self.lines:
+            stripped = text.strip()
+            if re.fullmatch(r"\[[A-Za-z]+\]", stripped):
+                inside = stripped[1:-1].lower() == name.lower()
+                continue
+            if inside and stripped and not stripped.startswith((";", "#", "//")):
+                result.append((where, text))
+        return result
+
+    def directives(self, name):
+        """[(where, expanded value)] of the [Setup] directive name (every occurrence)."""
+        result = []
+        for where, text in self.section("Setup"):
+            key, sep, value = text.partition("=")
+            if sep and key.strip().lower() == name.lower():
+                result.append((where, self.expand(value.strip(), where)))
+        return result
+
+    def entries(self, name):
+        return [(where, parse_params(text)) for where, text in self.section(name)]
+
+
+def suite_names(contract_lines):
+    """{row: [code values]} of the table 'Suite and launcher' of contract 0."""
+    header, rows = first_table(contract_named_section(contract_lines, SUITE_NAMES_SECTION),
+                               SUITE_NAMES_SECTION)
+    require_columns(header, ["Name", "Value"], SUITE_NAMES_SECTION)
+    names = {plain(row["Name"]): code_spans(row["Value"]) for _, row in rows}
+    for row in (SUITE_SETUP_MUTEX_ROW, SUITE_LAUNCHER_MUTEX_ROW, SUITE_APP_MUTEX_ROW, SUITE_LAUNCHER_ROW,
+                SUITE_RECORD_KEY_ROW):
+        if not names.get(row):
+            raise CheckError(f"{CONTRACT}: the table of '{SUITE_NAMES_SECTION}' has no row '{row}' with a "
+                             "value in backticks")
+    return names
+
+
+def mutex_list(value):
+    return [name.strip() for name in value.split(",") if name.strip()]
+
+
+def check_suite_mutexes(script, names, errors):
+    """[Setup] SetupMutex names the suite setup mutex; AppMutex names the launcher mutex and every
+    name of the row 'Suite AppMutex'. Returns the number of names checked."""
+    expected = {"SetupMutex": names[SUITE_SETUP_MUTEX_ROW],
+                "AppMutex": list(dict.fromkeys(names[SUITE_LAUNCHER_MUTEX_ROW] + names[SUITE_APP_MUTEX_ROW]))}
+    for directive, wanted in expected.items():
+        found = script.directives(directive)
+        if not found:
+            errors.append(f"{SUITE_SCRIPT}: [Setup] has no {directive}; contract 0 '{SUITE_NAMES_SECTION}' "
+                          f"needs {', '.join(wanted)} [suite 0]")
+        for where, value in found:
+            missing = [name for name in wanted if name not in mutex_list(value)]
+            if missing:
+                errors.append(f"{where}: {directive}={value} does not name {', '.join(missing)} "
+                              f"(contract 0 '{SUITE_NAMES_SECTION}') [suite 0]")
+    return sum(len(wanted) for wanted in expected.values())
+
+
+def check_suite_record(script, contract_lines, names, version, errors):
+    """The [Registry] entries of the suite record key: Root HKLM in 64-bit install mode or HKLM64,
+    exactly the value names of the table of contract 1.6 with their types, uninsdeletekey, and a
+    plain ContractVersion equal to the contract version. Returns the number of value names."""
+    header, rows = first_table(contract_section(contract_lines, "1.6"), "1.6")
+    require_columns(header, ["Value", "Type"], "1.6")
+    table = {}
+    for no, row in rows:
+        value_names = code_spans(row["Value"])
+        if len(value_names) != 1:
+            raise CheckError(f"{CONTRACT}:{no}: the column Value of 1.6 must hold one name in backticks")
+        table[value_names[0].lower()] = (value_names[0], plain(row["Type"]))
+    key = names[SUITE_RECORD_KEY_ROW][0].strip("\\").lower()
+    entries = [(where, params) for where, params in script.entries("Registry")
+               if script.expand(params.get("subkey", ""), where).strip("\\").lower() == key]
+    if not entries:
+        errors.append(f"{SUITE_SCRIPT}: [Registry] has no entry for the suite record key "
+                      f"{names[SUITE_RECORD_KEY_ROW][0]} (contract 1.6) [suite 1.6]")
+        return len(table)
+    in_64_bit_mode = any(value for _, value in script.directives("ArchitecturesInstallIn64BitMode"))
+    found = {}
+    for where, params in entries:
+        root = params.get("root", "").strip().lower()
+        if root not in SUITE_RECORD_ROOTS:
+            errors.append(f"{where}: the suite record has Root {params.get('root', '(none)')}; contract 1.6 "
+                          "needs HKLM in the 64-bit view (HKLM64, or HKLM in 64-bit install mode) [suite 1.6]")
+        elif root == "hklm" and not in_64_bit_mode:
+            errors.append(f"{where}: the suite record has Root HKLM, but [Setup] has no "
+                          "ArchitecturesInstallIn64BitMode, so it lands in the 32-bit view (contract 1.6) "
+                          "[suite 1.6]")
+        name = params.get("valuename")
+        if name is None:
+            continue
+        name = script.expand(name, where)
+        value_type = REG_TYPES.get(params.get("valuetype", "").strip().lower(), params.get("valuetype", ""))
+        found.setdefault(name.lower(), []).append((where, name, value_type, params))
+    if not any("uninsdeletekey" in params.get("flags", "").lower().split() for _, params in entries):
+        errors.append(f"{SUITE_SCRIPT}: no [Registry] entry of the suite record key has the flag uninsdeletekey "
+                      "(contract 1.6) [suite 1.6]")
+    for lower, (name, value_type) in table.items():
+        if lower not in found:
+            errors.append(f"{SUITE_SCRIPT}: the suite record has no value {name} (table of contract 1.6) "
+                          "[suite 1.6]")
+            continue
+        for where, written, script_type, params in found[lower]:
+            if written != name:
+                errors.append(f"{where}: value name {written}, the contract writes {name} [suite 1.6]")
+            if script_type != value_type:
+                errors.append(f"{where}: {name} is {script_type or '(no ValueType)'}, contract 1.6 {value_type} "
+                              "[suite 1.6]")
+            if lower == "contractversion" and version is not None:
+                data = script.expand(params.get("valuedata", ""), where).strip()
+                if data.isdigit() and int(data) != version:
+                    errors.append(f"{where}: ContractVersion {data}, but the contract version is {version} "
+                                  "[suite 1.6]")
+    for lower in sorted(set(found) - set(table)):
+        where, name = found[lower][0][0], found[lower][0][1]
+        errors.append(f"{where}: the suite record value {name} is not in the table of contract 1.6 "
+                      "(add it there first, in both repositories) [suite 1.6]")
+    return len(table)
+
+
+def check_suite_shortcuts(script, contract_lines, names, errors):
+    """[Icons]: per row of the table of contract 1.7 and per place, an entry <place>\\<shortcut>
+    that starts the launcher with the row's parameters; every entry of a game shortcut name starts
+    the launcher with exactly those parameters or, without them, the game program of the row's
+    fallback; every entry that passes --product= starts the launcher. {group} is DefaultGroupName
+    below {autoprograms}. Returns the number of game shortcuts checked."""
+    header, rows = first_table(contract_section(contract_lines, "1.7"), "1.7")
+    columns = ["Shortcut", "Product", "Places", "Target", "Parameters", "Without .NET Framework 4.8"]
+    require_columns(header, columns, "1.7")
+    launcher = names[SUITE_LAUNCHER_ROW][0]
+    shortcuts = {}
+    for no, row in rows:
+        values = {column: code_spans(row[column]) for column in columns}
+        if any(len(values[column]) != 1 for column in columns if column != "Places") or not values["Places"]:
+            raise CheckError(f"{CONTRACT}:{no}: a row of the table of 1.7 needs one value in backticks per "
+                             "column (Places: one or more)")
+        target, parameters = values["Target"][0], values["Parameters"][0]
+        if target.lower() != launcher.lower() or parameters != f"--product={values['Product'][0]}":
+            raise CheckError(f"{CONTRACT}:{no}: the game shortcut must start {launcher} with "
+                             f"--product={values['Product'][0]}")
+        fallback = values["Without .NET Framework 4.8"][0]
+        if not fallback.startswith("<product root>\\"):
+            raise CheckError(f"{CONTRACT}:{no}: the column 'Without .NET Framework 4.8' must start with "
+                             "<product root>\\")
+        shortcuts[values["Shortcut"][0].lower()] = (values["Shortcut"][0], values["Places"], parameters,
+                                                    fallback[len("<product root>"):])
+    groups = script.directives("DefaultGroupName")
+    group = groups[0][1] if groups else None
+
+    def place_and_name(where, params):
+        name = script.expand(params.get("name", ""), where)
+        if name.lower().startswith("{group}\\") and group is not None:
+            name = "{autoprograms}\\" + group + name[len("{group}"):]
+        place, _, short = name.rpartition("\\")
+        return place, short
+
+    icons = []
+    for where, params in script.entries("Icons"):
+        place, short = place_and_name(where, params)
+        icons.append((where, place, short, script.expand(params.get("filename", ""), where),
+                      script.expand(params.get("parameters", ""), where).strip()))
+    for where, place, short, filename, parameters in icons:
+        row = shortcuts.get(short.lower())
+        if "--product=" in parameters and filename.lower() != launcher.lower():
+            errors.append(f"{where}: {place}\\{short} passes {parameters} but starts {filename}, not the launcher "
+                          f"{launcher} (contract 1.7) [suite 1.7]")
+            continue
+        if row is None:
+            if "--product=" in parameters:
+                errors.append(f"{where}: {place}\\{short} starts the launcher with {parameters}, but "
+                              f"{short} is no game shortcut of the table of contract 1.7 [suite 1.7]")
+            continue
+        name, _, wanted, fallback = row
+        if filename.lower() == launcher.lower():
+            if parameters != wanted:
+                errors.append(f"{where}: {place}\\{short} starts the launcher with '{parameters}' instead of "
+                              f"{wanted} (contract 1.7) [suite 1.7]")
+        elif not filename.lower().endswith(fallback.lower()) or parameters:
+            errors.append(f"{where}: the game shortcut {place}\\{short} starts {filename} {parameters}".rstrip()
+                          + f"; contract 1.7 allows the launcher {launcher} {wanted} or, without .NET "
+                          f"Framework 4.8, <product root>{fallback} without parameters [suite 1.7]")
+    count = 0
+    for name, places, wanted, _ in shortcuts.values():
+        for place in places:
+            count += 1
+            if not any(p.lower() == place.lower() and s.lower() == name.lower() and f.lower() == launcher.lower()
+                       and a == wanted for _, p, s, f, a in icons):
+                errors.append(f"{SUITE_SCRIPT}: no [Icons] entry {place}\\{name} that starts the launcher "
+                              f"{launcher} with {wanted} (contract 1.7) [suite 1.7]")
+    return count
+
+
+def check_suite(root, contract_lines, version, errors):
+    """The suite rules; a summary text. Skipped (no error) while suite/suite.iss does not exist."""
+    if not (root / SUITE_SCRIPT).is_file():
+        return SUITE_SKIPPED
+    script = SuiteScript(root)
+    names = suite_names(contract_lines)
+    mutexes = check_suite_mutexes(script, names, errors)
+    values = check_suite_record(script, contract_lines, names, version, errors)
+    shortcuts = check_suite_shortcuts(script, contract_lines, names, errors)
+    return (f"suite: SetupMutex and AppMutex ({mutexes} names), record with {values} values, "
+            f"{shortcuts} game shortcuts to the launcher")
+
+
+# ---------------------------------------------------------------------------------------------
 
 def check(root):
     """(errors, summary) for the repository root."""
@@ -1775,6 +2110,8 @@ def check(root):
                    f"{FILES_RECORD_PROC}")
     count = rule("2.3", lambda: check_verified_online_files(root, errors))
     summary.append(f"2.3: {count} [Files] entries of verified online files, the same in {VERIFIED_RECORD_PROC}")
+    suite = rule("suite", lambda: check_suite(root, contract_lines, version, errors))
+    summary.append(suite if suite is not None else "suite: not checked")
     return errors, "; ".join(summary)
 
 
@@ -1875,6 +2212,61 @@ def self_test(source_root):
 
     def both(*steps):
         return lambda root: [step(root) for step in steps]
+
+    def write(rel, text):
+        """Writes the file as the own .iss files are kept (UTF-8 with BOM, CRLF)."""
+        def apply(root):
+            path = root / rel
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(b"\xef\xbb\xbf" + text.replace("\r\n", "\n").replace("\n", "\r\n").encode("utf-8"))
+        return apply
+
+    def remove(rel):
+        def apply(root):
+            if (root / rel).exists():
+                (root / rel).unlink()
+        return apply
+
+    suite = SUITE_SCRIPT
+    # A minimal suite script as contract 0, 1.6 and 1.7 describe it (WP3 writes the real one).
+    SUITE_FIXTURE = r"""; self-test fixture of ci/check_contract.py
+#define SuiteName "Empire Earth Community"
+#define LauncherExe "Empire Earth Launcher.exe"
+#define SuiteKey "Software\Empire Earth Community\Suite"
+#define ContractVersion 1
+
+[Setup]
+AppName={#SuiteName}
+ArchitecturesInstallIn64BitMode=x64 arm64
+DefaultGroupName={#SuiteName}
+SetupMutex=EmpireEarthCommunity_Suite
+AppMutex=StainlessSteelStudiosPresentsEmpireEarth,MadDocSoftwarePresentsEmpireEarthExpansion,EmpireEarthCommunityLauncher
+
+[Registry]
+Root: HKLM; Subkey: "Software\Empire Earth Community"; Flags: uninsdeletekeyifempty
+Root: HKLM; Subkey: "{#SuiteKey}"; Flags: uninsdeletekey
+Root: HKLM; Subkey: "{#SuiteKey}"; ValueType: dword; ValueName: "ContractVersion"; ValueData: "{#ContractVersion}"
+Root: HKLM; Subkey: "{#SuiteKey}"; ValueType: string; ValueName: "SuiteVersion"; ValueData: "1.0.0"
+Root: HKLM; Subkey: "{#SuiteKey}"; ValueType: string; ValueName: "InstallPath"; ValueData: "{app}"
+Root: HKLM; Subkey: "{#SuiteKey}"; ValueType: string; ValueName: "Products"; ValueData: "{code:SuiteProducts}"
+Root: HKLM; Subkey: "{#SuiteKey}"; ValueType: string; ValueName: "SourceDir"; ValueData: "{src}"
+Root: HKLM; Subkey: "{#SuiteKey}"; ValueType: string; ValueName: "EEAppId"; ValueData: "{code:EEAppId}"
+Root: HKLM; Subkey: "{#SuiteKey}"; ValueType: string; ValueName: "NeoEEAppId"; ValueData: "{code:NeoEEAppId}"
+Root: HKLM; Subkey: "{#SuiteKey}"; ValueType: string; ValueName: "Written"; ValueData: "{code:WrittenTime}"
+
+[Icons]
+Name: "{autodesktop}\Empire Earth"; Filename: "{app}\{#LauncherExe}"; Parameters: "--product=EE"; WorkingDir: "{app}"; Check: ProductOk('EE') and IsDotNet48
+Name: "{group}\Empire Earth"; Filename: "{app}\{#LauncherExe}"; Parameters: "--product=EE"; WorkingDir: "{app}"; Check: ProductOk('EE') and IsDotNet48
+Name: "{autodesktop}\Neo Empire Earth"; Filename: "{app}\{#LauncherExe}"; Parameters: "--product=NeoEE"; WorkingDir: "{app}"; Check: ProductOk('NeoEE') and IsDotNet48
+Name: "{autoprograms}\Empire Earth Community\Neo Empire Earth"; Filename: "{app}\{#LauncherExe}"; Parameters: "--product=NeoEE"; WorkingDir: "{app}"; Check: ProductOk('NeoEE') and IsDotNet48
+Name: "{autodesktop}\Empire Earth"; Filename: "{code:ProductRoot|EE}\Empire Earth\Empire Earth.exe"; Check: ProductOk('EE') and not IsDotNet48
+Name: "{group}\Empire Earth Launcher"; Filename: "{app}\{#LauncherExe}"; WorkingDir: "{app}"
+Name: "{group}\{cm:UninstallProgram,{#SuiteName}}"; Filename: "{uninstallexe}"
+"""
+    fixture = write(suite, SUITE_FIXTURE)
+
+    def suite_case(old, new):
+        return both(fixture, replace(suite, old, new))
 
     crlf = "\r\n"
     contract, main_script, utils = CONTRACT, MAIN_SCRIPT, UTILS_SCRIPT
@@ -2127,6 +2519,63 @@ def self_test(source_root):
          replace(main_script, 'external skipifsourcedoesntexist; Components: game and language\\update;',
                  'external skipifsourcedoesntexist; Components: game or language\\update;'),
          "is not a list of component names joined by 'and'"),
+        # suite (contract 0 "Suite and launcher", 1.6, 1.7): suite/suite.iss
+        ("suite: AppMutex without the launcher mutex",
+         suite_case(",EmpireEarthCommunityLauncher\n", "\n"),
+         "does not name EmpireEarthCommunityLauncher"),
+        ("suite: AppMutex without the game mutex of AoC",
+         suite_case("MadDocSoftwarePresentsEmpireEarthExpansion,", ""),
+         "does not name MadDocSoftwarePresentsEmpireEarthExpansion"),
+        ("suite: SetupMutex of a product",
+         suite_case("SetupMutex=EmpireEarthCommunity_Suite", "SetupMutex=EE_Setup"),
+         "SetupMutex=EE_Setup does not name EmpireEarthCommunity_Suite"),
+        ("suite: no SetupMutex",
+         suite_case("SetupMutex=EmpireEarthCommunity_Suite\n", ""),
+         "[Setup] has no SetupMutex"),
+        ("suite: mutex from an unknown define",
+         suite_case("SetupMutex=EmpireEarthCommunity_Suite", "SetupMutex={#SuiteMutex}"),
+         "cannot read '{#SuiteMutex}'"),
+        ("suite: record without the value Written",
+         suite_case('ValueName: "Written"; ValueData: "{code:WrittenTime}"\n', 'ValueName: "Writen"; ValueData: "{code:WrittenTime}"\n'),
+         "the suite record has no value Written"),
+        ("suite: record with a value the contract does not have",
+         suite_case('ValueName: "SourceDir"; ValueData: "{src}"\n',
+                    'ValueName: "SourceDir"; ValueData: "{src}"\n'
+                    'Root: HKLM; Subkey: "{#SuiteKey}"; ValueType: string; ValueName: "Language"; ValueData: "de"\n'),
+         "the suite record value Language is not in the table of contract 1.6"),
+        ("suite: ContractVersion as a string",
+         suite_case('ValueType: dword; ValueName: "ContractVersion"', 'ValueType: string; ValueName: "ContractVersion"'),
+         "ContractVersion is REG_SZ, contract 1.6 REG_DWORD"),
+        ("suite: ContractVersion 2",
+         suite_case("#define ContractVersion 1", "#define ContractVersion 2"),
+         "ContractVersion 2, but the contract version is 1"),
+        ("suite: record in HKCU",
+         suite_case('Root: HKLM; Subkey: "{#SuiteKey}"; ValueType: string; ValueName: "Products"',
+                    'Root: HKCU; Subkey: "{#SuiteKey}"; ValueType: string; ValueName: "Products"'),
+         "the suite record has Root HKCU"),
+        ("suite: record in HKLM without 64-bit install mode",
+         suite_case("ArchitecturesInstallIn64BitMode=x64 arm64\n", ""),
+         "so it lands in the 32-bit view"),
+        ("suite: record key without uninsdeletekey",
+         suite_case('Subkey: "{#SuiteKey}"; Flags: uninsdeletekey\n', 'Subkey: "{#SuiteKey}"; Flags: uninsdeletekeyifempty\n'),
+         "has the flag uninsdeletekey"),
+        ("suite: EE desktop shortcut to the game program with --product=EE",
+         suite_case('Name: "{autodesktop}\\Empire Earth"; Filename: "{app}\\{#LauncherExe}"; Parameters: "--product=EE"',
+                    'Name: "{autodesktop}\\Empire Earth"; Filename: "{code:ProductRoot|EE}\\Empire Earth\\Empire Earth.exe"; Parameters: "--product=EE"'),
+         "passes --product=EE but starts {code:ProductRoot|EE}\\Empire Earth\\Empire Earth.exe, not the launcher"),
+        ("suite: Neo Empire Earth in the start menu starts EE",
+         suite_case('Name: "{autoprograms}\\Empire Earth Community\\Neo Empire Earth"; Filename: "{app}\\{#LauncherExe}"; Parameters: "--product=NeoEE"',
+                    'Name: "{autoprograms}\\Empire Earth Community\\Neo Empire Earth"; Filename: "{app}\\{#LauncherExe}"; Parameters: "--product=EE"'),
+         "starts the launcher with '--product=EE' instead of --product=NeoEE"),
+        ("suite: no Neo Empire Earth shortcut in the start menu",
+         suite_case('Name: "{autoprograms}\\Empire Earth Community\\Neo Empire Earth"', 'Name: "{autoprograms}\\Empire Earth Community\\NeoEE"'),
+         "no [Icons] entry {autoprograms}\\Empire Earth Community\\Neo Empire Earth that starts the launcher"),
+        ("suite: game shortcut with the old name Play Empire Earth",
+         suite_case('Name: "{autodesktop}\\Empire Earth"; Filename: "{app}', 'Name: "{autodesktop}\\Empire Earth spielen"; Filename: "{app}'),
+         "Empire Earth spielen starts the launcher with --product=EE, but Empire Earth spielen is no game shortcut"),
+        ("suite: fallback shortcut to another program",
+         suite_case('"{code:ProductRoot|EE}\\Empire Earth\\Empire Earth.exe"', '"{code:ProductRoot|EE}\\Empire Earth\\EE-Diagnostic.exe"'),
+         "contract 1.7 allows the launcher"),
     ]
     passing = [
         ("ISPP function in an unrelated [Registry] entry",
@@ -2144,26 +2593,44 @@ def self_test(source_root):
         ("[Files] verified EE entry with its components in another order and case",
          replace(main_script, 'external skipifsourcedoesntexist; Components: game and language\\update;',
                  'external skipifsourcedoesntexist; Components: Language\\Update and game;')),
+        ("suite: suite/suite.iss absent, suite rules skipped", remove(suite), SUITE_SKIPPED),
+        ("suite: minimal suite/suite.iss as the contract describes it", fixture,
+         "suite: SetupMutex and AppMutex (4 names), record with 8 values, 4 game shortcuts to the launcher"),
+        ("suite: record in HKLM64 without 64-bit install mode, start menu folder written out, other order",
+         both(fixture,
+              replace(suite, "ArchitecturesInstallIn64BitMode=x64 arm64\n", ""),
+              replace(suite, "Root: HKLM; Subkey: \"{#SuiteKey}\"", "Root: HKLM64; Subkey: \"{#SuiteKey}\"", count=9),
+              replace(suite, 'Name: "{group}\\Empire Earth"; ', 'Name: "{autoprograms}\\Empire Earth Community\\Empire Earth"; '),
+              replace(suite, "AppMutex=StainlessSteelStudiosPresentsEmpireEarth,MadDocSoftwarePresentsEmpireEarthExpansion,EmpireEarthCommunityLauncher",
+                      "AppMutex=EmpireEarthCommunityLauncher, MadDocSoftwarePresentsEmpireEarthExpansion, StainlessSteelStudiosPresentsEmpireEarth")),
+         "record with 8 values"),
     ]
 
     files = [CONTRACT, MAIN_SCRIPT, UTILS_SCRIPT, "config_ee.iss", "config_neoee.iss"]
     files += [rel.as_posix() for rel in own_include_closure(source_root)]
+    files += [rel.as_posix() for rel in suite_include_closure(source_root)]
     failures = 0
     with tempfile.TemporaryDirectory(prefix="check_contract_selftest_") as temp:
-        all_cases = [("unmodified copy", None, None)] + cases + [(n, c, None) for n, c in passing]
-        for number, (name, change, expected) in enumerate(all_cases):
+        # (name, change, expected problem or None, expected text of the summary or None)
+        all_cases = ([("unmodified copy", None, None, None)] + [(n, c, e, None) for n, c, e in cases]
+                     + [(case[0], case[1], None, case[2] if len(case) > 2 else None) for case in passing])
+        for number, (name, change, expected, expected_summary) in enumerate(all_cases):
             root = Path(temp) / f"case{number}"
             for rel in dict.fromkeys(files):
                 (root / rel).parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(source_root / rel, root / rel)
+            summary = ""
             try:
                 if change:
                     change(root)
-                errors, _ = check(root)
+                errors, summary = check(root)
             except AssertionError as error:
                 ok, errors = False, [str(error)]
             else:
                 ok = (not errors) if expected is None else any(expected in error for error in errors)
+                if expected_summary is not None and expected_summary not in summary:
+                    ok = False
+                    errors = errors + [f"(summary without '{expected_summary}': {summary})"]
             print(f"{'PASS' if ok else 'FAIL'} {name}")
             if not ok:
                 failures += 1
