@@ -3027,6 +3027,17 @@ nur auf echtem Windows zeigt:
   des Launchers sind in beiden Fällen weg. Ein Wert unter `HKLM` und `HKCU` in
   `Software\Sierra\CDKeys` (nur prüfen, ob er noch da ist, nie seinen Inhalt ansehen, Regel 3) bleibt
   bei Installation und Deinstallation erhalten.
+- **Zwei Bestätigungen?** Die Suite fragt in `InitializeUninstall` einmal mit der Liste dessen, was entfernt wird.
+  Zu prüfen, ob Inno Setup danach noch seine eigene Frage (`ConfirmUninstall`, „Möchten Sie … wirklich
+  vollständig entfernen?“) zeigt. Wenn ja, ist das ein Befund: entweder den Text von `ConfirmUninstall` in
+  Englisch, Deutsch und Französisch durch einen neutralen Hinweis ersetzen oder die eigene Frage streichen und
+  die Liste nur ins Log schreiben.
+- **Verknüpfte Ordner und gemeinsamer Stammordner:** Ist `Data\Saved Games` (oder `Users`, oder ein Ordner
+  darüber bis zum Stammordner) eine Junction oder ein symbolischer Link, etwa nach Dokumente oder OneDrive,
+  wird der Ordner nicht zum Löschen angeboten (Logzeile „not offered“), und der Inhalt des Ziels bleibt auch
+  bei „Löschen“. Dasselbe gilt für die Ordner eines Spiels, das installiert bleibt, zum Beispiel ein
+  eigenständiges EE im selben Stammordner wie das von der Suite entfernte NeoEE. Eine Spielverknüpfung
+  „Empire Earth“, die nicht den Launcher startet, bleibt, solange das Spiel installiert ist.
 - **Over-the-Shoulder-Erhöhung:** Bestätigt ein Standardbenutzer die Abfrage der Benutzerkontensteuerung mit
   den Daten eines Administrators, läuft die Deinstallation als dieser Administrator; `%LOCALAPPDATA%` ist
   dann das Profil des Administrators. Settings, Log, `Backups` und `Mod Creator` des Launchers des

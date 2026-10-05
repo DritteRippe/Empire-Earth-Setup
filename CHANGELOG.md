@@ -604,6 +604,22 @@ setup version stays 1.7.2 until the release.
   icon of the game program. `suite_common.iss` has the pure helpers (88 more unit tests); `ci/check_suite.py`
   checks the uninstaller (12 rules, 21 more self-test cases: the programs it starts, where `DelTree` is
   allowed, the answer "Löschen", no registry deletion outside the record).
+- Suite installer, fixes after the review of WP3 to WP6. The two-pass build records the number and the
+  total size of the slices (`/DSliceCount`, `/DSliceTotal`) instead of their single sizes, which
+  changed `setup.exe` and with it slice 1 so that the build never became stable; the setup checks that
+  every slice exists, none is empty or above `DiskSliceSize` and the total matches, and the first pass
+  is named `... PASS1 DO NOT SHIP`. `HKLM` and `HKCU` instead of `HKLM64` and `HKCU64` (an error on a
+  32-bit Windows), no `PrivilegesRequiredOverridesAllowed` (no `/CURRENTUSER`), a stop outside the
+  admin install mode. The advanced mode passes `/ALLUSERS` to the product setups (contract 1.7 point
+  3). A product that is installed for all users needs no space for its files in a repair, and an
+  interactive run checks only the smallest setup before the product page. `neoee_cdkeys` counts only
+  in `/TASKS=` and `/MERGETASKS=`; a NeoEE run without the task says "registration not selected". The
+  extracted product setup is locked against writing until it has run, and a failed extraction (a
+  damaged slice) has its own text (exit code 15). The uninstaller waits for `unins000.exe` as long as
+  for the uninstall key (10 minutes), does not offer a data folder that is a link or behind one or
+  that belongs to a product that stays installed, keeps the game shortcut of a product that stays
+  installed unless it starts the launcher, and rejects `..` in an uninstaller path. 11 more self-test
+  cases in `ci/check_suite.py`, 34 more unit tests.
 - `docs/CONTRACT.md`, revision 3 (still contract version 1, draft: only compatible clarifications
   by its section 5; the same text and commit subject in the launcher repository; no change of the
   setup's code): O11 names all three triggers of the question `SharedFolderQuestion`, also the

@@ -7,8 +7,9 @@
 
 const
   // Exit codes of the suite when one of its own prechecks stops it, in InitializeSetup and before the
-  // first product setup runs. Inno Setup's own codes 0 to 8 keep their meaning; 3 is a damaged slice
-  // ("The source file is corrupted", proven by the WP0 spike, ADR 0013 Evidence), 5 a cancelled
+  // first product setup runs. Inno Setup's own codes 0 to 8 keep their meaning; 3 is a fatal error, for example
+  // a damaged slice below the launcher files ("The source file is corrupted", ADR 0013 Evidence; a damaged slice
+  // inside a product setup ends with 15 instead: its extraction is caught), 5 a cancelled
   // wizard, 7 a PrepareToInstall message in a silent run. Every code comes with a log line and, unless
   // the run is silent, a message. docs/TEST-PLAN.de.md and the README name them.
   SuiteExitSilentArguments = 10;   // silent run without a valid /PRODUCTS or without the decision on neoee_cdkeys; also not in the admin install mode
@@ -16,7 +17,7 @@ const
   SuiteExitZipView = 12;           // as 11, and the setup was started from a temporary folder or from the ZIP view
   SuiteExitDiskSpace = 13;         // not enough free space on the drive of %TEMP% or of the installation folder
   SuiteExitRunning = 14;           // a game or the launcher is running
-  SuiteExitProductSetup = 15;      // an embedded product setup does not match its pin (SHA-256, size): nothing was run
+  SuiteExitProductSetup = 15;      // an embedded product setup does not match its pin (SHA-256, size) or cannot be extracted (damaged slice): nothing was run
 
   // Free space beyond the files themselves: the setup log, the product logs, the extraction
   SuiteSpaceMargin = 268435456;    // 256 MiB

@@ -425,7 +425,7 @@ four variants of sections 2 and 3 do not change for it.
   `suite_common.iss` (pure helpers, tested by `ci/tests/suite_tests.iss`), `suite_messages.iss`
   (English, German, French), `suite_shortcuts.iss` and `suite_record.iss` (what the suite leaves
   besides its files), `suite_uninstall.iss` (its uninstaller). Build values (AppIds, the pins and sizes of the embedded setups, the slice
-  count and sizes of a two-pass build) are `/D` defines, listed at the top of `suite.iss`.
+  count and total size of a two-pass build) are `/D` defines, listed at the top of `suite.iss`.
 - **Checks:** `ci/check_contract.py` reads `suite/suite.iss` and its includes (`SetupMutex`,
   `AppMutex`, the record's value names and types written in code, the game shortcuts to the
   launcher, no reference to the protected keys); `ci/check_messages.py` checks `suite_messages.iss`
