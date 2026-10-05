@@ -188,3 +188,49 @@ begin
   Check('SuiteSilentArgumentsProblem both, not registering', IntToStr(SuiteSilentArgumentsProblem('EE,NeoEE', '/MERGETASKS=!neoee_cdkeys')), '0');
   Check('SuiteSilentArgumentsProblem both without decision', IntToStr(SuiteSilentArgumentsProblem('EE,NeoEE', '')), '2');
 end;
+
+procedure TestSuitePages;
+begin
+  Check('SuiteProductState none', IntToStr(SuiteProductState(False, False)), '0');
+  Check('SuiteProductState machine', IntToStr(SuiteProductState(True, False)), '1');
+  Check('SuiteProductState user only', IntToStr(SuiteProductState(False, True)), '2');
+  Check('SuiteProductState machine wins', IntToStr(SuiteProductState(True, True)), '1');
+  CheckBool('SuiteCanInstall none', SuiteCanInstall(SuiteStateNone), True);
+  CheckBool('SuiteCanInstall machine', SuiteCanInstall(SuiteStateMachine), True);
+  CheckBool('SuiteCanInstall user only', SuiteCanInstall(SuiteStateUserOnly), False);
+
+  Check('SuiteSelectedProducts both', SuiteSelectedProducts(True, True, 0, 0), 'EE,NeoEE');
+  Check('SuiteSelectedProducts EE', SuiteSelectedProducts(True, False, 0, 0), 'EE');
+  Check('SuiteSelectedProducts NeoEE', SuiteSelectedProducts(False, True, 0, 0), 'NeoEE');
+  Check('SuiteSelectedProducts nothing ticked', SuiteSelectedProducts(False, False, 0, 0), '');
+  Check('SuiteSelectedProducts EE user only', SuiteSelectedProducts(True, True, 2, 0), 'NeoEE');
+  Check('SuiteSelectedProducts both user only', SuiteSelectedProducts(True, True, 2, 2), '');
+  Check('SuiteSelectedProducts installed counts', SuiteSelectedProducts(True, True, 1, 1), 'EE,NeoEE');
+
+  CheckBool('SuiteLegalAnswerRequired neither', SuiteLegalAnswerRequired(0, 0), True);
+  CheckBool('SuiteLegalAnswerRequired EE installed', SuiteLegalAnswerRequired(1, 0), False);
+  CheckBool('SuiteLegalAnswerRequired NeoEE installed', SuiteLegalAnswerRequired(0, 1), False);
+  CheckBool('SuiteLegalAnswerRequired user only', SuiteLegalAnswerRequired(2, 0), False);
+  CheckBool('SuiteLegalPageDone required, no', SuiteLegalPageDone(True, False), False);
+  CheckBool('SuiteLegalPageDone required, yes', SuiteLegalPageDone(True, True), True);
+  CheckBool('SuiteLegalPageDone not required', SuiteLegalPageDone(False, False), True);
+
+  Check('SuiteButtonName Next', SuiteButtonName('&Next >'), 'Next');
+  Check('SuiteButtonName Weiter', SuiteButtonName('&Weiter >'), 'Weiter');
+  Check('SuiteButtonName Installieren', SuiteButtonName('&Installieren'), 'Installieren');
+  Check('SuiteButtonName Suivant', SuiteButtonName('&Suivant >'), 'Suivant');
+  Check('SuiteButtonName plain', SuiteButtonName('Fertigstellen'), 'Fertigstellen');
+
+  Check('SuiteItemResult ok', IntToStr(SuiteItemResult(True, True, 0)), '1');
+  Check('SuiteItemResult ok of a repair', IntToStr(SuiteItemResult(True, True, 1)), '1');
+  Check('SuiteItemResult failed', IntToStr(SuiteItemResult(False, True, 0)), '2');
+  Check('SuiteItemResult not selected', IntToStr(SuiteItemResult(False, False, 0)), '0');
+  Check('SuiteItemResult user only', IntToStr(SuiteItemResult(False, False, 2)), '3');
+  Check('SuiteItemResult user only though ticked', IntToStr(SuiteItemResult(False, True, 2)), '3');
+
+  Check('SuiteCdKeyKind 0', IntToStr(SuiteCdKeyKind('0')), '0');
+  Check('SuiteCdKeyKind 0 with blanks', IntToStr(SuiteCdKeyKind(' 0 ')), '0');
+  Check('SuiteCdKeyKind 3', IntToStr(SuiteCdKeyKind('3')), '1');
+  Check('SuiteCdKeyKind empty', IntToStr(SuiteCdKeyKind('')), '2');
+  Check('SuiteCdKeyKind no number', IntToStr(SuiteCdKeyKind('x')), '2');
+end;

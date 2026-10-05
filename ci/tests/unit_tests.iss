@@ -1917,6 +1917,7 @@ begin
     TestSuiteDotNet;
     TestSuiteProducts;
     TestSuiteSilentArguments;
+    TestSuitePages;
   except
     Failures := Failures + 1;
     Results.Add('FAIL exception: ' + GetExceptionMessage);

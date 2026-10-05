@@ -353,3 +353,106 @@ function SuiteUninstallKey(const AppIdWithoutBraces: String): String;
 begin
   Result := 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{' + AppIdWithoutBraces + '}_is1';
 end;
+
+// ---- the wizard pages (suite_pages.iss) --------------------------------------------------------
+
+const
+  // How a product setup is installed on this computer (SuiteProductState)
+  SuiteStateNone = 0;              // no uninstall entry
+  SuiteStateMachine = 1;           // installed for all users (HKLM, the mode of the suite)
+  SuiteStateUserOnly = 2;          // installed for one user only (HKCU, and not in HKLM): the suite skips it
+
+  // What became of one item of the installation (SuiteItemResult), for the last page
+  SuiteResultNotSelected = 0;
+  SuiteResultOk = 1;
+  SuiteResultFailed = 2;
+  SuiteResultSkippedUser = 3;
+
+  // The answer of the NeoEE CD key registration (SuiteCdKeyKind), from "CD Keys generation result: <n>"
+  SuiteCdKeyRegistered = 0;
+  SuiteCdKeyNotRegistered = 1;
+  SuiteCdKeyUnknown = 2;
+
+// The state of a product from its uninstall entries: for all users wins over for one user
+function SuiteProductState(InMachineKey, InUserKey: Boolean): Integer;
+begin
+  if InMachineKey then
+    Result := SuiteStateMachine
+  else if InUserKey then
+    Result := SuiteStateUserOnly
+  else
+    Result := SuiteStateNone;
+end;
+
+// True if a product of this state can be installed by the suite (not one that is for one user only)
+function SuiteCanInstall(State: Integer): Boolean;
+begin
+  Result := State <> SuiteStateUserOnly;
+end;
+
+// The products the suite installs from the ticks of the user: ticked, and not for one user only
+// (comma separated, EE before NeoEE)
+function SuiteSelectedProducts(TickEE, TickNeoEE: Boolean; StateEE, StateNeoEE: Integer): String;
+begin
+  Result := '';
+  if TickEE and SuiteCanInstall(StateEE) then
+    Result := SuiteProductEE;
+  if TickNeoEE and SuiteCanInstall(StateNeoEE) then
+  begin
+    if Result <> '' then
+      Result := Result + ',';
+    Result := Result + SuiteProductNeoEE;
+  end;
+end;
+
+// True if the user has to answer the legal question: only when neither product is installed
+// (installed for one user only counts as installed: the user had the game before)
+function SuiteLegalAnswerRequired(StateEE, StateNeoEE: Integer): Boolean;
+begin
+  Result := (StateEE = SuiteStateNone) and (StateNeoEE = SuiteStateNone);
+end;
+
+// True if the legal page may be left: the question is answered with yes, or not asked
+function SuiteLegalPageDone(Required, Answered: Boolean): Boolean;
+begin
+  Result := (not Required) or Answered;
+end;
+
+// The name of a button without the accelerator and the arrows of its caption ("&Next >" is "Next")
+function SuiteButtonName(const Caption: String): String;
+begin
+  Result := Caption;
+  StringChangeEx(Result, '&', '', True);
+  StringChangeEx(Result, '<', '', True);
+  StringChangeEx(Result, '>', '', True);
+  Result := Trim(Result);
+end;
+
+// What became of an item: it succeeded, or it was selected and failed, or it was skipped because it is
+// installed for one user only, or it was not selected
+function SuiteItemResult(Succeeded, Selected: Boolean; State: Integer): Integer;
+begin
+  if Succeeded then
+    Result := SuiteResultOk
+  else if not SuiteCanInstall(State) then
+    Result := SuiteResultSkippedUser
+  else if Selected then
+    Result := SuiteResultFailed
+  else
+    Result := SuiteResultNotSelected;
+end;
+
+// What to tell about the CD key registration of NeoEE from the number the NeoEE setup logged
+// ("CD Keys generation result: <n>", 0 = registered); an empty or no number is unknown
+function SuiteCdKeyKind(const ResultText: String): Integer;
+var
+  N: Integer;
+begin
+  N := StrToIntDef(Trim(ResultText), -1);
+  if N = 0 then
+    Result := SuiteCdKeyRegistered
+  else if N > 0 then
+    Result := SuiteCdKeyNotRegistered
+  else
+    Result := SuiteCdKeyUnknown;
+end;
