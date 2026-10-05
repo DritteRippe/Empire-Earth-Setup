@@ -22,6 +22,17 @@ to stay safe and installable:
             precheck exits through SuiteStop (the only caller of ExitProcess), which writes the log
             line first; the precheck codes 10 to 14 are used by suite.iss
 
+  [Runner]  suite/suite_run.iss (the product runner): suite.iss includes it, runs it at ssInstall and
+            creates the shortcuts and the record only at ssPostInstall (so after the legacy shortcut
+            cleanup); there is exactly one Exec call, in SuiteRunProduct after SuiteExtractAndCheck
+            (which compares size and SHA-256 with SuitePinMatches), and PrepareToInstall stops with
+            SuiteExitProductSetup; no DelTree and no registry deletion; DeleteFile only on the
+            extracted product setup, the log of the product setup and the old shortcut files of
+            SuiteLegacyShortcutPath; no ShellExec
+  [Safety]  no suite file mentions the registry key of the CD keys of the original game, the library of the
+            NeoEE CD key registration or its function (the suite never reimplements or bypasses the
+            registration, contract 1.7 point 5)
+
 --self-test runs the check against changed temporary copies of the suite files (MinVersion 10.0, a
 number as DiskSliceSize, a launcher entry without the Check, a product setup that is compressed,
 an exit code twice, ExitProcess outside SuiteStop, ...) that must fail, and the unchanged copy,
@@ -37,7 +48,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from check_contract import CheckError, logical_lines, parse_params  # noqa: E402
 
 SUITE_FILES = ["suite/suite.iss", "suite/suite_common.iss", "suite/suite_messages.iss",
-               "suite/suite_shortcuts.iss", "suite/suite_record.iss", "suite/suite_pages.iss"]
+               "suite/suite_shortcuts.iss", "suite/suite_record.iss", "suite/suite_pages.iss", "suite/suite_run.iss"]
 SETUP_EXPECTED = {
     "MinVersion": "6.1sp1",
     "PrivilegesRequired": "admin",
@@ -193,6 +204,102 @@ def check_exit_codes(common, main, errors):
     return len(EXIT_CODES)
 
 
+FORBIDDEN_WORDS = re.compile(r"sierra|authtools|generate_cdkeys", re.IGNORECASE)
+# the arguments the runner may give DeleteFile: its extracted product setup (Exe, or {tmp} plus the name of
+# the embedded setup), the log of the product setup it starts, and an old shortcut file of SuiteLegacyShortcutPath
+DELETE_FILE_ARGUMENTS = {"Exe", "LogFile", "Path", "ExpandConstant('{tmp}\\') + SuiteProductSetupFile(Product)"}
+
+
+def call_arguments(line, name):
+    """The texts between the parentheses of every call of name in a line (nested parentheses balanced)."""
+    result = []
+    for match in re.finditer(rf"\b{name}\s*\(", line):
+        depth, start = 1, match.end()
+        for index in range(start, len(line)):
+            depth += {"(": 1, ")": -1}.get(line[index], 0)
+            if depth == 0:
+                result.append(line[start:index].strip())
+                break
+    return result
+
+
+def function_bodies(code):
+    """{name: text} of the functions and procedures of a list of (line number, code) lines."""
+    bodies, name = {}, None
+    for _, line in code:
+        match = re.match(r"^(?:function|procedure)\s+(\w+)", line)
+        if match:
+            name = match.group(1)
+            bodies[name] = ""
+        if name:
+            bodies[name] += line + "\n"
+    return bodies
+
+
+def check_runner(runner, main, errors):
+    """Rules for suite/suite_run.iss and for how suite/suite.iss uses it; the number of rules checked."""
+    where = "suite/suite_run.iss"
+    code = code_lines(runner)
+    bodies = function_bodies(code)
+    all_code = "\n".join(line for _, line in code)
+    main_code = "\n".join(line for _, line in code_lines(main))
+    if not re.search(r'^#include\s+"suite_run\.iss"', main, re.MULTILINE):
+        errors.append('suite/suite.iss: no #include "suite_run.iss" (the product runner)')
+    step = re.search(r"CurStepChanged.*?\bif\s+CurStep\s*=\s*ssInstall\s+then\s+SuiteRunProducts\b"
+                     r".*?\belse\s+if\s+CurStep\s*=\s*ssPostInstall\s+then\s+begin\s+ApplySuiteShortcuts\(False\);"
+                     r"\s+WriteSuiteRecord;", main_code, re.DOTALL)
+    if not step:
+        errors.append("suite/suite.iss: CurStepChanged must run SuiteRunProducts at ssInstall and create the shortcuts "
+                      "and the record (ApplySuiteShortcuts(False), WriteSuiteRecord) only at ssPostInstall, after "
+                      "the legacy shortcut cleanup of the runner")
+    execs = [e.replace(" ", "") for e in re.findall(r"\b(?:Exec|ExecAsOriginalUser|ShellExec|ShellExecAsOriginalUser)\s*\(", all_code)]
+    if execs != ["Exec("]:
+        errors.append(f"{where}: the runner must call Exec exactly once and nothing else that starts a program "
+                      f"(found: {', '.join(execs) or 'none'})")
+    run = bodies.get("SuiteRunProduct", "")
+    exec_at = re.search(r"\bExec\s*\(", run)
+    check_at = run.find("SuiteExtractAndCheck(")
+    if not exec_at or check_at < 0 or check_at > exec_at.start():
+        errors.append(f"{where}: SuiteRunProduct must call SuiteExtractAndCheck (the pin check) before Exec")
+    if "SuitePinMatches(" not in bodies.get("SuiteExtractAndCheck", ""):
+        errors.append(f"{where}: SuiteExtractAndCheck does not compare size and SHA-256 with SuitePinMatches")
+    prepare = bodies.get("PrepareToInstall", "")
+    if "SuiteExtractAndCheck(" not in prepare or not re.search(r"\bSuiteStop\s*\(\s*SuiteExitProductSetup\b", prepare):
+        errors.append(f"{where}: PrepareToInstall must check every selected setup and stop with SuiteExitProductSetup "
+                      "before any product setup runs")
+    if re.search(r"\b(DelTree|RegDeleteKeyIncludingSubkeys|RegDeleteKeyIfEmpty|RegDeleteValue)\s*\(", all_code):
+        errors.append(f"{where}: the runner must not call DelTree or delete registry keys or values")
+    for no, line in code:
+        for argument in call_arguments(line, "DeleteFile"):
+            if argument not in DELETE_FILE_ARGUMENTS:
+                errors.append(f"{where}:{no}: DeleteFile({argument}): the runner deletes only its extracted "
+                              "product setup, the log of the product setup and the old shortcut files of "
+                              "SuiteLegacyShortcutPath")
+    removes = call_arguments(all_code, "RemoveDir")
+    if removes != ["Group"]:
+        errors.append(f"{where}: RemoveDir may only remove the start menu folder of the products (Group), found {removes}")
+    legacy = bodies.get("SuiteRemoveLegacyShortcuts", "")
+    if "SuiteLegacyShortcutPath(" not in legacy or "DeleteFile(Path)" not in legacy:
+        errors.append(f"{where}: SuiteRemoveLegacyShortcuts must delete the paths of SuiteLegacyShortcutPath only")
+    if not re.search(r"\bSuiteRemoveLegacyShortcuts\(Product\)", run) or \
+            run.find("SuiteRunSucceeded(") > run.find("SuiteRemoveLegacyShortcuts(Product)"):
+        errors.append(f"{where}: the legacy shortcuts are deleted only after SuiteRunSucceeded said the product succeeded")
+    return 9
+
+
+def check_forbidden_words(root, errors):
+    """No suite file (comments included) names what only the NeoEE setup may touch."""
+    for rel in SUITE_FILES:
+        path = root / rel
+        if not path.is_file():
+            continue
+        for number, line in enumerate(path.read_text(encoding="utf-8-sig").splitlines(), 1):
+            match = FORBIDDEN_WORDS.search(line)
+            if match:
+                errors.append(f"{rel}:{number}: '{match.group(0)}': the suite never touches the CD key registration "
+                              "of the NeoEE setup (contract 1.7 point 5)")
+
+
 def check(root):
     """(errors, summary) for the repository root."""
     errors = []
@@ -206,8 +313,16 @@ def check(root):
     directives = check_setup(main, errors)
     products, launcher = check_files(main, errors)
     codes = check_exit_codes(common, main, errors)
+    try:
+        runner = read(root, SUITE_FILES[6])
+    except CheckError as error:
+        errors.append(str(error))
+        runner = ""
+    steps = check_runner(runner, main, errors)
+    check_forbidden_words(root, errors)
     return errors, (f"suite frame: {directives} [Setup] directives, {products} product setups and {launcher} "
-                    f"launcher, license and legal text entries in [Files], {codes} exit codes")
+                    f"launcher, license and legal text entries in [Files], {codes} exit codes, product runner "
+                    f"{steps} rules, no CD key registry or library reference")
 
 
 def self_test(source_root):
@@ -224,7 +339,7 @@ def self_test(source_root):
             path.write_bytes(text.replace(old_text, new_text).encode("utf-8"))
         return apply
 
-    main, common = "suite/suite.iss", "suite/suite_common.iss"
+    main, common, run = "suite/suite.iss", "suite/suite_common.iss", "suite/suite_run.iss"
     cases = [
         ("MinVersion 10.0", replace(main, "MinVersion=6.1sp1", "MinVersion=10.0"), "MinVersion=10.0, expected 6.1sp1"),
         ("no MinVersion", replace(main, "MinVersion=6.1sp1\n", ""), "[Setup] has no MinVersion"),
@@ -270,6 +385,40 @@ def self_test(source_root):
         ("ExitProcess outside SuiteStop",
          replace(main, "function InitializeSetup(): Boolean;\n", "function InitializeSetup(): Boolean;\nbegin\n  ExitProcess(1);\nend;\n\nfunction InitializeSetup2(): Boolean;\n"),
          "ExitProcess outside SuiteStop"),
+        ("runner not included", replace(main, '#include "suite_run.iss"\n', ""), 'no #include "suite_run.iss"'),
+        ("products not run at ssInstall", replace(main, "    SuiteRunProducts\n", "    Log('x')\n"),
+         "CurStepChanged must run SuiteRunProducts at ssInstall"),
+        ("shortcuts created before the runner",
+         replace(main, "  if CurStep = ssInstall then\n    SuiteRunProducts\n  else if CurStep = ssPostInstall then\n  begin\n    ApplySuiteShortcuts(False);",
+                 "  if CurStep = ssInstall then\n    ApplySuiteShortcuts(False)\n  else if CurStep = ssPostInstall then\n  begin\n    SuiteRunProducts;"),
+         "CurStepChanged must run SuiteRunProducts at ssInstall"),
+        ("second Exec", replace(run, "  Started := Exec(Exe, Params,", "  Exec(Exe, Params, '', SW_SHOW, ewNoWait, Code);\n  Started := Exec(Exe, Params,"),
+         "must call Exec exactly once"),
+        ("a program started by ShellExec", replace(run, "  DeleteFile(LogFile);\n", "  DeleteFile(LogFile);\n  ShellExec('open', Exe, '', '', SW_SHOW, ewNoWait, Code);\n"),
+         "must call Exec exactly once"),
+        ("no pin check before Exec", replace(run, "if not SuiteExtractAndCheck(Product, Reason, Mismatch) then", "if False then"),
+         "must call SuiteExtractAndCheck (the pin check) before Exec"),
+        ("pin check that does not compare",
+         replace(run, "SuitePinMatches(Hash, SuiteProductSetupSHA256(Product), Size, SuiteProductSetupSize(Product))", "(Hash <> '')"),
+         "does not compare size and SHA-256 with SuitePinMatches"),
+        ("PrepareToInstall without exit code 15", replace(run, "SuiteStop(SuiteExitProductSetup,", "SuiteStop(SuiteExitSlices,"),
+         "PrepareToInstall must check every selected setup"),
+        ("DeleteFile of another file", replace(run, "  DeleteFile(LogFile);\n", "  DeleteFile(ExpandConstant('{app}\\Empire Earth Launcher.exe'));\n"),
+         "the runner deletes only its extracted product setup"),
+        ("DelTree in the runner", replace(run, "  DeleteFile(LogFile);\n", "  DelTree(ExpandConstant('{app}'), True, True, True);\n"),
+         "must not call DelTree"),
+        ("registry deletion in the runner", replace(run, "  DeleteFile(LogFile);\n", "  RegDeleteValue(HKLM, 'Software', 'x');\n"),
+         "must not call DelTree or delete registry keys"),
+        ("RemoveDir of another folder", replace(run, "RemoveDir(Group)", "RemoveDir(Desktop)"), "RemoveDir may only remove the start menu folder"),
+        ("legacy shortcuts before the result is known",
+         replace(run, "  Started := Exec(Exe, Params,", "  SuiteRemoveLegacyShortcuts(Product);\n  Started := Exec(Exe, Params,"),
+         "deleted only after SuiteRunSucceeded"),
+        ("legacy shortcuts of another list", replace(run, "Path := SuiteLegacyShortcutPath(Product, I, Desktop, Group);", "Path := Desktop + 'x.lnk';"),
+         "must delete the paths of SuiteLegacyShortcutPath only"),
+        ("the CD key registry key in a comment", replace(main, "#define SuiteName", "; Software\\Sierra\\CDKeys\n#define SuiteName"),
+         "the suite never touches the CD key registration"),
+        ("the CD key library in the code", replace(run, "  SuiteRunStopped := False;\n", "  SuiteRunStopped := False;\n  Log('authtools.dll');\n"),
+         "the suite never touches the CD key registration"),
     ]
     passing = [("unchanged copy", None, None)]
     failures = 0
