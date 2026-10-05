@@ -6,7 +6,8 @@
 ;
 ; This file is the frame: [Setup], the payload ([Files]) and the prechecks of InitializeSetup. The
 ; other parts are in the files it includes (suite_common.iss: pure helpers; suite_messages.iss: texts;
-; suite_run.iss: the product runner; suite_shortcuts.iss, suite_record.iss: what the suite leaves besides its files). Never run a build
+; suite_run.iss: the product runner; suite_shortcuts.iss, suite_record.iss: what the suite leaves besides its files;
+; suite_uninstall.iss: its uninstaller). Never run a build
 ; of it on a machine that has the real game installed: the placeholder builds are for CI.
 ;
 ; Build (ISCC 6.2.2), every define is required unless a default is named:
@@ -40,6 +41,8 @@
 #define SuiteOutputName "Empire Earth Community Setup"
 #define SuiteRecordKey "Software\Empire Earth Community\Suite"
 #define LauncherExe "Empire Earth Launcher.exe"
+; the Mod Creator program below {app}\Mod Creator (the assembly name of Empire-Earth-Mod.csproj)
+#define ModCreatorExe "Empire_Earth_Mod.exe"
 ; the version of docs/CONTRACT.md this script implements (the suite record carries it, contract 1.6)
 #define ContractVersion 1
 ; contract 0 "Suite and launcher": the game mutexes and the launcher mutex (a running game or launcher stops the suite)
@@ -274,6 +277,10 @@ Source: "{#NeoEESetupFile}"; DestName: "NeoEE_Setup.exe"; Flags: dontcopy nocomp
 ; The last page offers to start the launcher (only if it was installed)
 Filename: "{app}\{#LauncherExe}"; Description: "{cm:SuiteRunLauncher}"; Flags: postinstall runasoriginaluser nowait skipifsilent; Check: SuiteLauncherInstalled
 
+[UninstallDelete]
+; The logs of the product setups the suite ran (suite_run.iss): a folder of the suite, not in the uninstall log
+Type: filesandordirs; Name: "{app}\Logs"
+
 #include "suite_common.iss"
 
 [Code]
@@ -375,6 +382,7 @@ end;
 #include "suite_run.iss"
 #include "suite_shortcuts.iss"
 #include "suite_record.iss"
+#include "suite_uninstall.iss"
 
 // The prechecks, before anything is extracted or installed; the first problem stops the suite
 // with its exit code. All of them are read-only. The order: arguments of a silent run, the slices of
@@ -488,13 +496,17 @@ begin
   end;
 end;
 
-// The uninstaller removes what the suite created in code (they are not in its uninstall log). The
-// product uninstallers, the data folders and the questions are WP6.
+// The uninstaller (suite_uninstall.iss): at usUninstall the uninstallers of the products run, at
+// usPostUninstall it removes what the suite created in code (shortcuts and record are not in its uninstall
+// log) and asks about the user data.
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 begin
-  if CurUninstallStep = usPostUninstall then
+  if CurUninstallStep = usUninstall then
+    SuiteRemoveProducts
+  else if CurUninstallStep = usPostUninstall then
   begin
     ApplySuiteShortcuts(True);
     RemoveSuiteRecord;
+    SuiteRemoveUserData;
   end;
 end;

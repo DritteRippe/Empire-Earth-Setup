@@ -187,3 +187,55 @@ fr.SuiteReasonOther=erreur inconnue
 SuiteReasonNotStarted=the setup program could not be extracted or started: %1
 de.SuiteReasonNotStarted=das Setup-Programm konnte nicht entpackt oder gestartet werden: %1
 fr.SuiteReasonNotStarted=le programme d'installation n'a pas pu être extrait ou lancé : %1
+
+; ---- The uninstaller (suite_uninstall.iss) ----
+; A game or the launcher is running (their mutexes); nothing was removed
+SuiteUninstallRunning=Empire Earth, The Art of Conquest, NeoEE or the Empire Earth Launcher is running.%n%nClose it and start the uninstallation again.%n%nNothing was removed.
+de.SuiteUninstallRunning=Empire Earth, The Art of Conquest, NeoEE oder der Empire Earth Launcher läuft.%n%nBeende das Programm und starte die Deinstallation erneut.%n%nEs wurde nichts entfernt.
+fr.SuiteUninstallRunning=Empire Earth, The Art of Conquest, NeoEE ou l'Empire Earth Launcher est en cours d'exécution.%n%nFermez-le et relancez la désinstallation.%n%nRien n'a été supprimé.
+; Another setup or uninstallation of the suite runs (its setup mutex)
+SuiteUninstallBusy=Another setup or uninstallation of Empire Earth Community is running.%n%nWait until it is finished and start the uninstallation again.%n%nNothing was removed.
+de.SuiteUninstallBusy=Ein anderes Setup oder eine andere Deinstallation von Empire Earth Community läuft.%n%nWarte, bis sie fertig ist, und starte die Deinstallation erneut.%n%nEs wurde nichts entfernt.
+fr.SuiteUninstallBusy=Un autre programme d'installation ou une autre désinstallation d'Empire Earth Community est en cours.%n%nAttendez qu'il soit terminé et relancez la désinstallation.%n%nRien n'a été supprimé.
+; The one confirmation: %1 = the list of what is removed, one item per line
+SuiteUninstallConfirm=This removes:%n%n%1%nYour saved games, profiles and launcher backups are kept unless you choose otherwise at the end.%n%nDo you want to continue?
+de.SuiteUninstallConfirm=Dabei wird entfernt:%n%n%1%nDeine Spielstände, Profile und Launcher-Sicherungen bleiben erhalten, außer du entscheidest am Ende anders.%n%nMöchtest du fortfahren?
+fr.SuiteUninstallConfirm=Ceci supprime :%n%n%1%nVos parties sauvegardées, profils et sauvegardes du lanceur sont conservés, sauf si vous décidez autrement à la fin.%n%nVoulez-vous continuer ?
+; %1 = the folder of the launcher
+SuiteUninstallItemLauncher=Empire Earth Launcher and Mod Creator (%1)
+de.SuiteUninstallItemLauncher=Empire Earth Launcher und Mod Creator (%1)
+fr.SuiteUninstallItemLauncher=Empire Earth Launcher et Mod Creator (%1)
+; %1 = the name of the game, %2 = its folder
+SuiteUninstallItemProduct=%1 (%2)
+SuiteUninstallItemShortcuts=The shortcuts and the entries of Empire Earth Community
+de.SuiteUninstallItemShortcuts=Die Verknüpfungen und Einträge von Empire Earth Community
+fr.SuiteUninstallItemShortcuts=Les raccourcis et les entrées d'Empire Earth Community
+; The status line while a game is removed: %1 = number, %2 = of how many, %3 = the name of the game
+SuiteUninstallStatus=Step %1 of %2: removing %3 ... (this can take several minutes)
+de.SuiteUninstallStatus=Schritt %1 von %2: %3 wird entfernt ... (das kann mehrere Minuten dauern)
+fr.SuiteUninstallStatus=Étape %1 sur %2 : suppression de %3 ... (cela peut prendre plusieurs minutes)
+; A game could not be removed: %1 = the name of the game, %2 = the reason (the next three texts)
+SuiteUninstallFailed=%1 was not removed (%2).%n%nRemove it yourself: open the list of installed programs of Windows (Settings, Apps; on Windows 7: Control Panel, Programs and Features), select the entry of %1 and choose Uninstall.%n%nThe uninstallation of Empire Earth Community goes on with the rest.
+de.SuiteUninstallFailed=%1 wurde nicht entfernt (%2).%n%nEntferne es selbst: Öffne die Liste der installierten Programme von Windows (Einstellungen, Apps; unter Windows 7: Systemsteuerung, Programme und Features), wähle den Eintrag von %1 und klicke auf Deinstallieren.%n%nDie Deinstallation von Empire Earth Community macht mit dem Rest weiter.
+fr.SuiteUninstallFailed=%1 n'a pas été supprimé (%2).%n%nSupprimez-le vous-même : ouvrez la liste des programmes installés de Windows (Paramètres, Applications ; sous Windows 7 : Panneau de configuration, Programmes et fonctionnalités), sélectionnez l'entrée de %1 et choisissez Désinstaller.%n%nLa désinstallation d'Empire Earth Community continue avec le reste.
+SuiteUninstallReasonStart=its uninstaller could not be started
+de.SuiteUninstallReasonStart=sein Deinstallationsprogramm konnte nicht gestartet werden
+fr.SuiteUninstallReasonStart=son programme de désinstallation n'a pas pu être lancé
+; %1 = minutes
+SuiteUninstallReasonTimeout=it was not finished after %1 minutes
+de.SuiteUninstallReasonTimeout=nach %1 Minuten war es nicht fertig
+fr.SuiteUninstallReasonTimeout=elle n'était pas terminée après %1 minutes
+; The question about the user data at the end (task dialog): the title, the text (%1 = the folders, one per line)
+; and the two buttons; "Keep" is the first and the default
+SuiteUninstallDataTitle=Delete saved games, profiles and backups too?
+de.SuiteUninstallDataTitle=Spielstände, Profile und Sicherungen auch löschen?
+fr.SuiteUninstallDataTitle=Supprimer aussi les parties sauvegardées, profils et sauvegardes ?
+SuiteUninstallDataQuestion=These folders are still there:%n%n%1%n"Delete" removes exactly these folders with everything in them. This cannot be undone.
+de.SuiteUninstallDataQuestion=Diese Ordner sind noch vorhanden:%n%n%1%n"Löschen" entfernt genau diese Ordner mit allem, was darin liegt. Das lässt sich nicht rückgängig machen.
+fr.SuiteUninstallDataQuestion=Ces dossiers existent encore :%n%n%1%n« Supprimer » supprime exactement ces dossiers avec tout leur contenu. Cela ne peut pas être annulé.
+SuiteUninstallKeep=Keep (recommended)
+de.SuiteUninstallKeep=Behalten (empfohlen)
+fr.SuiteUninstallKeep=Conserver (recommandé)
+SuiteUninstallDelete=Delete
+de.SuiteUninstallDelete=Löschen
+fr.SuiteUninstallDelete=Supprimer
