@@ -143,3 +143,47 @@ fr.SuiteFinishClose=Cliquez sur « %1 » pour fermer le programme d'installation
 SuiteRunLauncher=Start the Empire Earth Launcher now
 de.SuiteRunLauncher=Launcher jetzt starten
 fr.SuiteRunLauncher=Lancer l'Empire Earth Launcher maintenant
+
+; ---- The product runner (suite_run.iss) ----
+; %1 = the name of the game
+SuiteProductDamaged=The setup program of %1 inside this package is damaged: it does not match the checksum recorded when the package was built.%n%nDownload the package again and extract the whole ZIP archive.%n%nNothing was installed.
+de.SuiteProductDamaged=Das Setup-Programm von %1 in diesem Paket ist beschädigt: Es stimmt nicht mit der Prüfsumme überein, die beim Bau des Pakets festgehalten wurde.%n%nLade das Paket erneut herunter und entpacke das ganze ZIP-Archiv.%n%nEs wurde nichts installiert.
+fr.SuiteProductDamaged=Le programme d'installation de %1 dans ce paquet est endommagé : il ne correspond pas à la somme de contrôle enregistrée lors de la création du paquet.%n%nTéléchargez à nouveau le paquet et extrayez toute l'archive ZIP.%n%nRien n'a été installé.
+SuiteRunDamaged=The setup program of %1 inside this package is damaged or was changed after the check. It was not started, and no further game is installed.%n%nDownload the package again and extract the whole ZIP archive.
+de.SuiteRunDamaged=Das Setup-Programm von %1 in diesem Paket ist beschädigt oder wurde nach der Prüfung verändert. Es wurde nicht gestartet, und weitere Spiele werden nicht installiert.%n%nLade das Paket erneut herunter und entpacke das ganze ZIP-Archiv.
+fr.SuiteRunDamaged=Le programme d'installation de %1 dans ce paquet est endommagé ou a été modifié après la vérification. Il n'a pas été lancé, et aucun autre jeu n'est installé.%n%nTéléchargez à nouveau le paquet et extrayez toute l'archive ZIP.
+; Text of the installation page while a game is installed: %1 = number of the step, %2 = number of steps, %3 = the game
+SuiteStepRun=Step %1 of %2: installing %3 ...
+de.SuiteStepRun=Schritt %1 von %2: %3 wird installiert ...
+fr.SuiteStepRun=Étape %1 sur %2 : installation de %3 ...
+SuiteStepAdvanced=Step %1 of %2: the setup of %3 is open. Please go through it there.
+de.SuiteStepAdvanced=Schritt %1 von %2: Das Setup von %3 ist geöffnet. Bitte gehe es dort durch.
+fr.SuiteStepAdvanced=Étape %1 sur %2 : le programme d'installation de %3 est ouvert. Veuillez le parcourir.
+; A game setup did not start because a game or the launcher is running: %1 = the game
+SuiteRunGameRunning=%1 was not installed. Empire Earth, The Art of Conquest, NeoEE or the Empire Earth Launcher is probably running.%n%nClose it and start this setup again. The setup goes on with the next game.
+de.SuiteRunGameRunning=%1 wurde nicht installiert. Vermutlich läuft Empire Earth, The Art of Conquest, NeoEE oder der Empire Earth Launcher.%n%nBeende das Programm und starte dieses Setup erneut. Das Setup macht mit dem nächsten Spiel weiter.
+fr.SuiteRunGameRunning=%1 n'a pas été installé. Empire Earth, The Art of Conquest, NeoEE ou l'Empire Earth Launcher est probablement en cours d'exécution.%n%nFermez-le et relancez ce programme d'installation. Le programme continue avec le jeu suivant.
+; A game setup failed: %1 = the game, %2 = the reason (SuiteReason...), %3 = the log file
+SuiteRunFailed=%1 was not installed (%2).%n%nThe log of the game setup: %3%n%nThe setup goes on with the next game.
+de.SuiteRunFailed=%1 wurde nicht installiert (%2).%n%nDas Protokoll des Spiel-Setups: %3%n%nDas Setup macht mit dem nächsten Spiel weiter.
+fr.SuiteRunFailed=%1 n'a pas été installé (%2).%n%nLe journal du programme d'installation du jeu : %3%n%nLe programme continue avec le jeu suivant.
+; %1 = exit code of the game setup, %2 = what it means (SuiteReason...)
+SuiteReasonCode=exit code %1: %2
+de.SuiteReasonCode=Exit-Code %1: %2
+fr.SuiteReasonCode=code de sortie %1 : %2
+SuiteReasonFatal=a fatal error
+de.SuiteReasonFatal=ein schwerer Fehler
+fr.SuiteReasonFatal=une erreur fatale
+SuiteReasonPrecondition=the setup found that it cannot install
+de.SuiteReasonPrecondition=das Setup hat festgestellt, dass es nicht installieren kann
+fr.SuiteReasonPrecondition=le programme a constaté qu'il ne peut pas installer
+SuiteReasonNoEntry=the setup ended without an error, but the game is not registered in Windows
+de.SuiteReasonNoEntry=das Setup endete ohne Fehler, aber das Spiel ist in Windows nicht eingetragen
+fr.SuiteReasonNoEntry=le programme s'est terminé sans erreur, mais le jeu n'est pas enregistré dans Windows
+SuiteReasonOther=unknown error
+de.SuiteReasonOther=unbekannter Fehler
+fr.SuiteReasonOther=erreur inconnue
+; %1 = the system's text
+SuiteReasonNotStarted=the setup program could not be extracted or started: %1
+de.SuiteReasonNotStarted=das Setup-Programm konnte nicht entpackt oder gestartet werden: %1
+fr.SuiteReasonNotStarted=le programme d'installation n'a pas pu être extrait ou lancé : %1

@@ -5,7 +5,7 @@
 // every item. A silent run (/SILENT, /VERYSILENT) shows none of them: its products come from /PRODUCTS
 // (InitializeSetup in suite.iss). The legal texts are the texts of the product setups, which skip them
 // when they run silently (contract 1.7 point 4); ci/check_suite_texts.py checks the copies.
-// The product runner (WP5) reads SuiteWantEE, SuiteWantNeoEE and SuiteAdvanced and sets SuiteProductsOk
+// The product runner (suite_run.iss) reads SuiteWantEE, SuiteWantNeoEE and SuiteAdvanced and sets SuiteProductsOk
 // and SuiteCdKeyResult; this file only shows them. It never starts a product setup and never touches
 // the CD key registration.
 // Requires: suite.iss (the globals, SuiteSilent, IsDotNet48, SuiteProductSucceeded, the constants of the

@@ -6,7 +6,7 @@
 ;
 ; This file is the frame: [Setup], the payload ([Files]) and the prechecks of InitializeSetup. The
 ; other parts are in the files it includes (suite_common.iss: pure helpers; suite_messages.iss: texts;
-; suite_shortcuts.iss, suite_record.iss: what the suite leaves besides its files). Never run a build
+; suite_run.iss: the product runner; suite_shortcuts.iss, suite_record.iss: what the suite leaves besides its files). Never run a build
 ; of it on a machine that has the real game installed: the placeholder builds are for CI.
 ;
 ; Build (ISCC 6.2.2), every define is required unless a default is named:
@@ -307,16 +307,16 @@ const
 
 var
   // The product ids whose setup succeeded in this run, comma separated (EE before NeoEE): set by the
-  // product runner, read by the shortcuts and the suite record (WP5)
+  // product runner (suite_run.iss), read by the shortcuts, the suite record and the last page
   SuiteProductsOk: String;
   // The products the suite installs: the selection on the product page (suite_pages.iss), or /PRODUCTS in
-  // a silent run, without a product that is installed for one user only. The product runner (WP5) reads them.
+  // a silent run, without a product that is installed for one user only. The product runner reads them.
   SuiteWantEE, SuiteWantNeoEE: Boolean;
   // How each product is installed on this computer (SuiteStateNone, SuiteStateMachine, SuiteStateUserOnly)
   SuiteStateEE, SuiteStateNeoEE: Integer;
-  // The "Advanced" box of the product page: the product setups show their full wizard (the product runner, WP5)
+  // The "Advanced" box of the product page: the product setups show their full wizard (the product runner)
   SuiteAdvanced: Boolean;
-  // The product runner (WP5) sets it to the number of the line "CD Keys generation result: <n>" of the NeoEE
+  // The product runner sets it to the number of the line "CD Keys generation result: <n>" of the NeoEE
   // log, or leaves it empty if there is none; the last page shows it
   SuiteCdKeyResult: String;
 
@@ -372,6 +372,7 @@ begin
 end;
 
 #include "suite_pages.iss"
+#include "suite_run.iss"
 #include "suite_shortcuts.iss"
 #include "suite_record.iss"
 
@@ -471,13 +472,16 @@ begin
     Log('.NET Framework 4.8 or later: not found, the launcher is not installed and the game shortcuts start the game programs');
 end;
 
-// The steps of the installation. The product runner runs the selected product setups at ssInstall
-// (WP5); the shortcuts and the suite record are written after everything else, at ssPostInstall, in
-// code: the Check functions of [Icons] and [Registry] did not reliably see what ssInstall had set
-// (ADR 0013 Evidence), and the uninstaller removes them explicitly.
+// The steps of the installation. The product runner (suite_run.iss) runs the selected product setups at
+// ssInstall, after PrepareToInstall compared them with their pins; the shortcuts and the suite record are
+// written after everything else, at ssPostInstall, in code: the Check functions of [Icons] and [Registry]
+// did not reliably see what ssInstall had set (ADR 0013 Evidence), and the uninstaller removes them
+// explicitly.
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
-  if CurStep = ssPostInstall then
+  if CurStep = ssInstall then
+    SuiteRunProducts
+  else if CurStep = ssPostInstall then
   begin
     ApplySuiteShortcuts(False);
     WriteSuiteRecord;

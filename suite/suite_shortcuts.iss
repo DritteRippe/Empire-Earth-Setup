@@ -148,7 +148,7 @@ end;
 
 // Creates (Remove = False) or deletes (True) every shortcut of the suite, then the start menu folder
 // if it is empty. Before the suite creates its shortcuts, the product runner has deleted the
-// shortcuts of earlier standalone runs of the products (contract 1.7 point 7, WP5).
+// shortcuts of earlier standalone runs of the products (contract 1.7 point 7, suite_run.iss).
 // One call per shortcut and place; the game shortcuts are those of the table of contract 1.7.
 procedure ApplySuiteShortcuts(Remove: Boolean);
 begin
