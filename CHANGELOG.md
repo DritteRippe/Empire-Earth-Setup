@@ -43,7 +43,9 @@ setup version stays 1.7.2 until the release.
   select `neoee_cdkeys`, `certinclude`, `directplay` or `dxwebsetup`, shortcuts read through `WScript.Shell`, a
   dummy under `Software\Sierra\CDKeys` in all views that must survive everything, one PASS/FAIL line per
   scenario in the job summary. Tested against a fake Windows in every build
-  (`ci/e2e/tests/e2e_suite_*.tests.ps1`, `test_suite_e2e.py`).
+  (`ci/e2e/tests/e2e_suite_*.tests.ps1`, `test_suite_e2e.py`). The placeholder setups get a 32-bit stand-in
+  of `EEStatsSetup.dll` (`ci/e2e/stub`, built by `ci/e2e/build_eestats_stub.ps1` before the placeholder
+  build): the setups load the DLL when they start, and the dummy file of the placeholder generator stops them.
 - `ci/make_placeholder_assets.py`: creates placeholder assets for contributors and CI, and lists
   the assets a variant needs (`--list`).
 - `ci/check_messages.py` (also run by the workflow): finds duplicate messages, `==` typos, unknown

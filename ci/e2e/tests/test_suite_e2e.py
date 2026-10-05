@@ -80,6 +80,11 @@ def workflow_problems(workflow):
             problems.append("suite-e2e downloads the artifact %s that compile does not upload" % name)
     if "-TestWrongEEPin" not in compile_job:
         problems.append("compile must build the suite with -TestWrongEEPin (scenario S5)")
+    # the placeholder setups load EEStatsSetup.dll when they start: the stand-in must be in data\ before they are built
+    stub = compile_job.find("build_eestats_stub.ps1")
+    build = compile_job.find("- name: Build\n")
+    if stub < 0 or build < 0 or stub > build:
+        problems.append("compile must build the stand-in of EEStatsSetup.dll (build_eestats_stub.ps1) before the step Build")
     # the folders must lie below the temporary folder of the runner, not of the user (a package below %TEMP% is a ZIP view)
     if "RUNNER_TEMP" not in job:
         problems.append("the folders of the test must be below RUNNER_TEMP")
@@ -186,6 +191,15 @@ class WorkflowRules(unittest.TestCase):
 
     def test_the_wrong_pin_build_is_required(self):
         self.assertTrue(any("-TestWrongEEPin" in p for p in self.mutated("-Placeholders -TestWrongEEPin", "-Placeholders")))
+
+    def test_the_stand_in_dll_is_required_before_the_build(self):
+        found = self.mutated("        run: ./ci/e2e/build_eestats_stub.ps1", "        run: echo no stand-in")
+        self.assertTrue(any("EEStatsSetup.dll" in p for p in found), found)
+        text = read(".github", "workflows", "build.yml")
+        step = "      - name: Stand-in of EEStatsSetup.dll for the placeholder setups\n        shell: pwsh\n        run: ./ci/e2e/build_eestats_stub.ps1 -OutFile data/Add-on/DLLs/EEStats/EEStatsSetup.dll\n\n"
+        self.assertIn(step, text, "the test needs this step in the workflow")
+        moved = text.replace(step, "", 1).replace("      - name: Upload the placeholder suite\n", step + "      - name: Upload the placeholder suite\n", 1)
+        self.assertTrue(any("before the step Build" in p for p in workflow_problems(moved)))
 
     def test_the_folders_below_the_runner_temp(self):
         text = read(".github", "workflows", "build.yml")

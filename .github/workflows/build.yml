@@ -153,6 +153,14 @@ jobs:
           pwsh -NoProfile -File ci/e2e/tests/e2e_suite_scenarios.tests.ps1
           if ($LASTEXITCODE) { exit 1 }
 
+      # The setups load EEStatsSetup.dll when they start (eestats.iss), and the dummy file of the placeholder
+      # generator cannot be loaded: the placeholder setups would stop before they do anything, and the job
+      # suite-e2e runs them. A 32-bit stand-in with the six functions of eestats.iss (ci/e2e/stub) goes into
+      # data\ first (the generator keeps existing files); test builds only, never shipped.
+      - name: Stand-in of EEStatsSetup.dll for the placeholder setups
+        shell: pwsh
+        run: ./ci/e2e/build_eestats_stub.ps1 -OutFile data/Add-on/DLLs/EEStats/EEStatsSetup.dll
+
       # A release build (TestID 0): it also reads the online files without a pin from the code of
       # RegisterOnlineFiles and stops if it cannot (with placeholders it only prints the number)
       - name: Build
