@@ -214,9 +214,16 @@ try {
   $launcherTree = Get-TreeDigest $LauncherDir
   $modTree = Get-TreeDigest $ModCreatorDir
   $licenseTree = Get-TreeDigest $LicenseDir
+  # The legal texts the suite shows (suite.iss takes them from data\ of this checkout): a real build needs the
+  # real files, never the placeholders of CI
+  $legalTexts = @()
   if (-not $Placeholders) {
     if (-not $LauncherCommit) { Write-Warning 'No -LauncherCommit: BUILD-INFO.txt will not name the launcher commit.' }
     if (-not $ModCreatorCommit) { Write-Warning 'No -ModCreatorCommit: BUILD-INFO.txt will not name the Mod Creator commit.' }
+    $legalTexts = @(
+      (Get-SuiteLegalText (Join-Path $Root 'data\Empire Earth Base\Empire Earth\EULA_DSML.txt') 'The EULA of EE'),
+      (Get-SuiteLegalText (Join-Path $Root 'data\NeoEE Base\shared\neoee_rules.rtf') 'The rules of NeoEE')
+    )
   }
 
   # ---- ISCC -------------------------------------------------------------------------------------
@@ -352,7 +359,10 @@ try {
     "  NeoEE setup         $($neo.Hash)  $($neo.Size)  $($neo.Name)",
     "  Launcher folder     $($launcherTree.Digest)  $($launcherTree.Files) files, $($launcherTree.Bytes) bytes (digest of the sorted file hashes, without .pdb)",
     "  Mod Creator folder  $($modTree.Digest)  $($modTree.Files) files, $($modTree.Bytes) bytes",
-    "  License folder      $($licenseTree.Digest)  $($licenseTree.Files) files, $($licenseTree.Bytes) bytes",
+    "  License folder      $($licenseTree.Digest)  $($licenseTree.Files) files, $($licenseTree.Bytes) bytes"
+  )
+  foreach ($legal in $legalTexts) { $info += "  Legal text          $($legal.Hash)  $($legal.Size)  $($legal.Name)" }
+  $info += @(
     '',
     'Output (SHA-256, the same as in SHA256SUMS.txt):'
   )

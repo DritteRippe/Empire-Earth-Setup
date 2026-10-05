@@ -35,6 +35,8 @@ setup version stays 1.7.2 until the release.
   against their `.sha256`, `SHA256SUMS.txt` and `BUILD-INFO.txt`); CI builds it with placeholder products
   and uploads it as an artifact. Tested by `ci/tests/suite_build.tests.ps1`.
   `-TestWrongEEPin` (placeholders only) builds the suite with a wrong pin of the EE setup for the CI scenario S5.
+  A real build stops before ISCC if the legal texts the suite shows (`EULA_DSML.txt`, `neoee_rules.rtf` in `data\`)
+  are missing or the placeholders of CI, and names their SHA-256 in `BUILD-INFO.txt`.
 - End-to-end test of the suite installer (job `suite-e2e` of `build.yml`, `ci/e2e/run_e2e_suite.ps1`): ten
   scenarios on a Windows runner with the placeholder builds, without any download: both products, EE only, a
   product installed on its own and adopted, a missing slice (exit code 11), a wrong pin (15), a running game or
