@@ -1919,6 +1919,7 @@ begin
     TestSuiteSilentArguments;
     TestSuitePages;
     TestSuiteRunner;
+    TestSuiteUninstaller;
   except
     Failures := Failures + 1;
     Results.Add('FAIL exception: ' + GetExceptionMessage);

@@ -704,3 +704,186 @@ begin
       Result := Number;
   end;
 end;
+
+// ---- the uninstaller (suite_uninstall.iss) -------------------------------------------------------
+
+const
+  // How long the suite waits for a product uninstaller: its first process only starts a copy of itself in
+  // %TEMP% and ends (WP0 spike, ADR 0013 Evidence), so the suite polls the uninstall key and the program
+  // file. A game of several GB takes minutes on a slow disk, hence 10 minutes; after the key is gone the
+  // program file may stay for 30 more seconds (the copy deletes it at its very end).
+  SuiteUninstallTimeoutMs = 600000;
+  SuiteUninstallExeGraceMs = 30000;
+  SuiteUninstallPollMs = 1000;
+  // SuiteUninstallWaitState
+  SuiteWaitKeep = 0;               // keep polling
+  SuiteWaitDone = 1;               // the uninstall key and the program file are gone
+  SuiteWaitDoneExeLeft = 2;        // the uninstall key is gone, the program file stays: done, with a log line
+  SuiteWaitTimedOut = 3;           // the uninstall key is still there after the timeout
+  // SuiteUninstallOutcome
+  SuiteRemoveOk = 0;
+  SuiteRemoveGone = 1;             // not installed any more (removed through its own Apps entry): skipped silently
+  SuiteRemoveNotStarted = 2;       // the uninstaller of the product could not be started (or is no uninstaller)
+  SuiteRemoveTimedOut = 3;         // it did not finish in time
+  // The exact folders below a product root and below the launcher's data folder (see SuiteDataFolder, ...)
+  SuiteDataFolderCount = 4;
+  SuiteEmptyFolderCount = 5;
+  SuiteLauncherFileCount = 2;
+  SuiteLauncherFolderCount = 2;
+  SuiteGameFolder = 'Empire Earth';
+  SuiteAoCFolder = 'Empire Earth - The Art of Conquest';
+
+// What to do after one look at a product uninstaller: KeyPresent = the uninstall key {<AppId>}_is1 exists,
+// ExeExists = its unins000.exe exists, ElapsedMs = time since Exec returned, KeyGoneMs = time the key has
+// been gone. The exit code of the first process is no input: it ends before the real uninstall does.
+function SuiteUninstallWaitState(KeyPresent, ExeExists: Boolean; ElapsedMs, KeyGoneMs: Integer): Integer;
+begin
+  if KeyPresent then
+  begin
+    if ElapsedMs >= SuiteUninstallTimeoutMs then
+      Result := SuiteWaitTimedOut
+    else
+      Result := SuiteWaitKeep;
+  end
+  else if not ExeExists then
+    Result := SuiteWaitDone
+  else if KeyGoneMs >= SuiteUninstallExeGraceMs then
+    Result := SuiteWaitDoneExeLeft
+  else
+    Result := SuiteWaitKeep;
+end;
+
+// The outcome of the removal of one product: Started = Exec started the uninstaller, WaitState = the last
+// SuiteUninstallWaitState
+function SuiteUninstallOutcome(Started: Boolean; WaitState: Integer): Integer;
+begin
+  if not Started then
+    Result := SuiteRemoveNotStarted
+  else if (WaitState = SuiteWaitDone) or (WaitState = SuiteWaitDoneExeLeft) then
+    Result := SuiteRemoveOk
+  else
+    Result := SuiteRemoveTimedOut;
+end;
+
+// The product the Index-th removal handles (1, 2): NeoEE before EE, the reverse of the installation; '' otherwise
+function SuiteUninstallProduct(Index: Integer): String;
+begin
+  case Index of
+    1: Result := SuiteProductNeoEE;
+    2: Result := SuiteProductEE;
+  else
+    Result := '';
+  end;
+end;
+
+// The program file of an uninstall entry: the value UninstallString is the path of unins000.exe in quotes
+// (Inno Setup writes it so); without quotes the whole text counts. '' for an empty value.
+function SuiteUninstallExe(const UninstallString: String): String;
+var
+  S: String;
+  P: Integer;
+begin
+  S := Trim(UninstallString);
+  if (S <> '') and (S[1] = '"') then
+  begin
+    Delete(S, 1, 1);
+    P := Pos('"', S);
+    if P > 0 then
+      S := Copy(S, 1, P - 1);
+  end;
+  Result := Trim(S);
+end;
+
+// True if Exe is an uninstaller of Inno Setup (unins*.exe) inside the install root of the product: the suite
+// runs nothing else from the registry value of an uninstall entry.
+function SuiteIsProductUninstaller(const Exe, Root: String): Boolean;
+var
+  Name: String;
+begin
+  Name := LowerCase(ExtractFileName(Exe));
+  Result := SuiteIsSameOrInside(Exe, Root) and (Copy(Name, 1, 5) = 'unins') and (Copy(Name, Length(Name) - 3, 4) = '.exe');
+end;
+
+// A folder the uninstaller may work below: a full path with a drive, at least one folder deep, without ".."
+function SuiteIsUsableRoot(const Root: String): Boolean;
+var
+  R: String;
+begin
+  R := SuiteNormalizedPath(Root);
+  Result := (Length(R) > 3) and (R[2] = ':') and (R[3] = '\') and (Pos('..', R) = 0);
+end;
+
+// The folders of the user data of a product: the profiles (Users) and the saved games of Empire Earth and of
+// The Art of Conquest. Index 1 to SuiteDataFolderCount; '' for another index or an unusable root. The
+// uninstaller deletes these folders (with their content) only after the explicit answer "Delete", never more.
+function SuiteDataFolder(const Root: String; Index: Integer): String;
+var
+  R: String;
+begin
+  Result := '';
+  if not SuiteIsUsableRoot(Root) then
+    Exit;
+  R := RemoveBackslash(Trim(Root));
+  case Index of
+    1: Result := R + '\' + SuiteGameFolder + '\Users';
+    2: Result := R + '\' + SuiteGameFolder + '\Data\Saved Games';
+    3: Result := R + '\' + SuiteAoCFolder + '\Users';
+    4: Result := R + '\' + SuiteAoCFolder + '\Data\Saved Games';
+  end;
+end;
+
+// The folders that the uninstaller removes with RemoveDir (which never removes a folder with content) after
+// the product is gone, from the inside out: Data and the game folder of Empire Earth and of The Art of
+// Conquest, then the install root. Index 1 to SuiteEmptyFolderCount; '' otherwise.
+function SuiteEmptyFolder(const Root: String; Index: Integer): String;
+var
+  R: String;
+begin
+  Result := '';
+  if not SuiteIsUsableRoot(Root) then
+    Exit;
+  R := RemoveBackslash(Trim(Root));
+  case Index of
+    1: Result := R + '\' + SuiteGameFolder + '\Data';
+    2: Result := R + '\' + SuiteGameFolder;
+    3: Result := R + '\' + SuiteAoCFolder + '\Data';
+    4: Result := R + '\' + SuiteAoCFolder;
+    5: Result := R;
+  end;
+end;
+
+// The data folder of the launcher below the local application data folder of the account that uninstalls
+function SuiteLauncherDataDir(const LocalAppData: String): String;
+begin
+  if SuiteIsUsableRoot(LocalAppData) then
+    Result := RemoveBackslash(Trim(LocalAppData)) + '\Empire Earth Launcher'
+  else
+    Result := '';
+end;
+
+// The files of the launcher's data folder that the uninstaller always deletes: its settings and its log
+function SuiteLauncherDataFile(const LocalAppData: String; Index: Integer): String;
+begin
+  Result := SuiteLauncherDataDir(LocalAppData);
+  if Result <> '' then
+    case Index of
+      1: Result := Result + '\settings.json';
+      2: Result := Result + '\log.txt';
+    else
+      Result := '';
+    end;
+end;
+
+// The sub-folders of the launcher's data folder that the uninstaller deletes only after the answer "Delete":
+// the backups of the registry and of files, and the packages of the Mod Creator
+function SuiteLauncherDataFolder(const LocalAppData: String; Index: Integer): String;
+begin
+  Result := SuiteLauncherDataDir(LocalAppData);
+  if Result <> '' then
+    case Index of
+      1: Result := Result + '\Backups';
+      2: Result := Result + '\Mod Creator';
+    else
+      Result := '';
+    end;
+end;

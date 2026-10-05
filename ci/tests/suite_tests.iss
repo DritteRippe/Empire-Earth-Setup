@@ -395,3 +395,124 @@ begin
   Check('SuiteLegacyShortcutPath unknown product', SuiteLegacyShortcutPath('AoC', 1, 'D:\Desk', 'D:\Start'), '');
   Check('SuiteLegacyShortcutCount', IntToStr(SuiteLegacyShortcutCount), '5');
 end;
+
+procedure CheckWait(const Name: String; KeyPresent, ExeExists: Boolean; ElapsedMs, KeyGoneMs, Expected: Integer);
+begin
+  Check('SuiteUninstallWaitState ' + Name, IntToStr(SuiteUninstallWaitState(KeyPresent, ExeExists, ElapsedMs, KeyGoneMs)), IntToStr(Expected));
+end;
+
+procedure TestSuiteUninstaller;
+var
+  I: Integer;
+  Seen: String;
+begin
+  // the wait for a product uninstaller: the key and the program file decide, the exit code never does
+  CheckWait('key there, in time', True, True, 1000, 0, SuiteWaitKeep);
+  CheckWait('key there, no program file, in time', True, False, 1000, 0, SuiteWaitKeep);
+  CheckWait('key there, just before the timeout', True, True, SuiteUninstallTimeoutMs - 1, 0, SuiteWaitKeep);
+  CheckWait('key there, at the timeout', True, True, SuiteUninstallTimeoutMs, 0, SuiteWaitTimedOut);
+  CheckWait('key there, program file gone, at the timeout', True, False, SuiteUninstallTimeoutMs + 5000, 0, SuiteWaitTimedOut);
+  CheckWait('key gone, program file gone', False, False, 2000, 0, SuiteWaitDone);
+  CheckWait('key gone at once', False, False, 0, 0, SuiteWaitDone);
+  CheckWait('key gone, program file there, within the grace', False, True, 5000, 3000, SuiteWaitKeep);
+  CheckWait('key gone, program file there, grace over', False, True, 40000, SuiteUninstallExeGraceMs, SuiteWaitDoneExeLeft);
+  CheckWait('key gone, program file there, after the overall timeout but within the grace', False, True,
+    SuiteUninstallTimeoutMs + 1000, 1000, SuiteWaitKeep);
+  Check('SuiteUninstallTimeoutMs is 10 minutes', IntToStr(SuiteUninstallTimeoutMs), '600000');
+  Check('SuiteUninstallPollMs divides the grace', IntToStr(SuiteUninstallExeGraceMs mod SuiteUninstallPollMs), '0');
+
+  Check('SuiteUninstallOutcome done', IntToStr(SuiteUninstallOutcome(True, SuiteWaitDone)), IntToStr(SuiteRemoveOk));
+  Check('SuiteUninstallOutcome program file left', IntToStr(SuiteUninstallOutcome(True, SuiteWaitDoneExeLeft)), IntToStr(SuiteRemoveOk));
+  Check('SuiteUninstallOutcome timeout', IntToStr(SuiteUninstallOutcome(True, SuiteWaitTimedOut)), IntToStr(SuiteRemoveTimedOut));
+  Check('SuiteUninstallOutcome still waiting', IntToStr(SuiteUninstallOutcome(True, SuiteWaitKeep)), IntToStr(SuiteRemoveTimedOut));
+  Check('SuiteUninstallOutcome not started', IntToStr(SuiteUninstallOutcome(False, SuiteWaitDone)), IntToStr(SuiteRemoveNotStarted));
+
+  Check('SuiteUninstallProduct 1', SuiteUninstallProduct(1), 'NeoEE');
+  Check('SuiteUninstallProduct 2', SuiteUninstallProduct(2), 'EE');
+  Check('SuiteUninstallProduct 0', SuiteUninstallProduct(0), '');
+  Check('SuiteUninstallProduct 3', SuiteUninstallProduct(3), '');
+
+  // the program file of an uninstall entry
+  Check('SuiteUninstallExe quoted', SuiteUninstallExe('"C:\Program Files (x86)\Empire Earth\unins000.exe"'), 'C:\Program Files (x86)\Empire Earth\unins000.exe');
+  Check('SuiteUninstallExe quoted with blanks around', SuiteUninstallExe('  "D:\Games\EE\unins001.exe"  '), 'D:\Games\EE\unins001.exe');
+  Check('SuiteUninstallExe unquoted', SuiteUninstallExe('D:\Games\EE\unins000.exe'), 'D:\Games\EE\unins000.exe');
+  Check('SuiteUninstallExe unterminated quote', SuiteUninstallExe('"D:\Games\EE\unins000.exe'), 'D:\Games\EE\unins000.exe');
+  Check('SuiteUninstallExe with arguments after the quotes', SuiteUninstallExe('"D:\Games\EE\unins000.exe" /SILENT'), 'D:\Games\EE\unins000.exe');
+  Check('SuiteUninstallExe empty', SuiteUninstallExe(''), '');
+  Check('SuiteUninstallExe blank', SuiteUninstallExe('   '), '');
+  Check('SuiteUninstallExe two quotes', SuiteUninstallExe('""'), '');
+
+  // only an Inno Setup uninstaller inside the root is run
+  CheckBool('SuiteIsProductUninstaller default', SuiteIsProductUninstaller('C:\Games\EE\unins000.exe', 'C:\Games\EE'), True);
+  CheckBool('SuiteIsProductUninstaller second', SuiteIsProductUninstaller('C:\Games\EE\unins001.exe', 'C:\Games\EE'), True);
+  CheckBool('SuiteIsProductUninstaller case and trailing backslash', SuiteIsProductUninstaller('c:\games\ee\UNINS000.EXE', 'C:\Games\EE\'), True);
+  CheckBool('SuiteIsProductUninstaller below the root', SuiteIsProductUninstaller('C:\Games\EE\_setupdata_EE\unins000.exe', 'C:\Games\EE'), True);
+  CheckBool('SuiteIsProductUninstaller outside the root', SuiteIsProductUninstaller('C:\Windows\System32\unins000.exe', 'C:\Games\EE'), False);
+  CheckBool('SuiteIsProductUninstaller sibling folder', SuiteIsProductUninstaller('C:\Games\EE2\unins000.exe', 'C:\Games\EE'), False);
+  CheckBool('SuiteIsProductUninstaller other program', SuiteIsProductUninstaller('C:\Games\EE\cmd.exe', 'C:\Games\EE'), False);
+  CheckBool('SuiteIsProductUninstaller not an exe', SuiteIsProductUninstaller('C:\Games\EE\unins000.dat', 'C:\Games\EE'), False);
+  CheckBool('SuiteIsProductUninstaller the game', SuiteIsProductUninstaller('C:\Games\EE\Empire Earth\Empire Earth.exe', 'C:\Games\EE'), False);
+  CheckBool('SuiteIsProductUninstaller the root itself', SuiteIsProductUninstaller('C:\Games\EE', 'C:\Games\EE'), False);
+  CheckBool('SuiteIsProductUninstaller empty root', SuiteIsProductUninstaller('C:\Games\EE\unins000.exe', ''), False);
+  CheckBool('SuiteIsProductUninstaller empty file', SuiteIsProductUninstaller('', 'C:\Games\EE'), False);
+  CheckBool('SuiteIsProductUninstaller with arguments', SuiteIsProductUninstaller('C:\Games\EE\unins000.exe /x', 'C:\Games\EE'), False);
+
+  // roots the uninstaller works below
+  CheckBool('SuiteIsUsableRoot program files', SuiteIsUsableRoot('C:\Program Files (x86)\Empire Earth'), True);
+  CheckBool('SuiteIsUsableRoot one level', SuiteIsUsableRoot('D:\Games'), True);
+  CheckBool('SuiteIsUsableRoot trailing backslash', SuiteIsUsableRoot('D:\Games\'), True);
+  CheckBool('SuiteIsUsableRoot drive', SuiteIsUsableRoot('C:\'), False);
+  CheckBool('SuiteIsUsableRoot drive without backslash', SuiteIsUsableRoot('C:'), False);
+  CheckBool('SuiteIsUsableRoot empty', SuiteIsUsableRoot(''), False);
+  CheckBool('SuiteIsUsableRoot relative', SuiteIsUsableRoot('Games\EE'), False);
+  CheckBool('SuiteIsUsableRoot parent folder', SuiteIsUsableRoot('C:\Games\..\Windows'), False);
+  CheckBool('SuiteIsUsableRoot network path', SuiteIsUsableRoot('\\server\share\EE'), False);
+
+  // the exact folders of the user data of a product (5 values, nothing else)
+  Check('SuiteDataFolderCount', IntToStr(SuiteDataFolderCount), '4');
+  Check('SuiteDataFolder 1', SuiteDataFolder('C:\Program Files (x86)\Empire Earth', 1), 'C:\Program Files (x86)\Empire Earth\Empire Earth\Users');
+  Check('SuiteDataFolder 2', SuiteDataFolder('C:\Program Files (x86)\Empire Earth', 2), 'C:\Program Files (x86)\Empire Earth\Empire Earth\Data\Saved Games');
+  Check('SuiteDataFolder 3', SuiteDataFolder('C:\Program Files (x86)\Empire Earth', 3),
+    'C:\Program Files (x86)\Empire Earth\Empire Earth - The Art of Conquest\Users');
+  Check('SuiteDataFolder 4', SuiteDataFolder('C:\Program Files (x86)\Empire Earth', 4),
+    'C:\Program Files (x86)\Empire Earth\Empire Earth - The Art of Conquest\Data\Saved Games');
+  Check('SuiteDataFolder trailing backslash', SuiteDataFolder('D:\EE\', 1), 'D:\EE\Empire Earth\Users');
+  Check('SuiteDataFolder index 0', SuiteDataFolder('D:\EE', 0), '');
+  Check('SuiteDataFolder index 5', SuiteDataFolder('D:\EE', SuiteDataFolderCount + 1), '');
+  Check('SuiteDataFolder drive root', SuiteDataFolder('D:\', 1), '');
+  Check('SuiteDataFolder empty root', SuiteDataFolder('', 2), '');
+  Check('SuiteDataFolder parent folder', SuiteDataFolder('D:\EE\..\..', 1), '');
+  Seen := '';
+  for I := 1 to SuiteDataFolderCount do
+    Seen := Seen + SuiteDataFolder('D:\EE', I) + '|';
+  Check('SuiteDataFolder all different', IntToStr(Pos('D:\EE\Empire Earth\Users|D:\EE\Empire Earth\Data\Saved Games|D:\EE\Empire Earth - The Art of Conquest\Users|D:\EE\Empire Earth - The Art of Conquest\Data\Saved Games|', Seen)), '1');
+
+  // the folders removed only if empty, from the inside out, the root last
+  Check('SuiteEmptyFolderCount', IntToStr(SuiteEmptyFolderCount), '5');
+  Check('SuiteEmptyFolder 1', SuiteEmptyFolder('D:\EE', 1), 'D:\EE\Empire Earth\Data');
+  Check('SuiteEmptyFolder 2', SuiteEmptyFolder('D:\EE', 2), 'D:\EE\Empire Earth');
+  Check('SuiteEmptyFolder 3', SuiteEmptyFolder('D:\EE', 3), 'D:\EE\Empire Earth - The Art of Conquest\Data');
+  Check('SuiteEmptyFolder 4', SuiteEmptyFolder('D:\EE', 4), 'D:\EE\Empire Earth - The Art of Conquest');
+  Check('SuiteEmptyFolder 5', SuiteEmptyFolder('D:\EE\', 5), 'D:\EE');
+  Check('SuiteEmptyFolder index 6', SuiteEmptyFolder('D:\EE', SuiteEmptyFolderCount + 1), '');
+  Check('SuiteEmptyFolder drive root', SuiteEmptyFolder('D:\', 5), '');
+  Check('SuiteEmptyFolder empty root', SuiteEmptyFolder('', 5), '');
+
+  // the data folder of the launcher
+  Check('SuiteLauncherDataDir', SuiteLauncherDataDir('C:\Users\Anna\AppData\Local'), 'C:\Users\Anna\AppData\Local\Empire Earth Launcher');
+  Check('SuiteLauncherDataDir trailing backslash', SuiteLauncherDataDir('C:\Users\Anna\AppData\Local\'), 'C:\Users\Anna\AppData\Local\Empire Earth Launcher');
+  Check('SuiteLauncherDataDir empty', SuiteLauncherDataDir(''), '');
+  Check('SuiteLauncherDataDir relative', SuiteLauncherDataDir('Local'), '');
+  Check('SuiteLauncherFileCount', IntToStr(SuiteLauncherFileCount), '2');
+  Check('SuiteLauncherDataFile 1', SuiteLauncherDataFile('C:\U\Local', 1), 'C:\U\Local\Empire Earth Launcher\settings.json');
+  Check('SuiteLauncherDataFile 2', SuiteLauncherDataFile('C:\U\Local', 2), 'C:\U\Local\Empire Earth Launcher\log.txt');
+  Check('SuiteLauncherDataFile 0', SuiteLauncherDataFile('C:\U\Local', 0), '');
+  Check('SuiteLauncherDataFile 3', SuiteLauncherDataFile('C:\U\Local', SuiteLauncherFileCount + 1), '');
+  Check('SuiteLauncherDataFile empty folder', SuiteLauncherDataFile('', 1), '');
+  Check('SuiteLauncherFolderCount', IntToStr(SuiteLauncherFolderCount), '2');
+  Check('SuiteLauncherDataFolder 1', SuiteLauncherDataFolder('C:\U\Local', 1), 'C:\U\Local\Empire Earth Launcher\Backups');
+  Check('SuiteLauncherDataFolder 2', SuiteLauncherDataFolder('C:\U\Local', 2), 'C:\U\Local\Empire Earth Launcher\Mod Creator');
+  Check('SuiteLauncherDataFolder 0', SuiteLauncherDataFolder('C:\U\Local', 0), '');
+  Check('SuiteLauncherDataFolder 3', SuiteLauncherDataFolder('C:\U\Local', SuiteLauncherFolderCount + 1), '');
+  Check('SuiteLauncherDataFolder empty folder', SuiteLauncherDataFolder('', 1), '');
+end;
