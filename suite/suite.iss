@@ -336,6 +336,8 @@ var
   // The product runner sets it to the number of the line "CD Keys generation result: <n>" of the NeoEE
   // log, or leaves it empty if there is none; the last page shows it
   SuiteCdKeyResult: String;
+  // True if the NeoEE setup ran without the task neoee_cdkeys (chosen, not a failure; SuiteCdKeyNotChosen)
+  SuiteCdKeyNotChosenFlag: Boolean;
 
 procedure ExitProcess(ExitCode: Cardinal);
   external 'ExitProcess@kernel32.dll stdcall';
@@ -397,7 +399,7 @@ end;
 // The prechecks, before anything is extracted or installed; the first problem stops the suite
 // with its exit code. All of them are read-only. The order: arguments of a silent run, the slices of
 // the package (and the ZIP view as the likely reason when they are missing), the running programs,
-// the free space.
+// the free space (in a silent run for the products named, else for the smallest setup: see 4. below).
 function InitializeSetup(): Boolean;
 var
   Src, TempRoot, Problems, Drive, Selected: String;
@@ -405,6 +407,7 @@ var
   TempNeeded, TargetNeeded: Int64;
   Target: String;
   Problem: Integer;
+  SmallerEE: Boolean;
 begin
   Result := True;
   Src := RemoveBackslash(ExpandConstant('{src}'));
@@ -466,8 +469,20 @@ begin
   // 4. Free space for the extraction (drive of %TEMP%) and the installation (drive of the program
   // files folder of the products), exit code 13
   Target := ExpandConstant('{autopf32}');
-  TempNeeded := SuiteRequiredTempBytes(SuiteEESize, SuiteNeoEESize, SuiteWantEE, SuiteWantNeoEE);
-  TargetNeeded := SuiteRequiredTargetBytes(SuiteEEInstallBytes, SuiteNeoEEInstallBytes, SuiteLauncherBytes, SuiteWantEE, SuiteWantNeoEE);
+  if SuiteSilent then
+  begin
+    TempNeeded := SuiteRequiredTempBytes(SuiteEESize, SuiteNeoEESize, SuiteWantEE, SuiteWantNeoEE);
+    TargetNeeded := SuiteRequiredTargetBytes(SuiteEEInstallBytes, SuiteNeoEEInstallBytes, SuiteLauncherBytes,
+      SuiteNeedsInstallSpace(SuiteWantEE, SuiteStateEE), SuiteNeedsInstallSpace(SuiteWantNeoEE, SuiteStateNeoEE));
+  end
+  else
+  begin
+    // The user has not chosen the products yet and may untick one: here only the smallest setup and the
+    // launcher must fit; the product page checks the selection when the user leaves it (suite_pages.iss)
+    SmallerEE := SuiteEESize <= SuiteNeoEESize;
+    TempNeeded := SuiteRequiredTempBytes(SuiteEESize, SuiteNeoEESize, SmallerEE, not SmallerEE);
+    TargetNeeded := SuiteRequiredTargetBytes(0, 0, SuiteLauncherBytes, False, False);
+  end;
   if GetSpaceOnDisk64(TempRoot, TempFree, Total) and GetSpaceOnDisk64(Target, TargetFree, Total) then
   begin
     Problem := SuiteSpaceProblem(TempFree, TempNeeded, TargetFree, TargetNeeded, SuiteDriveOf(TempRoot) = SuiteDriveOf(Target));

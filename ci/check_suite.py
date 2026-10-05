@@ -314,8 +314,16 @@ def check_runner(runner, main, errors):
     check_at = run.find("SuiteExtractAndCheck(")
     if not exec_at or check_at < 0 or check_at > exec_at.start():
         errors.append(f"{where}: SuiteRunProduct must call SuiteExtractAndCheck (the pin check) before Exec")
-    if "SuitePinMatches(" not in bodies.get("SuiteExtractAndCheck", ""):
+    extract = bodies.get("SuiteExtractAndCheck", "")
+    if "SuitePinMatches(" not in extract:
         errors.append(f"{where}: SuiteExtractAndCheck does not compare size and SHA-256 with SuitePinMatches")
+    lock_at, hash_at = extract.find("TFileStream.Create("), extract.find("GetSHA256OfFile(")
+    if "fmShareDenyWrite" not in extract or lock_at < 0 or hash_at < 0 or lock_at > hash_at:
+        errors.append(f"{where}: SuiteExtractAndCheck must lock the extracted file against writing "
+                      "(TFileStream.Create(..., fmOpenRead or fmShareDenyWrite)) before it computes the SHA-256")
+    free_at = run.rfind("Lock.Free")
+    if not exec_at or free_at < 0 or free_at < exec_at.start():
+        errors.append(f"{where}: SuiteRunProduct must keep the lock of the extracted file until Exec has returned (Lock.Free after Exec)")
     prepare = bodies.get("PrepareToInstall", "")
     if "SuiteExtractAndCheck(" not in prepare or not re.search(r"\bSuiteStop\s*\(\s*SuiteExitProductSetup\b", prepare):
         errors.append(f"{where}: PrepareToInstall must check every selected setup and stop with SuiteExitProductSetup "
@@ -577,12 +585,18 @@ def self_test(source_root):
          "must call Exec exactly once"),
         ("a program started by ShellExec", replace(run, "  DeleteFile(LogFile);\n", "  DeleteFile(LogFile);\n  ShellExec('open', Exe, '', '', SW_SHOW, ewNoWait, Code);\n"),
          "must call Exec exactly once"),
-        ("no pin check before Exec", replace(run, "if not SuiteExtractAndCheck(Product, Reason, Mismatch) then", "if False then"),
+        ("no pin check before Exec", replace(run, "if not SuiteExtractAndCheck(Product, Reason, Mismatch, Lock) then", "if False then"),
          "must call SuiteExtractAndCheck (the pin check) before Exec"),
+        ("extracted file not locked against writing",
+         replace(run, "fmOpenRead or fmShareDenyWrite", "fmOpenRead or fmShareDenyNone"), "must lock the extracted file against writing"),
+        ("lock released before Exec",
+         replace(run, "  Started := Exec(Exe, Params, ExpandConstant('{tmp}'), SW_SHOWNORMAL, ewWaitUntilTerminated, Code);\n  Lock.Free;\n",
+                 "  Lock.Free;\n  Started := Exec(Exe, Params, ExpandConstant('{tmp}'), SW_SHOWNORMAL, ewWaitUntilTerminated, Code);\n"),
+         "must keep the lock of the extracted file until Exec has returned"),
         ("pin check that does not compare",
          replace(run, "SuitePinMatches(Hash, SuiteProductSetupSHA256(Product), Size, SuiteProductSetupSize(Product))", "(Hash <> '')"),
          "does not compare size and SHA-256 with SuitePinMatches"),
-        ("PrepareToInstall without exit code 15", replace(run, "SuiteStop(SuiteExitProductSetup,", "SuiteStop(SuiteExitSlices,"),
+        ("PrepareToInstall without exit code 15", replace(run, "SuiteStop(SuiteExitProductSetup,", "SuiteStop(SuiteExitSlices,", 2),
          "PrepareToInstall must check every selected setup"),
         ("DeleteFile of another file", replace(run, "  DeleteFile(LogFile);\n", "  DeleteFile(ExpandConstant('{app}\\Empire Earth Launcher.exe'));\n"),
          "the runner deletes only its extracted product setup"),

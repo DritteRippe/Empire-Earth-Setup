@@ -95,7 +95,12 @@ end;
 // Extracts the embedded setup of the product to {tmp} and compares its size and SHA-256 with the pins of the
 // build. True if they match; the file stays for the caller. Otherwise Reason (a log text) says what is wrong and
 // Mismatch whether the file was read but is not the one of the build (False: it could not be extracted or read).
-function SuiteExtractAndCheck(const Product: String; var Reason: String; var Mismatch: Boolean): Boolean;
+// Lock is a handle that keeps the extracted file open for reading and denies writing from before the hash is
+// computed: %TEMP% belongs to the user, who without elevation (split token) can write there, so without the lock
+// a process of the user could replace the file between the comparison and Exec. The caller frees it (nil if the
+// function did not get that far) after the file is deleted or the product setup has ended; reading and starting
+// the file stay possible.
+function SuiteExtractAndCheck(const Product: String; var Reason: String; var Mismatch: Boolean; var Lock: TFileStream): Boolean;
 var
   Exe, Hash: String;
   Size: Int64;
@@ -103,11 +108,18 @@ begin
   Result := False;
   Reason := '';
   Mismatch := False;
+  Lock := nil;
   Exe := ExpandConstant('{tmp}\') + SuiteProductSetupFile(Product);
   try
     ExtractTemporaryFile(SuiteProductSetupFile(Product));
   except
     Reason := 'extraction failed: ' + GetExceptionMessage;
+    Exit;
+  end;
+  try
+    Lock := TFileStream.Create(Exe, fmOpenRead or fmShareDenyWrite);
+  except
+    Reason := 'the extracted file cannot be locked against writing: ' + GetExceptionMessage;
     Exit;
   end;
   Size := -1;
@@ -141,6 +153,7 @@ var
   I: Integer;
   Product, Reason: String;
   Mismatch, Matches: Boolean;
+  Lock: TFileStream;
 begin
   Result := '';
   for I := 1 to 2 do
@@ -148,11 +161,18 @@ begin
     Product := SuiteProductOfNumber(I);
     if SuiteRunsProduct(Product) then
     begin
-      Matches := SuiteExtractAndCheck(Product, Reason, Mismatch);
+      Matches := SuiteExtractAndCheck(Product, Reason, Mismatch, Lock);
+      if Lock <> nil then
+        Lock.Free;
       DeleteFile(ExpandConstant('{tmp}\') + SuiteProductSetupFile(Product));
-      if not Matches then
+      // a mismatch is a file that is not the one of the build; the extraction itself failing is what a damaged
+      // slice looks like (Setup raises "the source file is corrupted"): exit code 15 too, with its own text
+      if not Matches and Mismatch then
         SuiteStop(SuiteExitProductSetup, 'the ' + Product + ' setup does not match its pin: ' + Reason,
-          FmtMessage(CustomMessage('SuiteProductDamaged'), [SuiteProductTitle(Product)]));
+          FmtMessage(CustomMessage('SuiteProductDamaged'), [SuiteProductTitle(Product)]))
+      else if not Matches then
+        SuiteStop(SuiteExitProductSetup, 'the ' + Product + ' setup could not be extracted or read (damaged slice?): ' + Reason,
+          FmtMessage(CustomMessage('SuiteProductUnreadable'), [SuiteProductTitle(Product)]));
       Log('Pin check of the ' + Product + ' setup: ' + SuiteProductSetupFile(Product) + ' matches (size, SHA-256)');
     end;
   end;
@@ -238,7 +258,9 @@ function SuiteRunProduct(const Product: String): Boolean;
 var
   Exe, LogFile, Params, Reason: String;
   Code, Kind: Integer;
-  Started, Failed, Mismatch: Boolean;
+  Started, Failed, Mismatch, TasksKnown: Boolean;
+  Lock: TFileStream;
+  Tasks: String;
 begin
   Result := False;
   SuiteRunStep := SuiteRunStep + 1;
@@ -254,8 +276,10 @@ begin
 
   // (b) the setup, extracted, and (c) compared with its pin: a mismatch means no Exec, here or later
   Exe := ExpandConstant('{tmp}\') + SuiteProductSetupFile(Product);
-  if not SuiteExtractAndCheck(Product, Reason, Mismatch) then
+  if not SuiteExtractAndCheck(Product, Reason, Mismatch, Lock) then
   begin
+    if Lock <> nil then
+      Lock.Free;
     DeleteFile(Exe);
     if Mismatch then
     begin
@@ -288,6 +312,7 @@ begin
     IntToStr(SuiteStateOf(Product)) + '): ' + Exe + ' ' + Params);
   Code := -1;
   Started := Exec(Exe, Params, ExpandConstant('{tmp}'), SW_SHOWNORMAL, ewWaitUntilTerminated, Code);
+  Lock.Free;
 
   // (e) the extracted setup is deleted whatever happened
   if not DeleteFile(Exe) then
@@ -330,6 +355,13 @@ begin
   begin
     SuiteCdKeyResult := SuiteReadCdKeyResult(LogFile);
     Log('NeoEE CD key result from its log: "' + SuiteCdKeyResult + '" (empty: no such line)');
+    // no such line is no failure if the task was not selected: the uninstall entry lists the tasks of the run
+    // (read only; the registration itself is the business of the NeoEE setup alone)
+    Tasks := '';
+    TasksKnown := RegQueryStringValue(HKLM, SuiteUninstallKey(SuiteProductAppIdOf(Product)), 'Inno Setup: Selected Tasks', Tasks);
+    SuiteCdKeyNotChosenFlag := SuiteCdKeyNotChosen(SuiteCdKeyResult, TasksKnown, Tasks);
+    if SuiteCdKeyNotChosenFlag then
+      Log('NeoEE setup ran without the task neoee_cdkeys (tasks of the run: "' + Tasks + '"): no registration was chosen');
   end;
 end;
 

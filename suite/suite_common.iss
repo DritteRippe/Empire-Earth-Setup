@@ -267,40 +267,21 @@ begin
   Result := (Count <= 2) and (Count = SuiteListedCount(SuiteMergeProducts(List, '')));
 end;
 
-// True if Args (the arguments for a product setup, e.g. /TASKS=full,neoee_cdkeys) names Task as a whole
-// word: after "=", "," or "!" and before "," or the end or a blank or a quote. "!neoee_cdkeys" in
-// /MERGETASKS counts: it is a decision too.
+// True if Args (the arguments for a product setup, e.g. /TASKS=full,neoee_cdkeys) names Task or "!" + Task as
+// an item of the value of /TASKS= or /MERGETASKS= (the only two switches that select tasks; the value of another
+// switch, e.g. /LOG=x,neoee_cdkeys or /COMPONENTS=neoee_cdkeys, decides nothing). "!neoee_cdkeys" counts: it
+// is a decision too.
+function SuiteTakeSwitchValues(var Args: String; const Switch: String): String; forward;
+
 function SuiteArgumentsNameTask(const Args, Task: String): Boolean;
 var
-  Text, Wanted: String;
-  P, Start, After: Integer;
-  Before, Next: String;
+  Rest, Values: String;
 begin
-  Result := False;
-  Text := LowerCase(Args);
-  Wanted := LowerCase(Task);
-  Start := 1;
-  while Start <= Length(Text) do
-  begin
-    P := Pos(Wanted, Copy(Text, Start, Length(Text)));
-    if P = 0 then
-      Exit;
-    P := Start + P - 1;
-    Before := '';
-    if P > 1 then
-      Before := Copy(Text, P - 1, 1);
-    After := P + Length(Wanted);
-    Next := '';
-    if After <= Length(Text) then
-      Next := Copy(Text, After, 1);
-    if ((Before = '=') or (Before = ',') or (Before = '!'))
-      and ((Next = '') or (Next = ',') or (Next = ' ') or (Next = '"')) then
-    begin
-      Result := True;
-      Exit;
-    end;
-    Start := P + 1;
-  end;
+  Rest := Args;
+  Values := SuiteTakeSwitchValues(Rest, '/TASKS=');
+  Rest := Args;
+  Values := Values + ',' + SuiteTakeSwitchValues(Rest, '/MERGETASKS=');
+  Result := SuiteListHasItem(Values, Task) or SuiteListHasItem(Values, '!' + Task);
 end;
 
 // What a silent run of the suite needs (contract 1.7 point 3): the products to install (/PRODUCTS=EE,NeoEE)
@@ -358,6 +339,14 @@ end;
 function SuiteCanInstall(State: Integer): Boolean;
 begin
   Result := State <> SuiteStateUserOnly;
+end;
+
+// True if a product needs space for its files in this run: it is selected and not installed yet. A product that
+// is installed for all users is repaired or updated in place (its folder, its files), so only the margin counts;
+// a repair on a nearly full disk must not stop with exit code 13. (One for one user only is not run at all.)
+function SuiteNeedsInstallSpace(Want: Boolean; State: Integer): Boolean;
+begin
+  Result := Want and (State <> SuiteStateMachine);
 end;
 
 // The products the suite installs from the ticks of the user: ticked, and not for one user only
@@ -425,6 +414,14 @@ begin
     Result := SuiteCdKeyNotRegistered
   else
     Result := SuiteCdKeyUnknown;
+end;
+
+// True if the user chose no CD key registration for NeoEE: the log of its setup has no result line, and its
+// uninstall entry lists the tasks of the run (TasksKnown) without neoee_cdkeys. A silent run says so too
+// (/TASKS or /MERGETASKS with "!neoee_cdkeys"), so the last page does not call this "unknown".
+function SuiteCdKeyNotChosen(const ResultText: String; TasksKnown: Boolean; const Tasks: String): Boolean;
+begin
+  Result := (Trim(ResultText) = '') and TasksKnown and not SuiteListHasItem(Tasks, 'neoee_cdkeys');
 end;
 
 // ---- the product runner (suite_run.iss) --------------------------------------------------------
@@ -570,7 +567,9 @@ end;
 //   default:  /SILENT /SUPPRESSMSGBOXES /NORESTART /ALLUSERS /LANG=<Lang> /NOICONS /MERGETASKS="!desktopicon"
 //             /LOG="<LogFile>", and /TYPE=full for the first installation of the product only: a repair or an
 //             update passes neither /TYPE nor /DIR, so the product keeps its folder, its components and its tasks
-//   advanced: /LANG /NOICONS /MERGETASKS /LOG only, the product setup shows its full wizard
+//   advanced: /ALLUSERS /LANG /NOICONS /MERGETASKS /LOG only, the product setup shows its full wizard; /ALLUSERS
+//             only suppresses its dialog "for all users / only for me" (the suite is admin-only, contract 0: a product
+//             that landed in HKCU would be reported as failed and skipped by the next run)
 // ExtraArgs (the CI pass-through /EEArgs, /NeoEEArgs) is appended last. Its /MERGETASKS is merged into ours:
 // a second /MERGETASKS would leave open which of the two a product setup reads, and a lost "!neoee_cdkeys"
 // would let a test run register the CD keys. A /TYPE in ExtraArgs replaces /TYPE=full.
@@ -585,7 +584,7 @@ begin
   if Tasks <> '' then
     Merged := Merged + ',' + Tasks;
   if Advanced then
-    Result := '/LANG=' + SuiteLanguageArgument(Lang) + ' /NOICONS'
+    Result := '/ALLUSERS /LANG=' + SuiteLanguageArgument(Lang) + ' /NOICONS'
   else
     Result := '/SILENT /SUPPRESSMSGBOXES /NORESTART /ALLUSERS /LANG=' + SuiteLanguageArgument(Lang) + ' /NOICONS';
   Result := Result + ' /MERGETASKS=' + SuiteQuoteArgument(Merged) + ' /LOG=' + SuiteQuoteArgument(LogFile);

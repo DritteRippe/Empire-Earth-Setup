@@ -274,7 +274,8 @@ begin
   TempRoot := ExtractFileDir(ExpandConstant('{tmp}'));
   Target := ExpandConstant('{autopf32}');
   TempNeeded := SuiteRequiredTempBytes(SuiteEESize, SuiteNeoEESize, SuiteWantEE, SuiteWantNeoEE);
-  TargetNeeded := SuiteRequiredTargetBytes(SuiteEEInstallBytes, SuiteNeoEEInstallBytes, SuiteLauncherBytes, SuiteWantEE, SuiteWantNeoEE);
+  TargetNeeded := SuiteRequiredTargetBytes(SuiteEEInstallBytes, SuiteNeoEEInstallBytes, SuiteLauncherBytes,
+    SuiteNeedsInstallSpace(SuiteWantEE, SuiteStateEE), SuiteNeedsInstallSpace(SuiteWantNeoEE, SuiteStateNeoEE));
   if not (GetSpaceOnDisk64(TempRoot, TempFree, Total) and GetSpaceOnDisk64(Target, TargetFree, Total)) then
     Exit;
   Problem := SuiteSpaceProblem(TempFree, TempNeeded, TargetFree, TargetNeeded, SuiteDriveOf(TempRoot) = SuiteDriveOf(Target));
@@ -338,12 +339,15 @@ begin
   if ResultNeoEE = SuiteResultOk then
   begin
     Text := Text + NL;
-    case SuiteCdKeyKind(SuiteCdKeyResult) of
-      SuiteCdKeyRegistered: Text := Text + CustomMessage('SuiteCdKeyOk');
-      SuiteCdKeyNotRegistered: Text := Text + FmtMessage(CustomMessage('SuiteCdKeyFailed'), [Trim(SuiteCdKeyResult)]);
+    if SuiteCdKeyNotChosenFlag then
+      Text := Text + CustomMessage('SuiteCdKeyNotChosen')
     else
-      Text := Text + CustomMessage('SuiteCdKeyUnknown');
-    end;
+      case SuiteCdKeyKind(SuiteCdKeyResult) of
+        SuiteCdKeyRegistered: Text := Text + CustomMessage('SuiteCdKeyOk');
+        SuiteCdKeyNotRegistered: Text := Text + FmtMessage(CustomMessage('SuiteCdKeyFailed'), [Trim(SuiteCdKeyResult)]);
+      else
+        Text := Text + CustomMessage('SuiteCdKeyUnknown');
+      end;
     Text := Text + NL;
   end;
   Text := Text + NL + FmtMessage(CustomMessage('SuiteFinishLogs'), [ExpandConstant('{app}\Logs')]) + NL + NL +

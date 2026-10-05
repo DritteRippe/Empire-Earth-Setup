@@ -107,6 +107,14 @@ begin
   Check('SuiteRequiredTempBytes none', IntToStr(SuiteRequiredTempBytes(100, 200, False, False)), IntToStr(Margin));
   Check('SuiteRequiredTargetBytes both', IntToStr(SuiteRequiredTargetBytes(1000, 2000, 50, True, True)), IntToStr(3050 + Margin));
   Check('SuiteRequiredTargetBytes EE only', IntToStr(SuiteRequiredTargetBytes(1000, 2000, 50, True, False)), IntToStr(1050 + Margin));
+  CheckBool('SuiteNeedsInstallSpace new product', SuiteNeedsInstallSpace(True, SuiteStateNone), True);
+  CheckBool('SuiteNeedsInstallSpace installed product (repair)', SuiteNeedsInstallSpace(True, SuiteStateMachine), False);
+  CheckBool('SuiteNeedsInstallSpace not selected', SuiteNeedsInstallSpace(False, SuiteStateNone), False);
+  CheckBool('SuiteNeedsInstallSpace not selected and installed', SuiteNeedsInstallSpace(False, SuiteStateMachine), False);
+  Check('SuiteRequiredTargetBytes repair of both', IntToStr(SuiteRequiredTargetBytes(1000, 2000, 50,
+    SuiteNeedsInstallSpace(True, SuiteStateMachine), SuiteNeedsInstallSpace(True, SuiteStateMachine))), IntToStr(50 + Margin));
+  Check('SuiteRequiredTargetBytes repair of one, new other', IntToStr(SuiteRequiredTargetBytes(1000, 2000, 50,
+    SuiteNeedsInstallSpace(True, SuiteStateMachine), SuiteNeedsInstallSpace(True, SuiteStateNone))), IntToStr(2050 + Margin));
   Check('SuiteRequiredTargetBytes none', IntToStr(SuiteRequiredTargetBytes(1000, 2000, 50, False, False)), IntToStr(50 + Margin));
   Check('SuiteSpaceProblem enough', IntToStr(SuiteSpaceProblem(100, 100, 500, 500, False)), '0');
   Check('SuiteSpaceProblem temp too small', IntToStr(SuiteSpaceProblem(99, 100, 500, 500, False)), '1');
@@ -178,7 +186,23 @@ begin
   CheckBool('SuiteArgumentsNameTask longer name before', SuiteArgumentsNameTask('/TASKS=xneoee_cdkeys', 'neoee_cdkeys'), False);
   CheckBool('SuiteArgumentsNameTask in a folder name', SuiteArgumentsNameTask('/DIR=C:\neoee_cdkeys', 'neoee_cdkeys'), False);
   CheckBool('SuiteArgumentsNameTask other tasks', SuiteArgumentsNameTask('/TASKS=full,desktopicon', 'neoee_cdkeys'), False);
+  CheckBool('SuiteArgumentsNameTask in /MERGETASKS', SuiteArgumentsNameTask('/MERGETASKS=!desktopicon,neoee_cdkeys', 'neoee_cdkeys'), True);
+  CheckBool('SuiteArgumentsNameTask in the second /MERGETASKS', SuiteArgumentsNameTask('/MERGETASKS=a /MERGETASKS=neoee_cdkeys', 'neoee_cdkeys'), True);
+  CheckBool('SuiteArgumentsNameTask /TASKS after other switches', SuiteArgumentsNameTask('/NOICONS /TASKS=!neoee_cdkeys /X=1', 'neoee_cdkeys'), True);
+  CheckBool('SuiteArgumentsNameTask in /COMPONENTS', SuiteArgumentsNameTask('/COMPONENTS=neoee_cdkeys', 'neoee_cdkeys'), False);
+  CheckBool('SuiteArgumentsNameTask in /LOG', SuiteArgumentsNameTask('/LOG=x,neoee_cdkeys', 'neoee_cdkeys'), False);
+  CheckBool('SuiteArgumentsNameTask in a quoted /LOG', SuiteArgumentsNameTask('/LOG="C:\a,neoee_cdkeys"', 'neoee_cdkeys'), False);
+  CheckBool('SuiteArgumentsNameTask in /GROUP', SuiteArgumentsNameTask('/GROUP=neoee_cdkeys', 'neoee_cdkeys'), False);
+  CheckBool('SuiteArgumentsNameTask switch without a blank before', SuiteArgumentsNameTask('/X=1/TASKS=neoee_cdkeys', 'neoee_cdkeys'), False);
+  CheckBool('SuiteArgumentsNameTask second item of another switch and /TASKS without it', SuiteArgumentsNameTask('/LOG=a,neoee_cdkeys /TASKS=full', 'neoee_cdkeys'), False);
   CheckBool('SuiteArgumentsNameTask empty', SuiteArgumentsNameTask('', 'neoee_cdkeys'), False);
+  Check('SuiteSilentArgumentsProblem NeoEE with the name in /LOG only', IntToStr(SuiteSilentArgumentsProblem('NeoEE', '/LOG=x,neoee_cdkeys')), '2');
+  Check('SuiteSilentArgumentsProblem NeoEE with /COMPONENTS only', IntToStr(SuiteSilentArgumentsProblem('NeoEE', '/COMPONENTS=neoee_cdkeys')), '2');
+  CheckBool('SuiteCdKeyNotChosen task missing, no result', SuiteCdKeyNotChosen('', True, 'full,desktopicon'), True);
+  CheckBool('SuiteCdKeyNotChosen task there', SuiteCdKeyNotChosen('', True, 'full,neoee_cdkeys'), False);
+  CheckBool('SuiteCdKeyNotChosen a result is there', SuiteCdKeyNotChosen('0', True, 'full'), False);
+  CheckBool('SuiteCdKeyNotChosen tasks unknown', SuiteCdKeyNotChosen('', False, ''), False);
+  CheckBool('SuiteCdKeyNotChosen a blank result', SuiteCdKeyNotChosen('  ', True, ''), True);
   Check('SuiteSilentArgumentsProblem nothing', IntToStr(SuiteSilentArgumentsProblem('', '')), '1');
   Check('SuiteSilentArgumentsProblem unknown product', IntToStr(SuiteSilentArgumentsProblem('Foo', '/TASKS=neoee_cdkeys')), '1');
   Check('SuiteSilentArgumentsProblem EE', IntToStr(SuiteSilentArgumentsProblem('EE', '')), '0');
@@ -250,17 +274,17 @@ begin
     '/SILENT /SUPPRESSMSGBOXES /NORESTART /ALLUSERS /LANG=en /NOICONS /MERGETASKS="!desktopicon" /LOG="' + Log1 + '"');
   Check('SuiteProductArguments advanced first install',
     SuiteProductArguments(True, True, 'fr', Log1, ''),
-    '/LANG=fr /NOICONS /MERGETASKS="!desktopicon" /LOG="' + Log1 + '"');
+    '/ALLUSERS /LANG=fr /NOICONS /MERGETASKS="!desktopicon" /LOG="' + Log1 + '"');
   Check('SuiteProductArguments advanced repair',
     SuiteProductArguments(False, True, 'fr', Log1, ''),
-    '/LANG=fr /NOICONS /MERGETASKS="!desktopicon" /LOG="' + Log1 + '"');
+    '/ALLUSERS /LANG=fr /NOICONS /MERGETASKS="!desktopicon" /LOG="' + Log1 + '"');
   Args := SuiteProductArguments(False, False, 'de', Log1, '');
   CheckBool('SuiteProductArguments repair has no /DIR', Pos('/DIR', Args) > 0, False);
   Args := SuiteProductArguments(True, False, 'de', Log1, '');
   CheckBool('SuiteProductArguments first install has no /DIR', Pos('/DIR', Args) > 0, False);
   CheckBool('SuiteProductArguments never /VERYSILENT', Pos('/VERYSILENT', Args) > 0, False);
   Check('SuiteProductArguments language is checked',
-    SuiteProductArguments(False, True, 'de /DIR=C:\x', Log1, ''), '/LANG=en /NOICONS /MERGETASKS="!desktopicon" /LOG="' + Log1 + '"');
+    SuiteProductArguments(False, True, 'de /DIR=C:\x', Log1, ''), '/ALLUSERS /LANG=en /NOICONS /MERGETASKS="!desktopicon" /LOG="' + Log1 + '"');
 
   // the CI pass-through is appended last
   Check('SuiteProductArguments pass-through appended',
@@ -271,7 +295,7 @@ begin
     SuiteProductArguments(False, False, 'en', Log1, '  /X=1  '),
     '/SILENT /SUPPRESSMSGBOXES /NORESTART /ALLUSERS /LANG=en /NOICONS /MERGETASKS="!desktopicon" /LOG="' + Log1 + '" /X=1');
   Check('SuiteProductArguments pass-through in the advanced mode too',
-    SuiteProductArguments(False, True, 'en', Log1, '/X=1'), '/LANG=en /NOICONS /MERGETASKS="!desktopicon" /LOG="' + Log1 + '" /X=1');
+    SuiteProductArguments(False, True, 'en', Log1, '/X=1'), '/ALLUSERS /LANG=en /NOICONS /MERGETASKS="!desktopicon" /LOG="' + Log1 + '" /X=1');
   // a /MERGETASKS of the pass-through is merged: one switch only, and the decision on the CD keys survives
   Check('SuiteProductArguments merges /MERGETASKS',
     SuiteProductArguments(False, False, 'en', Log1, '/MERGETASKS=!neoee_cdkeys'),
@@ -282,7 +306,7 @@ begin
       '" /TYPE=full /TASKS=full /X=1');
   Check('SuiteProductArguments merges two /MERGETASKS',
     SuiteProductArguments(False, True, 'en', Log1, '/MERGETASKS=a /MERGETASKS=b'),
-    '/LANG=en /NOICONS /MERGETASKS="!desktopicon,a,b" /LOG="' + Log1 + '"');
+    '/ALLUSERS /LANG=en /NOICONS /MERGETASKS="!desktopicon,a,b" /LOG="' + Log1 + '"');
   Check('SuiteProductArguments /TYPE of the pass-through replaces /TYPE=full',
     SuiteProductArguments(True, False, 'en', Log1, '/TYPE=compact'),
     '/SILENT /SUPPRESSMSGBOXES /NORESTART /ALLUSERS /LANG=en /NOICONS /MERGETASKS="!desktopicon" /LOG="' + Log1 + '" /TYPE=compact');
