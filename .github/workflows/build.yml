@@ -61,6 +61,19 @@ jobs:
         shell: pwsh
         run: python ci/check_contract.py --self-test
 
+      # The frame of the suite installer (suite/suite.iss, ADR 0013): Windows 7 SP1 and later, 64-bit
+      # install mode, disk spanning with the size from the define, the launcher files only with
+      # .NET Framework 4.8, the product setups stored byte for byte, the exit codes 10 to 15, and
+      # ExitProcess only through SuiteStop (which logs first); then the self-test (changed copies
+      # that must fail)
+      - name: Check the frame of the suite installer
+        shell: pwsh
+        run: python ci/check_suite.py
+
+      - name: Check the frame of the suite installer (self-test)
+        shell: pwsh
+        run: python ci/check_suite.py --self-test
+
       # docs/CONTRACT.md must be identical in the launcher repository, which CI cannot reach: the
       # copy check runs locally (README, "Verify"); here only its self-test.
       - name: Contract copy check (self-test)

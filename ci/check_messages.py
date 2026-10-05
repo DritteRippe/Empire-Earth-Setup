@@ -14,7 +14,14 @@ warning.
               with an undefined message, without BOM, with LF line ends, ...) that must fail, and
               against an unmodified copy that must pass. Exit code 0 if all cases behave.
 
-The own scripts are found, not listed: every *.iss in the root folder and in ci/tests, plus every
+The suite installer (suite/, ADR 0013) has its own messages in suite/suite_messages.iss: they are
+checked like messages.iss (language prefixes against [Languages] of suite/suite.iss, duplicates,
+standard order), and a suite script may only use messages defined there. In the suite scripts a
+MsgBox or TaskDialogMsgBox call is an error: only SuppressibleMsgBox (and
+SuppressibleTaskDialogMsgBox) stay quiet with /SUPPRESSMSGBOXES, and a precheck of the suite must
+never wait for a click in an automated run.
+
+The own scripts are found, not listed: every *.iss in the root folder, in ci/tests and in suite, plus every
 file that an #include line with a plain file name ("...") names in setup_is6.iss or in a script
 found that way, without third-party code under internal/ and without the temporary .iss files
 listed in .gitignore (build copies). So a new module is checked from its first commit. An #include
@@ -37,7 +44,8 @@ Errors (exit code 1):
   - an own script that does not start with the UTF-8 BOM (EF BB BF; Inno Setup 6.2 reads a file
     without BOM with the ANSI code page and breaks every non-ASCII text), that is not valid UTF-8,
     or that has a line end other than CRLF (a bare LF or CR),
-  - an #include of an own script that does not exist.
+  - an #include of an own script that does not exist,
+  - a MsgBox or TaskDialogMsgBox call in a suite script.
 """
 import fnmatch
 import os
@@ -57,7 +65,13 @@ INNO_CUSTOM_MESSAGES = {
 }
 # Where the own scripts start: the main script; ci/tests holds the unit test setup
 MAIN_SCRIPT = "setup_is6.iss"
-OWN_SCRIPT_FOLDERS = [".", "ci/tests"]
+OWN_SCRIPT_FOLDERS = [".", "ci/tests", "suite"]
+# The suite installer: its main script (for [Languages]) and its own messages
+SUITE_FOLDER = "suite"
+SUITE_SCRIPT = "suite/suite.iss"
+SUITE_MESSAGES = "suite/suite_messages.iss"
+# Message boxes that wait for a click even with /SUPPRESSMSGBOXES (SuppressibleMsgBox does not)
+LOUD_MESSAGE_BOX = re.compile(r"\b(MsgBox|TaskDialogMsgBox)\s*\(")
 # Third-party code (download plug-in, music library, language files) keeps its own format
 THIRD_PARTY_FOLDER = "internal"
 INCLUDE_LINE = re.compile(r'^\s*#\s*include\s+"([^"]+)"\s*$')
@@ -209,6 +223,83 @@ def check_encoding(root, rel, errors):
                       "the own scripts use CRLF only, see .gitattributes)")
 
 
+def check_message_file(root, rel, languages, lang_rank, errors, sort):
+    """Checks (or, with sort, sorts) the message file rel: the translations of a message in the
+    standard order, a known language prefix, no '==' typo or doubled apostrophe, no message defined
+    twice, a default (English) entry for every message. Returns (groups of entries, custom message
+    names); both are empty after sorting."""
+    path = root / rel
+    raw = path.read_bytes()
+    newline = "\r\n" if b"\r\n" in raw else "\n"
+    text_lines = raw.decode("utf-8-sig").split(newline)
+    runs = entry_runs(text_lines)
+    if sort:
+        for run in runs:
+            start = run[0][3] - 1
+            block = [line for entry in sorted_run(run, lang_rank) for line in entry[2]]
+            text_lines[start:start + len(block)] = block
+        bom = b"\xef\xbb\xbf" if raw.startswith(b"\xef\xbb\xbf") else b""
+        path.write_bytes(bom + newline.join(text_lines).encode("utf-8"))
+        return [], set()
+    for run in runs:
+        if [e[3] for e in run] != [e[3] for e in sorted_run(run, lang_rank)]:
+            errors.append(f"{rel}:{run[0][3]}: translations not in the standard order "
+                          "(python ci/check_messages.py --sort fixes it)")
+
+    section, stack, if_count = "", [], 0
+    defined = {}  # (section, name, lang) -> [(line, branch path)]
+    for no, line in read_lines(path):
+        text = line.strip()
+        if not text or text.startswith(";") or text.startswith("//"):
+            continue
+        if text.startswith("#"):
+            directive = text[1:].split(None, 1)[0] if len(text) > 1 else ""
+            if directive in ("if", "ifdef", "ifndef", "ifexist", "ifnexist"):
+                if_count += 1
+                stack.append([if_count, 0])
+            elif directive in ("elif", "else") and stack:
+                stack[-1][1] += 1
+            elif directive == "endif" and stack:
+                stack.pop()
+            continue
+        if text.startswith("[") and text.endswith("]"):
+            section = text[1:-1]
+            continue
+        if section not in ("CustomMessages", "Messages") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        lang, name = key.split(".", 1) if "." in key else ("", key)
+        where = f"{rel}:{no}: {key}"
+        if lang and lang not in languages:
+            errors.append(f"{where}: language '{lang}' is not in [Languages]")
+        if value.startswith("="):
+            errors.append(f"{where}: value starts with '=' (typo '==')")
+        if "''" in value:
+            errors.append(f"{where}: \"''\" is shown as two apostrophes, use one")
+        branch_path = [tuple(b) for b in stack]
+        for other_no, other_path in defined.get((section, name, lang), []):
+            if not exclusive(branch_path, other_path):
+                errors.append(f"{where}: already defined in line {other_no}")
+        defined.setdefault((section, name, lang), []).append((no, branch_path))
+
+    custom = {name for (section, name, _) in defined if section == "CustomMessages"}
+    for name in sorted(custom):
+        if ("CustomMessages", name, "") not in defined:
+            errors.append(f"{rel}: custom message {name} has translations but no default entry")
+    return runs, custom
+
+
+def check_suite_message_boxes(rel, text, errors):
+    """MsgBox and TaskDialogMsgBox in a suite script (comments left out)."""
+    for no, line in enumerate(text.splitlines(), 1):
+        code = line.split("//", 1)[0]
+        match = LOUD_MESSAGE_BOX.search(code)
+        if match:
+            errors.append(f"{rel}:{no}: {match.group(1)} waits for a click even with /SUPPRESSMSGBOXES; "
+                          "use SuppressibleMsgBox (suite scripts, ADR 0013)")
+
+
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     options = {a for a in sys.argv[1:] if a.startswith("--")}
@@ -235,66 +326,26 @@ def main():
     def lang_rank(lang):
         return order.index(lang) if lang in order else len(order)
 
-    messages_path = root / "messages.iss"
-    raw = messages_path.read_bytes()
-    newline = "\r\n" if b"\r\n" in raw else "\n"
-    text_lines = raw.decode("utf-8-sig").split(newline)
-    runs = entry_runs(text_lines)
+    runs, custom = check_message_file(root, "messages.iss", languages, lang_rank, errors, "--sort" in options)
+    # The suite installer's messages: its own languages (de, en, fr) and its own standard order
+    suite_custom = set()
+    suite_present = (root / SUITE_SCRIPT).is_file()
+    if suite_present:
+        suite_text = (root / SUITE_SCRIPT).read_text(encoding="utf-8-sig")
+        suite_languages = set(re.findall(r'^Name:\s*"([^"]+)";\s*MessagesFile:', suite_text, re.M))
+        suite_order = [""] + sorted(suite_languages)
+        if not suite_languages:
+            errors.append(f"{SUITE_SCRIPT}: no [Languages] entries found")
+        if not (root / SUITE_MESSAGES).is_file():
+            errors.append(f"{SUITE_MESSAGES}: file not found (the messages of {SUITE_SCRIPT})")
+        else:
+            _, suite_custom = check_message_file(
+                root, SUITE_MESSAGES, suite_languages,
+                lambda lang: suite_order.index(lang) if lang in suite_order else len(suite_order), errors,
+                "--sort" in options)
     if "--sort" in options:
-        for run in runs:
-            start = run[0][3] - 1
-            block = [line for entry in sorted_run(run, lang_rank) for line in entry[2]]
-            text_lines[start:start + len(block)] = block
-        bom = b"\xef\xbb\xbf" if raw.startswith(b"\xef\xbb\xbf") else b""
-        messages_path.write_bytes(bom + newline.join(text_lines).encode("utf-8"))
-        print("messages.iss: translations sorted")
+        print("messages.iss" + (f" and {SUITE_MESSAGES}" if suite_present else "") + ": translations sorted")
         return 0
-    for run in runs:
-        if [e[3] for e in run] != [e[3] for e in sorted_run(run, lang_rank)]:
-            errors.append(f"messages.iss:{run[0][3]}: translations not in the standard order "
-                          "(python ci/check_messages.py --sort fixes it)")
-
-    section, stack, if_count = "", [], 0
-    defined = {}  # (section, name, lang) -> [(line, branch path)]
-    for no, line in read_lines(root / "messages.iss"):
-        text = line.strip()
-        if not text or text.startswith(";") or text.startswith("//"):
-            continue
-        if text.startswith("#"):
-            directive = text[1:].split(None, 1)[0] if len(text) > 1 else ""
-            if directive in ("if", "ifdef", "ifndef", "ifexist", "ifnexist"):
-                if_count += 1
-                stack.append([if_count, 0])
-            elif directive in ("elif", "else") and stack:
-                stack[-1][1] += 1
-            elif directive == "endif" and stack:
-                stack.pop()
-            continue
-        if text.startswith("[") and text.endswith("]"):
-            section = text[1:-1]
-            continue
-        if section not in ("CustomMessages", "Messages") or "=" not in line:
-            continue
-        key, value = line.split("=", 1)
-        key = key.strip()
-        lang, name = key.split(".", 1) if "." in key else ("", key)
-        where = f"messages.iss:{no}: {key}"
-        if lang and lang not in languages:
-            errors.append(f"{where}: language '{lang}' is not in [Languages]")
-        if value.startswith("="):
-            errors.append(f"{where}: value starts with '=' (typo '==')")
-        if "''" in value:
-            errors.append(f"{where}: \"''\" is shown as two apostrophes, use one")
-        branch_path = [tuple(b) for b in stack]
-        for other_no, other_path in defined.get((section, name, lang), []):
-            if not exclusive(branch_path, other_path):
-                errors.append(f"{where}: already defined in line {other_no}")
-        defined.setdefault((section, name, lang), []).append((no, branch_path))
-
-    custom = {name for (section, name, _) in defined if section == "CustomMessages"}
-    for name in sorted(custom):
-        if ("CustomMessages", name, "") not in defined:
-            errors.append(f"messages.iss: custom message {name} has translations but no default entry")
 
     # Game languages: the language page and [Components] (generated) use LIQP_<name>
     if not game_langs:
@@ -308,9 +359,14 @@ def main():
     for script in scripts:
         check_encoding(root, script, errors)
         text = (root / script).read_bytes().decode("utf-8-sig", errors="replace")
+        in_suite = script.startswith(SUITE_FOLDER + "/")
+        available = suite_custom if in_suite else custom
         for name in sorted(set(re.findall(r"\{cm:(\w+)[,}]", text)) | set(re.findall(r"CustomMessage\('(\w+)'\)", text))):
-            if name not in custom and name not in INNO_CUSTOM_MESSAGES:
-                errors.append(f"{script}: custom message {name} is used but not defined")
+            if name not in available and name not in INNO_CUSTOM_MESSAGES:
+                errors.append(f"{script}: custom message {name} is used but not defined"
+                              + (f" in {SUITE_MESSAGES}" if in_suite else ""))
+        if in_suite:
+            check_suite_message_boxes(script, text, errors)
 
     if "--coverage" in options:
         print_coverage(runs, custom, game_lang_names)
@@ -385,9 +441,49 @@ def self_test(source_root):
              (root / "messages.iss").read_bytes() + crlf + b"[CustomMessages]" + crlf
              + b"SelfTestTypo==text" + crlf),
          "SelfTestTypo: value starts with '='"),
+        # the suite installer (suite/): its own messages, its own languages, no loud message boxes
+        ("message used in a suite script but not defined in suite_messages.iss",
+         new_file("suite/selftest.iss", module + b"// {cm:SelfTestSuiteFoo}" + crlf),
+         "suite/selftest.iss: custom message SelfTestSuiteFoo is used but not defined in suite/suite_messages.iss"),
+        ("message of messages.iss used in a suite script",
+         new_file("suite/selftest.iss", module + b"S := CustomMessage('LegalQuestion');" + crlf),
+         "suite/selftest.iss: custom message LegalQuestion is used but not defined in suite/suite_messages.iss"),
+        ("MsgBox in a suite script",
+         new_file("suite/selftest.iss", module + b"MsgBox('x', mbInformation, MB_OK);" + crlf),
+         "suite/selftest.iss:3: MsgBox waits for a click even with /SUPPRESSMSGBOXES"),
+        ("TaskDialogMsgBox in a suite script",
+         new_file("suite/selftest.iss", module + b"  R := TaskDialogMsgBox('a', 'b', 'c', mbInformation, [], 0);" + crlf),
+         "suite/selftest.iss:3: TaskDialogMsgBox waits for a click"),
+        ("suite script without BOM",
+         new_file("suite/selftest.iss", module[len(bom):]),
+         "suite/selftest.iss: does not start with the UTF-8 BOM"),
+        ("language prefix of a suite message that the suite does not have",
+         lambda root: (root / "suite/suite_messages.iss").write_bytes(
+             (root / "suite/suite_messages.iss").read_bytes() + b"es.SuiteRunning=x" + crlf),
+         "suite/suite_messages.iss:"),
+        ("suite message defined twice",
+         lambda root: (root / "suite/suite_messages.iss").write_bytes(
+             (root / "suite/suite_messages.iss").read_bytes() + b"SuiteRunning=again" + crlf),
+         "SuiteRunning: already defined in line"),
+        ("suite message with a translation but no English default",
+         lambda root: (root / "suite/suite_messages.iss").write_bytes(
+             (root / "suite/suite_messages.iss").read_bytes() + b"de.SuiteSelfTestOnly=nur" + crlf),
+         "suite/suite_messages.iss: custom message SuiteSelfTestOnly has translations but no default entry"),
+        ("suite message translations not in the standard order",
+         lambda root: (root / "suite/suite_messages.iss").write_bytes(
+             (root / "suite/suite_messages.iss").read_bytes() + b"fr.SuiteSelfTestOrder=fr" + crlf
+             + b"de.SuiteSelfTestOrder=de" + crlf + b"SuiteSelfTestOrder=en" + crlf),
+         "suite/suite_messages.iss:"),
+        ("suite_messages.iss missing",
+         lambda root: (root / "suite/suite_messages.iss").unlink(),
+         "suite/suite_messages.iss: file not found"),
     ]
     # Must pass: third-party code below internal/ and the temporary build copies of .gitignore
     passing = [
+        ("suite script with SuppressibleMsgBox, a MsgBox in a comment and a suite message",
+         new_file("suite/selftest.iss", module + b"// MsgBox('x') and {cm:SuiteRunning} are fine here" + crlf
+                  + b"SuppressibleMsgBox(CustomMessage('SuiteRunning'), mbError, MB_OK, IDOK);" + crlf
+                  + b"SuppressibleTaskDialogMsgBox('a', 'b', mbError, MB_OK, [], 0, MB_OK, IDOK);" + crlf)),
         ("third-party module below internal/ without BOM, with LF and an unknown {cm:...}",
          both(new_file("internal/lib/selftest/selftest.iss", b"// {cm:SelfTestThirdParty}\n"),
               include("internal\\lib\\selftest\\selftest.iss"))),
