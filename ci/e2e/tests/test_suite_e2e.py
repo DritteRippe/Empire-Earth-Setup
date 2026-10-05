@@ -109,7 +109,7 @@ def script_problems(helpers, runner, scenarios, titles_source):
             problems.append("e2e_suite_scenarios.ps1: no function for %s" % sid)
         if "'%s'" % sid not in runner:
             problems.append("run_e2e_suite.ps1: %s is not a valid scenario" % sid)
-    for name in ("EEArgs", "NeoEEArgs"):
+    for name in ("EEArgs", "NeoEEArgs", "RepairEEArgs", "RepairNeoEEArgs"):
         value = re.search(r"^  %s\s+= '([^']*)'" % name, helpers, re.M)
         if not value:
             problems.append("e2e_suite_helpers.ps1: %s missing" % name)
@@ -127,8 +127,14 @@ def script_problems(helpers, runner, scenarios, titles_source):
         for task in merged:
             if task in ("neoee_cdkeys", "certinclude", "directplay", "dxwebsetup"):
                 problems.append("%s merges the task %s without '!'" % (name, task))
-        if name == "NeoEEArgs" and "!neoee_cdkeys" not in merged:
-            problems.append("NeoEEArgs must name !neoee_cdkeys (the suite needs the decision in a silent run)")
+        if name.endswith("NeoEEArgs") and "!neoee_cdkeys" not in merged:
+            problems.append("%s must name !neoee_cdkeys (the suite needs the decision in a silent run)" % name)
+        if name.startswith("Repair") and "/TYPE=" in text:
+            problems.append("%s must not name a type (a repair keeps the components of the products)" % name)
+    # S9 repairs as the suite does it: without /TYPE (the repair arguments)
+    s9 = scenarios.split("function Invoke-E2EScenarioS9 {", 1)[-1].split("\nfunction ", 1)[0]
+    if not re.search(r"-Step 'repair'.*?-EEArgs \$E2ESuiteConst\.RepairEEArgs -NeoEEArgs \$E2ESuiteConst\.RepairNeoEEArgs", s9, re.S):
+        problems.append("e2e_suite_scenarios.ps1: S9 must run the repair with RepairEEArgs and RepairNeoEEArgs (no /TYPE)")
         if "telemetry" in text.lower():
             problems.append("%s names the telemetry component" % name)
     if "Software\\Sierra" in scenarios.replace("Software\\\\Sierra", "") and "Remove-E2ERegTree" in scenarios:
@@ -244,6 +250,14 @@ class ScriptRules(unittest.TestCase):
     def test_neoee_without_the_decision(self):
         found = self.check("helpers", "/MERGETASKS=!neoee_cdkeys,", "/MERGETASKS=")
         self.assertTrue(any("must name !neoee_cdkeys" in p for p in found), found)
+
+    def test_a_type_in_the_repair_arguments(self):
+        found = self.check("helpers", "RepairEEArgs    = '/TASKS=", "RepairEEArgs    = '/TYPE=compact /TASKS=")
+        self.assertTrue(any("RepairEEArgs must not name a type" in p for p in found), found)
+
+    def test_the_repair_without_the_repair_arguments(self):
+        found = self.check("scenarios", " `\n      -EEArgs $E2ESuiteConst.RepairEEArgs -NeoEEArgs $E2ESuiteConst.RepairNeoEEArgs", "")
+        self.assertTrue(any("S9 must run the repair with RepairEEArgs" in p for p in found), found)
 
     def test_a_scenario_missing_in_the_runner(self):
         found = self.check("runner", "'S7', ", "")

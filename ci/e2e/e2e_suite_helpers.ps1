@@ -45,6 +45,10 @@ $E2ESuiteConst = @{
   # "!" (the suite requires an explicit decision in a silent run). The values contain no blank inside an item.
   EEArgs    = '/TYPE=compact /TASKS=compatibility,compatibility_windows'
   NeoEEArgs = '/TYPE=compact /TASKS=compatibility,compatibility_windows /MERGETASKS=!neoee_cdkeys,!certinclude,!directplay,!dxwebsetup'
+  # The same for a repair (S9) without /TYPE: the suite passes no type on a repair, so the products keep their
+  # components (a /TYPE would replace them by the components of that type, without the choice of the GPU page)
+  RepairEEArgs    = '/TASKS=compatibility,compatibility_windows'
+  RepairNeoEEArgs = '/TASKS=compatibility,compatibility_windows /MERGETASKS=!neoee_cdkeys,!certinclude,!directplay,!dxwebsetup'
   Scenarios = @('S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8', 'S9', 'S10')
 }
 

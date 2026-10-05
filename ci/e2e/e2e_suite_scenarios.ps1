@@ -178,8 +178,8 @@ function Wait-E2ESuiteFinished([int]$TimeoutSeconds = 120) {
 
 # Runs the suite from Package for the products, silently and with the exact task lists of the test; waits until
 # everything it started is gone; records the check Step/RUN (exit code, finished, log). Returns @{ Ok; Code;
-# LogFile; LogLines; Switches }. An empty EEArgs or NeoEEArgs passes none (the default lists of the test for the
-# products named in Products).
+# LogFile; LogLines; Switches }. EEArgs and NeoEEArgs are the arguments for the product setups (the default lists
+# of the test); only those of the products named in Products are passed.
 function Invoke-E2ESuiteRun {
   param(
     [Parameter(Mandatory = $true)][string]$Scenario,
@@ -187,15 +187,15 @@ function Invoke-E2ESuiteRun {
     [Parameter(Mandatory = $true)][string]$Package,
     [Parameter(Mandatory = $true)][string]$Products,
     [int]$ExpectExit = 0,
-    [int]$TimeoutMinutes = $E2ESuiteConst.SuiteTimeoutMinutes
+    [int]$TimeoutMinutes = $E2ESuiteConst.SuiteTimeoutMinutes,
+    [string]$EEArgs = $E2ESuiteConst.EEArgs,
+    [string]$NeoEEArgs = $E2ESuiteConst.NeoEEArgs
   )
   $log = Get-E2ESuiteLogFile $Scenario $Step
   if (Test-Path -LiteralPath $log) { Remove-Item -LiteralPath $log -Force }
-  $eeArgs = ''
-  $neoArgs = ''
-  if (Test-E2EListHas $Products 'EE') { $eeArgs = $E2ESuiteConst.EEArgs }
-  if (Test-E2EListHas $Products 'NeoEE') { $neoArgs = $E2ESuiteConst.NeoEEArgs }
-  $switches = @(New-E2ESuiteArguments -LogFile $log -Products $Products -EEArgs $eeArgs -NeoEEArgs $neoArgs)
+  if (-not (Test-E2EListHas $Products 'EE')) { $EEArgs = '' }
+  if (-not (Test-E2EListHas $Products 'NeoEE')) { $NeoEEArgs = '' }
+  $switches = @(New-E2ESuiteArguments -LogFile $log -Products $Products -EEArgs $EEArgs -NeoEEArgs $NeoEEArgs)
   $exe = Join-Path $Package $E2ESuiteConst.SetupFile
   $problems = @(Get-E2ESuiteArgumentProblems $switches)
   $problems += @(Test-E2EHostsBlocked $E2EConst.BlockedHosts)
@@ -823,7 +823,9 @@ function Invoke-E2EScenarioS9 {
     $gone = @((Join-Path (Get-E2ESuiteDesktop) 'Neo Empire Earth.lnk'), (Join-Path (Get-E2ESuiteGroup) 'Empire Earth.lnk'))
     foreach ($path in $gone) { Remove-Item -LiteralPath $path -Force }
 
-    $repair = Invoke-E2ESuiteRun -Scenario $s -Step 'repair' -Package $env:E2E_SUITE -Products 'EE,NeoEE'
+    # as a repair by the suite itself: no /TYPE, so the products keep their components
+    $repair = Invoke-E2ESuiteRun -Scenario $s -Step 'repair' -Package $env:E2E_SUITE -Products 'EE,NeoEE' `
+      -EEArgs $E2ESuiteConst.RepairEEArgs -NeoEEArgs $E2ESuiteConst.RepairNeoEEArgs
     if ($repair.Ok) {
       Invoke-E2ESuiteInstalledChecks -Scenario $s -Step 'repair' -Run $repair -Products $ids -Package $env:E2E_SUITE -Adopted $true
       $second = Get-E2ESuiteState $ids
