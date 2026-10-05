@@ -106,6 +106,15 @@ end;
 // left it installed) and Fallback (the game program below the product root, started instead of a file of
 // the suite without .NET Framework 4.8; '' for none: the shortcut is then skipped without .NET Framework
 // 4.8). While SuiteShortcutsRemoving is set it deletes the shortcut file instead.
+// True if the shortcut file starts the launcher of the suite (SuiteLinkTextNamesFile); a shortcut that cannot be
+// read does not
+function SuiteLinkStartsLauncher(const LinkFile: String): Boolean;
+var
+  Content: AnsiString;
+begin
+  Result := LoadStringFromFile(LinkFile, Content) and SuiteLinkTextNamesFile(String(Content), '{#LauncherExe}');
+end;
+
 procedure SuiteShortcut(const Place, Name, Target, Parameters, Product, Fallback: String);
 var
   Folder, Link, Start, Args, Root, Icon: String;
@@ -115,10 +124,16 @@ begin
   if SuiteShortcutsRemoving then
   begin
     if FileExists(Link) then
-      if DeleteFile(Link) then
+    begin
+      // the shortcut of a product that stays installed (a standalone setup, or the suite could not remove it)
+      // is the product's own unless it starts the launcher, which this uninstaller removes
+      if (Product <> '') and (SuiteProductRoot(Product) <> '') and not SuiteLinkStartsLauncher(Link) then
+        Log('Shortcut kept, ' + Product + ' stays installed and the shortcut does not start the launcher: ' + Link)
+      else if DeleteFile(Link) then
         Log('Shortcut removed: ' + Link)
       else
         Log('Shortcut not removed: ' + Link);
+    end;
     Exit;
   end;
   Args := Parameters;

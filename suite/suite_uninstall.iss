@@ -161,7 +161,7 @@ function SuiteRemoveProduct(const Product: String): Integer;
 var
   Root, Exe, Key: String;
   Started, KeyPresent: Boolean;
-  Code, Elapsed, KeyGone, State: Integer;
+  Code, Elapsed, State: Integer;
 begin
   Key := SuiteUninstallKey(SuiteProductAppIdOf(Product));
   if not SuiteReadProductEntry(Product, Root, Exe) then
@@ -185,20 +185,17 @@ begin
   end;
   Log('Product ' + Product + ': the first uninstaller process ended with exit code ' + IntToStr(Code) + ', waiting for the real uninstallation');
   Elapsed := 0;
-  KeyGone := 0;
   repeat
     KeyPresent := RegKeyExists(HKLM, Key);
-    if KeyPresent then
-      KeyGone := 0;
-    State := SuiteUninstallWaitState(KeyPresent, FileExists(Exe), Elapsed, KeyGone);
+    State := SuiteUninstallWaitState(KeyPresent, FileExists(Exe), Elapsed);
     if State = SuiteWaitKeep then
     begin
       SuitePause;
       Elapsed := Elapsed + SuiteUninstallPollMs;
-      if not KeyPresent then
-        KeyGone := KeyGone + SuiteUninstallPollMs;
     end;
   until State <> SuiteWaitKeep;
+  if State = SuiteWaitDoneExeLeft then
+    Log('Product ' + Product + ': the uninstall key is gone but ' + Exe + ' is still there after the timeout, going on');
   Result := SuiteUninstallOutcome(True, State);
   Log('Product ' + Product + ': wait state ' + IntToStr(State) + ' after ' + IntToStr(Elapsed div 1000) + ' s, outcome ' + IntToStr(Result));
 end;
@@ -242,9 +239,26 @@ begin
   SuiteUninstallStatus('', False);
 end;
 
+// True if Folder is the folder of a product that stays installed (an uninstall key for all users that the
+// suite did not remove: a standalone setup, or a removal that failed) or lies inside its install root, or
+// if that root lies inside it. Two products may share one install root (the setups ask before they do);
+// the profiles and saved games below it are those of the product that stays too.
+function SuiteIsFolderOfInstalledProduct(const Folder: String): Boolean;
+var
+  I: Integer;
+  Root, Exe: String;
+begin
+  Result := False;
+  for I := 1 to 2 do
+    if SuiteReadProductEntry(SuiteUninstallProduct(I), Root, Exe) and (Root <> '') then
+      if SuiteIsSameOrInside(Folder, Root) or SuiteIsSameOrInside(Root, Folder) then
+        Result := True;
+end;
+
 // The folders with user data that exist: the profiles and saved games below the roots of the products that
 // are gone, the backups and the Mod Creator folder of the launcher. Only the folders of SuiteDataFolder and
-// SuiteLauncherDataFolder, never more.
+// SuiteLauncherDataFolder, never more, and none that is (or lies below) a link, or that belongs to a
+// product that stays installed.
 function SuiteExistingDataFolders(const LocalAppData: String): TArrayOfString;
 var
   I, J, Count: Integer;
@@ -259,15 +273,24 @@ begin
         Folder := SuiteDataFolder(SuiteUninstallRoot[I], J);
         if (Folder <> '') and DirExists(Folder) then
         begin
-          Count := Count + 1;
-          SetArrayLength(Result, Count);
-          Result[Count - 1] := Folder;
+          if SuiteIsBehindLink(Folder, SuiteUninstallRoot[I]) then
+            Log('User data folder not offered, it or a folder above it is a link (junction or symbolic link): ' + Folder)
+          else if SuiteIsFolderOfInstalledProduct(Folder) then
+            Log('User data folder not offered, it belongs to a product that stays installed: ' + Folder)
+          else
+          begin
+            Count := Count + 1;
+            SetArrayLength(Result, Count);
+            Result[Count - 1] := Folder;
+          end;
         end;
       end;
   for J := 1 to SuiteLauncherFolderCount do
   begin
     Folder := SuiteLauncherDataFolder(LocalAppData, J);
-    if (Folder <> '') and DirExists(Folder) then
+    if (Folder <> '') and DirExists(Folder) and SuiteIsBehindLink(Folder, SuiteLauncherDataDir(LocalAppData)) then
+      Log('User data folder not offered, it or a folder above it is a link (junction or symbolic link): ' + Folder)
+    else if (Folder <> '') and DirExists(Folder) then
     begin
       Count := Count + 1;
       SetArrayLength(Result, Count);
@@ -276,8 +299,9 @@ begin
   end;
 end;
 
-// Deletes the folders of the list (from SuiteExistingDataFolders) with everything in them. DelTree does not
-// follow a junction or a symbolic link inside a folder: it removes the link only.
+// Deletes the folders of the list (from SuiteExistingDataFolders, which left out every folder that is a link
+// or behind one) with everything in them. DelTree does not follow a junction or a symbolic link inside a
+// folder: it removes the link only.
 procedure SuiteDeleteDataFolders(const Folders: TArrayOfString);
 var
   I: Integer;

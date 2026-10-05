@@ -396,9 +396,37 @@ begin
   Check('SuiteLegacyShortcutCount', IntToStr(SuiteLegacyShortcutCount), '5');
 end;
 
-procedure CheckWait(const Name: String; KeyPresent, ExeExists: Boolean; ElapsedMs, KeyGoneMs, Expected: Integer);
+procedure CheckWait(const Name: String; KeyPresent, ExeExists: Boolean; ElapsedMs, Expected: Integer);
 begin
-  Check('SuiteUninstallWaitState ' + Name, IntToStr(SuiteUninstallWaitState(KeyPresent, ExeExists, ElapsedMs, KeyGoneMs)), IntToStr(Expected));
+  Check('SuiteUninstallWaitState ' + Name, IntToStr(SuiteUninstallWaitState(KeyPresent, ExeExists, ElapsedMs)), IntToStr(Expected));
+end;
+
+// The link check on folders without a link (Wine cannot make junctions, see the skipped test of
+// FindLinksInGameFolder): a folder, a folder below another, a file's folder that does not exist
+procedure TestSuiteLinks;
+var
+  Root, Sub: String;
+begin
+  Root := ExpandConstant('{tmp}\suite_links');
+  Sub := Root + '\Empire Earth\Users';
+  ForceDirectories(Sub);
+  CheckBool('SuiteIsReparsePoint plain folder', SuiteIsReparsePoint(Sub), False);
+  CheckBool('SuiteIsReparsePoint folder with backslash', SuiteIsReparsePoint(Sub + '\'), False);
+  CheckBool('SuiteIsReparsePoint missing folder', SuiteIsReparsePoint(Root + '\none'), False);
+  CheckBool('SuiteIsBehindLink plain folders up to the root', SuiteIsBehindLink(Sub, Root), False);
+  CheckBool('SuiteIsBehindLink the root itself', SuiteIsBehindLink(Root, Root), False);
+  CheckBool('SuiteIsBehindLink missing folder', SuiteIsBehindLink(Root + '\none\x', Root), False);
+  CheckBool('SuiteIsBehindLink drive only', SuiteIsBehindLink('C:\', 'C:\'), False);
+  CheckBool('SuiteIsBehindLink empty', SuiteIsBehindLink('', Root), False);
+  RemoveDir(Sub);
+  RemoveDir(Root + '\Empire Earth');
+  RemoveDir(Root);
+  CheckBool('SuiteLinkTextNamesFile ANSI path', SuiteLinkTextNamesFile('xx C:\Program Files\Empire Earth Community\Empire Earth Launcher.exe' + #0 + 'yy', 'Empire Earth Launcher.exe'), True);
+  CheckBool('SuiteLinkTextNamesFile Unicode path', SuiteLinkTextNamesFile('E'#0'm'#0'p'#0'i'#0'r'#0'e'#0' '#0'E'#0'a'#0'r'#0't'#0'h'#0' '#0'L'#0'a'#0'u'#0'n'#0'c'#0'h'#0'e'#0'r'#0'.'#0'e'#0'x'#0'e'#0, 'Empire Earth Launcher.exe'), True);
+  CheckBool('SuiteLinkTextNamesFile other case', SuiteLinkTextNamesFile('c:\x\EMPIRE EARTH LAUNCHER.EXE', 'Empire Earth Launcher.exe'), True);
+  CheckBool('SuiteLinkTextNamesFile the game program', SuiteLinkTextNamesFile('C:\Games\EE\Empire Earth\Empire Earth.exe', 'Empire Earth Launcher.exe'), False);
+  CheckBool('SuiteLinkTextNamesFile empty content', SuiteLinkTextNamesFile('', 'Empire Earth Launcher.exe'), False);
+  CheckBool('SuiteLinkTextNamesFile empty name', SuiteLinkTextNamesFile('abc', ''), False);
 end;
 
 procedure TestSuiteUninstaller;
@@ -407,19 +435,20 @@ var
   Seen: String;
 begin
   // the wait for a product uninstaller: the key and the program file decide, the exit code never does
-  CheckWait('key there, in time', True, True, 1000, 0, SuiteWaitKeep);
-  CheckWait('key there, no program file, in time', True, False, 1000, 0, SuiteWaitKeep);
-  CheckWait('key there, just before the timeout', True, True, SuiteUninstallTimeoutMs - 1, 0, SuiteWaitKeep);
-  CheckWait('key there, at the timeout', True, True, SuiteUninstallTimeoutMs, 0, SuiteWaitTimedOut);
-  CheckWait('key there, program file gone, at the timeout', True, False, SuiteUninstallTimeoutMs + 5000, 0, SuiteWaitTimedOut);
-  CheckWait('key gone, program file gone', False, False, 2000, 0, SuiteWaitDone);
-  CheckWait('key gone at once', False, False, 0, 0, SuiteWaitDone);
-  CheckWait('key gone, program file there, within the grace', False, True, 5000, 3000, SuiteWaitKeep);
-  CheckWait('key gone, program file there, grace over', False, True, 40000, SuiteUninstallExeGraceMs, SuiteWaitDoneExeLeft);
-  CheckWait('key gone, program file there, after the overall timeout but within the grace', False, True,
-    SuiteUninstallTimeoutMs + 1000, 1000, SuiteWaitKeep);
+  CheckWait('key there, in time', True, True, 1000, SuiteWaitKeep);
+  CheckWait('key there, no program file, in time', True, False, 1000, SuiteWaitKeep);
+  CheckWait('key there, just before the timeout', True, True, SuiteUninstallTimeoutMs - 1, SuiteWaitKeep);
+  CheckWait('key there, at the timeout', True, True, SuiteUninstallTimeoutMs, SuiteWaitTimedOut);
+  CheckWait('key there, program file gone, at the timeout', True, False, SuiteUninstallTimeoutMs + 5000, SuiteWaitTimedOut);
+  CheckWait('key gone, program file gone', False, False, 2000, SuiteWaitDone);
+  CheckWait('key gone at once', False, False, 0, SuiteWaitDone);
+  CheckWait('key gone, program file there, 40 seconds', False, True, 40000, SuiteWaitKeep);
+  CheckWait('key gone, program file there, several minutes (a large game, a slow disk)', False, True, 300000, SuiteWaitKeep);
+  CheckWait('key gone, program file there, just before the timeout', False, True, SuiteUninstallTimeoutMs - 1, SuiteWaitKeep);
+  CheckWait('key gone, program file there, at the timeout', False, True, SuiteUninstallTimeoutMs, SuiteWaitDoneExeLeft);
+  CheckWait('key gone, program file gone after the timeout', False, False, SuiteUninstallTimeoutMs + 1000, SuiteWaitDone);
   Check('SuiteUninstallTimeoutMs is 10 minutes', IntToStr(SuiteUninstallTimeoutMs), '600000');
-  Check('SuiteUninstallPollMs divides the grace', IntToStr(SuiteUninstallExeGraceMs mod SuiteUninstallPollMs), '0');
+  Check('SuiteUninstallPollMs divides the timeout', IntToStr(SuiteUninstallTimeoutMs mod SuiteUninstallPollMs), '0');
 
   Check('SuiteUninstallOutcome done', IntToStr(SuiteUninstallOutcome(True, SuiteWaitDone)), IntToStr(SuiteRemoveOk));
   Check('SuiteUninstallOutcome program file left', IntToStr(SuiteUninstallOutcome(True, SuiteWaitDoneExeLeft)), IntToStr(SuiteRemoveOk));
@@ -443,6 +472,8 @@ begin
   Check('SuiteUninstallExe two quotes', SuiteUninstallExe('""'), '');
 
   // only an Inno Setup uninstaller inside the root is run
+  CheckBool('SuiteIsProductUninstaller with ..', SuiteIsProductUninstaller('C:\Games\EE\..\..\x\unins000.exe', 'C:\Games\EE'), False);
+  CheckBool('SuiteIsProductUninstaller with .. inside the root', SuiteIsProductUninstaller('C:\Games\EE\a\..\unins000.exe', 'C:\Games\EE'), False);
   CheckBool('SuiteIsProductUninstaller default', SuiteIsProductUninstaller('C:\Games\EE\unins000.exe', 'C:\Games\EE'), True);
   CheckBool('SuiteIsProductUninstaller second', SuiteIsProductUninstaller('C:\Games\EE\unins001.exe', 'C:\Games\EE'), True);
   CheckBool('SuiteIsProductUninstaller case and trailing backslash', SuiteIsProductUninstaller('c:\games\ee\UNINS000.EXE', 'C:\Games\EE\'), True);

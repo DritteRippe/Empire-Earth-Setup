@@ -1,8 +1,8 @@
 ﻿[Code]
 // Pure helpers of the suite installer (suite.iss, ADR 0013): they compute something from their
 // arguments and touch no wizard page, so ci/tests/suite_tests.iss tests them (run by
-// ci/tests/unit_tests.iss). Only SuiteFindSliceProblems reads the file system (file sizes); the
-// tests give it files of their own temporary folder.
+// ci/tests/unit_tests.iss). Only SuiteFindSliceProblems and SuiteIsBehindLink read the file system (file
+// sizes, folder attributes); the tests give them files and folders of their own temporary folder.
 // Requires: nothing (no define, no other script). Included before every other [Code] part of the suite.
 
 const
@@ -680,15 +680,15 @@ end;
 const
   // How long the suite waits for a product uninstaller: its first process only starts a copy of itself in
   // %TEMP% and ends (WP0 spike, ADR 0013 Evidence), so the suite polls the uninstall key and the program
-  // file. A game of several GB takes minutes on a slow disk, hence 10 minutes; after the key is gone the
-  // program file may stay for 30 more seconds (the copy deletes it at its very end).
+  // file. A game of several GB takes minutes on a slow disk, hence 10 minutes for both: Inno Setup removes
+  // the uninstall key early and the program file only at the very end, after all the game files, so the
+  // suite waits for the file as long as for the key.
   SuiteUninstallTimeoutMs = 600000;
-  SuiteUninstallExeGraceMs = 30000;
   SuiteUninstallPollMs = 1000;
   // SuiteUninstallWaitState
   SuiteWaitKeep = 0;               // keep polling
   SuiteWaitDone = 1;               // the uninstall key and the program file are gone
-  SuiteWaitDoneExeLeft = 2;        // the uninstall key is gone, the program file stays: done, with a log line
+  SuiteWaitDoneExeLeft = 2;        // the uninstall key is gone, the program file is still there after the timeout: done, with a log line
   SuiteWaitTimedOut = 3;           // the uninstall key is still there after the timeout
   // SuiteUninstallOutcome
   SuiteRemoveOk = 0;
@@ -704,9 +704,11 @@ const
   SuiteAoCFolder = 'Empire Earth - The Art of Conquest';
 
 // What to do after one look at a product uninstaller: KeyPresent = the uninstall key {<AppId>}_is1 exists,
-// ExeExists = its unins000.exe exists, ElapsedMs = time since Exec returned, KeyGoneMs = time the key has
-// been gone. The exit code of the first process is no input: it ends before the real uninstall does.
-function SuiteUninstallWaitState(KeyPresent, ExeExists: Boolean; ElapsedMs, KeyGoneMs: Integer): Integer;
+// ExeExists = its unins000.exe exists, ElapsedMs = time since Exec returned. Done means the key and the
+// file are gone; until the timeout the suite keeps waiting while either is there (the next product
+// uninstaller or the question about the data folders must not start while the first still deletes). The
+// exit code of the first process is no input: it ends before the real uninstall does.
+function SuiteUninstallWaitState(KeyPresent, ExeExists: Boolean; ElapsedMs: Integer): Integer;
 begin
   if KeyPresent then
   begin
@@ -717,7 +719,7 @@ begin
   end
   else if not ExeExists then
     Result := SuiteWaitDone
-  else if KeyGoneMs >= SuiteUninstallExeGraceMs then
+  else if ElapsedMs >= SuiteUninstallTimeoutMs then
     Result := SuiteWaitDoneExeLeft
   else
     Result := SuiteWaitKeep;
@@ -771,7 +773,62 @@ var
   Name: String;
 begin
   Name := LowerCase(ExtractFileName(Exe));
-  Result := SuiteIsSameOrInside(Exe, Root) and (Copy(Name, 1, 5) = 'unins') and (Copy(Name, Length(Name) - 3, 4) = '.exe');
+  Result := SuiteIsSameOrInside(Exe, Root) and (Pos('..', Exe) = 0) and (Copy(Name, 1, 5) = 'unins') and (Copy(Name, Length(Name) - 3, 4) = '.exe');
+end;
+
+// True if Path is a junction, a symbolic link or another reparse point (FILE_ATTRIBUTE_REPARSE_POINT of
+// FindFirst); False if it does not exist
+function SuiteIsReparsePoint(const Path: String): Boolean;
+var
+  FindRec: TFindRec;
+begin
+  Result := False;
+  if FindFirst(RemoveBackslash(Path), FindRec) then
+  try
+    Result := (FindRec.Attributes and FILE_ATTRIBUTE_REPARSE_POINT) <> 0;
+  finally
+    FindClose(FindRec);
+  end;
+end;
+
+// True if Folder or a folder above it, up to and including Root, is a reparse point: DelTree skips links
+// inside a folder but follows a link that is the folder itself or one of its parents (a saved games
+// folder redirected to Documents or OneDrive would lose the content of its target). The same protection
+// the product setups have (IsLinkGuardedFolder, ADR 0009). A Folder outside Root is checked up to its drive.
+function SuiteIsBehindLink(const Folder, Root: String): Boolean;
+var
+  P, Parent: String;
+  Last: Boolean;
+begin
+  Result := False;
+  P := RemoveBackslash(Trim(Folder));
+  Last := False;
+  while (Length(P) > 3) and not Last do
+  begin
+    if SuiteIsReparsePoint(P) then
+    begin
+      Result := True;
+      Exit;
+    end;
+    Last := SuiteNormalizedPath(P) = SuiteNormalizedPath(Root);
+    Parent := RemoveBackslash(ExtractFileDir(P));
+    if Length(Parent) >= Length(P) then
+      Exit;
+    P := Parent;
+  end;
+end;
+
+// True if the content of a shortcut file (.lnk, read as a text without its NUL characters, so the
+// path is found in its ANSI and in its Unicode form) names the file FileName. A heuristic that needs no COM
+// call: the uninstaller removes a game shortcut of a product that stays installed only if it starts the launcher.
+function SuiteLinkTextNamesFile(const Content, FileName: String): Boolean;
+var
+  Nul, Text: String;
+begin
+  Nul := #0;
+  Text := Content;
+  StringChangeEx(Text, Nul, '', True);
+  Result := (FileName <> '') and (Pos(UpperCase(FileName), UpperCase(Text)) > 0);
 end;
 
 // A folder the uninstaller may work below: a full path with a drive, at least one folder deep, without ".."

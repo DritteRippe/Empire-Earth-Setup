@@ -39,7 +39,8 @@ to stay safe and installable:
             usUninstall, the shortcuts, the record and the user data at usPostUninstall; InitializeUninstall
             checks the game and launcher mutexes, holds the setup mutex of [Setup] and asks one question
             (not in a silent run); the only programs it starts are the uninstaller of a product (after
-            SuiteIsProductUninstaller) and ping for a pause; DelTree only in SuiteDeleteDataFolders, called only
+            SuiteIsProductUninstaller) and ping for a pause; the data folders it offers are no link and not behind
+            one, and not those of a product that stays installed; DelTree only in SuiteDeleteDataFolders, called only
             after the answer "Delete" (the second button, never in a silent run); DeleteFile and RemoveDir only
             on the paths of the helpers of suite_common.iss; no registry deletion except RemoveSuiteRecord;
             [UninstallDelete] names {app}\Logs only; no Setup-only function (WizardSilent)
@@ -158,12 +159,17 @@ def check_frame_rules(main, files, errors):
     guard = re.search(r"if\s+not\s+IsAdminInstallMode\s+then\s+SuiteStop\(", init)
     if not guard or guard.start() > init.find("SuiteSilentArgumentsProblem("):
         errors.append("suite/suite.iss: InitializeSetup must stop first if not IsAdminInstallMode")
+    shortcut = function_bodies(code_lines(files.get("suite/suite_shortcuts.iss", ""))).get("SuiteShortcut", "")
+    if not re.search(r"if\s+SuiteShortcutsRemoving\s+then.*?\(Product\s*<>\s*''\)\s+and\s+\(SuiteProductRoot\(Product\)\s*<>\s*''\)"
+                     r"\s+and\s+not\s+SuiteLinkStartsLauncher\(Link\)\s+then.*?\bDeleteFile\(Link\)", shortcut, re.DOTALL):
+        errors.append("suite/suite_shortcuts.iss: when removing, SuiteShortcut must keep the shortcut of a product that stays "
+                      "installed unless it starts the launcher (SuiteLinkStartsLauncher), before DeleteFile(Link)")
     for rel, text in files.items():
         for no, line in code_lines(text):
             if re.search(r"\b(HKLM64|HKCU64|HKLM32|HKCU32)\b", line):
                 errors.append(f"{rel}:{no}: HKLM64, HKCU64, HKLM32 and HKCU32 raise an error on a 32-bit Windows (the "
                               "suite supports it) or leave the 64-bit view: use HKLM and HKCU")
-    return 5
+    return 6
 
 
 def check_files(text, errors):
@@ -401,6 +407,10 @@ def check_uninstaller(uninstaller, main, files, errors):
     if "SuiteDataFolder(" not in existing or "SuiteLauncherDataFolder(" not in existing or "DirExists(" not in existing:
         errors.append(f"{where}: SuiteExistingDataFolders must list only the folders of SuiteDataFolder and "
                       "SuiteLauncherDataFolder that exist")
+    if existing.count("SuiteIsBehindLink(") != 2 or "SuiteIsFolderOfInstalledProduct(" not in existing:
+        errors.append(f"{where}: SuiteExistingDataFolders must leave out a data folder that is a link or behind one "
+                      "(SuiteIsBehindLink, for the folders of the products and of the launcher) and one that belongs to "
+                      "a product that stays installed (SuiteIsFolderOfInstalledProduct): DelTree follows such a link")
     for argument in call_arguments(all_code, "DeleteFile"):
         if argument != "Target":
             errors.append(f"{where}: DeleteFile({argument}): the uninstaller deletes only the launcher files of "
@@ -518,6 +528,9 @@ def self_test(source_root):
          replace(main, "  if not IsAdminInstallMode then\n", "  if False then\n"), "must stop first if not IsAdminInstallMode"),
         ("64-bit registry view of HKLM",
          replace("suite/suite_pages.iss", "RegValueExists(HKLM, Key,", "RegValueExists(HKLM64, Key,"), "HKLM64, HKCU64, HKLM32 and HKCU32 raise an error"),
+        ("a shortcut of an installed product is deleted",
+         replace("suite/suite_shortcuts.iss", "(SuiteProductRoot(Product) <> '') and not SuiteLinkStartsLauncher(Link)", "False"),
+         "SuiteShortcut must keep the shortcut of a product that stays installed"),
         ("language dialog", replace(main, "ShowLanguageDialog=no", "ShowLanguageDialog=yes"),
          "ShowLanguageDialog=yes, expected no"),
         ("launcher files without Check: IsDotNet48",
@@ -607,10 +620,16 @@ def self_test(source_root):
         ("product uninstaller without the check", replace(uninstall, "if not SuiteIsProductUninstaller(Exe, Root) or not FileExists(Exe) then", "if False then"),
          "must check SuiteIsProductUninstaller(Exe, Root)"),
         ("product uninstaller judged by its exit code",
-         replace(uninstall, "State := SuiteUninstallWaitState(KeyPresent, FileExists(Exe), Elapsed, KeyGone);", "State := SuiteWaitDone;"),
+         replace(uninstall, "State := SuiteUninstallWaitState(KeyPresent, FileExists(Exe), Elapsed);", "State := SuiteWaitDone;"),
          "must wait with SuiteUninstallWaitState"),
         ("DelTree in the product removal", replace(uninstall, "  Total := 0;\n", "  DelTree(ExpandConstant('{app}'), True, True, True);\n  Total := 0;\n"),
          "DelTree may only be called in SuiteDeleteDataFolders"),
+        ("a data folder behind a link is offered",
+         replace(uninstall, "          if SuiteIsBehindLink(Folder, SuiteUninstallRoot[I]) then", "          if False then"),
+         "SuiteExistingDataFolders must leave out a data folder that is a link"),
+        ("a data folder of an installed product is offered",
+         replace(uninstall, "          else if SuiteIsFolderOfInstalledProduct(Folder) then", "          else if False then"),
+         "SuiteExistingDataFolders must leave out a data folder that is a link"),
         ("data folders deleted without the answer", replace(uninstall, "  if DeleteData then\n    SuiteDeleteDataFolders(Folders);", "  SuiteDeleteDataFolders(Folders);"),
          "SuiteDeleteDataFolders is only called in SuiteRemoveUserData"),
         ("data folders deleted for the first button", replace(uninstall, "IDYES) = IDNO;", "IDYES) = IDYES;"),

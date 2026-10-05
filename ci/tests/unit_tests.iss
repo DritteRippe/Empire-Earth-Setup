@@ -1920,6 +1920,7 @@ begin
     TestSuitePages;
     TestSuiteRunner;
     TestSuiteUninstaller;
+    TestSuiteLinks;
   except
     Failures := Failures + 1;
     Results.Add('FAIL exception: ' + GetExceptionMessage);
