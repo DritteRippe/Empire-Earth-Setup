@@ -125,6 +125,14 @@ jobs:
         shell: pwsh
         run: ./ci/tests/build_helpers.tests.ps1
 
+      # The build script of the suite installer (suite/build_suite.ps1) and its helpers on made-up inputs
+      # with a fake ISCC: checksum files of the inputs, the slice size of the placeholder build, the
+      # three passes (count and total of the slices, identical bytes in pass 2 and 3), the 50,000,000 byte
+      # limit, SHA256SUMS.txt, BUILD-INFO.txt and every stop of the script. No Inno Setup, no game data.
+      - name: Suite build script tests
+        shell: pwsh
+        run: ./ci/tests/suite_build.tests.ps1
+
       # Tools of the real-data end-to-end test (.github/workflows/e2e-realdata.yml) with made-up
       # data: header extraction, placing the official files, the read set of the build against the
       # map, the upload guard, the report and the rules of the checks (in Windows PowerShell 5.1,
@@ -159,3 +167,21 @@ jobs:
           name: preprocessed-scripts
           path: out/preprocessed
           if-no-files-found: ignore
+
+      # The suite installer (suite/suite.iss, ADR 0013) around the placeholder product setups that the
+      # build above wrote to out/EE_Regular and out/NeoEE_Regular, a stub launcher and dummy AppIds: three
+      # ISCC passes (the setup checks the number and the total size of its slices), DiskSliceSize computed
+      # from the size of the setup program. It never downloads the official setups (r2.empireearth.eu
+      # blocks GitHub runners). The result only proves that the suite compiles and its build script
+      # works; it is useless and never to be distributed.
+      - name: Build the suite (placeholder products)
+        shell: pwsh
+        run: ./suite/build_suite.ps1 -Placeholders -RequireVersion 6.2.2
+
+      - name: Upload the placeholder suite
+        uses: actions/upload-artifact@v4
+        with:
+          name: suite-placeholder
+          path: out/Suite
+          retention-days: 7
+          if-no-files-found: error

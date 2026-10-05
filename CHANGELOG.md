@@ -30,6 +30,10 @@ setup version stays 1.7.2 until the release.
   `-SignSetup -CertFileName -CertHashSHA1 [-SignTool]` makes signed builds with a DER or PEM
   certificate (see Changed). Its helpers that need no Inno Setup are in `ci/build_helpers.ps1`,
   tested by `ci/tests/build_helpers.tests.ps1` (also in the workflow).
+- `suite/build_suite.ps1`: the three-pass build of the suite installer (slice count and total measured in
+  pass 1, identical bytes required in pass 2 and 3, every slice at most 50,000,000 bytes, inputs checked
+  against their `.sha256`, `SHA256SUMS.txt` and `BUILD-INFO.txt`); CI builds it with placeholder products
+  and uploads it as an artifact. Tested by `ci/tests/suite_build.tests.ps1`.
 - `ci/make_placeholder_assets.py`: creates placeholder assets for contributors and CI, and lists
   the assets a variant needs (`--list`).
 - `ci/check_messages.py` (also run by the workflow): finds duplicate messages, `==` typos, unknown
