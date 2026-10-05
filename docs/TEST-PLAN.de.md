@@ -115,7 +115,7 @@ Nummer ihres Blocks. Ein neues Arbeitspaket mit eigenen Fällen bekommt den näc
 | TP-6x | Umgebung | S-WP8 | Hinweis unter 768 Pixeln Höhe und Bildschirm, DPI und Spielfenster im Log (TP-60), fremde und alte Installationen: Schlüssel in HKLM, fremde Uninstall-Einträge, CD-Ordner, Wortlaut zu den CD-Keys (TP-61), EE und NeoEE in einem Ordner (TP-62), Installation in den Ordner einer GOG- oder CD-Installation (TP-63) |
 | TP-7x | Allgemeine Abläufe und Forumfälle | S-WP2, S-WP9 | Grundablauf mit Update über 1.7.2 (TP-70), Standardnutzer und VirtualStore (TP-71), Version und Mehrspieler (TP-72), Reparatur (TP-73), AoC ohne EE-Start (TP-74), EE und NeoEE getrennt, eines deinstalliert (TP-75), Firewall beim Hosten (TP-76), CD-Keys (TP-77), Deutsch (TP-78), laufendes Spiel (TP-79) |
 | TP-8x | Links in den für alle beschreibbaren Ordnern | S-WP11 | Ein Standardbenutzer ersetzt `Data\Movies` durch eine Junction; das Update als Administrator hält auf der Seite „Vorbereitung der Installation“ an, ändert nichts und läuft nach dem Entfernen des Links durch; still Exit-Code 7; ein Link im Spielerordner unter `Users` und eine feste Verknüpfung (Hardlink) dort halten ebenfalls an (TP-80) |
-| TP-9x | Suite „Empire Earth Community“ | Suite-Plan | Fälle zum Paket mit Launcher (Installation, Deinstallation, Reparatur); noch ohne ausgearbeitete Fälle, siehe Block 9 |
+| TP-9x | Suite „Empire Earth Community“ | Suite-Plan (WP10) | Fälle zum Paket mit Launcher auf dem Laptop mit echten Daten: das ZIP ohne und mit „Zulassen“ (TP-90, TP-91), Start aus der ZIP-Ansicht (TP-92), beide Spiele mit den Standardwerten und Spielstart von den Symbolen (TP-93), Reparatur (TP-94), Deinstallation mit „Behalten“ und „Löschen“ (TP-95), Pfad „Erweitert“ (TP-96), Update über ein vorhandenes Einzel-Setup (TP-97); TP-93 und TP-95 sind das Freigabekriterium für Launcher 1.0.0 und Suite 1.0.0, siehe Block 9 |
 
 ## 4. Vorlage je Fall
 
@@ -3009,11 +3009,10 @@ nur mit `rmdir <Link>` entfernen (ohne `/s`): Das löscht den Link, nicht den Or
   `…\Users\Spieler`; (e) `Link check skipped: not the administrative install mode`; (f) `Link check:
   …\Users\Spieler\tp80f.ini is a hard link (the file has 2 names)`, in `TP-80f2` keine solche Zeile.
 
-### Block 9: Suite „Empire Earth Community“ (Deinstallation)
+### Block 9: Suite „Empire Earth Community“
 
-Die Fälle der Suite (Paket mit Launcher, ADR 0013) werden mit dem Arbeitspaket für ihre Tests
-ausgearbeitet; hier steht, was jede Prüfung der Deinstallation der Suite beachten muss, weil es sich
-nur auf echtem Windows zeigt:
+Die Fälle der Suite (Paket mit Launcher, ADR 0013) stehen unten (TP-90 bis TP-97); hier steht zuerst, was
+jede Prüfung der Deinstallation der Suite beachten muss, weil es sich nur auf echtem Windows zeigt:
 
 - **Reihenfolge und Warten:** Die Suite startet die Deinstallationsprogramme der Spiele nacheinander
   (NeoEE, dann EE) und wartet, bis der Uninstall-Schlüssel `{<AppId>}_is1` des Spiels weg ist und die
@@ -3046,6 +3045,433 @@ nur auf echtem Windows zeigt:
 - **Zwei Fragen?** Inno Setup zeigt vor oder nach der Abfrage der Suite seine eigene Rückfrage
   „Möchten Sie … wirklich entfernen?“, wenn es sie nicht unterdrückt. Im Protokoll festhalten, wie viele
   Dialoge erscheinen und in welcher Reihenfolge.
+
+#### Gemeinsame Angaben der Fälle TP-90 bis TP-97
+
+Diese Fälle prüfen das **Suite-Setup auf dem Laptop mit den echten Daten** (Build-Art B). Sie ergänzen
+die automatischen Szenarien S1 bis S10 des Jobs `suite-e2e` ([README](../README.md), „End-to-end
+test of the suite installer“), die mit Platzhalter-Setups, still und ohne Netz laufen und nichts
+von dem sehen, was hier geprüft wird: SmartScreen, den Assistenten, das Spiel, die Verknüpfungen
+auf dem Desktop. Es gilt:
+
+- **Paket:** das Paket-ZIP aus dem privaten Repository (nicht aus diesem; es steht dort nur mit den
+  privaten Eingaben, siehe README „Suite build script“). Der Inhalt: `Empire Earth Community
+  Setup.exe`, die Dateien `Empire Earth Community Setup-<n>.bin`, `SHA256SUMS.txt`, `BUILD-INFO.txt`
+  und die Hinweise. Vor jedem Fall die Prüfsummen vergleichen
+  (`Get-FileHash -Algorithm SHA256 <Datei>` gegen `SHA256SUMS.txt`). Das Paket wird nie
+  weitergegeben (Regel 4).
+- **Namen:** Die Verknüpfungen auf dem Desktop und im Startmenüordner `Empire Earth Community`
+  heißen `Empire Earth` und `Neo Empire Earth`. Der Eintrag in „Apps“ („Installierte Apps“ bzw.
+  „Apps & Features“) heißt `Empire Earth Community (Launcher, EE, NeoEE)`. Standardordner der
+  Suite: `C:\Program Files\Empire Earth Community`; die Spiele liegen in den Standardordnern ihrer
+  Setups (`C:\Program Files (x86)\Empire Earth`, `…\Neo Empire Earth`).
+- **Texte:** Alle erwarteten Texte stehen wörtlich in `suite/suite_messages.iss` (Spalten `de.`); der
+  Assistent läuft auf deutschem Windows deutsch. Die Namen der Schaltflächen („Weiter“,
+  „Installieren“, „Fertigstellen“) liefert Windows bzw. Inno Setup; die Texte der Suite nennen sie
+  nach dem, was der Assistent zeigt. Weicht ein Text ab, ist das eine „Abweichung“ (Protokoll).
+- **Logs zum Einsammeln** (vor dem Weitergeben auf persönliche Daten ansehen, Regel 6):
+  1. das Log der Suite: `%TEMP%\Setup Log <Datum> #<n>.txt` (die Suite schreibt es seit
+     `SetupLogging=yes` von selbst; bei Over-the-Shoulder-Erhöhung im `%TEMP%` des Administrators);
+     bei Aufruf mit `/LOG="C:\EE-Test\logs\<TP-ID>.log"` genau dort;
+  2. die Logs der Spiel-Setups: `C:\Program Files\Empire Earth Community\Logs\EE-<yyyyMMdd-HHmm>.log`
+     und `NeoEE-<yyyyMMdd-HHmm>.log` (die Deinstallation der Suite löscht den Ordner `Logs`: vorher
+     kopieren);
+  3. das Log des Launchers: `%LOCALAPPDATA%\Empire Earth Launcher\log.txt` (des Kontos, das ihn
+     gestartet hat);
+  4. für die Deinstallation: `"C:\Program Files\Empire Earth Community\unins000.exe"
+     /LOG="C:\EE-Test\logs\<TP-ID>_unins.log"`.
+- **Windows:** Jeder Fall läuft auf Windows 10 22H2 und auf Windows 11 24H2. Im Protokoll steht der
+  Zustand von **Smart App Control** (*Windows-Sicherheit › App- & Browsersteuerung › Smart App
+  Control*: Ein, Evaluierung oder Aus) und von SmartScreen (*Apps und Dateien überprüfen*). Ist
+  Smart App Control „Ein“, kann es das unsignierte Setup ohne Ausweg blockieren: Das ist ein Befund
+  zur README des Pakets, kein Fehler des Suite-Setups.
+- **Regel 3 gilt:** Nie `Software\Sierra\CDKeys` ansehen oder ändern; geprüft wird nur, ob der Wert
+  nach dem Fall noch da ist (`reg query` ohne den Inhalt zu protokollieren), und nur auf dem Laptop,
+  wo die CD-Keys schon registriert sind.
+- **Freigabekriterium der Versionen 1.0.0:** Der Launcher wird als 1.0.0 und die Suite als 1.0.0
+  erst getaggt, wenn **TP-93 und TP-95** bestanden haben (Arbeitspaket WP10 des Suite-Plans). Die
+  übrigen Fälle (TP-90, TP-91, TP-92, TP-94, TP-96, TP-97) stehen mit P2 neben dem Kurzdurchlauf
+  von [Abschnitt 7](#7-kurzdurchlauf-p1-und-freigabe), der das Setup v2 betrifft und unverändert
+  bleibt; ein ausgelassener Fall steht mit Grund im Protokoll. Jeder Befund wird als Issue
+  festgehalten, mit dem Auszug aus dem Log.
+
+#### TP-90: Paket-ZIP ohne „Zulassen“: genau eine SmartScreen-Warnung
+
+- **Status:** ausgearbeitet
+- **Priorität:** P2
+- **Bezug:** ADR 0013 (kein Code-Signing, unsigniert), Entscheidung „unsigniert“ (die README des Pakets erklärt den einen
+  SmartScreen-Klick); Suite-Szenario S10 (`Zone.Identifier` auf dem Paket, nur still)
+- **Ziel:** Ein heruntergeladenes Paket-ZIP, dessen Datei nicht freigegeben wurde, löst beim Start von
+  `Empire Earth Community Setup.exe` genau eine SmartScreen-Warnung aus; mit dem einen Klick
+  „Trotzdem ausführen“ läuft das Setup an, und die eingebetteten Spiel-Setups lösen keine weitere aus.
+- **Build-Art:** B (echter Suite-Build aus dem privaten Paket)
+- **Ausgangszustand:** keine Suite, kein EE, kein NeoEE; das ZIP frisch aus dem privaten Repository
+  heruntergeladen (mit Browser, damit es die Markierung „aus dem Internet“ trägt: `Get-Item <ZIP> -Stream
+  Zone.Identifier` zeigt `ZoneId=3`); Ordner `C:\EE-Test\logs`.
+- **Snapshot:** `S-Basis` (Windows 10 22H2 bzw. Windows 11 24H2; für das ZIP und die Daten
+  zusätzlich die Prüfung auf dem `Laptop` mit Wiederherstellungspunkt, Regel 1)
+- **Varianten:** Windows 10 22H2 und Windows 11 24H2; Smart-App-Control-Zustand im Protokoll. Keine
+  Varianten nach EE/NeoEE (das Paket enthält beide).
+- **Schritte:**
+  1. `Get-FileHash` jeder Datei gegen `SHA256SUMS.txt` vergleichen (nach dem Entpacken, Schritt 3).
+  2. Im Explorer das ZIP **nicht** über *Eigenschaften › Zulassen* freigeben.
+  3. Rechtsklick auf das ZIP, „Alle extrahieren…“, in einen neuen Ordner (z. B.
+     `C:\EE-Test\paket`), warten, bis der Ordner offen ist.
+  4. `Get-Item "C:\EE-Test\paket\Empire Earth Community Setup.exe" -Stream Zone.Identifier`
+     ausführen und das Ergebnis notieren (ob der Explorer die Markierung beim Entpacken
+     vererbt, hängt vom Windows-Stand ab: im Protokoll festhalten).
+  5. Doppelklick auf `Empire Earth Community Setup.exe`. Die Fenster in der Reihenfolge ihres
+     Erscheinens mitschreiben (Bildschirmfotos).
+  6. Bei „Der Computer wurde durch Windows geschützt“ auf „Weitere Informationen“, dann auf „Trotzdem
+     ausführen“ klicken; die Abfrage der Benutzerkontensteuerung bestätigen.
+  7. Der Assistent zeigt die Seite „Was möchtest du installieren?“. Dort **abbrechen** (nichts
+     installieren) und alles schließen.
+- **Erwartetes Ergebnis:**
+  - Genau **eine** SmartScreen-Warnung (Schritt 5 und 6), vor der Abfrage der Benutzerkontensteuerung;
+    nach „Trotzdem ausführen“ erscheint keine zweite (auch nicht bei den `.bin`-Dateien). Die
+    Abfrage der Benutzerkontensteuerung ist keine SmartScreen-Warnung und wird nicht mitgezählt.
+  - Die Seite „Was möchtest du installieren?“ erscheint, ohne die Meldung „Das Paket ist
+    unvollständig oder beschädigt“.
+  - Nach dem Abbruch ist nichts installiert: kein Ordner `C:\Program Files\Empire Earth Community`, kein
+    Eintrag `Empire Earth Community (Launcher, EE, NeoEE)` in „Apps“, keine Verknüpfungen.
+  - **bestanden**, wenn genau eine SmartScreen-Warnung erscheint und die Suite danach anläuft. **Fehler**: keine Seite
+    nach dem Klick, eine zweite Warnung oder ein Eintrag nach dem Abbruch. **Befund (README)**: Ist
+    Smart App Control „Ein“ und blockiert das Setup ohne Klick „Trotzdem ausführen“, ist der Weg der
+    README („Weitere Informationen“, „Trotzdem ausführen“) für diesen Zustand falsch oder
+    unvollständig.
+- **Log-Hinweis:** `%TEMP%\Setup Log <Datum> #<n>.txt` der Suite: Beginn mit der Zeile der
+  Suite-Version; keine Zeile `Precheck failed`. Bildschirmfotos der Warnung.
+
+#### TP-91: Paket-ZIP mit „Zulassen“: keine SmartScreen-Warnung
+
+- **Status:** ausgearbeitet
+- **Priorität:** P2
+- **Bezug:** ADR 0013, README des Pakets (der Weg „Eigenschaften › Zulassen“ vor dem Entpacken)
+- **Ziel:** Hat der Benutzer vor dem Entpacken im ZIP „Zulassen“ angehakt, entfällt die SmartScreen-Warnung
+  beim Start von `Empire Earth Community Setup.exe` ganz.
+- **Build-Art:** B
+- **Ausgangszustand:** wie TP-90: keine Suite, ZIP mit `ZoneId=3`, noch nicht entpackt.
+- **Snapshot:** `S-Basis` (wie TP-90)
+- **Varianten:** Windows 10 22H2 und Windows 11 24H2.
+- **Schritte:**
+  1. Rechtsklick auf das ZIP, „Eigenschaften“, Karte „Allgemein“, unten bei „Sicherheit“ den Haken
+     bei „Zulassen“ setzen, „OK“.
+  2. `Get-Item <ZIP> -Stream Zone.Identifier` zeigt keinen Datenstrom mehr (Fehler „Stream nicht
+     gefunden“ ist der erwartete Zustand).
+  3. „Alle extrahieren…“ in einen neuen Ordner, dann im neuen Ordner
+     `Get-Item "Empire Earth Community Setup.exe" -Stream Zone.Identifier` (kein Datenstrom).
+  4. Doppelklick auf `Empire Earth Community Setup.exe`, die Abfrage der Benutzerkontensteuerung
+     bestätigen.
+  5. Auf der Seite „Was möchtest du installieren?“ **abbrechen**.
+- **Erwartetes Ergebnis:**
+  - Keine SmartScreen-Warnung („Der Computer wurde durch Windows geschützt“ erscheint nicht); nur die
+    Abfrage der Benutzerkontensteuerung.
+  - Die Seite „Was möchtest du installieren?“ erscheint; nach dem Abbruch ist nichts installiert (wie TP-90).
+  - **bestanden**, wenn keine SmartScreen-Warnung erscheint. **Fehler**: eine Warnung trotz „Zulassen“ (dann
+    zuerst prüfen, ob `Zone.Identifier` an den entpackten Dateien hängt, und das als Befund festhalten).
+- **Log-Hinweis:** `%TEMP%\Setup Log <Datum> #<n>.txt` der Suite; Bildschirmfoto der Eigenschaften.
+
+#### TP-92: Start aus der ZIP-Ansicht: deutscher Entpacken-Hinweis, nichts installiert
+
+- **Status:** ausgearbeitet
+- **Priorität:** P2
+- **Bezug:** ADR 0013, Suite-Meldungen `SuiteZipView` und `SuiteSlicesMissing`, Exit-Code 12 und 11 des
+  stillen Laufs; Suite-Szenario S4 (fehlendes `.bin`, nur still)
+- **Ziel:** Wird das Setup direkt aus dem ZIP-Fenster des Explorers gestartet (er kopiert nur die eine
+  Datei in einen temporären Ordner) oder liegt es ohne seine `.bin`-Dateien da, hält es vor jeder Änderung
+  mit dem deutschen Hinweis zum Entpacken an.
+- **Build-Art:** B
+- **Ausgangszustand:** keine Suite, kein EE, kein NeoEE; das ZIP wie in TP-91 freigegeben.
+- **Snapshot:** `S-Basis` (Windows 10 22H2 bzw. Windows 11 24H2)
+- **Varianten:** (a) Start aus der ZIP-Ansicht; (b) die eine `.exe` allein in einen leeren Ordner
+  kopiert und von dort gestartet.
+- **Schritte:**
+  1. (a) Das ZIP mit Doppelklick im Explorer öffnen (nicht entpacken) und `Empire Earth Community
+     Setup.exe` darin doppelt anklicken. Falls Windows warnt, wie in TP-90 bestätigen. Die Abfrage der
+     Benutzerkontensteuerung bestätigen. Den Text der Meldung mit Bildschirmfoto festhalten, „OK“.
+  2. (b) Nur `Empire Earth Community Setup.exe` nach `C:\EE-Test\allein` kopieren und dort starten.
+     Meldung festhalten, „OK“.
+  3. Nach jedem Teil prüfen: `Test-Path "C:\Program Files\Empire Earth Community"`,
+     `Get-ChildItem "$env:LOCALAPPDATA\Temp" -Filter "Setup Log*"`, die Liste der „Apps“.
+- **Erwartetes Ergebnis:**
+  - (a) Eine Meldung mit dem Text „Das Setup wurde direkt aus dem ZIP-Archiv (oder aus einem
+    temporären Ordner) gestartet, deshalb fehlen die übrigen Dateien des Pakets:“, darunter die Liste der
+    fehlenden Dateien (`Empire Earth Community Setup-1.bin` usw.), dann „Klicke mit der rechten
+    Maustaste auf die ZIP-Datei, wähle "Alle extrahieren..." und starte "Empire Earth Community
+    Setup.exe" aus dem neuen Ordner.“ und „Es wurde nichts installiert.“ Der Text ist vollständig
+    lesbar; nach „OK“ endet das Setup.
+  - (b) Die Meldung „Das Paket ist unvollständig oder beschädigt. Diese Dateien neben dem Setup fehlen
+    oder haben eine falsche Größe:“ mit der Liste, dann „Lade das Paket gegebenenfalls erneut herunter,
+    entpacke das gesamte ZIP-Archiv (alle Dateien in einen Ordner) und starte "Empire Earth Community
+    Setup.exe" aus diesem Ordner.“ und „Es wurde nichts installiert.“ (Ein Ordner unter `C:\EE-Test`
+    ist kein temporärer Ordner; bei (b) deshalb die Meldung `SuiteSlicesMissing`, nicht `SuiteZipView`.)
+  - Nach beiden Teilen: kein Ordner `C:\Program Files\Empire Earth Community`, kein Eintrag in „Apps“, keine
+    Verknüpfung, kein Spiel installiert.
+  - **bestanden**, wenn beide Meldungen mit dem genannten Text erscheinen und nichts installiert ist.
+    **Abweichung**, wenn bei (a) die Meldung `SuiteSlicesMissing` statt `SuiteZipView` erscheint (das
+    Setup erkennt die ZIP-Ansicht nicht am Pfad); der Hinweis nennt in beiden Fällen das Entpacken.
+    **Fehler**: das Assistentenfenster erscheint oder etwas wurde installiert.
+- **Log-Hinweis:** `%TEMP%\Setup Log <Datum> #<n>.txt` der Suite: bei (a) `Precheck failed, exit code 12`
+  und `started from the ZIP view or a temporary folder, slices missing or wrong:`, bei (b)
+  `Precheck failed, exit code 11` und `slices missing or wrong:`.
+
+#### TP-93: Beide Spiele mit den Standardwerten installieren und von den Desktop-Symbolen spielen
+
+- **Status:** ausgearbeitet
+- **Priorität:** P2 (Freigabekriterium für Launcher 1.0.0 und Suite 1.0.0)
+- **Bezug:** ADR 0013, Vertrag 0 (Launcher-Mutex), 1.4 (`--product=`), 1.6 und 1.7 (Verknüpfungen `Empire Earth` und
+  `Neo Empire Earth`), Entscheidung zu den Namen der Symbole (ohne „spielen“); Launcher WP10-01 bis WP10-04
+  (Testplan des Launchers); Suite-Szenario S1 (still, Platzhalter)
+- **Ziel:** Eine Installation mit den Standardwerten richtet EE mit AoC, NeoEE und den Launcher ein; die
+  NeoEE-CD-Keys sind registriert, alle drei Spiele starten von den Symbolen, und ein Klick auf das zweite
+  Symbol bei offenem Launcher wechselt das Spiel, ohne einen zweiten Launcher zu öffnen.
+- **Build-Art:** B (echter Suite-Build, echte Spieldaten, Weg B, nur Laptop mit Rückweg, Regel 1)
+- **Ausgangszustand:** kein EE, kein NeoEE, keine Suite, keine Reste unter `C:\Program Files (x86)\Empire
+  Earth`, `…\Neo Empire Earth`, `C:\Program Files\Empire Earth Community`; .NET Framework 4.8 vorhanden
+  (Windows 10 22H2 und 11 24H2 haben es); das Paket nach TP-91 entpackt; Wiederherstellungspunkt
+  angelegt; ein Wert unter `Software\Sierra\CDKeys` darf schon vorhanden sein (nur Vorhandensein notieren,
+  Regel 3).
+- **Snapshot:** `Laptop` (Wiederherstellungspunkt), zusätzlich `S-Basis` für den Teil ohne Spielstart
+- **Varianten:** Windows 10 22H2 und Windows 11 24H2; auf `S-Basis` entfallen die Teile mit dem Spielstart
+  (Grafik) und die Registrierung der CD-Keys (Regel 3, nie dort ausprobieren).
+- **Schritte:**
+  1. `Empire Earth Community Setup.exe` starten (wie TP-91), die Abfrage der Benutzerkontensteuerung
+     bestätigen. Auf der Seite „Was möchtest du installieren?“ nichts ändern: „Empire Earth (mit The Art of
+     Conquest)“ und „Neo Empire Earth (NeoEE)“ sind angehakt, „Erweitert: Das Setup jedes Spiels selbst
+     durchgehen“ nicht. Der Text „Der Empire Earth Launcher wird auch installiert. …“ steht dort. „Weiter“.
+  2. Auf der Seite „Lizenz und Hinweise“ die EULA lesen, bei der Frage „Haben Sie das Originalspiel und
+     seine Erweiterung (oder Gold Edition) auf CD mit gültigen Schlüsseln oder haben Sie das Spiel digital
+     erworben?“ den Haken „Ja“ setzen, „Weiter“. Auf der Seite „Regeln für NeoEE“ die Regeln lesen, „Weiter“.
+  3. Die Installation laufen lassen. Die Statuszeile nennt „Schritt 1 von 2: … wird installiert ...“ und
+     „Schritt 2 von 2: … wird installiert ...“; das Fenster reagiert (kein „Keine Rückmeldung“). Die
+     Dauer notieren.
+  4. Auf der letzten Seite den Text festhalten und „Launcher jetzt starten“ **nicht** anhaken, dann
+     „Fertigstellen“.
+  5. Prüfen: auf dem Desktop die Symbole `Empire Earth` und `Neo Empire Earth` (keine Symbole mit
+     „spielen“ im Namen), im Startmenü der Ordner `Empire Earth Community` mit `Empire Earth`, `Neo Empire
+     Earth`, `Empire Earth Launcher`, `Mod Creator`, `Uninstall Empire Earth Community` (und den
+     Diagnosewerkzeugen der Spiele, falls vorhanden); in den Eigenschaften der beiden Symbole zeigt „Ziel“
+     auf `Empire Earth Launcher.exe` mit `--product=EE` bzw. `--product=NeoEE`; „Apps“ zeigt den Eintrag
+     `Empire Earth Community (Launcher, EE, NeoEE)` sowie die Einträge der beiden Spiele.
+  6. Doppelklick auf das Symbol `Empire Earth`: Der Launcher öffnet sich mit EE als gewähltem Spiel
+     (in der Titelzeile bzw. auf der Seite „Spielen“). Das Spiel über den Launcher starten, bis zum
+     Hauptmenü, Version prüfen, beenden. Im Launcher die Erweiterung The Art of Conquest wählen und starten,
+     bis zum Hauptmenü, beenden. Launcher schließen.
+  7. Doppelklick auf `Neo Empire Earth`: Der Launcher öffnet sich mit NeoEE; das Spiel starten, bis zum
+     Hauptmenü, **ohne** die Meldung „CD key invalid“, beenden.
+  8. **Zweites Symbol bei offenem Launcher:** den Launcher mit dem Symbol `Empire Earth` öffnen und
+     offen lassen (kein Spiel starten), dann das Symbol `Neo Empire Earth` anklicken; danach im
+     selben Launcher noch einmal `Empire Earth`.
+  9. Das Spiel schließen, den Launcher schließen. Die Logs einsammeln (Liste oben); mit
+     `reg query` nur prüfen, dass der Wert unter `HKLM\SOFTWARE\WOW6432Node\Sierra\CDKeys` noch da ist,
+     ohne den Inhalt zu protokollieren.
+- **Erwartetes Ergebnis:**
+  - Schritt 1 bis 3: Das Setup nimmt die Vorgaben ohne weitere Frage, installiert zuerst EE, dann
+    NeoEE (die Setups der Spiele laufen still, ihre Fenster erscheinen nicht).
+  - Schritt 4: Die letzte Seite beginnt mit „Das hat das Setup gemacht:“ und nennt „Empire Earth (mit The Art of
+    Conquest): installiert“, „Neo Empire Earth (NeoEE): installiert“, „Empire Earth Launcher: installiert“,
+    die Zeile **„NeoEE-CD-Keys: registriert.“**, „Protokolle: C:\Program Files\Empire Earth
+    Community\Logs“ und „Klicke auf "Fertigstellen", um das Setup zu schließen.“ Die Überschrift „Nicht
+    alles wurde installiert“ erscheint nicht.
+  - Schritt 5: wie beschrieben, alle Verknüpfungen vorhanden, kein altes Symbol der Einzel-Setups.
+  - Schritt 6 und 7: Jedes Symbol öffnet den Launcher mit dem richtigen Spiel; EE, AoC und NeoEE
+    starten bis zum Hauptmenü, NeoEE ohne Meldung zum CD-Key.
+  - Schritt 8: Der Klick auf das zweite Symbol öffnet **keinen zweiten Launcher**; der offene Launcher
+    wechselt auf NeoEE (und mit dem dritten Klick zurück auf EE) und kommt in den Vordergrund. Im Task-Manager
+    gibt es nur einen Prozess `Empire Earth Launcher.exe` je Anmeldung.
+  - **bestanden**, wenn alle Punkte zutreffen. **Fehler**: ein Spiel startet nicht, „CD-Keys: nicht registriert“
+    oder „Ergebnis unbekannt“, ein zweiter Launcher oder ein fehlendes Symbol. Ohne bestandenen TP-93 kein
+    Tag Launcher 1.0.0 und Suite 1.0.0.
+- **Log-Hinweis:** Suite-Log: `Pin check of the EE setup … matches`, `Product EE (step 1 of 2, …)`,
+  `Product NeoEE (step 2 of 2, …)`, `NeoEE CD key result from its log: "0"`, `Products that succeeded in
+  this run: "…"` mit beiden Spielen, `Suite record written`, `Shortcut created:` für beide
+  Desktop-Symbole. `{app}\Logs\NeoEE-<Datum>.log`: Zeile `CD Keys generation result: 0`. Launcher-Log: die
+  Auswahl durch `--product=` und der Wechsel beim zweiten Klick, keine Fehlerzeilen.
+
+#### TP-94: Eine Spieldatei gelöscht, Suite erneut gestartet: Reparatur, Hinweis des Launchers
+
+- **Status:** ausgearbeitet
+- **Priorität:** P2
+- **Bezug:** ADR 0013, Vertrag 1.6 (`SourceDir`) und 4.4 (Hinweis des Launchers mit dem Ordner der Suite),
+  TP-50; Suite-Szenario S9 (Reparatur, still); Launcher WP10-05
+- **Ziel:** Fehlt eine Spieldatei, nennt der Launcher den Weg „Empire Earth Community Setup erneut aus dem
+  Paketordner starten“; die Suite repariert damit das Spiel (Zustand „Schon installiert“), ohne neu zu fragen,
+  was schon beantwortet ist, und das Manifest stimmt danach wieder.
+- **Build-Art:** B
+- **Ausgangszustand:** nach TP-93 (beide Spiele mit der Suite installiert); das entpackte Paket noch an
+  seinem Ort (der Ordner steht in `HKLM\SOFTWARE\Empire Earth Community\Suite` als `SourceDir`); kein Spiel und
+  kein Launcher laufen.
+- **Snapshot:** `Laptop` nach TP-93 (Zwischenstand) bzw. auf `S-Basis` mit dem Platzhalter-Paket des CI
+- **Varianten:** (a) eine Datei von EE; (b) eine Datei von NeoEE; Windows 10 22H2 und Windows 11 24H2.
+- **Schritte:**
+  1. (a) In `C:\Program Files (x86)\Empire Earth\_setupdata_EE\files.sha256` eine Datei unter `Empire Earth\Data`
+     aussuchen (ein Pfad aus der Liste) und im Explorer löschen; ihren Pfad notieren.
+  2. Den Launcher mit dem Symbol `Empire Earth` starten und *Spielen* anklicken. Der Hinweis „beschädigt“ mit
+     den Schritten erscheint; den Text festhalten und die Schaltfläche, die den Paketordner öffnet, anklicken
+     (der Launcher öffnet nur den Ordner im Explorer, startet nichts). Launcher schließen.
+  3. Im geöffneten Ordner `Empire Earth Community Setup.exe` starten (UAC bestätigen). Auf der Seite
+     „Was möchtest du installieren?“ steht bei den Spielen „Schon installiert. Das Setup aktualisiert oder
+     repariert es.“; angehakt lassen; „Weiter“. Die Seite „Lizenz und Hinweise“ trägt den Hinweis „Du hast schon
+     ein Spiel installiert, deshalb musst du diese Frage nicht noch einmal beantworten.“; „Weiter“ bis zum Ende.
+  4. Prüfen: die Datei liegt wieder da; mit dem Skript aus TP-50 Schritt 2 stimmen `files.sha256` und die
+     Dateien überein; die Verknüpfungen auf dem Desktop sind unverändert vorhanden.
+  5. (b) Dasselbe mit einer Datei von NeoEE (`…\Neo Empire Earth\_setupdata_NeoEE\files.sha256`) und dem
+     Symbol `Neo Empire Earth`; auf der letzten Seite die Zeile zu den CD-Keys festhalten.
+- **Erwartetes Ergebnis:**
+  - Schritt 2: Der Hinweis lautet „Schließen Sie das Spiel. Starten Sie „Empire Earth Community Setup“ erneut aus
+    dem Ordner, in den Sie es entpackt haben (<Ordner>): Es repariert oder aktualisiert die Spiele, die es
+    installiert hat.“ mit dem richtigen Ordner.
+  - Schritt 3 und 4: Die Reparatur läuft ohne Fehlermeldung, die Datei ist wieder da, das Manifest stimmt;
+    die Suite zeigt am Ende „… installiert“ für beide Spiele und, bei NeoEE, „NeoEE-CD-Keys: registriert.“
+    (oder, falls im Wiederholungslauf die Registrierung nicht gewählt ist, „NeoEE-CD-Keys: Registrierung nicht
+    gewählt, es wurde nichts registriert.“; beides ist kein Fehler, notieren welche Zeile). Die
+    Überschrift „Nicht alles wurde installiert“ erscheint nicht.
+  - **bestanden**, wenn Hinweis, Reparatur und Manifest stimmen. **Fehler**: Die Datei fehlt weiter, das Setup
+    meldet eines der Spiele als „fehlgeschlagen“ oder ein Spiel ist danach unvollständig.
+- **Log-Hinweis:** Suite-Log: `Product EE (step 1 of 2, state 1): …` (Zustand 1: schon installiert; ohne `/TYPE` und ohne `/DIR`), `Pin check of the EE setup … matches`, `Shortcut created:`; `{app}\Logs\EE-<Datum>.log`;
+  Launcher-Log mit der Prüfung, die die Datei als fehlend nennt.
+
+#### TP-95: Deinstallation der Suite mit „Behalten“, Neuinstallation, Deinstallation mit „Löschen“
+
+- **Status:** ausgearbeitet
+- **Priorität:** P2 (Freigabekriterium für Launcher 1.0.0 und Suite 1.0.0)
+- **Bezug:** ADR 0013 (Entscheidung 11), Vertrag 1.6 und 1.7, Block 9 oben (Reihenfolge, Behalten
+  und Löschen, zwei Fragen, Over-the-Shoulder), Regel 3; Suite-Szenarien S7 und S8 (still)
+- **Ziel:** Die Deinstallation der Suite entfernt, was sie installiert hat, in der richtigen Reihenfolge;
+  „Behalten (empfohlen)“ lässt Spielstände, Profile und Sicherungen unangetastet, „Löschen“ entfernt genau die
+  angebotenen Ordner; `Software\Sierra\CDKeys` bleibt in beiden Läufen unberührt.
+- **Build-Art:** B (nur Laptop mit Rückweg, Regel 1; Spielstände vorher sichern)
+- **Ausgangszustand:** nach TP-93; im Spiel mindestens ein Profil und ein Spielstand je Spiel angelegt
+  (EE: ein Spielstand unter `Data\Saved Games`, ein Spielerordner unter `Users`; NeoEE ebenso), im Launcher
+  eine Sicherung (`%LOCALAPPDATA%\Empire Earth Launcher\Backups`) und der Ordner `Mod Creator` vorhanden. Die
+  Ordner `Users`, `Data\Saved Games` beider Spiele und `Backups` sowie `Mod Creator` mit einer Datei
+  `tp95-marker.txt` kennzeichnen (Inhalt nur „x“). Vorhandensein eines Werts unter
+  `Software\Sierra\CDKeys` (HKLM, `WOW6432Node`, HKCU) vorher notieren.
+- **Snapshot:** `Laptop` (Wiederherstellungspunkt und Sicherung der Spielstände, Regel 1)
+- **Varianten:** (a) „Behalten“, (b) Neuinstallation, (c) „Löschen“; Windows 10 22H2 und Windows 11 24H2 (auf der
+  VM `S-Basis` mit dem Platzhalter-Paket nur die Teile ohne Spielstand und CD-Keys).
+- **Schritte:**
+  1. (a) Die Logs der Spiel-Setups aus `C:\Program Files\Empire Earth Community\Logs` nach `C:\EE-Test\logs`
+     kopieren. „Apps“ öffnen, den Eintrag `Empire Earth Community (Launcher, EE, NeoEE)` wählen und
+     „Deinstallieren“ (oder `"C:\Program Files\Empire Earth Community\unins000.exe"
+     /LOG="C:\EE-Test\logs\TP-95a_unins.log"`). Die Dialoge in ihrer Reihenfolge mit Bildschirmfotos festhalten.
+  2. Die Abfrage der Suite „Dabei wird entfernt:“ enthält die Liste (Launcher und Mod Creator mit Ordner, beide
+     Spiele mit Ordner, „Die Verknüpfungen und Einträge von Empire Earth Community“); mit „Ja“ fortfahren.
+  3. Die Statuszeile während der Spiele beobachten („Schritt <n> von <m>: … wird entfernt ... (das kann mehrere
+     Minuten dauern)“); das Fenster darf nicht „Keine Rückmeldung“ zeigen.
+  4. Am Ende erscheint der Dialog „Spielstände, Profile und Sicherungen auch löschen?“ mit den Ordnern; **„Behalten
+     (empfohlen)“** wählen (die Vorgabe).
+  5. Prüfen: Die Programmordner beider Spiele, `C:\Program Files\Empire Earth Community`, der Startmenüordner
+     `Empire Earth Community` und die Symbole auf dem Desktop sind weg; „Apps“ zeigt keinen der drei Einträge;
+     `HKLM\SOFTWARE\Empire Earth Community\Suite` ist weg; die markierten Ordner mit `tp95-marker.txt` und den
+     Spielständen sind unverändert da; `%LOCALAPPDATA%\Empire Earth Launcher\settings.json` und `log.txt` sind
+     weg. Der Wert unter `Software\Sierra\CDKeys` ist noch da.
+  6. (b) Das Paket noch einmal wie in TP-93 mit den Standardwerten installieren (frisch, kein Reparaturlauf).
+     Prüfen, dass der Spielstand und das Profil im Spiel noch da sind (EE und NeoEE, Hauptmenü).
+  7. (c) Die Suite noch einmal deinstallieren wie (a), diesmal im Dialog **„Löschen“** wählen. Danach prüfen:
+     genau die angebotenen Ordner (`Users` und `Data\Saved Games` der beiden Spiele, `Backups` und `Mod Creator`
+     im `%LOCALAPPDATA%\Empire Earth Launcher`) sind weg, sonst nichts außerhalb der Programmordner (die
+     `Eigene Dateien`/`Dokumente` bleiben unberührt); wieder Wert unter `Software\Sierra\CDKeys` vorhanden.
+  8. Die Dialoge zählen: Wie oft und in welcher Reihenfolge erscheint eine Frage (Block 9 „Zwei
+     Fragen?“)?
+- **Erwartetes Ergebnis:**
+  - Die Spiele werden nacheinander entfernt (NeoEE, dann EE), das Fenster der Suite bleibt bedienbar; nach (a)
+    sind die Einträge `{<AppId>}_is1` beider Spiele und der Suite weg.
+  - (a) „Behalten“: alle markierten Ordner und Spielstände bleiben, `settings.json` und `log.txt` sind weg.
+  - (b) Die Neuinstallation läuft ohne Fehler, die Spielstände sind da.
+  - (c) „Löschen“ entfernt genau die im Dialog genannten Ordner mit allem, was darin liegt.
+  - Der Inhalt von `Software\Sierra\CDKeys` bleibt bei Installation und beiden Deinstallationen (Regel 3).
+  - Es erscheint **eine** Frage der Suite (die Abfrage mit der Liste) und danach der Dialog zu den Nutzerdaten;
+    eine zusätzliche Standardfrage von Inno Setup („Möchten Sie … wirklich vollständig entfernen?“) ist
+    ein Befund (Block 9).
+  - **bestanden**, wenn alle Punkte stimmen. **Fehler**: ein Ordner geht bei „Behalten“ verloren, ein nicht
+    angebotener Ordner geht bei „Löschen“ verloren, ein Eintrag bleibt in „Apps“, der CD-Key-Wert fehlt danach. Ohne
+    bestandenen TP-95 kein Tag Launcher 1.0.0 und Suite 1.0.0.
+- **Log-Hinweis:** `TP-95a_unins.log` und `TP-95c_unins.log` der Suite: `Suite record lists the products
+  "…"` mit beiden Spielen, `Product NeoEE is installed in …: it will be removed`, `Product NeoEE: wait state … outcome`, `The user
+  data stays:` (a) bzw. `User data folder deleted:` (c), `Launcher file deleted:`, `Shortcut removed:`; die
+  Reihenfolge der Spiele und die Dauer je Spiel notieren.
+
+#### TP-96: Pfad „Erweitert“: die Setups der Spiele selbst durchgehen
+
+- **Status:** ausgearbeitet
+- **Priorität:** P2
+- **Bezug:** ADR 0013, Meldungen `SuiteAdvanced`, `SuiteAdvancedHint`, `SuiteStepAdvanced`; Suite-Szenarien
+  S1 bis S3 (nur still)
+- **Ziel:** Mit „Erweitert“ zeigt jedes Spiel sein eigenes Setup mit allen Fragen; die Antworten gelten, und
+  der Rest der Suite (Verknüpfungen, Eintrag in „Apps“, Launcher) ist wie bei den Standardwerten.
+- **Build-Art:** B (VM `S-Basis` mit Echtdaten oder Laptop mit Rückweg; die CD-Key-Aufgabe von NeoEE nur auf dem
+  Laptop, Regel 3)
+- **Ausgangszustand:** kein EE, kein NeoEE, keine Suite.
+- **Snapshot:** `S-Basis` (oder `Laptop`)
+- **Varianten:** EE und NeoEE jeweils in einen **eigenen Ordner** (nicht der Standardordner); Windows 10 22H2
+  und Windows 11 24H2.
+- **Schritte:**
+  1. Das Suite-Setup starten, auf der Seite „Was möchtest du installieren?“ den Haken bei „Erweitert: Das Setup
+     jedes Spiels selbst durchgehen“ setzen (der Hinweis „Jedes Spiel zeigt dann sein eigenes Setup mit allen
+     Fragen (Ordner, Komponenten, Aufgaben). Die meisten brauchen das nicht.“ steht darunter), beide Spiele
+     angehakt, „Weiter“, Lizenzfrage und Regeln wie in TP-93.
+  2. Auf der Installationsseite steht „Schritt 1 von 2: Das Setup von … ist geöffnet. Bitte gehe es dort
+     durch.“. Im Setup von EE einen eigenen Ordner wählen (z. B. `D:\Spiele\EE-Test`), sonst die Vorgaben,
+     abschließen. Dasselbe im Setup von NeoEE (Ordner `D:\Spiele\NeoEE-Test`, die Aufgabe für die CD-Keys wie
+     angeboten lassen).
+  3. Letzte Seite und Verknüpfungen prüfen wie in TP-93 (Schritt 4 und 5); die Symbole `Empire Earth` und `Neo
+     Empire Earth` starten den Launcher mit dem richtigen Spiel in den gewählten Ordnern.
+  4. Wieder deinstallieren (TP-95 (a), „Löschen“), die eigenen Ordner dabei prüfen.
+- **Erwartetes Ergebnis:**
+  - Die Setups der Spiele erscheinen sichtbar, nacheinander (EE zuerst); die Suite wartet auf jedes. Die
+    gewählten Ordner werden verwendet; die Suite findet sie über den Uninstall-Schlüssel der Spiele.
+  - Die letzte Seite zeigt „installiert“ für beide Spiele; die Verknüpfungen und der Eintrag in „Apps“ sind da.
+  - Die Deinstallation entfernt beide Spiele aus den eigenen Ordnern.
+  - **bestanden**, wenn Ordnerwahl und Ergebnis stimmen. **Fehler**: Die Suite ignoriert den Ordner, die
+    Verknüpfungen fehlen oder die Deinstallation lässt ein Spiel stehen.
+- **Log-Hinweis:** Suite-Log (`Product EE (step 1 of 2, …)` mit dem Hinweis auf den sichtbaren Lauf);
+  `{app}\Logs\EE-<Datum>.log` mit dem gewählten Ordner; `Product EE is installed in D:\Spiele\EE-Test`
+  im Log der Deinstallation.
+
+#### TP-97: Update über ein vorhandenes Einzel-Setup 1.7.2/v2: alte Verknüpfungen weg, Suite-Verknüpfungen da
+
+- **Status:** ausgearbeitet
+- **Priorität:** P2
+- **Bezug:** ADR 0013, Vertrag 1.7 Punkt 7 und 8 (alte Verknüpfungen werden vor den Suite-Verknüpfungen
+  gelöscht), Entscheidung zu den Namen (die Suite-Verknüpfung `Empire Earth` trägt denselben Namen wie die des
+  Einzel-Setups), README „Standalone uninstall of EE“; Suite-Szenario S3 (still)
+- **Ziel:** Ist ein Spiel schon mit dem Einzel-Setup installiert, übernimmt die Suite es am Ort (gleicher Ordner,
+  kein Verlust), löscht dessen alte Verknüpfungen und legt ihre eigenen an.
+- **Build-Art:** B (VM mit Echtdaten oder Laptop mit Rückweg)
+- **Ausgangszustand:** EE (mit AoC) und NeoEE mit den Einzel-Setups als Administrator installiert, mit den Symbolen
+  auf dem Desktop und dem Startmenüordner `Empire Earth` bzw. `Neo Empire Earth` (die Einzel-Setups legen sie an);
+  in den Eigenschaften der alten Symbole zeigt „Ziel“ auf `Empire Earth.exe`. Variante (a) mit Setup 1.7.2
+  (offiziell, `S-172-EE`, `S-172-NeoEE`), Variante (b) mit dem Setup v2 aus dem privaten Testpaket. Eine Datei
+  des Spielers (z. B. ein Spielstand) im Spielordner.
+- **Snapshot:** `S-172-EE` und `S-172-NeoEE` aus Abschnitt 5, für beide Spiele zusammen: nach `S-172-EE` das
+  NeoEE-Setup 1.7.2 installieren und den Stand als Zwischenstand sichern; für (b) ein Zwischenstand mit v2
+- **Varianten:** (a) über 1.7.2, (b) über v2; Windows 10 22H2 und Windows 11 24H2.
+- **Schritte:**
+  1. Vor dem Lauf notieren: die Ordner beider Spiele, die alten Verknüpfungen mit ihrem „Ziel“, die Datei
+     des Spielers.
+  2. Das Suite-Setup wie in TP-93 starten: Auf der Seite „Was möchtest du installieren?“ steht bei den Spielen
+     „Schon installiert. Das Setup aktualisiert oder repariert es.“; angehakt lassen, Standardwerte, bis zum
+     Ende.
+  3. Prüfen: Desktop und Startmenü.
+  4. Das Spiel mit den neuen Symbolen starten (Hauptmenü) und beenden.
+  5. Danach die Suite deinstallieren wie in TP-95 (a) („Behalten“) und prüfen, ob die Symbole mit den Spielen
+     verschwinden.
+- **Erwartetes Ergebnis:**
+  - Die Spiele bleiben im alten Ordner (keine neue Ordnerfrage), die Datei des Spielers ist unverändert da.
+  - Der alte Startmenüordner `Empire Earth` (bzw. `Neo Empire Earth`) ist weg, die alten Symbole zeigen nicht mehr
+    auf die Spielprogramme; auf dem Desktop gibt es **je ein** Symbol `Empire Earth` und `Neo Empire Earth`,
+    deren „Ziel“ der Launcher mit `--product=EE` bzw. `--product=NeoEE` ist; im Startmenü der Ordner
+    `Empire Earth Community`.
+  - Die Suite legt die Symbole nach dem Löschen der alten an (der Name `Empire Earth` ist derselbe, das Symbol
+    ist also da, nicht gelöscht).
+  - Die übernommenen Spiele stehen im Suite-Eintrag und in der Liste der Deinstallation; nach der Deinstallation
+    der Suite sind sie entfernt und die Symbole weg.
+  - **bestanden**, wenn alle Punkte stimmen. **Fehler**: ein altes Symbol bleibt, ein Symbol fehlt (vor allem
+    `Empire Earth`: dann die Reihenfolge Löschen vor Anlegen prüfen) oder ein Spiel wurde in einen neuen Ordner
+    installiert.
+- **Log-Hinweis:** Suite-Log: `Old shortcut of the EE setup removed: …`, `Shortcut created: … Empire Earth.lnk`,
+  `Product EE (step 1 of 2, state 1): …`; `{app}\Logs\EE-<Datum>.log`.
 
 ## 9. Forum-Testfälle §8
 
