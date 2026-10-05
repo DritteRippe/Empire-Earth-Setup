@@ -402,9 +402,12 @@ four variants of sections 2 and 3 do not change for it.
   the EULA and the NeoEE rules, because the silent product setups skip them. A product installed for
   one user only is skipped with a message.
 - **After each product:** success = exit code 0 and the uninstall key in HKLM64; the old shortcuts of
-  standalone runs of that product are deleted (contract 1.7 point 7) before Inno Setup creates the
-  suite's shortcuts `Empire Earth` and `Neo Empire Earth` (desktop and start menu folder `Empire Earth
-  Community`), which start the launcher with `--product=EE` or `--product=NeoEE`. For NeoEE the suite
+  standalone runs of that product are deleted (contract 1.7 point 7) before the suite creates its
+  shortcuts `Empire Earth` and `Neo Empire Earth` (desktop and start menu folder `Empire Earth
+  Community`), which start the launcher with `--product=EE` or `--product=NeoEE`. The shortcuts and
+  the record below are created in code at `ssPostInstall` and removed by the uninstaller (ADR 0013,
+  Evidence: the `Check` functions of `[Icons]` and `[Registry]` did not reliably see the results of
+  `ssInstall`). For NeoEE the suite
   reads the line `CD Keys generation result: <n>` of the product log and shows it; the CD-key
   registration stays the NeoEE setup's own (D6).
 - **Record and mutexes:** the suite record `HKLM64\Software\Empire Earth Community\Suite` (contract
@@ -415,9 +418,15 @@ four variants of sections 2 and 3 do not change for it.
   it lists and waits until their uninstall keys are gone, then removes the launcher, the shortcuts and
   the record; game saves stay unless the user asks otherwise. The product entries stay visible for a
   single game.
-- **Checks:** `ci/check_contract.py` reads `suite/suite.iss` as soon as it exists (`SetupMutex`,
-  `AppMutex`, the record's value names and types, the game shortcuts to the launcher); until then it
-  reports "suite/suite.iss not present, suite rules skipped".
+- **Files:** `suite/suite.iss` (`[Setup]`, payload, prechecks with the exit codes 10 to 15),
+  `suite_common.iss` (pure helpers, tested by `ci/tests/suite_tests.iss`), `suite_messages.iss`
+  (English, German, French), `suite_shortcuts.iss` and `suite_record.iss` (what the suite leaves
+  besides its files). Build values (AppIds, the pins and sizes of the embedded setups, the slice
+  count and sizes of a two-pass build) are `/D` defines, listed at the top of `suite.iss`.
+- **Checks:** `ci/check_contract.py` reads `suite/suite.iss` and its includes (`SetupMutex`,
+  `AppMutex`, the record's value names and types written in code, the game shortcuts to the
+  launcher, no reference to the protected keys); `ci/check_messages.py` checks `suite_messages.iss`
+  and forbids `MsgBox` in the suite scripts (only `SuppressibleMsgBox`).
 
 ## Plan
 

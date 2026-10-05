@@ -541,6 +541,20 @@ setup version stays 1.7.2 until the release.
   (`SetupMutex`, `AppMutex` with the launcher mutex, the value names and types of the suite record,
   the game shortcuts to the launcher) and skips these rules while the file does not exist (90
   self-test cases). ADR 0013 and ARCHITECTURE section 11 describe the suite.
+- `suite/`: the frame of the suite installer "Empire Earth Community" (ADR 0013, not yet the whole
+  installer): `suite.iss` (`[Setup]` for Windows 7 SP1 and later, 64-bit install mode, disk spanning
+  into slices of `DiskSliceSize` bytes; the launcher, the Mod Creator and the licenses only with
+  .NET Framework 4.8; the two product setups stored byte for byte with their pins), the prechecks of
+  `InitializeSetup` before anything is extracted (every slice there with its exact size, as the WP0
+  spike showed that a missing slice hangs even a silent run; started from the ZIP view; the games or
+  the launcher running; free space; the products and the CD key decision of a silent run) with the
+  exit codes 10 to 15, `suite_common.iss` (the pure helpers, 112 unit tests in `ci/tests/suite_tests.iss`),
+  `suite_messages.iss` (English, German, French), and the shortcuts and the suite record written in
+  code at `ssPostInstall` (the result of the spike). Build values are `/D` defines (two-pass build for
+  the slices). `ci/check_suite.py` (new, with a self-test) checks the frame; `ci/check_contract.py`
+  reads the record and the shortcuts from the code and rejects any reference to the protected keys
+  of the CD key registration (110 self-test cases); `ci/check_messages.py` also checks the suite's
+  messages and forbids `MsgBox` there (only `SuppressibleMsgBox`).
 - `docs/CONTRACT.md`, revision 3 (still contract version 1, draft: only compatible clarifications
   by its section 5; the same text and commit subject in the launcher repository; no change of the
   setup's code): O11 names all three triggers of the question `SharedFolderQuestion`, also the

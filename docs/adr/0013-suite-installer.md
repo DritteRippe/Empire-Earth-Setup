@@ -1,7 +1,7 @@
 # 0013. A suite installer that runs the unchanged EE and NeoEE setups and installs the launcher
 
-- Status: Accepted (decided by the maintainers on 2026-10-05; not implemented yet, the evidence of
-  WP0 is pending, see [Evidence](#evidence))
+- Status: Accepted (decided by the maintainers on 2026-10-05; being implemented, the evidence of
+  the WP0 spike is in [Evidence](#evidence))
 - Date: 2026-10-05
 - Requirements: briefing D1 (Inno Setup 6.2.2, every behaviour change intended), D4 (Windows 7 SP1
   to 11), D5 (shared contract), D6 (CD-key registration untouched, no game data in the repository),
@@ -107,20 +107,29 @@ Facts the decision relies on, from the code at 332d877:
 
 ## Evidence
 
-Pending WP0 spike (ci/spike, branch spike/suite). The spike has to show on a GitHub-hosted Windows
-runner, without game data and without network access of the tested setups:
+The WP0 spike: CI run 37321940954 (job 111802943735, artifact `spike-suite-results`), branch
+`spike/suite` at dc6877d, GitHub-hosted `windows-latest` (Windows Server 2025), Inno Setup 6.2.2. It
+ran throwaway placeholder setups, without game data and without network access; its scripts are
+`ci/spike/` of that branch (not on `v2`). The results bind the implementation:
 
-- the `Check` functions of `[Icons]` and `[Registry]` are evaluated after `CurStepChanged(ssInstall)`,
-  so they see the results of the product setups (otherwise point 5's fallback applies);
-- `Exec(..., ewWaitUntilTerminated)` on a product setup and on a product uninstaller
-  (`unins000.exe` relaunches itself from `%TEMP%`) returns only when the work is done, or the
-  polling of the uninstall key that the suite uninstaller uses instead is reliable;
-- a disk-spanned suite reads its slices, `ExtractTemporaryFile` works from a slice, and the
-  precheck for missing slices runs before Inno Setup's disk prompt;
-- `AppMutex` with `EmpireEarthCommunityLauncher` stops the suite (also `/VERYSILENT`) while a
-  launcher runs.
+| Question | Result | Decision |
+|---|---|---|
+| The `Check` functions of `[Icons]` and `[Registry]` see what `CurStepChanged(ssInstall)` set | Not proven: the driver summary says FAIL ("entries missing or evaluated too early"), while the probe lines of the log show `step_seen=1 global_set_in_ssInstall=1` for both sections | Decision 5's **fallback** applies: the suite creates its shortcuts (`CreateShellLink`) and writes the suite record (`RegWrite...`) in code at `CurStepChanged(ssPostInstall)`, with the same names and values. Its uninstaller removes them explicitly, they are not in the uninstall log. The product setups still run at `ssInstall`. `ci/check_contract.py` reads the record and the shortcuts from that code. |
+| `Exec(unins000.exe, ewWaitUntilTerminated)` returns when the uninstallation is done | **No**: it returns before the real uninstall has finished (`unins000.exe` starts a copy from `%TEMP%` and ends) | After `Exec`, the suite uninstaller polls until the uninstall key `{<AppId>}_is1` of the product is gone (HKLM64) and `unins000.exe` can be deleted or no longer exists, with a timeout (about 300 s) and a clear message when it expires; the exit code alone decides nothing. |
+| `DiskSliceSize=262144` | Refused by ISCC: "not enough space on the first disk", the first slice must hold `setup.exe` | `DiskSliceSize` is at least the size of the suite's `setup.exe`; the real build uses 50,000,000, a placeholder build the smallest size that works (the spike used 1,800,000 with a filler). The build script checks it. |
+| `ExtractTemporaryFile` of a `dontcopy` file that spans slices | Works (size and SHA-256 equal) | As planned: the product setups are `dontcopy nocompression` files. |
+| A missing middle or last slice, `/VERYSILENT /SUPPRESSMSGBOXES` | **Hangs**: "Asking user for new disk containing ..." even in a silent run | `InitializeSetup` verifies, before anything is extracted, that every slice is in the folder of the setup **and has its exact size** (count and sizes are build-time defines of a two-pass build). A mismatch ends with a message (`SuppressibleMsgBox`, none in a silent run) and a documented exit code (11, or 12 if the setup was started from the ZIP view or a temporary folder). CI runs the suite under an external timeout. |
+| A damaged slice (wrong content, right size) | Clean exit code 3 after 315 ms ("The source file is corrupted") | Documented exit code 3; the check of the extracted product setup against its pin stays in place. |
+| A product setup `/SILENT` while its `AppMutex` is held | Exit code 1 after about 0.4 s, nothing installed (without the mutex: 0) | The suite maps child exit code 1 to "a game is running", and still checks the mutexes itself before it starts a product. |
+| The suite's wizard while `Exec(ewWaitUntilTerminated)` runs a `/SILENT` child | Stays responsive: 67 of 73 timer ticks, the longest gap 110 ms | `WizardForm.StatusLabel` updates work, no polling loop with its own message pump is needed. |
+| A product failing while the suite goes on | Child A exit code 1 (held mutex), the suite continues, child B exit code 0 | After a failed product the suite continues with the next one and reports each result. |
 
-The results, with the run ids, go here before the status becomes "Accepted, implemented".
+The spike did not run the suite's own `AppMutex` (the launcher mutex) against a started launcher: the
+suite checks the game and launcher mutexes itself in `InitializeSetup` (exit code 14) and does not rely
+on the `AppMutex` check for that; the CI scenario with a helper process that holds each mutex (test
+strategy, S6) covers it. The spike's `[Registry]` and `[Icons]` evidence is ambiguous, so the
+fallback of decision 5 is the implemented behaviour; the alternative "Run the products at
+`ssPostInstall`" below stays rejected, since only the shortcuts and the record moved to `ssPostInstall`.
 
 ## Consequences
 
