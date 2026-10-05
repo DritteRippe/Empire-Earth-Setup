@@ -333,7 +333,9 @@ section 12 lists which cases the end-to-end test covers).
 
 ## 10. Open points
 
-- **Contract O2, O6, O8, O9, O10** are launcher or project questions; the setup is not affected.
+- **Contract O2, O6, O8, O9** are launcher or project questions; the setup is not affected.
+- **O10** (launcher in the setup): answered by contract revision 4. The product setups do not install the
+  launcher; the suite does, outside every product root ([11](#11-suite-empire-earth-community-planned)).
 - **O3** (BOM of `SaveStringsToUTF8File`): answered from the 6.2.2 source, it writes a BOM and CRLF.
   `UTF8Encode` does not exist in 6.2.2's Pascal Script (probe compile), so the setup builds the
   manifest and `install.ini` as ASCII, checks that (`IsAsciiText`) and writes them with
@@ -381,6 +383,41 @@ section 12 lists which cases the end-to-end test covers).
   reachability check before the downloads covers a server that is down, a server that accepts
   connections and then stalls costs Inno Setup's own timeout once per file
   ([ADR 0003](adr/0003-built-in-downloads-instead-of-idp.md)).
+
+## 11. Suite "Empire Earth Community" (planned)
+
+Decided in [ADR 0013](adr/0013-suite-installer.md), specified for the launcher in contract revision 4
+([CONTRACT.md](CONTRACT.md): 0 "Suite and launcher", 1.6, 1.7, 4.2, 4.4); built by the v1 work
+packages after the WP0 spike. The suite is a separate, small Inno Setup 6.2.2 script in `suite/`; the
+four variants of sections 2 and 3 do not change for it.
+
+- **Package:** `Empire Earth Community Setup.exe` plus `.bin` slices of at most 50,000,000 bytes
+  (`DiskSpanning`). It embeds the EE and NeoEE Regular setups byte for byte (official AppIds; SHA-256
+  and size fixed at build time and checked before they run), the launcher and the Mod Creator.
+- **Run:** one elevated run (`PrivilegesRequired=admin`, 64-bit install mode, Windows 7 SP1 and
+  later). Prechecks before anything is extracted (all slices present, not started from the ZIP view,
+  free space, mutexes). At `CurStepChanged(ssInstall)` the suite runs the selected product setups, EE
+  before NeoEE, silently with `/NOICONS /MERGETASKS="!desktopicon"` and a log per product in
+  `{app}\Logs`; a repair passes neither `/TYPE` nor `/DIR`. The suite itself shows the legal question,
+  the EULA and the NeoEE rules, because the silent product setups skip them. A product installed for
+  one user only is skipped with a message.
+- **After each product:** success = exit code 0 and the uninstall key in HKLM64; the old shortcuts of
+  standalone runs of that product are deleted (contract 1.7 point 7) before Inno Setup creates the
+  suite's shortcuts `Empire Earth` and `Neo Empire Earth` (desktop and start menu folder `Empire Earth
+  Community`), which start the launcher with `--product=EE` or `--product=NeoEE`. For NeoEE the suite
+  reads the line `CD Keys generation result: <n>` of the product log and shows it; the CD-key
+  registration stays the NeoEE setup's own (D6).
+- **Record and mutexes:** the suite record `HKLM64\Software\Empire Earth Community\Suite` (contract
+  1.6) lists the products that succeeded and the folder the package was started from (`SourceDir`), for
+  the launcher's repair advice. `SetupMutex=EmpireEarthCommunity_Suite`; `AppMutex` holds the game
+  mutexes and the launcher's `EmpireEarthCommunityLauncher`.
+- **Uninstall:** one entry in Windows "Apps" for the package; it runs the uninstallers of the products
+  it lists and waits until their uninstall keys are gone, then removes the launcher, the shortcuts and
+  the record; game saves stay unless the user asks otherwise. The product entries stay visible for a
+  single game.
+- **Checks:** `ci/check_contract.py` reads `suite/suite.iss` as soon as it exists (`SetupMutex`,
+  `AppMutex`, the record's value names and types, the game shortcuts to the launcher); until then it
+  reports "suite/suite.iss not present, suite rules skipped".
 
 ## Plan
 

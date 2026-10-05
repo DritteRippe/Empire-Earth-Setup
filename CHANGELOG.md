@@ -528,6 +528,19 @@ setup version stays 1.7.2 until the release.
   `MinVersion` and `OnlyBelowVersion`, tasks joined by `or` in `GetCompatibilityFlags`, the opt-in
   marker and two entries that could write the value of one program in the same run (55 self-test
   cases).
+- `docs/CONTRACT.md`, revision 4 for the suite installer "Empire Earth Community"
+  ([ADR 0013](docs/adr/0013-suite-installer.md); still contract version 1, draft: optional
+  additions only, 4.1 and 4.3 unchanged; the same text and commit subject in the launcher
+  repository): the names and mutexes of the suite and the launcher (0 "Suite and launcher"), the
+  launcher argument `--product=EE|NeoEE` for one session (1.4), the optional suite record (1.6), how
+  the suite runs a product setup, with the log line `CD Keys generation result: <n>` as an
+  interface, the guard for products installed for one user only, the removal of the old product
+  shortcuts before the suite shortcuts `Empire Earth` and `Neo Empire Earth`, and the launcher
+  outside the product roots (1.7, O10 answered), the suite mutex as a setup mutex (4.2), the repair
+  advice with the package folder (4.4). `ci/check_contract.py` checks `suite/suite.iss` against it
+  (`SetupMutex`, `AppMutex` with the launcher mutex, the value names and types of the suite record,
+  the game shortcuts to the launcher) and skips these rules while the file does not exist (90
+  self-test cases). ADR 0013 and ARCHITECTURE section 11 describe the suite.
 - `docs/CONTRACT.md`, revision 3 (still contract version 1, draft: only compatible clarifications
   by its section 5; the same text and commit subject in the launcher repository; no change of the
   setup's code): O11 names all three triggers of the question `SharedFolderQuestion`, also the
