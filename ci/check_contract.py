@@ -54,27 +54,43 @@ is the setup script. This check reads only TABLES of the contract, never its pro
 
 Suite (contract revision 4, setup ADR 0013): suite/suite.iss and the files its #include "..." lines
 name. While suite/suite.iss does not exist, the check prints "suite/suite.iss not present, suite
-rules skipped" and passes.
+rules skipped" and passes. The suite writes its record and creates its shortcuts in code at
+ssPostInstall (ADR 0013 Evidence: the Check functions of [Icons] and [Registry] did not reliably see
+what ssInstall had set), so the rules read them from the [Code] lines of the script; entries of a
+[Registry] or [Icons] section are read as well and count the same.
 
   contract                                     suite/suite.iss
   0 "Suite and launcher", rows "Suite setup    [Setup] SetupMutex names the suite setup mutex;
   mutex (SetupMutex)", "Launcher mutex",       AppMutex names the launcher mutex and every name
   "Suite AppMutex"                             of the row "Suite AppMutex" (every occurrence of
                                                the directive, order free)
-  1.6, Value | Type, with the row "Suite       the [Registry] entries of that key: Root HKLM64, or
-  record key" of 0                             HKLM with ArchitecturesInstallIn64BitMode; exactly
-                                               the value names of the table with their types;
-                                               the flag uninsdeletekey; a plain ContractVersion
-                                               equal to the contract version
-  1.7, Shortcut | Product | Places | Target |  [Icons]: per row and place an entry
-       Parameters | Without .NET Framework 4.8 <place>\<shortcut> that starts the launcher (row
+  1.6, Value | Type, with the row "Suite       the registry values written in code, one call
+  record key" of 0                             RegWrite<Type>Value(<root>, '<key>', '<name>', <data>)
+                                               per value (literal key and name), or the [Registry]
+                                               entries of that key: Root HKLM64, or HKLM with
+                                               ArchitecturesInstallIn64BitMode; exactly the value
+                                               names of the table with their types; a plain
+                                               ContractVersion equal to the contract version; the
+                                               removal of the record: the flag uninsdeletekey, or in
+                                               code RegDeleteKeyIncludingSubkeys(<root>, '<key>')
+                                               and RegDeleteKeyIfEmpty(<root>, '<parent key>')
+  1.7, Shortcut | Product | Places | Target |  the calls SuiteShortcut('<place>', '<name>',
+       Parameters | Without .NET Framework 4.8 '<target>', '<parameters>', '<product>',
+                                               '<fallback>') (literal arguments; the fallback is
+                                               the game program below the product root), or the
+                                               [Icons] entries: per row and place a shortcut
+                                               <place>\<shortcut> that starts the launcher (row
                                                "Launcher program" of 0) with the row's
                                                parameters ({group} is DefaultGroupName below
-                                               {autoprograms}); every entry with a game shortcut
-                                               name starts the launcher with exactly those
-                                               parameters, or the program of the fallback column
-                                               without parameters; every entry that passes
-                                               --product= starts the launcher
+                                               {autoprograms}); every shortcut with a game
+                                               shortcut name starts the launcher with exactly
+                                               those parameters, and, as the fallback, the program
+                                               of the fallback column without parameters; every
+                                               shortcut that passes --product= starts the launcher
+                                               and names that product
+  3.8 (protected keys)                         no code line (comments left out) names Software\Sierra,
+                                               CDKeys or authtools: the CD key registration stays
+                                               the NeoEE setup's own
 
 The suite script is read as written, without evaluating #if: {#Name} is expanded from plain
 '#define Name "text"' and '#define Name <number>' lines (a name defined with two values, or
@@ -118,8 +134,9 @@ value per rule, e.g. Music Volume $2C -> $2D, a missing extension, another publi
 limit 1920 -> 2560,
 GpuPreference=2; -> GpuPreference=1;, WIN7RTM -> WIN8RTM, a missing row compatibility_legacy, a
 [Files] entry without ignoreversion, another component of a verified online file entry, and a
-minimal suite/suite.iss written by the self-test with one change: the launcher mutex missing in
-AppMutex, a record value missing or added, a game shortcut to the wrong target) that must fail
+minimal suite/suite.iss written by the self-test, in the form of [Registry] and [Icons] and in the
+form of code, with one change: the launcher mutex missing in AppMutex, a record value missing or
+added, a game shortcut to the wrong target, a reference to a protected key) that must fail
 with the expected message, and against copies that must pass (also without suite/suite.iss, and
 with the unchanged minimal suite script, checked by the text of the summary).
 
@@ -1747,6 +1764,17 @@ SUITE_RECORD_KEY_ROW = "Suite record key"
 SUITE_DEFINE = re.compile(r'^\s*#\s*define\s+([A-Za-z_]\w*)\s*(?:=\s*)?(?:"([^"]*)"|(\d+))\s*$')
 SUITE_DEFINE_REF = re.compile(r"\{#\s*([A-Za-z_]\w*)\s*\}")
 SUITE_RECORD_ROOTS = ("hklm", "hklm64")
+# The suite writes its record and creates its shortcuts in code (ADR 0013 Evidence): one statement
+# per line with literal arguments, as the checks below read them
+SUITE_CODE_REG_WRITE = re.compile(
+    r"^\s*RegWrite(String|DWord|ExpandString|MultiString|Binary)Value\s*\(\s*(\w+)\s*,\s*'((?:[^']|'')*)'\s*,\s*"
+    r"'((?:[^']|'')*)'\s*,\s*(.*)\)\s*;\s*(?://.*)?$")
+SUITE_CODE_REG_DELETE = re.compile(
+    r"^\s*RegDelete(KeyIncludingSubkeys|KeyIfEmpty)\s*\(\s*(\w+)\s*,\s*'((?:[^']|'')*)'\s*\)\s*;")
+SUITE_CODE_SHORTCUT = re.compile(r"^\s*SuiteShortcut\s*\((.*)\)\s*;\s*(?://.*)?$")
+SUITE_CODE_REG_TYPES = {"string": "string", "dword": "dword", "expandstring": "expandsz",
+                        "multistring": "multisz", "binary": "binary"}
+SUITE_PROTECTED = re.compile(r"software\\+sierra|\bcdkeys\b|authtools", re.IGNORECASE)
 
 
 def contract_named_section(lines, title):
@@ -1788,6 +1816,40 @@ def suite_include_closure(root):
                 beside = rel.parent / name
                 queue.append(beside if (root / beside).is_file() else name)
     return found
+
+
+def pascal_literals(text, where):
+    """The comma separated string literals ('a', 'b''c') of a call as a list of plain strings; any
+    other argument stops the check, so that nothing is guessed."""
+    args, i, n = [], 0, len(text)
+    while True:
+        while i < n and text[i] in " \t":
+            i += 1
+        if i >= n or text[i] != "'":
+            raise CheckError(f"{where}: cannot read the arguments of '{text.strip()}': this check reads "
+                             "only string literals there")
+        i += 1
+        value = []
+        while True:
+            if i >= n:
+                raise CheckError(f"{where}: cannot read the arguments of '{text.strip()}': a string is not closed")
+            if text[i] == "'":
+                if i + 1 < n and text[i + 1] == "'":
+                    value.append("'")
+                    i += 2
+                    continue
+                i += 1
+                break
+            value.append(text[i])
+            i += 1
+        args.append("".join(value))
+        while i < n and text[i] in " \t":
+            i += 1
+        if i >= n:
+            return args
+        if text[i] != ",":
+            raise CheckError(f"{where}: cannot read the arguments of '{text.strip()}': ',' expected")
+        i += 1
 
 
 class SuiteScript:
@@ -1851,6 +1913,62 @@ class SuiteScript:
     def entries(self, name):
         return [(where, parse_params(text)) for where, text in self.section(name)]
 
+    def code_lines(self):
+        """[(where, text)] of the [Code] lines without comment lines and trailing // comments."""
+        result = []
+        for where, text in self.section("Code"):
+            code = text.split("//", 1)[0] if text.lstrip().startswith("//") else text
+            result.append((where, code))
+        return result
+
+    def code_registry_entries(self):
+        """The registry values the code writes, as the entries of a [Registry] section (Root,
+        Subkey, ValueName, ValueType, ValueData) that the record rules read."""
+        result = []
+        for where, text in self.code_lines():
+            match = SUITE_CODE_REG_WRITE.match(text)
+            if match:
+                kind, root, key, name, data = match.groups()
+                result.append((where, {"root": root, "subkey": key.replace("''", "'"),
+                                       "valuename": name.replace("''", "'"),
+                                       "valuetype": SUITE_CODE_REG_TYPES[kind.lower()],
+                                       "valuedata": data.strip()}))
+        return result
+
+    def code_registry_deletes(self):
+        """[(where, 'KeyIncludingSubkeys' or 'KeyIfEmpty', root, key)] of the keys the code deletes."""
+        result = []
+        for where, text in self.code_lines():
+            match = SUITE_CODE_REG_DELETE.match(text)
+            if match:
+                result.append((where, match.group(1), match.group(2), match.group(3).replace("''", "'")))
+        return result
+
+    def code_shortcut_entries(self):
+        """The SuiteShortcut calls of the code as ([Icons] entries, problems): one entry with the
+        target and the parameters, and one more with the game program of the fallback."""
+        entries, problems = [], []
+        for where, text in self.code_lines():
+            match = SUITE_CODE_SHORTCUT.match(text)
+            if not match:
+                continue
+            args = pascal_literals(match.group(1), where)
+            if len(args) != 6:
+                raise CheckError(f"{where}: SuiteShortcut has {len(args)} arguments, this check reads six "
+                                 "(place, name, target, parameters, product, fallback)")
+            place, short, target, parameters, product, fallback = args
+            name = f"{place}\\{short}"
+            entries.append((where, {"name": name, "filename": target, "parameters": parameters}))
+            if parameters.startswith("--product=") and parameters[len("--product="):] != product:
+                problems.append(f"{where}: {name} passes {parameters} but names the product '{product}' "
+                                "(contract 1.7) [suite 1.7]")
+            if fallback:
+                entries.append((where, {"name": name, "filename": "{code:ProductRoot|" + product + "}" + fallback}))
+            elif parameters.startswith("--product="):
+                problems.append(f"{where}: the game shortcut {name} has no fallback to the game program for a "
+                                "computer without .NET Framework 4.8 (contract 1.7 point 8) [suite 1.7]")
+        return entries, problems
+
 
 def suite_names(contract_lines):
     """{row: [code values]} of the table 'Suite and launcher' of contract 0."""
@@ -1901,7 +2019,7 @@ def check_suite_record(script, contract_lines, names, version, errors):
             raise CheckError(f"{CONTRACT}:{no}: the column Value of 1.6 must hold one name in backticks")
         table[value_names[0].lower()] = (value_names[0], plain(row["Type"]))
     key = names[SUITE_RECORD_KEY_ROW][0].strip("\\").lower()
-    entries = [(where, params) for where, params in script.entries("Registry")
+    entries = [(where, params) for where, params in script.entries("Registry") + script.code_registry_entries()
                if script.expand(params.get("subkey", ""), where).strip("\\").lower() == key]
     if not entries:
         errors.append(f"{SUITE_SCRIPT}: [Registry] has no entry for the suite record key "
@@ -1924,9 +2042,21 @@ def check_suite_record(script, contract_lines, names, version, errors):
         name = script.expand(name, where)
         value_type = REG_TYPES.get(params.get("valuetype", "").strip().lower(), params.get("valuetype", ""))
         found.setdefault(name.lower(), []).append((where, name, value_type, params))
-    if not any("uninsdeletekey" in params.get("flags", "").lower().split() for _, params in entries):
+    # removed on uninstall: the flag uninsdeletekey, or the code of the uninstaller deletes the key and,
+    # if empty, the key above it (what the flag uninsdeletekeyifempty does for the parent)
+    deletes = [(kind, root.lower(), script.expand(deleted, where).strip("\\").lower())
+               for where, kind, root, deleted in script.code_registry_deletes()]
+    parent = key.rpartition("\\")[0]
+    by_flag = any("uninsdeletekey" in params.get("flags", "").lower().split() for _, params in entries)
+    by_code = (("KeyIncludingSubkeys", "hklm", key) in deletes or ("KeyIncludingSubkeys", "hklm64", key) in deletes)
+    if not by_flag and not by_code:
         errors.append(f"{SUITE_SCRIPT}: no [Registry] entry of the suite record key has the flag uninsdeletekey "
+                      f"and the code has no RegDeleteKeyIncludingSubkeys(HKLM, '{names[SUITE_RECORD_KEY_ROW][0]}') "
                       "(contract 1.6) [suite 1.6]")
+    elif not by_flag and not (("KeyIfEmpty", "hklm", parent) in deletes or ("KeyIfEmpty", "hklm64", parent) in deletes):
+        errors.append(f"{SUITE_SCRIPT}: the code removes the suite record key but has no "
+                      f"RegDeleteKeyIfEmpty(HKLM, '{names[SUITE_RECORD_KEY_ROW][0].rpartition(chr(92))[0]}') for the key "
+                      "above it (contract 1.6, uninsdeletekeyifempty) [suite 1.6]")
     for lower, (name, value_type) in table.items():
         if lower not in found:
             errors.append(f"{SUITE_SCRIPT}: the suite record has no value {name} (table of contract 1.6) "
@@ -1987,7 +2117,9 @@ def check_suite_shortcuts(script, contract_lines, names, errors):
         return place, short
 
     icons = []
-    for where, params in script.entries("Icons"):
+    code_entries, code_problems = script.code_shortcut_entries()
+    errors.extend(code_problems)
+    for where, params in script.entries("Icons") + code_entries:
         place, short = place_and_name(where, params)
         icons.append((where, place, short, script.expand(params.get("filename", ""), where),
                       script.expand(params.get("parameters", ""), where).strip()))
@@ -2022,6 +2154,23 @@ def check_suite_shortcuts(script, contract_lines, names, errors):
     return count
 
 
+def check_suite_protected(script, errors):
+    """No code line of the suite (comments left out) names the protected keys of contract 3.8 or the
+    CD key registration (authtools.dll): it stays the NeoEE setup's own (ADR 0013, contract 1.7
+    point 5). Returns the number of lines read."""
+    count = 0
+    for where, text in script.lines:
+        stripped = text.strip()
+        if not stripped or stripped.startswith(";"):
+            continue
+        code = "" if stripped.startswith("//") else text.split("//", 1)[0]
+        count += 1
+        if SUITE_PROTECTED.search(code):
+            errors.append(f"{where}: the suite names a protected key or the CD key registration "
+                          f"('{stripped}'); only the NeoEE setup registers the CD keys (contract 3.8, 1.7) [suite 3.8]")
+    return count
+
+
 def check_suite(root, contract_lines, version, errors):
     """The suite rules; a summary text. Skipped (no error) while suite/suite.iss does not exist."""
     if not (root / SUITE_SCRIPT).is_file():
@@ -2031,8 +2180,9 @@ def check_suite(root, contract_lines, version, errors):
     mutexes = check_suite_mutexes(script, names, errors)
     values = check_suite_record(script, contract_lines, names, version, errors)
     shortcuts = check_suite_shortcuts(script, contract_lines, names, errors)
+    lines = check_suite_protected(script, errors)
     return (f"suite: SetupMutex and AppMutex ({mutexes} names), record with {values} values, "
-            f"{shortcuts} game shortcuts to the launcher")
+            f"{shortcuts} game shortcuts to the launcher, no protected key in {lines} code lines")
 
 
 # ---------------------------------------------------------------------------------------------
@@ -2264,6 +2414,52 @@ Name: "{group}\Empire Earth Launcher"; Filename: "{app}\{#LauncherExe}"; Working
 Name: "{group}\{cm:UninstallProgram,{#SuiteName}}"; Filename: "{uninstallexe}"
 """
     fixture = write(suite, SUITE_FIXTURE)
+    # The same suite as the script of WP3 writes it: the record and the shortcuts in code
+    SUITE_CODE_FIXTURE = r"""; self-test fixture of ci/check_contract.py: record and shortcuts in code
+#define SuiteName "Empire Earth Community"
+#define LauncherExe "Empire Earth Launcher.exe"
+#define SuiteKey "Software\Empire Earth Community\Suite"
+#define ContractVersion 1
+
+[Setup]
+AppName={#SuiteName}
+ArchitecturesInstallIn64BitMode=x64 arm64
+SetupMutex=EmpireEarthCommunity_Suite
+AppMutex=StainlessSteelStudiosPresentsEmpireEarth,MadDocSoftwarePresentsEmpireEarthExpansion,EmpireEarthCommunityLauncher
+
+[Code]
+procedure WriteSuiteRecord;
+begin
+  RegWriteDWordValue(HKLM, '{#SuiteKey}', 'ContractVersion', {#ContractVersion});
+  RegWriteStringValue(HKLM, '{#SuiteKey}', 'SuiteVersion', '1.0.0');
+  RegWriteStringValue(HKLM, '{#SuiteKey}', 'InstallPath', RemoveBackslash(ExpandConstant('{app}')));
+  RegWriteStringValue(HKLM, '{#SuiteKey}', 'Products', 'EE');
+  RegWriteStringValue(HKLM, '{#SuiteKey}', 'SourceDir', RemoveBackslash(ExpandConstant('{src}')));
+  RegWriteStringValue(HKLM, '{#SuiteKey}', 'EEAppId', 'x');
+  RegWriteStringValue(HKLM, '{#SuiteKey}', 'NeoEEAppId', 'y');
+  RegWriteStringValue(HKLM, '{#SuiteKey}', 'Written', GetDateTimeString('yyyy-mm-dd hh:nn:ss', '-', ':')); // the time
+end;
+
+procedure RemoveSuiteRecord;
+begin
+  RegDeleteKeyIncludingSubkeys(HKLM, '{#SuiteKey}');
+  RegDeleteKeyIfEmpty(HKLM, 'Software\Empire Earth Community');
+end;
+
+// SuiteShortcut('{autodesktop}', 'Nothing', 'in a comment', '--product=EE', 'EE', '');
+procedure ApplySuiteShortcuts(Remove: Boolean);
+begin
+  SuiteShortcut('{autodesktop}', 'Empire Earth', '{app}\{#LauncherExe}', '--product=EE', 'EE', '\Empire Earth\Empire Earth.exe');
+  SuiteShortcut('{autoprograms}\Empire Earth Community', 'Empire Earth', '{app}\{#LauncherExe}', '--product=EE', 'EE', '\Empire Earth\Empire Earth.exe');
+  SuiteShortcut('{autodesktop}', 'Neo Empire Earth', '{app}\{#LauncherExe}', '--product=NeoEE', 'NeoEE', '\Empire Earth\Empire Earth.exe');
+  SuiteShortcut('{autoprograms}\Empire Earth Community', 'Neo Empire Earth', '{app}\{#LauncherExe}', '--product=NeoEE', 'NeoEE', '\Empire Earth\Empire Earth.exe');
+  SuiteShortcut('{autoprograms}\Empire Earth Community', 'Empire Earth Launcher', '{app}\{#LauncherExe}', '', '', '');
+end;
+"""
+    code_fixture = write(suite, SUITE_CODE_FIXTURE)
+
+    def code_case(old, new):
+        return both(code_fixture, replace(suite, old, new))
 
     def suite_case(old, new):
         return both(fixture, replace(suite, old, new))
@@ -2576,6 +2772,63 @@ Name: "{group}\{cm:UninstallProgram,{#SuiteName}}"; Filename: "{uninstallexe}"
         ("suite: fallback shortcut to another program",
          suite_case('"{code:ProductRoot|EE}\\Empire Earth\\Empire Earth.exe"', '"{code:ProductRoot|EE}\\Empire Earth\\EE-Diagnostic.exe"'),
          "contract 1.7 allows the launcher"),
+        # the same rules for the record and the shortcuts written in code
+        ("suite code: record without the value Written",
+         code_case("'Written', GetDateTimeString", "'Writen', GetDateTimeString"),
+         "the suite record has no value Written"),
+        ("suite code: record with a value the contract does not have",
+         code_case("'Products', 'EE');", "'Products', 'EE');\n  RegWriteStringValue(HKLM, '{#SuiteKey}', 'Language', 'de');"),
+         "the suite record value Language is not in the table of contract 1.6"),
+        ("suite code: ContractVersion as a string",
+         code_case("RegWriteDWordValue(HKLM, '{#SuiteKey}', 'ContractVersion'", "RegWriteStringValue(HKLM, '{#SuiteKey}', 'ContractVersion'"),
+         "ContractVersion is REG_SZ, contract 1.6 REG_DWORD"),
+        ("suite code: ContractVersion 2",
+         code_case("#define ContractVersion 1", "#define ContractVersion 2"),
+         "ContractVersion 2, but the contract version is 1"),
+        ("suite code: record in HKCU",
+         code_case("RegWriteStringValue(HKLM, '{#SuiteKey}', 'Products'", "RegWriteStringValue(HKCU, '{#SuiteKey}', 'Products'"),
+         "the suite record has Root HKCU"),
+        ("suite code: record in HKLM without 64-bit install mode",
+         code_case("ArchitecturesInstallIn64BitMode=x64 arm64\n", ""),
+         "so it lands in the 32-bit view"),
+        ("suite code: record not removed by the uninstaller",
+         code_case("  RegDeleteKeyIncludingSubkeys(HKLM, '{#SuiteKey}');\n", ""),
+         "has the flag uninsdeletekey and the code has no RegDeleteKeyIncludingSubkeys"),
+        ("suite code: the key above the record is not removed",
+         code_case("  RegDeleteKeyIfEmpty(HKLM, 'Software\\Empire Earth Community');\n", ""),
+         "has no RegDeleteKeyIfEmpty(HKLM, 'Software\\Empire Earth Community')"),
+        ("suite code: EE shortcut with --product=NeoEE",
+         code_case("'{app}\\{#LauncherExe}', '--product=EE', 'EE', '\\Empire Earth\\Empire Earth.exe');\n  SuiteShortcut('{autoprograms}",
+                   "'{app}\\{#LauncherExe}', '--product=NeoEE', 'EE', '\\Empire Earth\\Empire Earth.exe');\n  SuiteShortcut('{autoprograms}"),
+         "passes --product=NeoEE but names the product 'EE'"),
+        ("suite code: game shortcut without a fallback",
+         code_case("'--product=NeoEE', 'NeoEE', '\\Empire Earth\\Empire Earth.exe');\n  SuiteShortcut('{autoprograms}\\Empire Earth Community', 'Neo",
+                   "'--product=NeoEE', 'NeoEE', '');\n  SuiteShortcut('{autoprograms}\\Empire Earth Community', 'Neo"),
+         "has no fallback to the game program"),
+        ("suite code: fallback to another program",
+         code_case("'{autodesktop}', 'Empire Earth', '{app}\\{#LauncherExe}', '--product=EE', 'EE', '\\Empire Earth\\Empire Earth.exe'",
+                   "'{autodesktop}', 'Empire Earth', '{app}\\{#LauncherExe}', '--product=EE', 'EE', '\\Empire Earth\\EE-Diagnostic.exe'"),
+         "contract 1.7 allows the launcher"),
+        ("suite code: game shortcut to the Mod Creator",
+         code_case("'{autodesktop}', 'Empire Earth', '{app}\\{#LauncherExe}'", "'{autodesktop}', 'Empire Earth', '{app}\\Mod Creator\\Mod Creator.exe'"),
+         "passes --product=EE but starts {app}\\Mod Creator\\Mod Creator.exe, not the launcher"),
+        ("suite code: no Neo Empire Earth shortcut in the start menu",
+         code_case("'{autoprograms}\\Empire Earth Community', 'Neo Empire Earth'", "'{autoprograms}\\Empire Earth Community', 'NeoEE'"),
+         "no [Icons] entry {autoprograms}\\Empire Earth Community\\Neo Empire Earth that starts the launcher"),
+        ("suite code: shortcut with six arguments missing",
+         code_case("'{app}\\{#LauncherExe}', '', '', '');", "'{app}\\{#LauncherExe}', '');"),
+         "SuiteShortcut has 4 arguments, this check reads six"),
+        ("suite code: shortcut name from a variable",
+         code_case("'{autodesktop}', 'Empire Earth', '{app}", "'{autodesktop}', SuiteName, '{app}"),
+         "this check reads only string literals there"),
+        ("suite code: the protected key of the CD keys in code",
+         code_case("  RegDeleteKeyIfEmpty(HKLM, 'Software\\Empire Earth Community');",
+                   "  RegDeleteKeyIfEmpty(HKLM, 'Software\\Empire Earth Community');\n  RegDeleteKeyIncludingSubkeys(HKLM, 'Software\\Sierra\\CDKeys');"),
+         "names a protected key or the CD key registration"),
+        ("suite code: authtools in code",
+         code_case("  RegDeleteKeyIfEmpty(HKLM, 'Software\\Empire Earth Community');",
+                   "  RegDeleteKeyIfEmpty(HKLM, 'Software\\Empire Earth Community');\n  LoadDLL('authtools.dll');"),
+         "names a protected key or the CD key registration"),
     ]
     passing = [
         ("ISPP function in an unrelated [Registry] entry",
@@ -2596,6 +2849,17 @@ Name: "{group}\{cm:UninstallProgram,{#SuiteName}}"; Filename: "{uninstallexe}"
         ("suite: suite/suite.iss absent, suite rules skipped", remove(suite), SUITE_SKIPPED),
         ("suite: minimal suite/suite.iss as the contract describes it", fixture,
          "suite: SetupMutex and AppMutex (4 names), record with 8 values, 4 game shortcuts to the launcher"),
+        ("suite code: record and shortcuts in code as the contract describes them", code_fixture,
+         "record with 8 values, 4 game shortcuts to the launcher, no protected key in"),
+        ("suite code: a protected key named in a comment only",
+         code_case("// SuiteShortcut('{autodesktop}'", "// never touches Software\\Sierra\\CDKeys or authtools.dll\n// SuiteShortcut('{autodesktop}'"),
+         "no protected key in"),
+        ("suite code: HKLM64, a statement after a trailing comment, a value name with a doubled apostrophe",
+         both(code_fixture,
+              replace(suite, "RegWriteStringValue(HKLM, '{#SuiteKey}', 'Products', 'EE');",
+                      "RegWriteStringValue(HKLM64, '{#SuiteKey}', 'Products', 'EE'); // the products"),
+              replace(suite, "RegDeleteKeyIncludingSubkeys(HKLM, '{#SuiteKey}');", "RegDeleteKeyIncludingSubkeys(HKLM64, '{#SuiteKey}');")),
+         "record with 8 values"),
         ("suite: record in HKLM64 without 64-bit install mode, start menu folder written out, other order",
          both(fixture,
               replace(suite, "ArchitecturesInstallIn64BitMode=x64 arm64\n", ""),
