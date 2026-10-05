@@ -29,6 +29,14 @@ to stay safe and installable:
             SuiteExitProductSetup; no DelTree and no registry deletion; DeleteFile only on the
             extracted product setup, the log of the product setup and the old shortcut files of
             SuiteLegacyShortcutPath; no ShellExec
+  [Uninstaller] suite/suite_uninstall.iss: suite.iss includes it and runs the product uninstallers at
+            usUninstall, the shortcuts, the record and the user data at usPostUninstall; InitializeUninstall
+            checks the game and launcher mutexes, holds the setup mutex of [Setup] and asks one question
+            (not in a silent run); the only programs it starts are the uninstaller of a product (after
+            SuiteIsProductUninstaller) and ping for a pause; DelTree only in SuiteDeleteDataFolders, called only
+            after the answer "Delete" (the second button, never in a silent run); DeleteFile and RemoveDir only
+            on the paths of the helpers of suite_common.iss; no registry deletion except RemoveSuiteRecord;
+            [UninstallDelete] names {app}\Logs only; no Setup-only function (WizardSilent)
   [Safety]  no suite file mentions the registry key of the CD keys of the original game, the library of the
             NeoEE CD key registration or its function (the suite never reimplements or bypasses the
             registration, contract 1.7 point 5)
@@ -48,7 +56,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from check_contract import CheckError, logical_lines, parse_params  # noqa: E402
 
 SUITE_FILES = ["suite/suite.iss", "suite/suite_common.iss", "suite/suite_messages.iss",
-               "suite/suite_shortcuts.iss", "suite/suite_record.iss", "suite/suite_pages.iss", "suite/suite_run.iss"]
+               "suite/suite_shortcuts.iss", "suite/suite_record.iss", "suite/suite_pages.iss", "suite/suite_run.iss",
+               "suite/suite_uninstall.iss"]
 SETUP_EXPECTED = {
     "MinVersion": "6.1sp1",
     "PrivilegesRequired": "admin",
@@ -287,6 +296,101 @@ def check_runner(runner, main, errors):
     return 9
 
 
+def check_uninstaller(uninstaller, main, files, errors):
+    """Rules for suite/suite_uninstall.iss and for how suite/suite.iss uses it; the number of rules checked.
+    files is {relative path: text} of every suite file."""
+    where = "suite/suite_uninstall.iss"
+    code = code_lines(uninstaller)
+    bodies = function_bodies(code)
+    all_code = "\n".join(line for _, line in code)
+    main_code = "\n".join(line for _, line in code_lines(main))
+    if not re.search(r'^#include\s+"suite_uninstall\.iss"', main, re.MULTILINE):
+        errors.append('suite/suite.iss: no #include "suite_uninstall.iss" (the uninstaller)')
+    steps = re.search(r"CurUninstallStepChanged.*?\bif\s+CurUninstallStep\s*=\s*usUninstall\s+then\s+SuiteRemoveProducts\b"
+                      r".*?\belse\s+if\s+CurUninstallStep\s*=\s*usPostUninstall\s+then\s+begin\s+ApplySuiteShortcuts\(True\);"
+                      r"\s+RemoveSuiteRecord;\s+SuiteRemoveUserData;", main_code, re.DOTALL)
+    if not steps:
+        errors.append("suite/suite.iss: CurUninstallStepChanged must run SuiteRemoveProducts at usUninstall and "
+                      "ApplySuiteShortcuts(True), RemoveSuiteRecord and SuiteRemoveUserData at usPostUninstall")
+    # the setup mutex: the same name as [Setup] SetupMutex, checked and held by InitializeUninstall
+    declared = re.search(r"\bSuiteSetupMutexName\s*=\s*'([^']*)'", all_code)
+    setup_mutex = re.search(r"^SetupMutex=(.*)$", main, re.MULTILINE)
+    if not declared or not setup_mutex or declared.group(1) != setup_mutex.group(1).strip():
+        errors.append(f"{where}: SuiteSetupMutexName ({declared.group(1) if declared else 'missing'}) must be the "
+                      f"[Setup] SetupMutex of suite.iss ({setup_mutex.group(1).strip() if setup_mutex else 'missing'})")
+    init = bodies.get("InitializeUninstall", "")
+    for needed, text in (("CheckForMutexes(SuiteMutexes)", "check the game and launcher mutexes"),
+                         ("CheckForMutexes(SuiteSetupMutexName)", "check the setup mutex of the suite"),
+                         ("CreateMutex(SuiteSetupMutexName)", "hold the setup mutex of the suite")):
+        if needed not in init:
+            errors.append(f"{where}: InitializeUninstall must {text} ({needed})")
+    question = re.search(r"if\s+not\s+UninstallSilent\s+then.*?\bSuppressibleMsgBox\s*\(.*?MB_YESNO", init, re.DOTALL)
+    if not question:
+        errors.append(f"{where}: InitializeUninstall must ask its one question with SuppressibleMsgBox (MB_YESNO) "
+                      "and not in a silent run (if not UninstallSilent)")
+    # the programs it starts
+    execs = re.findall(r"\bExec\s*\(\s*([^,]*),", all_code)
+    shell = re.findall(r"\b(?:ShellExec|ShellExecAsOriginalUser|ExecAsOriginalUser)\s*\(", all_code)
+    if shell or sorted(e.strip() for e in execs) != sorted(["Exe", "ExpandConstant('{sys}\\ping.exe')"]):
+        errors.append(f"{where}: the uninstaller may start only the uninstaller of a product (Exec(Exe, ...)) and "
+                      f"ping.exe for a pause (found: {', '.join(e.strip() for e in execs) or 'none'}"
+                      f"{', ' + str(len(shell)) + ' ShellExec' if shell else ''})")
+    remove = bodies.get("SuiteRemoveProduct", "")
+    exec_at = re.search(r"\bExec\s*\(", remove)
+    guard = re.search(r"if\s+not\s+SuiteIsProductUninstaller\(Exe,\s*Root\)\s+or\s+not\s+FileExists\(Exe\)\s+then", remove)
+    if not exec_at or not guard or guard.start() > exec_at.start():
+        errors.append(f"{where}: SuiteRemoveProduct must check SuiteIsProductUninstaller(Exe, Root) and the file before Exec")
+    if "'/VERYSILENT /SUPPRESSMSGBOXES /NORESTART'" not in remove:
+        errors.append(f"{where}: SuiteRemoveProduct must run the uninstaller with /VERYSILENT /SUPPRESSMSGBOXES /NORESTART")
+    if "SuiteUninstallWaitState(" not in remove or "RegKeyExists(HKLM, Key)" not in remove or "FileExists(Exe)" not in remove:
+        errors.append(f"{where}: SuiteRemoveProduct must wait with SuiteUninstallWaitState on the uninstall key and the "
+                      "program file (the exit code of the first process decides nothing)")
+    # the deletions
+    trees = call_arguments(all_code, "DelTree")
+    if trees != ["Folders[I], True, True, True"] or "DelTree(" not in bodies.get("SuiteDeleteDataFolders", ""):
+        errors.append(f"{where}: DelTree may only be called in SuiteDeleteDataFolders, for the folders of its list "
+                      f"(found: {trees})")
+    data = bodies.get("SuiteRemoveUserData", "")
+    calls = re.findall(r"\bSuiteDeleteDataFolders\s*\(", all_code)
+    delete_if = re.search(r"if\s+DeleteData\s+then\s+SuiteDeleteDataFolders\(Folders\);", data)
+    asked = re.search(r"if\s+UninstallSilent\s+then\s+Log\(.*?\bDeleteData\s*:=\s*SuppressibleTaskDialogMsgBox\(.*?IDYES\)\s*=\s*IDNO;",
+                      data, re.DOTALL)
+    if len(calls) != 2 or not delete_if or not asked or data.find("SuiteDeleteDataFolders(") < data.find("SuppressibleTaskDialogMsgBox("):
+        errors.append(f"{where}: SuiteDeleteDataFolders is only called in SuiteRemoveUserData, after the task dialog of "
+                      "the question, with 'if DeleteData then', and DeleteData is only True for the second button "
+                      "(IDNO), never in a silent run; the answer of a suppressed box is IDYES (keep)")
+    existing = bodies.get("SuiteExistingDataFolders", "")
+    if "SuiteDataFolder(" not in existing or "SuiteLauncherDataFolder(" not in existing or "DirExists(" not in existing:
+        errors.append(f"{where}: SuiteExistingDataFolders must list only the folders of SuiteDataFolder and "
+                      "SuiteLauncherDataFolder that exist")
+    for argument in call_arguments(all_code, "DeleteFile"):
+        if argument != "Target":
+            errors.append(f"{where}: DeleteFile({argument}): the uninstaller deletes only the launcher files of "
+                          "SuiteLauncherDataFile")
+    if "SuiteLauncherDataFile(" not in data:
+        errors.append(f"{where}: SuiteRemoveUserData must take the files it deletes from SuiteLauncherDataFile")
+    for argument in call_arguments(all_code, "RemoveDir"):
+        if argument != "Target":
+            errors.append(f"{where}: RemoveDir({argument}): the uninstaller removes only the folders of "
+                          "SuiteEmptyFolder and SuiteLauncherDataDir")
+    if "SuiteEmptyFolder(" not in data or "SuiteLauncherDataDir(" not in data:
+        errors.append(f"{where}: SuiteRemoveUserData must take the folders it removes from SuiteEmptyFolder and SuiteLauncherDataDir")
+    if re.search(r"\bWizardSilent\b|\bSuiteSilent\b|\bWizardForm\b", all_code):
+        errors.append(f"{where}: the uninstaller uses a function of Setup (WizardSilent, SuiteSilent, WizardForm): "
+                      "it has UninstallSilent and UninstallProgressForm")
+    # no registry deletion but the record's
+    for rel, text in files.items():
+        for no, line in code_lines(text):
+            if re.search(r"\b(RegDeleteKeyIncludingSubkeys|RegDeleteKeyIfEmpty|RegDeleteValue)\s*\(", line) \
+                    and rel != "suite/suite_record.iss":
+                errors.append(f"{rel}:{no}: only RemoveSuiteRecord deletes registry keys (suite_record.iss)")
+    # [UninstallDelete]: the logs folder of the suite and nothing else
+    entries = [line.strip() for _, line in sections(main, "UninstallDelete")]
+    if entries != ['Type: filesandordirs; Name: "{app}\\Logs"']:
+        errors.append(f"suite/suite.iss: [UninstallDelete] must name {{app}}\\Logs only, found {entries}")
+    return 12
+
+
 def check_forbidden_words(root, errors):
     """No suite file (comments included) names what only the NeoEE setup may touch."""
     for rel in SUITE_FILES:
@@ -319,10 +423,17 @@ def check(root):
         errors.append(str(error))
         runner = ""
     steps = check_runner(runner, main, errors)
+    try:
+        uninstaller = read(root, SUITE_FILES[7])
+    except CheckError as error:
+        errors.append(str(error))
+        uninstaller = ""
+    files = {rel: read(root, rel) for rel in SUITE_FILES if (root / rel).is_file()}
+    removal = check_uninstaller(uninstaller, main, files, errors)
     check_forbidden_words(root, errors)
     return errors, (f"suite frame: {directives} [Setup] directives, {products} product setups and {launcher} "
                     f"launcher, license and legal text entries in [Files], {codes} exit codes, product runner "
-                    f"{steps} rules, no CD key registry or library reference")
+                    f"{steps} rules, uninstaller {removal} rules, no CD key registry or library reference")
 
 
 def self_test(source_root):
@@ -340,6 +451,7 @@ def self_test(source_root):
         return apply
 
     main, common, run = "suite/suite.iss", "suite/suite_common.iss", "suite/suite_run.iss"
+    uninstall = "suite/suite_uninstall.iss"
     cases = [
         ("MinVersion 10.0", replace(main, "MinVersion=6.1sp1", "MinVersion=10.0"), "MinVersion=10.0, expected 6.1sp1"),
         ("no MinVersion", replace(main, "MinVersion=6.1sp1\n", ""), "[Setup] has no MinVersion"),
@@ -418,6 +530,47 @@ def self_test(source_root):
         ("the CD key registry key in a comment", replace(main, "#define SuiteName", "; Software\\Sierra\\CDKeys\n#define SuiteName"),
          "the suite never touches the CD key registration"),
         ("the CD key library in the code", replace(run, "  SuiteRunStopped := False;\n", "  SuiteRunStopped := False;\n  Log('authtools.dll');\n"),
+         "the suite never touches the CD key registration"),
+        ("uninstaller not included", replace(main, '#include "suite_uninstall.iss"\n', ""), 'no #include "suite_uninstall.iss"'),
+        ("products not removed at usUninstall", replace(main, "    SuiteRemoveProducts\n", "    Log('x')\n"),
+         "CurUninstallStepChanged must run SuiteRemoveProducts at usUninstall"),
+        ("user data not handled at usPostUninstall", replace(main, "    SuiteRemoveUserData;\n", ""),
+         "CurUninstallStepChanged must run SuiteRemoveProducts at usUninstall"),
+        ("no check of the game mutexes", replace(uninstall, "if CheckForMutexes(SuiteMutexes) then", "if CheckForMutexes('x') then"),
+         "InitializeUninstall must check the game and launcher mutexes"),
+        ("setup mutex not held", replace(uninstall, "  CreateMutex(SuiteSetupMutexName);\n", ""),
+         "InitializeUninstall must hold the setup mutex of the suite"),
+        ("another setup mutex name", replace(uninstall, "SuiteSetupMutexName = 'EmpireEarthCommunity_Suite'", "SuiteSetupMutexName = 'Other'"),
+         "SuiteSetupMutexName (Other) must be the [Setup] SetupMutex"),
+        ("question in a silent run", replace(uninstall, "  if not UninstallSilent then\n  begin\n    Items := '';", "  begin\n    Items := '';"),
+         "InitializeUninstall must ask its one question with SuppressibleMsgBox"),
+        ("second program started", replace(uninstall, "  Started := Exec(Exe,", "  Exec(ExpandConstant('{app}\\x.exe'), '', '', SW_SHOW, ewNoWait, Code);\n  Started := Exec(Exe,"),
+         "the uninstaller may start only the uninstaller of a product"),
+        ("ShellExec in the uninstaller", replace(uninstall, "  Started := Exec(Exe,", "  ShellExec('open', Exe, '', '', SW_SHOW, ewNoWait, Code);\n  Started := Exec(Exe,"),
+         "the uninstaller may start only the uninstaller of a product"),
+        ("product uninstaller without the check", replace(uninstall, "if not SuiteIsProductUninstaller(Exe, Root) or not FileExists(Exe) then", "if False then"),
+         "must check SuiteIsProductUninstaller(Exe, Root)"),
+        ("product uninstaller judged by its exit code",
+         replace(uninstall, "State := SuiteUninstallWaitState(KeyPresent, FileExists(Exe), Elapsed, KeyGone);", "State := SuiteWaitDone;"),
+         "must wait with SuiteUninstallWaitState"),
+        ("DelTree in the product removal", replace(uninstall, "  Total := 0;\n", "  DelTree(ExpandConstant('{app}'), True, True, True);\n  Total := 0;\n"),
+         "DelTree may only be called in SuiteDeleteDataFolders"),
+        ("data folders deleted without the answer", replace(uninstall, "  if DeleteData then\n    SuiteDeleteDataFolders(Folders);", "  SuiteDeleteDataFolders(Folders);"),
+         "SuiteDeleteDataFolders is only called in SuiteRemoveUserData"),
+        ("data folders deleted for the first button", replace(uninstall, "IDYES) = IDNO;", "IDYES) = IDYES;"),
+         "DeleteData is only True for the second button"),
+        ("data folders deleted in a silent run", replace(uninstall, "    if UninstallSilent then\n      Log('Silent uninstallation", "    if False then\n      Log('Silent uninstallation"),
+         "DeleteData is only True for the second button"),
+        ("DeleteFile of another file", replace(uninstall, "if DeleteFile(Target) then", "if DeleteFile(ExpandConstant('{app}\\x.exe')) then"),
+         "the uninstaller deletes only the launcher files"),
+        ("RemoveDir of another folder", replace(uninstall, "RemoveDir(Target)", "RemoveDir(ExpandConstant('{app}'))", 2),
+         "the uninstaller removes only the folders of SuiteEmptyFolder"),
+        ("registry deletion in the uninstaller", replace(uninstall, "  Total := 0;\n", "  RegDeleteKeyIncludingSubkeys(HKLM, 'Software\\Microsoft');\n  Total := 0;\n"),
+         "only RemoveSuiteRecord deletes registry keys"),
+        ("WizardSilent in the uninstaller", replace(uninstall, "  Total := 0;\n", "  if WizardSilent then Total := 0;\n  Total := 0;\n"),
+         "the uninstaller uses a function of Setup"),
+        ("the logs folder is not the only deletion", replace(main, 'Name: "{app}\\Logs"', 'Name: "{app}"'), "[UninstallDelete] must name {app}\\Logs only"),
+        ("the CD key registry key in the uninstaller", replace(uninstall, "  Total := 0;\n", "  Log('Software\\Sierra');\n  Total := 0;\n"),
          "the suite never touches the CD key registration"),
     ]
     passing = [("unchanged copy", None, None)]
