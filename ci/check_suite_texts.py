@@ -101,6 +101,10 @@ def check_embedded(root, main, rel_source_of_product, what, dest, errors):
         return
     ours = (root / "suite" / source.replace("\\", "/")).resolve()
     theirs = (root / rel_source_of_product.replace("\\", "/")).resolve()
+    if ours == theirs:
+        # The suite embeds the product's own file: the texts cannot differ. Whether the file exists is the
+        # build's business (data/ is not in the repository; CI creates placeholders only when it builds).
+        return
     if not theirs.is_file():
         errors.append(f"the {what} of the product setup does not exist: {rel_source_of_product}")
     elif not ours.is_file():
@@ -201,9 +205,13 @@ def self_test(source_root):
     with tempfile.TemporaryDirectory(prefix="check_suite_texts_selftest_") as temp:
         for number, (name, change, expected) in enumerate(passing + cases):
             root = Path(temp) / f"case{number}"
-            for rel in FILES + [eula_src, rules_src]:
+            for rel in FILES:
                 (root / rel).parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(source_root / rel, root / rel)
+            # data/ is not in the repository: the self-test brings its own EULA and rules files
+            for rel, text in ((eula_src, b"EULA fixture of the self-test\r\n"), (rules_src, b"{\\rtf1 rules fixture}\r\n")):
+                (root / rel).parent.mkdir(parents=True, exist_ok=True)
+                (root / rel).write_bytes(text)
             try:
                 if change:
                     change(root)
