@@ -136,13 +136,21 @@ jobs:
       # Tools of the real-data end-to-end test (.github/workflows/e2e-realdata.yml) with made-up
       # data: header extraction, placing the official files, the read set of the build against the
       # map, the upload guard, the report and the rules of the checks (in Windows PowerShell 5.1,
-      # which runs the scenarios). No game data, no installer runs here.
+      # which runs the scenarios). The same for the scenarios S1 to S10 of the suite installer (job
+      # suite-e2e below): their rules in Windows PowerShell 5.1, and the scenarios themselves against a
+      # fake Windows (an in-memory registry, a fake suite) in PowerShell 7: every check must pass
+      # against the fake and each of a few defects of the fake must fail its check. No game data, no
+      # installer runs here.
       - name: End-to-end test tools (self-test)
         shell: pwsh
         run: |
           python -m unittest discover -s ci/e2e/tests -p "test_*.py"
           if ($LASTEXITCODE) { exit 1 }
           powershell -NoProfile -ExecutionPolicy Bypass -File ci/e2e/tests/e2e_helpers.tests.ps1
+          if ($LASTEXITCODE) { exit 1 }
+          powershell -NoProfile -ExecutionPolicy Bypass -File ci/e2e/tests/e2e_suite_helpers.tests.ps1
+          if ($LASTEXITCODE) { exit 1 }
+          pwsh -NoProfile -File ci/e2e/tests/e2e_suite_scenarios.tests.ps1
           if ($LASTEXITCODE) { exit 1 }
 
       # A release build (TestID 0): it also reads the online files without a pin from the code of
@@ -185,3 +193,82 @@ jobs:
           path: out/Suite
           retention-days: 7
           if-no-files-found: error
+
+      # The inputs of the job suite-e2e: the placeholder suite, the same suite with a wrong pin of the EE
+      # setup compiled in (scenario S5: the suite must refuse its own EE setup before it runs anything) and the
+      # placeholder product setups (scenario S3 installs EE on its own first). Placeholders only: no game data,
+      # nothing to download, nothing that works as an installer.
+      - name: Build the suite with a wrong EE pin (scenario S5)
+        shell: pwsh
+        run: ./suite/build_suite.ps1 -Placeholders -TestWrongEEPin -RequireVersion 6.2.2 -OutputDir out/SuiteWrongPin
+
+      - name: Collect the inputs of the suite end-to-end test
+        shell: pwsh
+        run: |
+          $inputs = 'out/suite-e2e-inputs'
+          New-Item -ItemType Directory -Force -Path "$inputs/products" | Out-Null
+          Copy-Item -LiteralPath out/Suite -Destination "$inputs/suite" -Recurse
+          Copy-Item -LiteralPath out/SuiteWrongPin -Destination "$inputs/wrongpin" -Recurse
+          Copy-Item -Path out/EE_Regular/*.exe, out/NeoEE_Regular/*.exe -Destination "$inputs/products"
+          Get-ChildItem -LiteralPath $inputs -Recurse -File | ForEach-Object { $_.FullName.Substring((Resolve-Path $inputs).Path.Length + 1) }
+
+      - name: Upload the inputs of the suite end-to-end test
+        uses: actions/upload-artifact@v4
+        with:
+          name: suite-e2e-inputs
+          path: out/suite-e2e-inputs
+          retention-days: 1
+          if-no-files-found: error
+
+  # The scenarios S1 to S10 of the suite installer (suite/suite.iss, ADR 0013) with the PLACEHOLDER builds of
+  # the job above: silent runs of the suite, which runs the placeholder EE and NeoEE setups, with exact task
+  # lists (never neoee_cdkeys, certinclude, directplay, dxwebsetup), every host blocked, a dummy under
+  # Software\Sierra\CDKeys that must survive everything, and the shortcuts read through WScript.Shell. It needs
+  # no download at all (the official setups of e2e-realdata.yml and r2.empireearth.eu are not involved), so
+  # a blocked server cannot make it fail. The runner is thrown away after the job. Every scenario is a PASS or
+  # FAIL line in the job summary (ci/e2e/run_e2e_suite.ps1 -Scenario Report).
+  suite-e2e:
+    name: Suite installer end-to-end test (placeholder products)
+    needs: compile
+    runs-on: windows-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+
+      # The folders of the test, below the temporary folder of the runner (not below %TEMP%: the suite takes a
+      # package there for a ZIP view, exit code 12 instead of 11)
+      - name: Folders of the test
+        shell: pwsh
+        run: |
+          $root = Join-Path $env:RUNNER_TEMP 'ee-suite-e2e'
+          @(
+            "E2E_SUITE=$root\inputs\suite", "E2E_WRONGPIN=$root\inputs\wrongpin", "E2E_PRODUCTS=$root\inputs\products",
+            "E2E_WORK=$root\work", "E2E_REPORT=$root\report"
+          ) | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Download the inputs
+        uses: actions/download-artifact@v4
+        with:
+          name: suite-e2e-inputs
+          path: ${{ runner.temp }}\ee-suite-e2e\inputs
+
+      # Windows PowerShell 5.1, as the scenarios of e2e-realdata.yml. The budget is below the limit of the
+      # step, which is below the limit of the job: every program the scenarios start has its own limit, too.
+      - name: Scenarios S1 to S10
+        timeout-minutes: 130
+        shell: pwsh
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File ci/e2e/run_e2e_suite.ps1 -Scenario All -BudgetMinutes 120
+
+      - name: Job summary
+        if: always()
+        shell: pwsh
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File ci/e2e/run_e2e_suite.ps1 -Scenario Report
+
+      - name: Upload the logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: suite-e2e-report
+          path: ${{ runner.temp }}\ee-suite-e2e\report
+          retention-days: 14
+          if-no-files-found: ignore

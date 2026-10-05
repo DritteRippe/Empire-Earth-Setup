@@ -35,6 +35,15 @@ setup version stays 1.7.2 until the release.
   against their `.sha256`, `SHA256SUMS.txt` and `BUILD-INFO.txt`); CI builds it with placeholder products
   and uploads it as an artifact. Tested by `ci/tests/suite_build.tests.ps1`.
   `-TestWrongEEPin` (placeholders only) builds the suite with a wrong pin of the EE setup for the CI scenario S5.
+- End-to-end test of the suite installer (job `suite-e2e` of `build.yml`, `ci/e2e/run_e2e_suite.ps1`): ten
+  scenarios on a Windows runner with the placeholder builds, without any download: both products, EE only, a
+  product installed on its own and adopted, a missing slice (exit code 11), a wrong pin (15), a running game or
+  launcher (14), a product removed on its own before the suite uninstaller, the suite uninstaller keeping saved
+  games, a repair run, and a `Zone.Identifier` on the package. Silent runs with exact task lists that never
+  select `neoee_cdkeys`, `certinclude`, `directplay` or `dxwebsetup`, shortcuts read through `WScript.Shell`, a
+  dummy under `Software\Sierra\CDKeys` in all views that must survive everything, one PASS/FAIL line per
+  scenario in the job summary. Tested against a fake Windows in every build
+  (`ci/e2e/tests/e2e_suite_*.tests.ps1`, `test_suite_e2e.py`).
 - `ci/make_placeholder_assets.py`: creates placeholder assets for contributors and CI, and lists
   the assets a variant needs (`--list`).
 - `ci/check_messages.py` (also run by the workflow): finds duplicate messages, `==` typos, unknown
