@@ -161,6 +161,18 @@ jobs:
         shell: pwsh
         run: ./ci/e2e/build_eestats_stub.ps1 -OutFile data/Add-on/DLLs/EEStats/EEStatsSetup.dll
 
+      # The scenarios of the job suite-e2e check that each product setup installs its game program and that a
+      # repair brings it back (S9), but the placeholder generator only writes placeholder.txt into the game
+      # folders: a text file with the name of the game program goes there first (never started by any scenario).
+      - name: Placeholder game programs for the suite scenarios
+        shell: pwsh
+        run: |
+          foreach ($folder in 'data/Empire Earth Base/Empire Earth', 'data/NeoEE Base/Empire Earth') {
+            New-Item -ItemType Directory -Force -Path $folder | Out-Null
+            $exe = Join-Path $folder 'Empire Earth.exe'
+            if (-not (Test-Path -LiteralPath $exe)) { Set-Content -LiteralPath $exe -Value 'placeholder of the game program, CI only' -Encoding Ascii }
+          }
+
       # A release build (TestID 0): it also reads the online files without a pin from the code of
       # RegisterOnlineFiles and stops if it cannot (with placeholders it only prints the number)
       - name: Build

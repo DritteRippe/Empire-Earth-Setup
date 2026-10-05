@@ -85,6 +85,11 @@ def workflow_problems(workflow):
     build = compile_job.find("- name: Build\n")
     if stub < 0 or build < 0 or stub > build:
         problems.append("compile must build the stand-in of EEStatsSetup.dll (build_eestats_stub.ps1) before the step Build")
+    # S1 to S10 check the game program of each product (S9 deletes it and expects the repair to bring it back)
+    for folder in ("data/Empire Earth Base/Empire Earth", "data/NeoEE Base/Empire Earth"):
+        seeded = compile_job.find("'%s'" % folder)
+        if seeded < 0 or build < 0 or seeded > build or "'Empire Earth.exe'" not in compile_job:
+            problems.append("compile must put a placeholder Empire Earth.exe into %s before the step Build" % folder)
     # the folders must lie below the temporary folder of the runner, not of the user (a package below %TEMP% is a ZIP view)
     if "RUNNER_TEMP" not in job:
         problems.append("the folders of the test must be below RUNNER_TEMP")
@@ -200,6 +205,12 @@ class WorkflowRules(unittest.TestCase):
         self.assertIn(step, text, "the test needs this step in the workflow")
         moved = text.replace(step, "", 1).replace("      - name: Upload the placeholder suite\n", step + "      - name: Upload the placeholder suite\n", 1)
         self.assertTrue(any("before the step Build" in p for p in workflow_problems(moved)))
+
+    def test_the_placeholder_game_programs_are_required(self):
+        found = self.mutated("'data/NeoEE Base/Empire Earth'", "'data/NeoEE Base/Other'")
+        self.assertTrue(any("data/NeoEE Base/Empire Earth" in p for p in found), found)
+        found = self.mutated("Join-Path $folder 'Empire Earth.exe'", "Join-Path $folder 'Other.exe'")
+        self.assertTrue(any("placeholder Empire Earth.exe" in p for p in found), found)
 
     def test_the_folders_below_the_runner_temp(self):
         text = read(".github", "workflows", "build.yml")
