@@ -3026,11 +3026,10 @@ jede Prüfung der Deinstallation der Suite beachten muss, weil es sich nur auf e
   des Launchers sind in beiden Fällen weg. Ein Wert unter `HKLM` und `HKCU` in
   `Software\Sierra\CDKeys` (nur prüfen, ob er noch da ist, nie seinen Inhalt ansehen, Regel 3) bleibt
   bei Installation und Deinstallation erhalten.
-- **Zwei Bestätigungen?** Die Suite fragt in `InitializeUninstall` einmal mit der Liste dessen, was entfernt wird.
-  Zu prüfen, ob Inno Setup danach noch seine eigene Frage (`ConfirmUninstall`, „Möchten Sie … wirklich
-  vollständig entfernen?“) zeigt. Wenn ja, ist das ein Befund: entweder den Text von `ConfirmUninstall` in
-  Englisch, Deutsch und Französisch durch einen neutralen Hinweis ersetzen oder die eigene Frage streichen und
-  die Liste nur ins Log schreiben.
+- **Zwei Bestätigungen:** Die Suite fragt in `InitializeUninstall` einmal mit der Liste dessen, was entfernt wird.
+  Danach zeigt Inno Setup 6.2.2 immer seine eigene Standardfrage (`ConfirmUninstall`, vorgewählt „Nein“): „Sind Sie sicher, dass Sie Empire Earth Community und alle zugehörigen Komponenten entfernen möchten?“
+  `suite_messages.iss` ersetzt sie nicht. Das ist das erwartete Verhalten, kein Befund; zu prüfen ist, dass
+  beide Fragen in dieser Reihenfolge erscheinen und erst „Ja“ bei beiden die Deinstallation startet.
 - **Verknüpfte Ordner und gemeinsamer Stammordner:** Ist `Data\Saved Games` (oder `Users`, oder ein Ordner
   darüber bis zum Stammordner) eine Junction oder ein symbolischer Link, etwa nach Dokumente oder OneDrive,
   wird der Ordner nicht zum Löschen angeboten (Logzeile „not offered“), und der Inhalt des Ziels bleibt auch
@@ -3042,9 +3041,9 @@ jede Prüfung der Deinstallation der Suite beachten muss, weil es sich nur auf e
   dann das Profil des Administrators. Settings, Log, `Backups` und `Mod Creator` des Launchers des
   Standardbenutzers bleiben deshalb liegen (gewollt, dokumentiert in der README). Wer prüft, ob die
   Deinstallation „alles“ entfernt, meldet sich als Administrator an oder zählt diese Ordner nicht mit.
-- **Zwei Fragen?** Inno Setup zeigt vor oder nach der Abfrage der Suite seine eigene Rückfrage
-  „Möchten Sie … wirklich entfernen?“, wenn es sie nicht unterdrückt. Im Protokoll festhalten, wie viele
-  Dialoge erscheinen und in welcher Reihenfolge.
+- **Zwei Fragen:** Es erscheinen zwei Fragen in dieser Reihenfolge: die Abfrage der Suite („Dabei wird entfernt: …“, „Ja“)
+  und danach die Standardfrage von Inno Setup „Sind Sie sicher, dass Sie Empire Earth Community und alle zugehörigen Komponenten entfernen möchten?“ (vorgewählt „Nein“; „Ja“ klicken); danach der Dialog zu den
+  Nutzerdaten. Im Protokoll festhalten, wenn die Anzahl oder die Reihenfolge abweicht.
 
 #### Gemeinsame Angaben der Fälle TP-90 bis TP-97
 
@@ -3058,8 +3057,8 @@ auf dem Desktop. Es gilt:
   privaten Eingaben, siehe README „Suite build script“). Der Inhalt: `Empire Earth Community
   Setup.exe`, die Dateien `Empire Earth Community Setup-<n>.bin`, `SHA256SUMS.txt`, `BUILD-INFO.txt`
   und die Hinweise. Vor jedem Fall die Prüfsummen vergleichen
-  (`Get-FileHash -Algorithm SHA256 <Datei>` gegen `SHA256SUMS.txt`). Das Paket wird nie
-  weitergegeben (Regel 4).
+  (`Get-FileHash -Algorithm SHA256 <Datei>` gegen `SHA256SUMS.txt`). Das Paket wird für die Tests nicht
+  weitergegeben (Regel 4); verteilt wird es nur über das private Repository.
 - **Namen:** Die Verknüpfungen auf dem Desktop und im Startmenüordner `Empire Earth Community`
   heißen `Empire Earth` und `Neo Empire Earth`. Der Eintrag in „Apps“ („Installierte Apps“ bzw.
   „Apps & Features“) heißt `Empire Earth Community (Launcher, EE, NeoEE)`. Standardordner der
@@ -3085,8 +3084,8 @@ auf dem Desktop. Es gilt:
   Control*: Ein, Evaluierung oder Aus) und von SmartScreen (*Apps und Dateien überprüfen*). Ist
   Smart App Control „Ein“, kann es das unsignierte Setup ohne Ausweg blockieren: Das ist ein Befund
   zur README des Pakets, kein Fehler des Suite-Setups.
-- **Regel 3 gilt:** Nie `Software\Sierra\CDKeys` ansehen oder ändern; geprüft wird nur, ob der Wert
-  nach dem Fall noch da ist (`reg query` ohne den Inhalt zu protokollieren), und nur auf dem Laptop,
+- **Regel 3 gilt:** `Software\Sierra\CDKeys` nie löschen oder ändern; geprüft wird nur, ob der Wert
+  nach dem Fall noch da ist (`reg query`, Inhalt nicht protokollieren), und nur auf dem Laptop,
   wo die CD-Keys schon registriert sind.
 - **Freigabekriterium der Versionen 1.0.0:** Der Launcher wird als 1.0.0 und die Suite als 1.0.0
   erst getaggt, wenn **TP-93 und TP-95** bestanden haben (Arbeitspaket WP10 des Suite-Plans). Die
@@ -3241,7 +3240,7 @@ auf dem Desktop. Es gilt:
      durchgehen“ nicht. Der Text „Der Empire Earth Launcher wird auch installiert. …“ steht dort. „Weiter“.
   2. Auf der Seite „Lizenz und Hinweise“ die EULA lesen, bei der Frage „Haben Sie das Originalspiel und
      seine Erweiterung (oder Gold Edition) auf CD mit gültigen Schlüsseln oder haben Sie das Spiel digital
-     erworben?“ den Haken „Ja“ setzen, „Weiter“. Auf der Seite „Regeln für NeoEE“ die Regeln lesen, „Weiter“.
+     erworben?“ den Haken „Ja“ setzen, „Weiter“. Auf der Seite „Regeln für NeoEE“ die Regeln lesen, „Installieren“.
   3. Die Installation laufen lassen. Die Statuszeile nennt „Schritt 1 von 2: … wird installiert ...“ und
      „Schritt 2 von 2: … wird installiert ...“; das Fenster reagiert (kein „Keine Rückmeldung“). Die
      Dauer notieren.
@@ -3267,7 +3266,7 @@ auf dem Desktop. Es gilt:
      ohne den Inhalt zu protokollieren.
 - **Erwartetes Ergebnis:**
   - Schritt 1 bis 3: Das Setup nimmt die Vorgaben ohne weitere Frage, installiert zuerst EE, dann
-    NeoEE (die Setups der Spiele laufen still, ihre Fenster erscheinen nicht).
+    NeoEE (die Setups der Spiele laufen mit /SILENT: ohne Fragen, aber jedes zeigt nacheinander sein eigenes Fortschrittsfenster).
   - Schritt 4: Die letzte Seite beginnt mit „Das hat das Setup gemacht:“ und nennt „Empire Earth (mit The Art of
     Conquest): installiert“, „Neo Empire Earth (NeoEE): installiert“, „Empire Earth Launcher: installiert“,
     die Zeile **„NeoEE-CD-Keys: registriert.“**, „Protokolle: C:\Program Files\Empire Earth
@@ -3356,7 +3355,7 @@ auf dem Desktop. Es gilt:
      „Deinstallieren“ (oder `"C:\Program Files\Empire Earth Community\unins000.exe"
      /LOG="C:\EE-Test\logs\TP-95a_unins.log"`). Die Dialoge in ihrer Reihenfolge mit Bildschirmfotos festhalten.
   2. Die Abfrage der Suite „Dabei wird entfernt:“ enthält die Liste (Launcher und Mod Creator mit Ordner, beide
-     Spiele mit Ordner, „Die Verknüpfungen und Einträge von Empire Earth Community“); mit „Ja“ fortfahren.
+     Spiele mit Ordner, „Die Verknüpfungen und Einträge von Empire Earth Community“); mit „Ja“ fortfahren. Danach fragt Inno Setup „Sind Sie sicher, dass Sie Empire Earth Community und alle zugehörigen Komponenten entfernen möchten?“ (vorgewählt „Nein“): „Ja“ klicken.
   3. Die Statuszeile während der Spiele beobachten („Schritt <n> von <m>: … wird entfernt ... (das kann mehrere
      Minuten dauern)“); das Fenster darf nicht „Keine Rückmeldung“ zeigen.
   4. Am Ende erscheint der Dialog „Spielstände, Profile und Sicherungen auch löschen?“ mit den Ordnern; **„Behalten
@@ -3381,9 +3380,9 @@ auf dem Desktop. Es gilt:
   - (b) Die Neuinstallation läuft ohne Fehler, die Spielstände sind da.
   - (c) „Löschen“ entfernt genau die im Dialog genannten Ordner mit allem, was darin liegt.
   - Der Inhalt von `Software\Sierra\CDKeys` bleibt bei Installation und beiden Deinstallationen (Regel 3).
-  - Es erscheint **eine** Frage der Suite (die Abfrage mit der Liste) und danach der Dialog zu den Nutzerdaten;
-    eine zusätzliche Standardfrage von Inno Setup („Möchten Sie … wirklich vollständig entfernen?“) ist
-    ein Befund (Block 9).
+  - Es erscheinen zwei Fragen in dieser Reihenfolge: die Abfrage der Suite (die Liste, „Ja“) und die Standardfrage
+    von Inno Setup „Sind Sie sicher, dass Sie Empire Earth Community und alle zugehörigen Komponenten entfernen möchten?“ („Ja“); danach der Dialog zu den Nutzerdaten. Weitere Fragen oder eine andere
+    Reihenfolge sind ein Befund (Block 9).
   - **bestanden**, wenn alle Punkte stimmen. **Fehler**: ein Ordner geht bei „Behalten“ verloren, ein nicht
     angebotener Ordner geht bei „Löschen“ verloren, ein Eintrag bleibt in „Apps“, der CD-Key-Wert fehlt danach. Ohne
     bestandenen TP-95 kein Tag Launcher 1.0.0 und Suite 1.0.0.
