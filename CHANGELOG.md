@@ -48,6 +48,11 @@ setup version stays 1.7.2 until the release.
   build): the setups load the DLL when they start, and the dummy file of the placeholder generator stops them.
   CI also puts a text file named `Empire Earth.exe` into both placeholder game folders: the scenarios check the
   game program of each product, and S9 deletes it to see the repair bring it back.
+- Test plan: the cases TP-90 to TP-97 for the suite installer on the laptop with real data (the package ZIP with
+  and without "Zulassen" and the SmartScreen warning, a start from the ZIP view, both games with the defaults and
+  played from the desktop shortcuts, a repair, the uninstaller with "Behalten" and "Löschen", the "Erweitert" path,
+  an update over an existing standalone setup). TP-93 and TP-95 are the release criteria for the tags launcher
+  1.0.0 and suite 1.0.0. README: a section on the suite installer; ARCHITECTURE section 11 is no longer "planned".
 - `ci/make_placeholder_assets.py`: creates placeholder assets for contributors and CI, and lists
   the assets a variant needs (`--list`).
 - `ci/check_messages.py` (also run by the workflow): finds duplicate messages, `==` typos, unknown

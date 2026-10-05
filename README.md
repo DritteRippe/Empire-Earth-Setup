@@ -69,6 +69,11 @@ The setup records each installation for the [Empire Earth Launcher](https://gith
 
 The Windows test cases are TP-40, TP-41 and TP-50 of the [test plan](docs/TEST-PLAN.de.md).
 
+## Empire Earth Community suite installer
+The suite installer "Empire Earth Community" ([ADR 0013](docs/adr/0013-suite-installer.md)) is one setup, `Empire Earth Community Setup.exe`, for the players who want everything in one run: it installs the [Empire Earth Launcher](#empire-earth-launcher) with the Mod Creator and runs the EE and NeoEE setups of this repository, byte for byte, one after the other (the games are selectable, both are preselected; "Advanced" shows the setup of each game). It creates the shortcuts `Empire Earth` and `Neo Empire Earth`, which start the launcher with that game, and has one entry in Windows "Apps". The four setups of this repository (EE and NeoEE, regular and portable) do not change.
+
+The script is in `suite/` and is built by `suite\build_suite.ps1` ([Suite build script](#suite-build-script)). This repository builds it only with placeholder products, a stub launcher and dummy AppIds (CI, job `suite-e2e`, no game data). A real build needs the private inputs: the real AppIds, the EE and NeoEE setups built from the game data, and the Release build of the launcher. The result contains game data and is never published in this repository, committed here or uploaded to a public place. The Windows test cases are TP-90 to TP-97 of the [test plan](docs/TEST-PLAN.de.md); the suite is tagged 1.0.0 only after TP-93 and TP-95 pass.
+
 ## Empire Earth Community suite: uninstalling
 The suite installer "Empire Earth Community" ([ADR 0013](docs/adr/0013-suite-installer.md)) has one entry in Windows "Apps". Its uninstaller removes exactly what the suite installed: the launcher with the Mod Creator, the games the suite lists (each through its own uninstaller; a game that you removed through its own entry before is skipped), the shortcuts of the suite and its registry record `HKLM\Software\Empire Earth Community\Suite`, and the logs in `{app}\Logs`. It asks once, with the list of what goes. It does not start while a game or the launcher runs.
 
