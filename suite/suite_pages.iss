@@ -56,6 +56,10 @@ end;
 // Enables "Next" as far as the page allows it, and shows the hint that says why not
 procedure SuiteRefreshButtons;
 begin
+  // OnClick also fires when InitializeWizard sets Checked, before the later pages exist (their ID on nil
+  // stops the setup with "Could not call proc"); CurPageChanged refreshes the buttons when a page is shown
+  if (SuiteSelectPage = nil) or (SuiteLegalPage = nil) or (SuiteRulesPage = nil) then
+    Exit;
   if WizardForm.CurPageID = SuiteSelectPage.ID then
   begin
     WizardForm.NextButton.Enabled := SuiteTickedProducts <> '';
@@ -256,10 +260,16 @@ begin
   SuiteBuildRulesPage;
 end;
 
-// Only the rules page is skipped, and only if NeoEE is not ticked. Setup does not ask in a silent run.
+// A silent run skips the pages of the suite: Setup would "click" Next on them, the product page would take
+// its boxes (both ticked) over /PRODUCTS and the legal page would stop the run (its box is not ticked); the
+// products of a silent run come from InitializeSetup. Otherwise only the rules page is skipped, and only if
+// NeoEE is not ticked.
 function ShouldSkipPage(PageID: Integer): Boolean;
 begin
-  Result := (PageID = SuiteRulesPage.ID) and not SuiteWantNeoEE;
+  if SuiteSilent then
+    Result := (PageID = SuiteSelectPage.ID) or (PageID = SuiteLegalPage.ID) or (PageID = SuiteRulesPage.ID)
+  else
+    Result := (PageID = SuiteRulesPage.ID) and not SuiteWantNeoEE;
 end;
 
 // The free space for the products ticked on the page (the same measure as the prechecks, with the
