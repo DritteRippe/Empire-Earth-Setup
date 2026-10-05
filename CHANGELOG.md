@@ -555,6 +555,20 @@ setup version stays 1.7.2 until the release.
   reads the record and the shortcuts from the code and rejects any reference to the protected keys
   of the CD key registration (110 self-test cases); `ci/check_messages.py` also checks the suite's
   messages and forbids `MsgBox` there (only `SuppressibleMsgBox`).
+- `suite/suite_pages.iss`: the wizard pages of the suite installer (WP4). The product page ticks Empire
+  Earth and Neo Empire Earth, shows for each whether it is installed (uninstall key of the runtime AppId
+  in HKLM64; a product installed for one user only is shown, not ticked and skipped), has the box
+  "Erweitert" (the product setups then show their full wizard) and disables "Weiter" while nothing is
+  ticked. The license page shows the EULA and, only when neither product is installed, the legal
+  question of the products with a "Ja" box that has to be ticked; the NeoEE rules page appears only
+  when NeoEE is ticked, and the last page before the installation has the button "Installieren". The
+  last page lists what became of each item, the NeoEE CD key line (the number the product logged;
+  never queried or changed by the suite), the log folder and "Launcher jetzt starten" (`[Run]`,
+  `postinstall runasoriginaluser nowait skipifsilent`). A silent run shows none of them; its products
+  come from `/PRODUCTS`. The German texts of the suite use "du". `suite_common.iss` has the pure helpers
+  (37 more unit tests); `ci/check_suite_texts.py` (new, with a self-test, in CI) fails when the legal
+  question differs from `LegalQuestion` of `messages.iss` (en, de, fr) or when the embedded EULA or
+  NeoEE rules are not the files of the product setups.
 - `docs/CONTRACT.md`, revision 3 (still contract version 1, draft: only compatible clarifications
   by its section 5; the same text and commit subject in the launcher repository; no change of the
   setup's code): O11 names all three triggers of the question `SharedFolderQuestion`, also the
