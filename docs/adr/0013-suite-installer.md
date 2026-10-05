@@ -104,6 +104,17 @@ Facts the decision relies on, from the code at 332d877:
    contract section 5; 4.1 and 4.3 do not change. `ci/check_contract.py` reads `suite/suite.iss`
    (`SetupMutex`, `AppMutex`, the record's value names and types, the game shortcuts) as soon as it
    exists.
+10. **Details of the product runner.** Both embedded setups are checked in `PrepareToInstall` (one
+    extraction at a time, deleted again; mismatch: exit code 15, nothing installed) and once more right
+    before each `Exec` (a mismatch then stops the remaining products). The parameter builder is pure and
+    tested; it merges a `/MERGETASKS` of the CI pass-through into its own, because Inno Setup does not
+    say which of two switches wins, and a lost `!neoee_cdkeys` would let a test register the CD keys.
+    The suite always passes `/SILENT`, also in its own `/VERYSILENT` run (contract 1.7 point 3). A
+    failed product (exit code 1 to 8, or exit code 0 without the uninstall entry) is logged, shown
+    (not in a silent run) and skipped; the suite itself ends with the exit code 0 then, so an
+    unattended caller reads the log, the uninstall keys or the suite record. The runner starts nothing
+    but the embedded setups and deletes only its extracted setup, the log of the product setup it
+    starts and the legacy shortcut files; `ci/check_suite.py` enforces that.
 
 ## Evidence
 

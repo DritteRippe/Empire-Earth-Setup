@@ -569,6 +569,22 @@ setup version stays 1.7.2 until the release.
   (37 more unit tests); `ci/check_suite_texts.py` (new, with a self-test, in CI) fails when the legal
   question differs from `LegalQuestion` of `messages.iss` (en, de, fr) or when the embedded EULA or
   NeoEE rules are not the files of the product setups.
+- `suite/suite_run.iss`: the product runner of the suite installer (WP5). `PrepareToInstall` extracts
+  every selected product setup once, compares its size and SHA-256 with the pins of the build and
+  deletes it again; a mismatch ends the suite with exit code 15 before any product setup runs. At
+  `ssInstall` the runner runs EE, then NeoEE: mutex check, extraction, a second comparison right
+  before the start, the setup started with the command line of contract 1.7 point 3 (`/TYPE=full`
+  only for a first installation, never `/DIR`, the CI pass-through `/EEArgs` and `/NeoEEArgs` appended
+  with its `/MERGETASKS` merged into the suite's, so a `!neoee_cdkeys` decision cannot be lost) and
+  deleted afterwards. A product succeeded with exit code 0 and its uninstall entry in HKLM; exit code
+  1 is reported as "a game is probably running" and the suite goes on with the next product. After a
+  success the old shortcut files of a standalone run are deleted (exactly the five paths of contract
+  1.7 point 7, each one logged) before the suite creates its own shortcuts at `ssPostInstall`; the
+  record and the shortcuts follow what the runner reports. The number of the NeoEE log line `CD Keys
+  generation result: <n>` is read tolerantly and read-only. The product logs go to `{app}\Logs`.
+  `suite_common.iss` has the pure helpers (95 more unit tests); `ci/check_suite.py` checks the runner
+  (one `Exec`, after the pin check; deletions limited to what the runner owns) and that no suite file
+  names the CD key registry key or library (16 more self-test cases).
 - `docs/CONTRACT.md`, revision 3 (still contract version 1, draft: only compatible clarifications
   by its section 5; the same text and commit subject in the launcher repository; no change of the
   setup's code): O11 names all three triggers of the question `SharedFolderQuestion`, also the
