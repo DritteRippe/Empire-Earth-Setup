@@ -1846,8 +1846,19 @@ function InitializeSetup: Boolean;
 var
   Lines: TArrayOfString;
   I: Integer;
-  ResultFile: String;
+  ResultFile, ProcDir: String;
 begin
+  // TestSuiteProcess starts this setup again as a program that runs for a while (a loader and a real setup, like a
+  // product setup): it says that it started, sleeps and would say that it survived, then ends without any test
+  ProcDir := ExpandConstant('{param:ProcSleepDir|}');
+  if ProcDir <> '' then
+  begin
+    SaveStringToFile(ProcDir + '\started.txt', 'started', False);
+    Sleep(6000);
+    SaveStringToFile(ProcDir + '\survived.txt', 'survived', False);
+    Result := False;
+    Exit;
+  end;
   Results := TStringList.Create;
   Failures := 0;
   Skipped := 0;
@@ -1923,6 +1934,8 @@ begin
     TestSuiteLinks;
     TestSuiteProgress;
     TestSuiteTailLog;
+    TestSuiteRunLimits;
+    TestSuiteProcess;
   except
     Failures := Failures + 1;
     Results.Add('FAIL exception: ' + GetExceptionMessage);

@@ -31,11 +31,21 @@ to stay safe and installable:
   [Runner]  suite/suite_run.iss (the product runner): suite.iss includes it, runs it at ssInstall and
             creates the shortcuts, writes the record and marks its own uninstall key
             (MarkSuiteUninstallKey) only at ssPostInstall (so after the legacy shortcut cleanup);
-            there is exactly one Exec call, in SuiteRunProduct after SuiteExtractAndCheck
-            (which compares size and SHA-256 with SuitePinMatches), and PrepareToInstall stops with
-            SuiteExitProductSetup; no DelTree and no registry deletion; DeleteFile only on the
-            extracted product setup, the log of the product setup and the old shortcut files of
-            SuiteLegacyShortcutPath; no ShellExec
+            the product setup is started by SuiteStartProduct, called once in SuiteRunProduct after
+            SuiteExtractAndCheck (which compares size and SHA-256 with SuitePinMatches), no Exec and no
+            ShellExec, the lock of the extracted file is kept until the wait has returned, and
+            PrepareToInstall stops with SuiteExitProductSetup; no DelTree and no registry deletion;
+            DeleteFile only on the extracted product setup, the log of the product setup and the old
+            shortcut files of SuiteLegacyShortcutPath
+  [Process] the product setup as a process (suite 1.1.0, S2): exactly one CreateProcessW (SuiteCreateProcess in
+            SuiteStartProduct, which starts the process suspended, puts it in a job object and only then resumes
+            it), no other import that starts a program or limits a job (no kill on close); TerminateJobObject and
+            TerminateProcess only in SuiteKillProduct, which only SuiteStartProduct (a start that failed) and
+            SuiteStopProduct call, and SuiteStopProduct only in the three places of SuiteWaitForProduct that may
+            stop a product setup (the confirmed cancel before the point of no return, the answer to the stall
+            question, the cap with a job); every wait for a process is bounded; the wait pumps the messages and
+            watches the limits; CancelButtonClick answers while a product setup runs; /TestCancel is read once;
+            after a cancel no further product setup starts and Setup ends with Abort
   [Marker]  MarkSuiteUninstallKey (suite/suite_record.iss, contract 1.3, revision 5) asks RegKeyExists
             before it writes with RegWriteDWordValue (no stub key is created) and deletes nothing
             (ci/check_contract.py checks the value, its type and the key)
@@ -342,14 +352,15 @@ def check_runner(runner, main, errors):
                       "and the record and mark the uninstall key of the suite (ApplySuiteShortcuts(False), WriteSuiteRecord, "
                       "MarkSuiteUninstallKey) only at ssPostInstall, after the legacy shortcut cleanup of the runner")
     execs = [e.replace(" ", "") for e in re.findall(r"\b(?:Exec|ExecAsOriginalUser|ShellExec|ShellExecAsOriginalUser)\s*\(", all_code)]
-    if execs != ["Exec("]:
-        errors.append(f"{where}: the runner must call Exec exactly once and nothing else that starts a program "
-                      f"(found: {', '.join(execs) or 'none'})")
+    if execs:
+        errors.append(f"{where}: the runner must not start a program with Exec or ShellExec (they give no process handle, "
+                      f"so Cancel and the time limits could not stop it): SuiteStartProduct starts the product setup "
+                      f"(found: {', '.join(execs)})")
     run = bodies.get("SuiteRunProduct", "")
-    exec_at = re.search(r"\bExec\s*\(", run)
+    start_at = run.find("SuiteStartProduct(")
     check_at = run.find("SuiteExtractAndCheck(")
-    if not exec_at or check_at < 0 or check_at > exec_at.start():
-        errors.append(f"{where}: SuiteRunProduct must call SuiteExtractAndCheck (the pin check) before Exec")
+    if start_at < 0 or check_at < 0 or check_at > start_at:
+        errors.append(f"{where}: SuiteRunProduct must call SuiteExtractAndCheck (the pin check) before SuiteStartProduct")
     extract = bodies.get("SuiteExtractAndCheck", "")
     if "SuitePinMatches(" not in extract:
         errors.append(f"{where}: SuiteExtractAndCheck does not compare size and SHA-256 with SuitePinMatches")
@@ -357,9 +368,15 @@ def check_runner(runner, main, errors):
     if "fmShareDenyWrite" not in extract or lock_at < 0 or hash_at < 0 or lock_at > hash_at:
         errors.append(f"{where}: SuiteExtractAndCheck must lock the extracted file against writing "
                       "(TFileStream.Create(..., fmOpenRead or fmShareDenyWrite)) before it computes the SHA-256")
-    free_at = run.rfind("Lock.Free")
-    if not exec_at or free_at < 0 or free_at < exec_at.start():
-        errors.append(f"{where}: SuiteRunProduct must keep the lock of the extracted file until Exec has returned (Lock.Free after Exec)")
+    # the lock of the extracted file is kept until the wait for the product setup has returned: no Lock.Free between the
+    # start and the end of the wait, and one after it
+    wait_at = run.find("SuiteWaitForProduct(")
+    frees = [m.start() for m in re.finditer(r"Lock\.Free", run)]
+    failed = re.search(r"\bExit;\s*end;", run[max(check_at, 0):])  # the end of the branch of a failed pin check
+    checked = max(check_at, 0) + (failed.end() if failed else 0)
+    if start_at < 0 or wait_at < start_at or not frees or frees[-1] < wait_at or any(checked < free < wait_at for free in frees):
+        errors.append(f"{where}: SuiteRunProduct must keep the lock of the extracted file until the wait for the product "
+                      "setup has returned (Lock.Free after SuiteWaitForProduct, none before the pin check has passed)")
     prepare = bodies.get("PrepareToInstall", "")
     if "SuiteExtractAndCheck(" not in prepare or not re.search(r"\bSuiteStop\s*\(\s*SuiteExitProductSetup\b", prepare):
         errors.append(f"{where}: PrepareToInstall must check every selected setup and stop with SuiteExitProductSetup "
@@ -382,6 +399,107 @@ def check_runner(runner, main, errors):
             run.find("SuiteRunSucceeded(") > run.find("SuiteRemoveLegacyShortcuts(Product)"):
         errors.append(f"{where}: the legacy shortcuts are deleted only after SuiteRunSucceeded said the product succeeded")
     return 9
+
+
+# the Windows functions that start a program or end one, or give a job object a limit: the runner has exactly one
+# CreateProcessW (SuiteStartProduct), one TerminateJobObject and one TerminateProcess (SuiteKillProduct)
+PROGRAM_IMPORTS_FORBIDDEN = re.compile(r"^(CreateProcess(?!W$)\w*|ShellExecute\w*|WinExec|CreateRemoteThread|"
+                                       r"SetInformationJobObject|NtTerminate\w*|CreateThread)$")
+PROGRAM_IMPORTS = {"CreateProcessW": "SuiteCreateProcess", "TerminateProcess": "SuiteTerminateProcess",
+                   "TerminateJobObject": "SuiteTerminateJob"}
+# who may call what: name -> the functions that call it (each of them must, the rest must not)
+PROGRAM_CALLERS = {"SuiteCreateProcess": {"SuiteStartProduct"}, "SuiteTerminateProcess": {"SuiteKillProduct"},
+                   "SuiteTerminateJob": {"SuiteKillProduct"}, "SuiteKillProduct": {"SuiteStartProduct", "SuiteStopProduct"},
+                   "SuiteStopProduct": {"SuiteWaitForProduct"}, "SuiteStartProduct": {"SuiteRunProduct"}}
+
+
+def dll_imports(code):
+    """[(name in the script, name in the DLL)] of the imports of a text of code lines."""
+    result = []
+    for match in re.finditer(r"external\s+'([A-Za-z0-9_]+)@", code):
+        names = re.findall(r"\b(?:function|procedure)\s+(\w+)", code[:match.start()])
+        result.append((names[-1] if names else "?", match.group(1)))
+    return result
+
+
+def call_sites(files, name):
+    """[(file, function, number of calls)] of the calls of name( in the functions of the suite files."""
+    result = []
+    for rel, text in files.items():
+        for function, body in function_bodies(code_lines(text)).items():
+            calls = len(re.findall(rf"\b{name}\s*\(", body))
+            if function == name:
+                calls -= 1  # its own declaration
+            if calls > 0:
+                result.append((rel, function, calls))
+    return result
+
+
+def check_process(files, errors):
+    """Rules for the product setup as a process (S2, ADR 0013 amendment): who starts and who stops a program, the job
+    object without limits, the bounded waits, Cancel before the point of no return and the end of the run after a
+    cancel; the number of rules checked."""
+    code = {rel: "\n".join(line for _, line in code_lines(text)) for rel, text in files.items()}
+    imports = [(rel, local, win) for rel, text in code.items() for local, win in dll_imports(text)]
+    for rel, local, win in imports:
+        if PROGRAM_IMPORTS_FORBIDDEN.match(win):
+            errors.append(f"{rel}: {local} imports {win}: the suite starts its product setup with SuiteStartProduct "
+                          "(CreateProcessW) only, and puts no limit on the job object (a kill on close would leave half "
+                          "installed games)")
+    for win, local in PROGRAM_IMPORTS.items():
+        found = [name for _, name, other in imports if other == win]
+        if found != [local]:
+            errors.append(f"suite files import {win} as {found}, expected exactly one import named {local}")
+    for name, allowed in PROGRAM_CALLERS.items():
+        sites = call_sites(files, name)
+        callers = {function for _, function, _ in sites}
+        if callers != allowed:
+            errors.append(f"{name} is called by {sorted(callers) or 'nobody'}, expected {sorted(allowed)}: the one place that "
+                          "starts a product setup, the one that stops it and who may call them are fixed")
+    counts = {name: sum(n for _, _, n in call_sites(files, name)) for name in ("SuiteCreateProcess", "SuiteStartProduct", "SuiteStopProduct")}
+    for name, number in (("SuiteCreateProcess", 1), ("SuiteStartProduct", 1), ("SuiteStopProduct", 3)):
+        if counts[name] != number:
+            errors.append(f"{name} is called {counts[name]} times, expected {number}")
+    bodies = {}
+    for text in files.values():
+        bodies.update(function_bodies(code_lines(text)))
+    wait = bodies.get("SuiteWaitForProduct", "")
+    cancel = re.search(r"SuiteCancelRequested then.*?SuiteProgressInstalling\(SuiteChildProgress\) then.*?\bend\s+else\s+begin\s+"
+                       r"SuiteStopProduct\(", wait, re.DOTALL)
+    stall = re.search(r"SuiteTimeoutStall:.*?SuiteAskStop\(Product\).*?SuiteStopProduct\(", wait, re.DOTALL)
+    cap = re.search(r"SuiteTimeoutCap:.*?if\s+SuiteChildJob\s*<>\s*0\s+then\s+begin\s+SuiteStopProduct\(", wait, re.DOTALL)
+    if not (cancel and stall and cap):
+        errors.append("suite/suite_run.iss: SuiteWaitForProduct may stop the product setup only (1) after the user confirmed "
+                      "the cancel and the log shows that it has not started to install (SuiteCancelRequested, "
+                      "SuiteProgressInstalling), (2) after the user answered the stall question (SuiteAskStop) and (3) at "
+                      "the cap, with a job (SuiteChildJob <> 0)")
+    for needed in ("SuitePumpMessages", "SuiteTimeoutCheck(", "SuiteLookAtLog(", "Terminated"):
+        if needed not in wait:
+            errors.append(f"suite/suite_run.iss: SuiteWaitForProduct must keep the window alive and watch the limits ({needed})")
+    start = bodies.get("SuiteStartProduct", "")
+    assign_at, resume_at = start.find("SuiteAssignJob("), start.find("SuiteResumeThread(")
+    if "SuiteCreateSuspended" not in start or assign_at < 0 or resume_at < assign_at:
+        errors.append("suite/suite_common.iss: SuiteStartProduct must start the process suspended (SuiteCreateSuspended), put it "
+                      "in the job (SuiteAssignJob) and only then resume it: a loader that already started the real setup "
+                      "could not be stopped with it")
+    waits = [argument.split(",")[-1].strip() for text in code.values() for argument in re.findall(r"(?<!function )\bSuiteWaitObject\s*\(([^()]*)\)", text)]
+    if not waits or any(argument not in ("SuiteWaitSliceMs", "0") for argument in waits):
+        errors.append(f"every wait for a process must be bounded (SuiteWaitSliceMs or 0 milliseconds), found {waits}")
+    if sum(text.count("SuiteHasParam('/TestCancel')") for text in code.values()) != 1 \
+            or "SuiteHasParam('/TestCancel')" not in bodies.get("SuiteRunProducts", ""):
+        errors.append("suite/suite_run.iss: /TestCancel (CI scenario S11) must be read once, in SuiteRunProducts")
+    button = bodies.get("CancelButtonClick", "")
+    for needed in ("Cancel := False;", "Confirm := False;", "SuiteCancelMode(", "SuiteAskCancel"):
+        if needed not in button:
+            errors.append(f"suite/suite_run.iss: CancelButtonClick must answer the click while a product setup runs ({needed})")
+    products = bodies.get("SuiteRunProducts", "")
+    if "not SuiteRunCancelled" not in products or not re.search(r"if\s+SuiteRunCancelled\s+then\s+begin.*?\bAbort;", products, re.DOTALL) \
+            or products.find("Abort;") < products.find("finally"):
+        errors.append("suite/suite_run.iss: after a cancel SuiteRunProducts must start no further product setup and end Setup "
+                      "with Abort, after the progress bar was restored")
+    if "SuiteChildTimeout" not in bodies.get("SuiteReasonText", ""):
+        errors.append("suite/suite_run.iss: SuiteReasonText must name the reason of a product setup the suite stopped")
+    return 12
 
 
 def check_marker(record, errors):
@@ -606,11 +724,12 @@ def check(root):
     files = {rel: read(root, rel) for rel in SUITE_FILES if (root / rel).is_file()}
     frame = check_frame_rules(main, files, errors)
     removal = check_uninstaller(uninstaller, main, files, errors)
+    process = check_process(files, errors)
     check_forbidden_words(root, errors)
     log_lines = check_product_log_lines(root, common, errors)
     return errors, (f"suite frame: {directives} [Setup] directives, {products} product setups and {launcher} "
                     f"launcher, license and legal text entries in [Files], {codes} exit codes, {frame} slice, mode and registry view rules, product runner "
-                    f"{steps} rules, uninstall key marker {marker} rules, uninstaller {removal} rules, no CD key registry or library reference, {log_lines} product log lines the suite parses")
+                    f"{steps} rules, process {process} rules, uninstall key marker {marker} rules, uninstaller {removal} rules, no CD key registry or library reference, {log_lines} product log lines the suite parses")
 
 
 def self_test(source_root):
@@ -710,18 +829,70 @@ def self_test(source_root):
         ("marker procedure deletes a value",
          replace("suite/suite_record.iss", "    Exit;\n  end;\n  RegWriteDWordValue(", "    Exit;\n  end;\n  RegDeleteValue(HKLM, 'Software', 'x');\n  RegWriteDWordValue("),
          "MarkSuiteUninstallKey must not delete registry keys or values"),
-        ("second Exec", replace(run, "  Started := Exec(Exe, Params,", "  Exec(Exe, Params, '', SW_SHOW, ewNoWait, Code);\n  Started := Exec(Exe, Params,"),
-         "must call Exec exactly once"),
+        ("a second start of the product setup",
+         replace(run, "  Started := SuiteStartProduct(Exe, Params, ExpandConstant('{tmp}'), Proc, Job, Err);\n",
+                 "  SuiteStartProduct(Exe, Params, ExpandConstant('{tmp}'), Proc, Job, Err);\n  Started := SuiteStartProduct(Exe, Params, ExpandConstant('{tmp}'), Proc, Job, Err);\n"),
+         "SuiteStartProduct is called 2 times, expected 1"),
+        ("a second CreateProcessW", replace(common, "  CmdLine := '\"' + Exe + '\"';\n", "  SuiteCreateProcess(Exe, '', 0, 0, False, 0, 0, WorkDir, Startup, Created);\n  CmdLine := '\"' + Exe + '\"';\n"),
+         "SuiteCreateProcess is called 2 times, expected 1"),
+        ("Exec reintroduced",
+         replace(run, "  Started := SuiteStartProduct(Exe, Params, ExpandConstant('{tmp}'), Proc, Job, Err);\n",
+                 "  Started := Exec(Exe, Params, ExpandConstant('{tmp}'), SW_SHOWNORMAL, ewWaitUntilTerminated, Code);\n  Proc := 0;\n  Job := 0;\n"),
+         "must not start a program with Exec or ShellExec"),
         ("a program started by ShellExec", replace(run, "  DeleteFile(LogFile);\n", "  DeleteFile(LogFile);\n  ShellExec('open', Exe, '', '', SW_SHOW, ewNoWait, Code);\n"),
-         "must call Exec exactly once"),
-        ("no pin check before Exec", replace(run, "if not SuiteExtractAndCheck(Product, Reason, Mismatch, Lock) then", "if False then"),
-         "must call SuiteExtractAndCheck (the pin check) before Exec"),
+         "must not start a program with Exec or ShellExec"),
+        ("ShellExecuteW imported", replace(common, "function SuiteTickCount: DWORD;", "function SuiteShellExecute(hwnd: DWORD; a, b, c, d: String; e: Integer): DWORD;\n  external 'ShellExecuteW@shell32.dll stdcall';\nfunction SuiteTickCount: DWORD;"),
+         "imports ShellExecuteW"),
+        ("CreateProcessA imported", replace(common, "function SuiteTickCount: DWORD;", "function SuiteCreateProcessA(a: String): BOOL;\n  external 'CreateProcessA@kernel32.dll stdcall';\nfunction SuiteTickCount: DWORD;"),
+         "imports CreateProcessA"),
+        ("a kill on close job", replace(common, "function SuiteTickCount: DWORD;", "function SuiteSetJob(hJob: THandle; c: Integer; var d: Integer; e: Integer): BOOL;\n  external 'SetInformationJobObject@kernel32.dll stdcall';\nfunction SuiteTickCount: DWORD;"),
+         "imports SetInformationJobObject"),
+        ("TerminateProcess outside the stop", replace(run, "  Lock.Free;\n\n  // (e)", "  Lock.Free;\n  SuiteTerminateProcess(Proc, 1);\n\n  // (e)"),
+         "SuiteTerminateProcess is called by ['SuiteKillProduct', 'SuiteRunProduct']"),
+        ("the stop of the job outside SuiteKillProduct", replace(run, "  Lock.Free;\n\n  // (e)", "  Lock.Free;\n  SuiteTerminateJob(Job, 1);\n\n  // (e)"),
+         "SuiteTerminateJob is called by"),
+        ("a product setup stopped outside the cancel and the limits",
+         replace(run, "    Waited := SuiteWaitObject(SuiteChildProc, SuiteWaitSliceMs);\n", "    SuiteStopProduct(Product, 'x');\n    Waited := SuiteWaitObject(SuiteChildProc, SuiteWaitSliceMs);\n"),
+         "SuiteStopProduct is called 4 times, expected 3"),
+        ("a stop outside the wait", replace(run, "  Lock.Free;\n\n  // (e)", "  Lock.Free;\n  SuiteKillProduct(Proc, Job);\n\n  // (e)"),
+         "SuiteKillProduct is called by"),
+        ("cancel while the product setup installs",
+         replace(run, "      if SuiteProgressInstalling(SuiteChildProgress) then\n      begin\n        Log('Product ' + Product + ': the cancel came too late, its setup has started",
+                 "      if False then\n      begin\n        Log('Product ' + Product + ': the cancel came too late, its setup has started"),
+         "SuiteWaitForProduct may stop the product setup only"),
+        ("a stall stopped without the question", replace(run, "            if SuiteAskStop(Product) then\n", "            if True then\n"),
+         "SuiteWaitForProduct may stop the product setup only"),
+        ("the cap stops without a job", replace(run, "          if SuiteChildJob <> 0 then\n          begin\n            SuiteStopProduct(Product, 'runs for more than '",
+                                               "          if True then\n          begin\n            SuiteStopProduct(Product, 'runs for more than '"),
+         "SuiteWaitForProduct may stop the product setup only"),
+        ("an unbounded wait", replace(run, "SuiteWaitObject(SuiteChildProc, SuiteWaitSliceMs)", "SuiteWaitObject(SuiteChildProc, $FFFFFFFF)"),
+         "every wait for a process must be bounded"),
+        ("the wait does not keep the window alive", replace(run, "    if not SuitePumpMessages or Terminated then\n", "    if Terminated then\n"),
+         "SuiteWaitForProduct must keep the window alive and watch the limits (SuitePumpMessages)"),
+        ("the wait does not look at the limits", replace(run, "    case SuiteTimeoutCheck(", "    case 0 + Ord(SuiteTimeoutCheck"),
+         "(SuiteTimeoutCheck()"),
+        ("the process is resumed before it is in the job", replace(common, "  if Job <> 0 then\n    if not SuiteAssignJob(Job, Proc) then", "  SuiteResumeThread(Created.hThread);\n  if Job <> 0 then\n    if not SuiteAssignJob(Job, Proc) then"),
+         "SuiteStartProduct must start the process suspended"),
+        ("/TestCancel read twice", replace(run, "  SuiteRunCancelled := False;\n  SuiteRunStep := 0;", "  SuiteRunCancelled := SuiteHasParam('/TestCancel') and False;\n  SuiteRunStep := 0;"),
+         "/TestCancel (CI scenario S11) must be read once"),
+        ("the click on Cancel is Setup's", replace(run, "  Cancel := False;\n  Confirm := False;\n", ""),
+         "CancelButtonClick must answer the click"),
+        ("no end of Setup after a cancel", replace(run, "    Abort;\n", "    Log('x');\n"),
+         "after a cancel SuiteRunProducts must start no further product setup"),
+        ("the next product after a cancel", replace(run, " and not SuiteRunStopped and not SuiteRunCancelled then", " and not SuiteRunStopped then"),
+         "after a cancel SuiteRunProducts must start no further product setup"),
+        ("no reason text for a stopped product setup", replace(run, "    SuiteChildTimeout:\n      begin", "    SuiteChildPrecondition + 100:\n      begin"),
+         "SuiteReasonText must name the reason"),
+        ("no pin check before the start", replace(run, "if not SuiteExtractAndCheck(Product, Reason, Mismatch, Lock) then", "if False then"),
+         "must call SuiteExtractAndCheck (the pin check) before SuiteStartProduct"),
         ("extracted file not locked against writing",
          replace(run, "fmOpenRead or fmShareDenyWrite", "fmOpenRead or fmShareDenyNone"), "must lock the extracted file against writing"),
-        ("lock released before Exec",
-         replace(run, "  Started := Exec(Exe, Params, ExpandConstant('{tmp}'), SW_SHOWNORMAL, ewWaitUntilTerminated, Code);\n  Lock.Free;\n",
-                 "  Lock.Free;\n  Started := Exec(Exe, Params, ExpandConstant('{tmp}'), SW_SHOWNORMAL, ewWaitUntilTerminated, Code);\n"),
-         "must keep the lock of the extracted file until Exec has returned"),
+        ("lock released before the wait",
+         replace(run, "      Outcome := SuiteWaitForProduct(Product, LogFile, Code);\n", "      Lock.Free;\n      Outcome := SuiteWaitForProduct(Product, LogFile, Code);\n"),
+         "must keep the lock of the extracted file until the wait for the product setup has returned"),
+        ("lock released before the start", replace(run, "  Started := SuiteStartProduct(Exe, Params, ExpandConstant('{tmp}'), Proc, Job, Err);\n",
+                                                  "  Lock.Free;\n  Started := SuiteStartProduct(Exe, Params, ExpandConstant('{tmp}'), Proc, Job, Err);\n"),
+         "must keep the lock of the extracted file until the wait for the product setup has returned"),
         ("pin check that does not compare",
          replace(run, "SuitePinMatches(Hash, SuiteProductSetupSHA256(Product), Size, SuiteProductSetupSize(Product))", "(Hash <> '')"),
          "does not compare size and SHA-256 with SuitePinMatches"),
@@ -735,7 +906,7 @@ def self_test(source_root):
          "must not call DelTree or delete registry keys"),
         ("RemoveDir of another folder", replace(run, "RemoveDir(Group)", "RemoveDir(Desktop)"), "RemoveDir may only remove the start menu folder"),
         ("legacy shortcuts before the result is known",
-         replace(run, "  Started := Exec(Exe, Params,", "  SuiteRemoveLegacyShortcuts(Product);\n  Started := Exec(Exe, Params,"),
+         replace(run, "  Started := SuiteStartProduct(Exe, Params,", "  SuiteRemoveLegacyShortcuts(Product);\n  Started := SuiteStartProduct(Exe, Params,"),
          "deleted only after SuiteRunSucceeded"),
         ("legacy shortcuts of another list", replace(run, "Path := SuiteLegacyShortcutPath(Product, I, Desktop, Group);", "Path := Desktop + 'x.lnk';"),
          "must delete the paths of SuiteLegacyShortcutPath only"),

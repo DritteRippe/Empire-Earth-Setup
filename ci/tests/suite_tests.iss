@@ -2,8 +2,9 @@
 // Tests of the helpers of the suite installer (suite/suite_common.iss), included by unit_tests.iss
 // after its own helpers (Check, CheckBool) and run by its InitializeSetup. The helpers compute
 // something from their arguments; SuiteFindSliceProblems reads file sizes, so its tests write small
-// files into a folder of their own below {tmp}. Nothing here sends a request or starts a program.
-// Requires: Check, CheckBool, Results (unit_tests.iss), suite/suite_common.iss; the log tail tests also CreateFile, WriteFile,
+// files into a folder of their own below {tmp}. Nothing here sends a request; TestSuiteProcess starts cmd.exe and
+// cscript.exe of Windows (never a setup).
+// Requires: Check, CheckBool, Skip, Results (unit_tests.iss), suite/suite_common.iss; the log tail tests also CreateFile, WriteFile,
 // CloseHandle and FILE_SHARE_READ of utils.iss.
 
 procedure TestSuiteSliceFileName;
@@ -972,5 +973,148 @@ begin
   Check('SuiteTailLog: every entry of the long log was counted', IntToStr(P.InstallFiles), '6000');
   Check('SuiteTailLog: the long log was read completely', IntToStr(P.TailOffset), IntToStr(Length(Text)));
   DeleteFile(LogFile);
+  RemoveDir(Dir);
+end;
+
+// The limits and the choices of the product runner (S2): what they do with the time, the exit code and the
+// Cancel button. Pure.
+procedure TestSuiteRunLimits;
+var
+  Near, Wrapped: DWORD;
+begin
+  // how a product setup ended: the kind of an exit code, or SuiteChildTimeout if the suite stopped it
+  Check('SuiteChildKind exit 0', IntToStr(SuiteChildKind(False, 0)), IntToStr(SuiteChildOk));
+  Check('SuiteChildKind exit 1', IntToStr(SuiteChildKind(False, 1)), IntToStr(SuiteChildNotStarted));
+  Check('SuiteChildKind exit 3', IntToStr(SuiteChildKind(False, 3)), IntToStr(SuiteChildFatal));
+  Check('SuiteChildKind exit 7', IntToStr(SuiteChildKind(False, 7)), IntToStr(SuiteChildPrecondition));
+  Check('SuiteChildKind stopped by the suite', IntToStr(SuiteChildKind(True, SuiteKillCode)), IntToStr(SuiteChildTimeout));
+  Check('SuiteChildKind stopped, whatever the exit code says', IntToStr(SuiteChildKind(True, 0)), IntToStr(SuiteChildTimeout));
+  Check('SuiteChildTimeout is none of the kinds of an exit code', IntToStr(SuiteChildTimeout), '6');
+  // 259 is STILL_ACTIVE: no result of a setup, another failure
+  Check('SuiteChildKind 259', IntToStr(SuiteChildKind(False, 259)), IntToStr(SuiteChildOther));
+  CheckBool('SuiteRunSucceeded 259 with an entry', SuiteRunSucceeded(True, 259, True), False);
+  CheckBool('SuiteRunSucceeded exit code of a kill', SuiteRunSucceeded(True, SuiteKillCode, True), False);
+
+  // the time limits: no log growth for 10 minutes (asked once), 90 minutes at most, none in the advanced mode
+  Check('SuiteStallMs', IntToStr(SuiteStallMs), '600000');
+  Check('SuiteProductCapMs', IntToStr(SuiteProductCapMs), '5400000');
+  Check('SuiteTimeoutCheck at the start', IntToStr(SuiteTimeoutCheck(0, 0, False, False, False)), IntToStr(SuiteTimeoutNone));
+  Check('SuiteTimeoutCheck a minute before the stall', IntToStr(SuiteTimeoutCheck(900000, SuiteStallMs - 1, False, False, False)), IntToStr(SuiteTimeoutNone));
+  Check('SuiteTimeoutCheck stall', IntToStr(SuiteTimeoutCheck(900000, SuiteStallMs, False, False, False)), IntToStr(SuiteTimeoutStall));
+  Check('SuiteTimeoutCheck stall asked once', IntToStr(SuiteTimeoutCheck(900000, SuiteStallMs, False, True, False)), IntToStr(SuiteTimeoutNone));
+  Check('SuiteTimeoutCheck a log that grows is no stall', IntToStr(SuiteTimeoutCheck(3600000, 1000, False, False, False)), IntToStr(SuiteTimeoutNone));
+  Check('SuiteTimeoutCheck just below the cap', IntToStr(SuiteTimeoutCheck(SuiteProductCapMs - 1, 1000, False, False, False)), IntToStr(SuiteTimeoutNone));
+  Check('SuiteTimeoutCheck cap', IntToStr(SuiteTimeoutCheck(SuiteProductCapMs, 1000, False, False, False)), IntToStr(SuiteTimeoutCap));
+  Check('SuiteTimeoutCheck cap before stall', IntToStr(SuiteTimeoutCheck(SuiteProductCapMs, SuiteStallMs, False, False, False)), IntToStr(SuiteTimeoutCap));
+  Check('SuiteTimeoutCheck cap handled once', IntToStr(SuiteTimeoutCheck(SuiteProductCapMs, 1000, False, True, True)), IntToStr(SuiteTimeoutNone));
+  Check('SuiteTimeoutCheck advanced mode: no stall', IntToStr(SuiteTimeoutCheck(900000, SuiteStallMs, True, False, False)), IntToStr(SuiteTimeoutNone));
+  Check('SuiteTimeoutCheck advanced mode: no cap', IntToStr(SuiteTimeoutCheck(SuiteProductCapMs * 2, 1000, True, False, False)), IntToStr(SuiteTimeoutNone));
+
+  // what the Cancel button does: asks before the product setup installed anything (and a job can stop it), else off
+  Check('SuiteCancelMode before it installs', IntToStr(SuiteCancelMode(False, True, False)), IntToStr(SuiteCancelAsk));
+  Check('SuiteCancelMode installing', IntToStr(SuiteCancelMode(False, True, True)), IntToStr(SuiteCancelInstalling));
+  Check('SuiteCancelMode installing without a job', IntToStr(SuiteCancelMode(False, False, True)), IntToStr(SuiteCancelInstalling));
+  Check('SuiteCancelMode before it installs, without a job', IntToStr(SuiteCancelMode(False, False, False)), IntToStr(SuiteCancelNoJob));
+  Check('SuiteCancelMode advanced mode', IntToStr(SuiteCancelMode(True, True, False)), IntToStr(SuiteCancelOwnWizard));
+  Check('SuiteCancelMode advanced mode, installing', IntToStr(SuiteCancelMode(True, True, True)), IntToStr(SuiteCancelOwnWizard));
+
+  // the tick counter of Windows wraps after 49.7 days
+  Check('SuiteTicksBetween', IntToStr(SuiteTicksBetween(100, 350)), '250');
+  Check('SuiteTicksBetween no time', IntToStr(SuiteTicksBetween(7, 7)), '0');
+  Near := $FFFFFF00;
+  Wrapped := 100;
+  Check('SuiteTicksBetween across the wrap', IntToStr(SuiteTicksBetween(Near, Wrapped)), '356');
+
+  Check('SuitePhaseName start', SuitePhaseName(SuitePhaseStart), 'start');
+  Check('SuitePhaseName install', SuitePhaseName(SuitePhaseInstall), 'install');
+  Check('SuitePhaseName done', SuitePhaseName(SuitePhaseDone), 'done');
+  Check('SuitePhaseName unknown', SuitePhaseName(99), 'unknown');
+
+  // no WM_QUIT is waiting in the queue of this process
+  CheckBool('SuitePumpMessages', SuitePumpMessages, True);
+end;
+
+// The process runner on real programs: SuiteStartProduct starts them like Exec does and keeps the handle, the exit
+// code comes from GetExitCodeProcess (259 is no result), and the job stops a program and what it started. The
+// programs are cmd.exe of Windows and this test setup itself with /ProcSleepDir (InitializeSetup of unit_tests.iss):
+// like a product setup it is a loader that starts the real setup, a .tmp file in %TEMP%, and waits for it. Nothing
+// here starts a setup of the suite.
+procedure TestSuiteProcess;
+var
+  Dir, Cmd: String;
+  Proc, Job: THandle;
+  Err, Code, I: Integer;
+  Alive: Boolean;
+begin
+  Dir := ExpandConstant('{tmp}\suite_proc');
+  ForceDirectories(Dir);
+  Cmd := ExpandConstant('{sys}\cmd.exe');
+
+  // a program that ends at once: the handle, the wait and the exit code
+  Proc := 1;
+  Job := 1;
+  Err := -1;
+  CheckBool('SuiteStartProduct starts a program', SuiteStartProduct(Cmd, '/c exit 7', Dir, Proc, Job, Err), True);
+  CheckBool('SuiteStartProduct gives a process handle', Proc <> 0, True);
+  CheckBool('SuiteWaitEnd sees the program end', SuiteWaitEnd(Proc, 30000), True);
+  Code := -1;
+  CheckBool('SuiteProcessExitCode of an ended program', SuiteProcessExitCode(Proc, Code), True);
+  Check('SuiteProcessExitCode is the exit code', IntToStr(Code), '7');
+  SuiteCloseHandle(Proc);
+  if Job <> 0 then
+    SuiteCloseHandle(Job);
+
+  // 259 is what GetExitCodeProcess says for a program that has not ended: no result
+  CheckBool('SuiteStartProduct starts a program that ends with 259', SuiteStartProduct(Cmd, '/c exit 259', Dir, Proc, Job, Err), True);
+  CheckBool('SuiteWaitEnd sees it end', SuiteWaitEnd(Proc, 30000), True);
+  Code := -1;
+  CheckBool('SuiteProcessExitCode 259 is no result', SuiteProcessExitCode(Proc, Code), False);
+  Check('SuiteProcessExitCode 259 leaves the code alone', IntToStr(Code), '-1');
+  SuiteCloseHandle(Proc);
+  if Job <> 0 then
+    SuiteCloseHandle(Job);
+
+  // a program that is not there: no handle, an error code
+  Proc := 1;
+  Job := 1;
+  Err := 0;
+  CheckBool('SuiteStartProduct of a missing program', SuiteStartProduct(Dir + '\nothing.exe', '', Dir, Proc, Job, Err), False);
+  Check('SuiteStartProduct of a missing program: no process', IntToStr(Proc), '0');
+  Check('SuiteStartProduct of a missing program: no job', IntToStr(Job), '0');
+  CheckBool('SuiteStartProduct of a missing program: an error code', Err <> 0, True);
+
+  // a program that runs: not ended, no exit code; the job stops it and what it started (the loader and the real
+  // setup of this test setup: the second one would write survived.txt after 6 seconds)
+  DeleteFile(Dir + '\started.txt');
+  DeleteFile(Dir + '\survived.txt');
+  CheckBool('SuiteStartProduct starts a setup that starts its real setup', SuiteStartProduct(ExpandConstant('{srcexe}'),
+    '/VERYSILENT /SUPPRESSMSGBOXES /ProcSleepDir="' + Dir + '"', Dir, Proc, Job, Err), True);
+  if Job = 0 then
+    Skip('SuiteKillProduct stops the whole tree', 'the process could not be put in a job object')
+  else
+  begin
+    I := 0;
+    while (I < 300) and not FileExists(Dir + '\started.txt') do
+    begin
+      SuiteWaitEnd(Proc, 100);
+      I := I + 1;
+    end;
+    CheckBool('the real setup it starts is running', FileExists(Dir + '\started.txt'), True);
+    Code := -1;
+    CheckBool('SuiteProcessExitCode of a running program', SuiteProcessExitCode(Proc, Code), False);
+    SuiteKillProduct(Proc, Job);
+    CheckBool('SuiteWaitEnd sees the stopped program end', SuiteWaitEnd(Proc, SuiteKillWaitMs), True);
+    Code := -1;
+    CheckBool('SuiteProcessExitCode of the stopped program', SuiteProcessExitCode(Proc, Code), True);
+    Check('the stopped program got SuiteKillCode', IntToStr(Code), IntToStr(SuiteKillCode));
+    // the real setup would write survived.txt 6 seconds after it started if the job had not stopped it too
+    Sleep(7000);
+    CheckBool('the real setup the stopped loader started did not survive', FileExists(Dir + '\survived.txt'), False);
+  end;
+  SuiteCloseHandle(Proc);
+  if Job <> 0 then
+    SuiteCloseHandle(Job);
+  DeleteFile(Dir + '\started.txt');
+  DeleteFile(Dir + '\survived.txt');
   RemoveDir(Dir);
 end;

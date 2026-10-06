@@ -435,6 +435,7 @@ const
   SuiteChildFatal = 3;             // 3, 4 and 6: a fatal error while preparing, installing, or Setup was killed
   SuiteChildPrecondition = 4;      // 7 and 8: the preparation found that the installation cannot go on
   SuiteChildOther = 5;             // any other exit code
+  SuiteChildTimeout = 6;           // not an exit code: the suite stopped it, no sign of life or too slow (SuiteTimeoutCheck)
 
   // How many old shortcut files of a product setup the suite deletes (SuiteLegacyShortcutPath)
   SuiteLegacyShortcutCount = 5;
@@ -622,6 +623,17 @@ begin
   else
     Result := SuiteChildOther;
   end;
+end;
+
+// How a product setup ended: SuiteChildTimeout if the suite stopped it for its time limits (the exit code of a
+// killed program tells nothing), else what its exit code means. 259 (STILL_ACTIVE, what GetExitCodeProcess gives
+// for a program that has not ended) is no result either: it is another failure like any code that is not listed.
+function SuiteChildKind(TimedOut: Boolean; ExitCode: Integer): Integer;
+begin
+  if TimedOut then
+    Result := SuiteChildTimeout
+  else
+    Result := SuiteChildExitKind(ExitCode);
 end;
 
 // A product succeeded if its setup was started and ended with exit code 0 AND its uninstall entry is
@@ -1167,6 +1179,331 @@ begin
   Result := ((Before * 1000) + (Weight * Within)) div Total;
   if Result > 990 then
     Result := 990;
+end;
+
+// ---- the process of a product setup: start, wait, limits (S2, suite_run.iss) -------------------------
+
+const
+  // How the wait for a product setup ends (SuiteWaitForProduct)
+  SuiteEndExited = 0;              // the product setup ended: its exit code is valid
+  SuiteEndCancelled = 1;           // the user cancelled before it installed anything: it was stopped
+  SuiteEndTimedOut = 2;            // the suite stopped it for its time limits (SuiteTimeoutCheck)
+  SuiteEndQuit = 3;                // Setup itself is closing (WM_QUIT): the product setup was left running
+
+  // What SuiteTimeoutCheck finds
+  SuiteTimeoutNone = 0;
+  SuiteTimeoutStall = 1;           // no new line in the log of the product setup for SuiteStallMs
+  SuiteTimeoutCap = 2;             // it runs longer than SuiteProductCapMs
+
+  // What the Cancel button of the installation page does while a product setup runs (SuiteCancelMode)
+  SuiteCancelAsk = 0;              // the product setup has installed nothing yet: Cancel asks and may stop it
+  SuiteCancelInstalling = 1;       // it writes the game files: no way back, Cancel is off
+  SuiteCancelOwnWizard = 2;        // advanced mode: the product setup shows its own wizard with its own Cancel button
+  SuiteCancelNoJob = 3;            // the product setup could not be put in a job: it cannot be stopped from here
+
+  // The limits of the wait, in milliseconds. The loop looks at the window every SuiteWaitSliceMs and at the log
+  // every SuiteTailEveryMs. A product setup whose log does not grow for SuiteStallMs may be stuck (the longest
+  // silent step of the laptop logs is a 15 s manifest hash, a tenth of the biggest file at 0.5 Mbit/s about 5
+  // minutes); one that runs longer than SuiteProductCapMs is stopped (the laptop runs took 5 to 6 minutes).
+  SuiteWaitSliceMs = 50;
+  SuiteTailEveryMs = 500;
+  SuiteStallMs = 600000;           // 10 minutes
+  SuiteProductCapMs = 5400000;     // 90 minutes
+  SuiteKillWaitMs = 5000;          // how long the suite waits for the product setup to be gone after it was stopped
+  SuiteKillCode = 6;               // the exit code the stopped processes get (Inno Setup's code for a killed setup)
+
+  // The values of the Windows functions below
+  SuiteCreateSuspended = $00000004;
+  SuiteCreateDefaultErrorMode = $04000000;
+  SuiteStartfUseShowWindow = 1;
+  SuiteSwShowNormal = 1;
+  SuiteWaitObject0 = 0;
+  SuiteWaitTimeout = 258;
+  SuiteStillActive = 259;
+  SuiteWmQuit = $0012;
+  SuitePmRemove = 1;
+
+type
+  // The records of CreateProcessW and PeekMessageW, as in the Windows headers: every field is 4 bytes or, in
+  // STARTUPINFO, two words, so the packed records of Pascal Script have the same layout as the C structures
+  // (Setup is a 32-bit program). The pointers the suite does not use are DWORDs that stay 0.
+  TSuiteStartupInfo = record
+    cb: DWORD;
+    lpReserved: DWORD;
+    lpDesktop: DWORD;
+    lpTitle: DWORD;
+    dwX: DWORD;
+    dwY: DWORD;
+    dwXSize: DWORD;
+    dwYSize: DWORD;
+    dwXCountChars: DWORD;
+    dwYCountChars: DWORD;
+    dwFillAttribute: DWORD;
+    dwFlags: DWORD;
+    wShowWindow: Word;
+    cbReserved2: Word;
+    lpReserved2: DWORD;
+    hStdInput: THandle;
+    hStdOutput: THandle;
+    hStdError: THandle;
+  end;
+  TSuiteProcessInfo = record
+    hProcess: THandle;
+    hThread: THandle;
+    dwProcessId: DWORD;
+    dwThreadId: DWORD;
+  end;
+  TSuiteMsg = record
+    hwnd: HWND;
+    message: UINT;
+    wParam: Longint;
+    lParam: Longint;
+    time: DWORD;
+    ptX: Longint;
+    ptY: Longint;
+  end;
+
+// The Windows functions of the runner under names of their own (utils.iss, which the unit tests include too,
+// declares some of them: CloseHandle, GetTickCount). Only suite_run.iss calls them, and ci/check_suite.py checks
+// which function calls the ones that start or stop a program.
+function SuiteCreateProcess(lpApplicationName, lpCommandLine: String; lpProcessAttributes, lpThreadAttributes: DWORD;
+  bInheritHandles: BOOL; dwCreationFlags: DWORD; lpEnvironment: DWORD; lpCurrentDirectory: String;
+  var lpStartupInfo: TSuiteStartupInfo; var lpProcessInformation: TSuiteProcessInfo): BOOL;
+  external 'CreateProcessW@kernel32.dll stdcall';
+function SuiteCreateJob(lpJobAttributes, lpName: DWORD): THandle;
+  external 'CreateJobObjectW@kernel32.dll stdcall';
+function SuiteAssignJob(hJob, hProcess: THandle): BOOL;
+  external 'AssignProcessToJobObject@kernel32.dll stdcall';
+function SuiteResumeThread(hThread: THandle): Longint;
+  external 'ResumeThread@kernel32.dll stdcall';
+function SuiteTerminateJob(hJob: THandle; uExitCode: UINT): BOOL;
+  external 'TerminateJobObject@kernel32.dll stdcall';
+function SuiteTerminateProcess(hProcess: THandle; uExitCode: UINT): BOOL;
+  external 'TerminateProcess@kernel32.dll stdcall';
+function SuiteWaitObject(hHandle: THandle; dwMilliseconds: DWORD): Longint;
+  external 'WaitForSingleObject@kernel32.dll stdcall';
+function SuiteGetExitCode(hProcess: THandle; var lpExitCode: DWORD): BOOL;
+  external 'GetExitCodeProcess@kernel32.dll stdcall';
+function SuiteCloseHandle(hObject: THandle): BOOL;
+  external 'CloseHandle@kernel32.dll stdcall';
+function SuiteTickCount: DWORD;
+  external 'GetTickCount@kernel32.dll stdcall';
+function SuitePeekMessage(var lpMsg: TSuiteMsg; hWnd: HWND; wMsgFilterMin, wMsgFilterMax, wRemoveMsg: UINT): BOOL;
+  external 'PeekMessageW@user32.dll stdcall';
+function SuiteTranslateMessage(const lpMsg: TSuiteMsg): BOOL;
+  external 'TranslateMessage@user32.dll stdcall';
+function SuiteDispatchMessage(const lpMsg: TSuiteMsg): Longint;
+  external 'DispatchMessageW@user32.dll stdcall';
+procedure SuitePostQuitMessage(nExitCode: Longint);
+  external 'PostQuitMessage@user32.dll stdcall';
+
+// Milliseconds from Start to Current (two SuiteTickCount values), also across the wrap of the counter after 49.7 days
+function SuiteTicksBetween(Start, Current: DWORD): Int64;
+var
+  Wrap: Int64;
+begin
+  Result := Int64(Current) - Int64(Start);
+  if Result < 0 then
+  begin
+    Wrap := 65536;
+    Result := Result + Wrap * 65536;
+  end;
+end;
+
+// Handles the messages that wait for the window of Setup (paint, clicks, a Cancel click that opens its question),
+// like the wait of Inno Setup's Exec does. False if a WM_QUIT came: it is put back for the main loop of Setup, and
+// the caller stops waiting.
+function SuitePumpMessages: Boolean;
+var
+  Msg: TSuiteMsg;
+begin
+  Result := True;
+  while SuitePeekMessage(Msg, 0, 0, 0, SuitePmRemove) do
+  begin
+    if Msg.message = SuiteWmQuit then
+    begin
+      SuitePostQuitMessage(Msg.wParam);
+      Result := False;
+      Exit;
+    end;
+    SuiteTranslateMessage(Msg);
+    SuiteDispatchMessage(Msg);
+  end;
+end;
+
+// Stops the product setup and everything it started: the whole job, or without a job only the process (the start
+// failed before the real setup could exist). The only place that stops a program (ci/check_suite.py): the runner
+// calls it for the cancel the user confirmed and for the time limits, and only with a job.
+procedure SuiteKillProduct(Proc, Job: THandle);
+begin
+  if Job <> 0 then
+    SuiteTerminateJob(Job, SuiteKillCode)
+  else
+    SuiteTerminateProcess(Proc, SuiteKillCode);
+end;
+
+// Starts the setup of a product the way Exec does (InstFunc.pas InstExec: CreateProcess with the quoted program
+// and its parameters, SW_SHOWNORMAL, the thread handle closed at once), but keeps the process handle, which Exec
+// does not give back. Proc is the process (0 if it did not start, Err then the Windows error code) and Job a job
+// object without any limit that the process is put into before it runs: the program the suite starts is only
+// the loader of the product setup, it starts the real setup from a .tmp file in %TEMP% and waits for it, so
+// stopping the loader alone would leave the real setup running; the job holds both. No limit is set, so closing
+// the job or the end of the suite does not stop anything (a kill on close would leave half installed games).
+// Job = 0 if no job could be used (a Windows 7 process inside another job): the product setup then runs as it did
+// with Exec and cannot be stopped from here (SuiteCancelNoJob). The only place that starts a program, called
+// once, by the runner after the pin check (ci/check_suite.py).
+function SuiteStartProduct(const Exe, Params, WorkDir: String; var Proc, Job: THandle; var Err: Integer): Boolean;
+var
+  Startup: TSuiteStartupInfo;
+  Created: TSuiteProcessInfo;
+  CmdLine: String;
+  Flags: DWORD;
+begin
+  Result := False;
+  Proc := 0;
+  Err := 0;
+  Job := SuiteCreateJob(0, 0);
+  Startup.cb := SizeOf(Startup);
+  Startup.lpReserved := 0;
+  Startup.lpDesktop := 0;
+  Startup.lpTitle := 0;
+  Startup.dwX := 0;
+  Startup.dwY := 0;
+  Startup.dwXSize := 0;
+  Startup.dwYSize := 0;
+  Startup.dwXCountChars := 0;
+  Startup.dwYCountChars := 0;
+  Startup.dwFillAttribute := 0;
+  Startup.dwFlags := SuiteStartfUseShowWindow;
+  Startup.wShowWindow := SuiteSwShowNormal;
+  Startup.cbReserved2 := 0;
+  Startup.lpReserved2 := 0;
+  Startup.hStdInput := 0;
+  Startup.hStdOutput := 0;
+  Startup.hStdError := 0;
+  Created.hProcess := 0;
+  Created.hThread := 0;
+  Created.dwProcessId := 0;
+  Created.dwThreadId := 0;
+  CmdLine := '"' + Exe + '"';
+  if Params <> '' then
+    CmdLine := CmdLine + ' ' + Params;
+  Flags := SuiteCreateDefaultErrorMode;
+  if Job <> 0 then
+    Flags := Flags or SuiteCreateSuspended;
+  if not SuiteCreateProcess(Exe, CmdLine, 0, 0, False, Flags, 0, WorkDir, Startup, Created) then
+  begin
+    Err := DLLGetLastError;
+    if Job <> 0 then
+      SuiteCloseHandle(Job);
+    Job := 0;
+    Exit;
+  end;
+  Proc := Created.hProcess;
+  if Job <> 0 then
+    if not SuiteAssignJob(Job, Proc) then
+    begin
+      Log('The process was not put in a job object (' + SysErrorMessage(DLLGetLastError) + '): it cannot be stopped from here');
+      SuiteCloseHandle(Job);
+      Job := 0;
+    end;
+  if (Flags and SuiteCreateSuspended) <> 0 then
+    if SuiteResumeThread(Created.hThread) < 0 then
+    begin
+      // the process never ran: nothing can be half done, so it is stopped as it is
+      Err := DLLGetLastError;
+      SuiteKillProduct(Proc, Job);
+      SuiteCloseHandle(Created.hThread);
+      SuiteCloseHandle(Proc);
+      if Job <> 0 then
+        SuiteCloseHandle(Job);
+      Proc := 0;
+      Job := 0;
+      Exit;
+    end;
+  SuiteCloseHandle(Created.hThread);
+  Result := True;
+end;
+
+// Waits for the process up to Ms milliseconds and keeps the window of Setup alive meanwhile; True if it ended
+function SuiteWaitEnd(Proc: THandle; Ms: Integer): Boolean;
+var
+  Started: DWORD;
+begin
+  Started := SuiteTickCount;
+  repeat
+    SuitePumpMessages;
+    Result := SuiteWaitObject(Proc, SuiteWaitSliceMs) = SuiteWaitObject0;
+  until Result or (SuiteTicksBetween(Started, SuiteTickCount) >= Ms);
+end;
+
+// The exit code of a process that has ended. False if the process is still running or the code cannot be read, and
+// for 259 (STILL_ACTIVE): that is what GetExitCodeProcess answers for a running process, so it is never taken for
+// the result of a setup (a setup that really ends with 259 is a failure like every code that is not 0).
+function SuiteProcessExitCode(Proc: THandle; var Code: Integer): Boolean;
+var
+  Got: Boolean;
+  ExitCode: DWORD;
+begin
+  Result := False;
+  ExitCode := 0;
+  if SuiteWaitObject(Proc, 0) <> SuiteWaitObject0 then
+    Exit;
+  Got := SuiteGetExitCode(Proc, ExitCode);
+  if Got and (ExitCode <> SuiteStillActive) then
+  begin
+    Code := ExitCode;
+    Result := True;
+  end;
+end;
+
+// What the wait does about the time a product setup takes. ElapsedMs is the time since it started, IdleMs the
+// time since its log last grew; StallDone and CapDone say that the case was handled once (the stall is asked once,
+// the cap kills). The cap comes first. The advanced mode has no limits: the user goes through the wizard of the
+// product setup at his own pace and the log does not grow while a page waits.
+function SuiteTimeoutCheck(ElapsedMs, IdleMs: Int64; Advanced, StallDone, CapDone: Boolean): Integer;
+begin
+  Result := SuiteTimeoutNone;
+  if Advanced then
+    Exit;
+  if (ElapsedMs >= SuiteProductCapMs) and not CapDone then
+    Result := SuiteTimeoutCap
+  else if (IdleMs >= SuiteStallMs) and not StallDone then
+    Result := SuiteTimeoutStall;
+end;
+
+// What the Cancel button does while a product setup runs. Advanced: its own wizard has the Cancel button.
+// Installing: the game files are being written, a kill would leave a half installed game (the user decided that
+// Cancel only works before that). CanStop: the product setup is in a job object, so that the loader and the real
+// setup it started can both be stopped; without that nothing is stopped from here.
+function SuiteCancelMode(Advanced, CanStop, Installing: Boolean): Integer;
+begin
+  if Advanced then
+    Result := SuiteCancelOwnWizard
+  else if Installing then
+    Result := SuiteCancelInstalling
+  else if not CanStop then
+    Result := SuiteCancelNoJob
+  else
+    Result := SuiteCancelAsk;
+end;
+
+// The name of a phase in the log of the suite
+function SuitePhaseName(Phase: Integer): String;
+begin
+  case Phase of
+    SuitePhaseStart: Result := 'start';
+    SuitePhaseProbe: Result := 'online files servers';
+    SuitePhaseDownload: Result := 'download';
+    SuitePhaseVerify: Result := 'verify';
+    SuitePhaseInstall: Result := 'install';
+    SuitePhasePost: Result := 'post install';
+    SuitePhaseCdKeys: Result := 'CD keys';
+    SuitePhaseManifest: Result := 'manifest';
+    SuitePhaseDone: Result := 'done';
+  else
+    Result := 'unknown';
+  end;
 end;
 
 // ---- the uninstaller (suite_uninstall.iss) -------------------------------------------------------
