@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  Tests of ci\e2e\e2e_suite_helpers.ps1, the rules of the suite end-to-end scenarios S1 to S10, with fake data.
+  Tests of ci\e2e\e2e_suite_helpers.ps1, the rules of the suite end-to-end scenarios S1 to S11, with fake data.
 
 .DESCRIPTION
   The command lines of the suite and of the product setups it runs (valid ones must pass, each kind of defect must be
@@ -63,6 +63,12 @@ Check 'suite arguments: the value of /NeoEEArgs' (Get-E2ESwitchValue $switches '
 CheckProblems 'suite arguments: both products pass' (Get-E2ESuiteArgumentProblems $switches) ''
 CheckProblems 'suite arguments: EE only' (Get-E2ESuiteArgumentProblems @(New-E2ESuiteArguments -LogFile $log -Products 'EE' -EEArgs $ee)) ''
 CheckProblems 'suite arguments: NeoEE only' (Get-E2ESuiteArgumentProblems @(New-E2ESuiteArguments -LogFile $log -Products 'NeoEE' -NeoEEArgs $neo)) ''
+# S11: the extra switch goes last and is no problem of the rules
+$cancel = @(New-E2ESuiteArguments -LogFile $log -Products 'EE,NeoEE' -EEArgs $ee -NeoEEArgs $neo -ExtraSwitches @('/TestCancel'))
+Check 'suite arguments: /TestCancel is the last switch' $cancel[-1] '/TestCancel'
+Check 'suite arguments: /TestCancel changes nothing else' (($cancel | Select-Object -First ($cancel.Count - 1)) -join ' ') ($switches -join ' ')
+CheckProblems 'suite arguments: /TestCancel passes the rules' (Get-E2ESuiteArgumentProblems $cancel) ''
+Check 'the code of a cancel' $E2ESuiteConst.ExitCancelled 3
 Check 'the default NeoEE arguments decide against the CD key task' (@(Split-E2EList (Get-E2ESwitchValue (Split-E2ECommandLine $neo) 'MERGETASKS')) -contains '!neoee_cdkeys') $true
 
 function Without([string[]]$List, [string]$Item) { return @($List | Where-Object { $_ -ne $Item }) }
@@ -242,7 +248,7 @@ $result = ConvertTo-E2ESuiteSummary -JsonLines @((Json 'S1' 'DONE' 'INFO')) -Sce
 Check 'summary: no check passed' $result.Failed $true
 
 # --- The scenarios and their titles ---------------------------------------------------------------------------------------------------
-Check 'scenarios: ten' $E2ESuiteConst.Scenarios.Count 10
+Check 'scenarios: eleven' $E2ESuiteConst.Scenarios.Count 11
 foreach ($id in $E2ESuiteConst.Scenarios) { Check "title of $id" ($E2ESuiteTitles.ContainsKey($id) -and $E2ESuiteTitles[$id].Length -gt 10) $true }
 Check 'the AppIds are the dummies of ci/build.ps1' ($E2ESuiteConst.ProductAppIds['EE'] + '|' + $E2ESuiteConst.ProductAppIds['NeoEE'] + '|' + $E2ESuiteConst.SuiteAppId) `
   '00000000-0000-0000-0000-0000000000EE|00000000-0000-0000-0000-000000000AEE|00000000-0000-0000-0000-0000000005EE'

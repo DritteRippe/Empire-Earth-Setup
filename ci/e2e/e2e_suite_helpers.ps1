@@ -1,4 +1,4 @@
-# Pure helpers of the end-to-end scenarios S1 to S10 of the suite installer (suite/suite.iss, ADR 0013), run by
+# Pure helpers of the end-to-end scenarios S1 to S11 of the suite installer (suite/suite.iss, ADR 0013), run by
 # ci/e2e/run_e2e_suite.ps1 in the job suite-e2e of .github/workflows/build.yml with the PLACEHOLDER builds (dummy
 # AppIds, stub launcher, no game data, no official download). Like e2e_helpers.ps1 nothing here touches the
 # registry, the network or a process: constants, the command lines of the suite and of its child setups and the
@@ -35,6 +35,8 @@ $E2ESuiteConst = @{
   ExitDiskSpace       = 13
   ExitRunning         = 14
   ExitProductSetup    = 15
+  # The code of a cancel: Abort in the installation step (the cancel of S11), not one of the prechecks
+  ExitCancelled       = 3
   # .NET Framework 4.8 (Release value): without it the suite installs no launcher and no launcher shortcuts
   DotNet48Release     = 528040
   # Time limits of the programs the scenarios start (minutes): the suite with its two product setups, a run
@@ -52,7 +54,7 @@ $E2ESuiteConst = @{
   # components (a /TYPE would replace them by the components of that type, without the choice of the GPU page)
   RepairEEArgs    = '/TASKS=compatibility,compatibility_windows'
   RepairNeoEEArgs = '/TASKS=compatibility,compatibility_windows /MERGETASKS=!neoee_cdkeys,!certinclude,!directplay,!dxwebsetup'
-  Scenarios = @('S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8', 'S9', 'S10')
+  Scenarios = @('S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8', 'S9', 'S10', 'S11')
 }
 
 $E2ESuiteTitles = @{
@@ -67,6 +69,7 @@ $E2ESuiteTitles = @{
   S8  = 'Suite uninstaller: products, launcher and shortcuts gone, saved games kept'
   S9  = 'Second run as a repair: roots and tasks kept, no CD key task, shortcuts restored'
   S10 = 'Zone.Identifier on the package files does not change the chain'
+  S11 = 'Cancel while the first product setup runs: it is stopped before it installs anything (exit code 3)'
 }
 
 # The shortcut names of the suite (contract 1.7 point 8) and the product they start
@@ -87,19 +90,21 @@ function Split-E2ECommandLine([string]$Text) {
 }
 
 # The switches of a silent run of the suite. The value of /EEArgs= and /NeoEEArgs= is quoted as a whole: Setup
-# removes the quotes ({param:EEArgs|}), so the product setups get the arguments with their blanks.
+# removes the quotes ({param:EEArgs|}), so the product setups get the arguments with their blanks. ExtraSwitches go
+# last (S11: /TestCancel, which cancels the first product setup as soon as its real setup has opened its log).
 function New-E2ESuiteArguments {
   param(
     [Parameter(Mandatory = $true)][string]$LogFile,
     [Parameter(Mandatory = $true)][string]$Products,
     [string]$EEArgs = '',
     [string]$NeoEEArgs = '',
-    [string]$Language = 'en'
+    [string]$Language = 'en',
+    [string[]]$ExtraSwitches = @()
   )
   $switches = @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/LANG=$Language", "/LOG=`"$LogFile`"", "/PRODUCTS=$Products")
   if ($EEArgs) { $switches += "/EEArgs=`"$EEArgs`"" }
   if ($NeoEEArgs) { $switches += "/NeoEEArgs=`"$NeoEEArgs`"" }
-  return $switches
+  return @($switches + $ExtraSwitches)
 }
 
 # Problems of the switches of a run of the suite against the hard rules of the test: silent with a log, English

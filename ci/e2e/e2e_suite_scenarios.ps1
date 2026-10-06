@@ -1,4 +1,4 @@
-# Scenarios S1 to S10 of the suite installer (suite/suite.iss, ADR 0013) on a GitHub-hosted Windows runner with
+# Scenarios S1 to S11 of the suite installer (suite/suite.iss, ADR 0013) on a GitHub-hosted Windows runner with
 # the PLACEHOLDER builds of ci/build.ps1 and suite/build_suite.ps1 (dummy AppIds, stub launcher, no game data;
 # job suite-e2e of .github/workflows/build.yml, started by ci/e2e/run_e2e_suite.ps1). They reuse the rules and the
 # Windows glue of the real-data end-to-end test (e2e_helpers.ps1, e2e_windows.ps1, e2e_scenarios.ps1): the dirty
@@ -179,7 +179,7 @@ function Wait-E2ESuiteFinished([int]$TimeoutSeconds = 120) {
 # Runs the suite from Package for the products, silently and with the exact task lists of the test; waits until
 # everything it started is gone; records the check Step/RUN (exit code, finished, log). Returns @{ Ok; Code;
 # LogFile; LogLines; Switches }. EEArgs and NeoEEArgs are the arguments for the product setups (the default lists
-# of the test); only those of the products named in Products are passed.
+# of the test); only those of the products named in Products are passed. ExtraSwitches are added to the command line.
 function Invoke-E2ESuiteRun {
   param(
     [Parameter(Mandatory = $true)][string]$Scenario,
@@ -189,13 +189,14 @@ function Invoke-E2ESuiteRun {
     [int]$ExpectExit = 0,
     [int]$TimeoutMinutes = $E2ESuiteConst.SuiteTimeoutMinutes,
     [string]$EEArgs = $E2ESuiteConst.EEArgs,
-    [string]$NeoEEArgs = $E2ESuiteConst.NeoEEArgs
+    [string]$NeoEEArgs = $E2ESuiteConst.NeoEEArgs,
+    [string[]]$ExtraSwitches = @()
   )
   $log = Get-E2ESuiteLogFile $Scenario $Step
   if (Test-Path -LiteralPath $log) { Remove-Item -LiteralPath $log -Force }
   if (-not (Test-E2EListHas $Products 'EE')) { $EEArgs = '' }
   if (-not (Test-E2EListHas $Products 'NeoEE')) { $NeoEEArgs = '' }
-  $switches = @(New-E2ESuiteArguments -LogFile $log -Products $Products -EEArgs $EEArgs -NeoEEArgs $NeoEEArgs)
+  $switches = @(New-E2ESuiteArguments -LogFile $log -Products $Products -EEArgs $EEArgs -NeoEEArgs $NeoEEArgs -ExtraSwitches $ExtraSwitches)
   $exe = Join-Path $Package $E2ESuiteConst.SetupFile
   $problems = @(Get-E2ESuiteArgumentProblems $switches)
   $problems += @(Test-E2EHostsBlocked $E2EConst.BlockedHosts)
@@ -882,6 +883,61 @@ function Invoke-E2EScenarioS10 {
   }
 }
 
+# --- S11: cancel while the first product setup runs ---------------------------------------------------------------------------
+
+# What a cancelled run may leave: the folder of the suite with the log of the product setup it stopped, and nothing
+# else; no product, no record, no shortcut, no uninstall key
+function Test-E2ECancelledState([string]$Scenario, [string]$Step) {
+  $root = Get-E2ESuiteRoot
+  $problems = @()
+  foreach ($item in @(Get-E2ESuiteDirtyState)) {
+    if ($item -ne "$root (suite)") { $problems += $item }
+  }
+  if (Test-Path -LiteralPath $root -PathType Container) {
+    foreach ($entry in @(Get-ChildItem -LiteralPath $root -Force)) {
+      if ($entry.Name -ne 'Logs') { $problems += "$($entry.FullName) was left by the cancelled run" }
+    }
+    $logs = Join-Path $root 'Logs'
+    if (Test-Path -LiteralPath $logs -PathType Container) {
+      foreach ($entry in @(Get-ChildItem -LiteralPath $logs -Force)) {
+        if ($entry.Name -notlike 'EE-*.log') { $problems += "$($entry.FullName) is not the log of the product setup that was stopped" }
+      }
+    }
+  }
+  [void](Complete-E2ECheck $Scenario "$Step/NOTHING" $problems 'no product, no record, no shortcut, no uninstall key; the folder of the suite holds the log of the stopped product setup only')
+}
+
+# The suite is started with /TestCancel (suite_run.iss): as soon as the real setup of EE, not only its loader, has opened
+# its log, the cancel is requested as if the user had answered the question with Yes. The suite must stop the product
+# setup and everything it started (a job object: the loader waits for a .tmp file in %TEMP% that does the work), start
+# no NeoEE and end with exit code 3, and nothing may be installed: a product setup that survived would install EE a few
+# seconds later, within the time the run waits for every setup to be gone.
+function Invoke-E2EScenarioS11 {
+  $s = 'S11'
+  if (-not (Initialize-E2ESuiteScenario $s)) { return }
+  try {
+    $run = Invoke-E2ESuiteRun -Scenario $s -Step 'cancel' -Package $env:E2E_SUITE -Products 'EE,NeoEE' -ExpectExit $E2ESuiteConst.ExitCancelled `
+      -ExtraSwitches @('/TestCancel')
+    $problems = @(Test-E2ELogLines -Lines $run.LogLines -Matches @(
+        '^Product EE \(step 1 of 2, state 0\): ',
+        '^Product EE: /TestCancel, the cancel is requested as if the user had answered the question with Yes$',
+        '^Product EE: cancelled by the user before it installed anything, stopping its setup and everything it started$',
+        '^Product EE: its setup is gone$',
+        '^Product EE was cancelled by the user before it installed anything$',
+        '^Products that succeeded in this run: ""$',
+        '^The installation was cancelled by the user: no further product setup is started, Setup ends$') `
+      -NotMatches @('^Product NeoEE \(step', '^Suite record written', '^Shortcut created: ', '^Product EE failed',
+        '^Product EE: the cancel came too late', '^Product EE: its setup did not end', '^Product EE phase: (install|post install|CD keys|manifest|done)'))
+    [void](Complete-E2ECheck $s 'cancel/STOP' $problems 'the cancel stopped the first product setup before it installed anything, NeoEE never started, exit code 3')
+    Test-E2ECancelledState $s 'cancel'
+    Test-E2EMachineSnapshot $s 'cancel'
+  } finally {
+    $root = Get-E2ESuiteRoot
+    if (Test-Path -LiteralPath $root -PathType Container) { Remove-E2EFolder $root }
+    Invoke-E2ESuiteCleanup $s
+  }
+}
+
 # --- Phase Prepare -------------------------------------------------------------------------------------------------------
 
 # The Release value of .NET Framework 4 (HKLM64), 0 if there is none
@@ -966,6 +1022,7 @@ function Invoke-E2ESuiteScenario([string]$Id) {
     'S8' { Invoke-E2EScenarioS8 }
     'S9' { Invoke-E2EScenarioS9 }
     'S10' { Invoke-E2EScenarioS10 }
+    'S11' { Invoke-E2EScenarioS11 }
     default { throw "Unknown scenario $Id" }
   }
 }

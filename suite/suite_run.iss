@@ -248,8 +248,9 @@ var
   // The cancel question is open (no second one), the user answered it with Yes (the wait stops the product setup
   // after it looked at the log once more), the run was cancelled (no further product, Setup ends)
   SuiteCancelAsking, SuiteCancelRequested, SuiteRunCancelled: Boolean;
-  // /TestCancel of the command line (CI scenario S11): the first product setup is cancelled as soon as it runs, as
-  // if the user had answered the question with Yes. Without it nobody can click Cancel in a silent run.
+  // /TestCancel of the command line (CI scenario S11): the first product setup is cancelled as soon as its real setup
+  // has opened its log, as if the user had answered the question with Yes. Without it nobody can click Cancel in a
+  // silent run.
   SuiteTestCancel: Boolean;
 
 // The text for the user and the log for a failed product setup (exit code or reason), the log line in English
@@ -419,9 +420,14 @@ begin
     end;
     if SuiteTestCancel and (Mode = SuiteCancelAsk) then
     begin
-      SuiteTestCancel := False;
-      Log('Product ' + Product + ': /TestCancel, the cancel is requested as if the user had answered the question with Yes');
-      SuiteCancelRequested := True;
+      // as soon as the real setup of the product (not only its loader) has opened its log
+      SuiteLookAtLog(Product, LogFile, Phase);
+      if SuiteChildProgress.TailOffset > 0 then
+      begin
+        SuiteTestCancel := False;
+        Log('Product ' + Product + ': /TestCancel, the cancel is requested as if the user had answered the question with Yes');
+        SuiteCancelRequested := True;
+      end;
     end;
     if not SuitePumpMessages or Terminated then
     begin
