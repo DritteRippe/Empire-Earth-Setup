@@ -3243,8 +3243,10 @@ auf dem Desktop. Es gilt:
      seine Erweiterung (oder Gold Edition) auf CD mit gültigen Schlüsseln oder haben Sie das Spiel digital
      erworben?“ den Haken „Ja“ setzen, „Weiter“. Auf der Seite „Regeln für NeoEE“ die Regeln lesen, „Installieren“.
   3. Die Installation laufen lassen. Die Statuszeile nennt „Schritt 1 von 2: … wird installiert ...“ und
-     „Schritt 2 von 2: … wird installiert ...“; das Fenster reagiert (kein „Keine Rückmeldung“). Die
-     Dauer notieren.
+     „Schritt 2 von 2: … wird installiert ...“; das Fenster reagiert (kein „Keine Rückmeldung“). Dabei
+     erscheint **kein** weiteres Fenster und kein weiterer Taskleistenknopf eines Spiel-Setups (Suite 1.1.0:
+     die Setups der Spiele laufen mit `/VERYSILENT`); nur das Fenster der Suite ist da, mit Statuszeile und
+     Balken. Die Dauer notieren.
   4. Auf der letzten Seite den Text festhalten und „Launcher jetzt starten“ **nicht** anhaken, dann
      „Fertigstellen“.
   5. Prüfen: auf dem Desktop die Symbole `Empire Earth` und `Neo Empire Earth` (keine Symbole mit
@@ -3270,7 +3272,9 @@ auf dem Desktop. Es gilt:
      ohne den Inhalt zu protokollieren.
 - **Erwartetes Ergebnis:**
   - Schritt 1 bis 3: Das Setup nimmt die Vorgaben ohne weitere Frage, installiert zuerst EE, dann
-    NeoEE (die Setups der Spiele laufen mit /SILENT: ohne Fragen, aber jedes zeigt nacheinander sein eigenes Fortschrittsfenster).
+    NeoEE (die Setups der Spiele laufen mit /VERYSILENT: ohne Fragen und ohne eigenes Fenster oder Taskleistenknopf;
+    das Fenster der Suite ist das einzige). Bis Suite 1.0.0 liefen sie mit /SILENT und zeigten nacheinander
+    jedes sein eigenes Fortschrittsfenster; das ist ein **Fehler**, wenn es wieder auftritt.
   - Schritt 4: Die letzte Seite beginnt mit „Das hat das Setup gemacht:“ und nennt „Empire Earth (mit The Art of
     Conquest): installiert“, „Neo Empire Earth (NeoEE): installiert“, „Empire Earth Launcher: installiert“,
     die Zeile **„NeoEE-CD-Keys: registriert.“**, „Protokolle: C:\Program Files\Empire Earth
@@ -3293,7 +3297,7 @@ auf dem Desktop. Es gilt:
     Community` oder eine beschädigte Installation in der Liste des Launchers. Ohne bestandenen TP-93 kein
     Tag Launcher 1.0.0 und Suite 1.0.0.
 - **Log-Hinweis:** Suite-Log: `Pin check of the EE setup … matches`, `Product EE (step 1 of 2, …)`,
-  `Product NeoEE (step 2 of 2, …)`, `NeoEE CD key result from its log: "0"`, `Products that succeeded in
+  `Product NeoEE (step 2 of 2, …)` (die Befehlszeile beginnt mit `/VERYSILENT`, nicht mit `/SILENT`), `NeoEE CD key result from its log: "0"`, `Products that succeeded in
   this run: "…"` mit beiden Spielen, `Suite record written`, `Shortcut created:` für beide
   Desktop-Symbole, `Uninstall key of the suite marked ("Empire Earth Community: Suite" = 1)`.
   `{app}\Logs\NeoEE-<Datum>.log`: Zeile `CD Keys generation result: 0`. Launcher-Log: die
@@ -3328,7 +3332,8 @@ auf dem Desktop. Es gilt:
   3. Im geöffneten Ordner `Empire Earth Community Setup.exe` starten (UAC bestätigen). Auf der Seite
      „Was möchtest du installieren?“ steht bei den Spielen „Schon installiert. Das Setup aktualisiert oder
      repariert es.“; angehakt lassen; „Weiter“. Die Seite „Lizenz und Hinweise“ trägt den Hinweis „Du hast schon
-     ein Spiel installiert, deshalb musst du diese Frage nicht noch einmal beantworten.“; „Weiter“ bis zum Ende.
+     ein Spiel installiert, deshalb musst du diese Frage nicht noch einmal beantworten.“; „Weiter“ bis zum Ende
+     (auch hier erscheint kein Fenster eines Spiel-Setups, nur das der Suite).
   4. Prüfen: die Datei liegt wieder da; mit dem Skript aus TP-50 Schritt 2 stimmen `files.sha256` und die
      Dateien überein; die Verknüpfungen auf dem Desktop sind unverändert vorhanden; den Befehl aus TP-93
      Schritt 5a noch einmal ausführen.

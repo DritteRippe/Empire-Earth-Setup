@@ -714,6 +714,13 @@ setup version stays 1.7.2 until the release.
   the file in `data\localized-text` (the setups would reject the right file).
   `-DownloadHashesOnly` names such files too. The end-to-end check expects every
   download to be pinned.
+- Suite installer: the product setups of the default mode run with `/VERYSILENT` instead of `/SILENT`, so
+  neither game setup shows a progress window or a taskbar button of its own; the window of the suite is the
+  only one (`SuiteProductArguments`, contract 1.7 point 3, contract revision 6, compatible, `ContractVersion`
+  stays 1). The advanced mode passes no silent switch and shows the setup of each game as before. The
+  unit tests, the end-to-end helpers of the suite scenarios, ADR 0013 (amendment, decisions 6 and 10) and the
+  text of TP-93 follow. A hidden game setup cannot be cancelled on its own; the suite's own Cancel handling
+  comes with the suite 1.1.0 runner.
 
 ### Removed
 - Entries for Windows XP and older: the WIN98 compatibility mode and the pre-Vista `netsh

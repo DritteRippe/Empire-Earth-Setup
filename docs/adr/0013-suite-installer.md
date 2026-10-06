@@ -7,7 +7,7 @@
   to 11), D5 (shared contract), D6 (CD-key registration untouched, no game data in the repository),
   the maintainers' decisions of 2026-10-05 (both games selectable and preselected, the launcher
   installed with them, unsigned, shortcut names "Empire Earth" and "Neo Empire Earth");
-  [docs/CONTRACT.md](../CONTRACT.md) revision 4 (revision 5: see the amendment of 2026-10-06)
+  [docs/CONTRACT.md](../CONTRACT.md) revision 4 (revision 5: see the amendment of 2026-10-06; revision 6 and `/VERYSILENT` for the product setups: see the amendment "The product setups run with /VERYSILENT")
 
 ## Context
 
@@ -76,9 +76,10 @@ Facts the decision relies on, from the code at 332d877:
    **Fallback**, if the WP0 spike shows that the `Check` functions are evaluated earlier: the suite
    creates its shortcuts with `CreateShellLink` and writes the suite record with `RegWrite...` at
    `ssPostInstall`, with the same names and values; contract 1.7 point 1 already allows this.
-6. **Silent products, legal texts in the suite.** Default parameters `/SILENT /SUPPRESSMSGBOXES
+6. **Silent products, legal texts in the suite.** Default parameters `/VERYSILENT /SUPPRESSMSGBOXES
    /NORESTART /ALLUSERS /LANG=<suite language> /NOICONS /MERGETASKS="!desktopicon" /LOG=...`,
-   `/TYPE=full` only on a first installation; a repair passes neither `/TYPE` nor `/DIR`. Because a
+   `/TYPE=full` only on a first installation; a repair passes neither `/TYPE` nor `/DIR`. (Suite 1.0.0
+   passed `/SILENT`; since revision 6 it is `/VERYSILENT`, see the amendment at the end.) Because a
    silent product setup skips its legal question, the suite shows `LegalQuestion`, the EULA and the
    NeoEE rules itself. The NeoEE setup alone registers the CD keys (`authtools.dll`, D6); the suite
    only reads its log line `CD Keys generation result: <n>` and shows the result, and never touches
@@ -109,7 +110,8 @@ Facts the decision relies on, from the code at 332d877:
     before each `Exec` (a mismatch then stops the remaining products). The parameter builder is pure and
     tested; it merges a `/MERGETASKS` of the CI pass-through into its own, because Inno Setup does not
     say which of two switches wins, and a lost `!neoee_cdkeys` would let a test register the CD keys.
-    The suite always passes `/SILENT`, also in its own `/VERYSILENT` run (contract 1.7 point 3). A
+    The default mode passes `/VERYSILENT` to the product setups, also in a run of the suite that is
+    not silent (contract 1.7 point 3; suite 1.0.0 passed `/SILENT`, see the amendment at the end). A
     failed product (exit code 1 to 8, or exit code 0 without the uninstall entry) is logged, shown
     (not in a silent run) and skipped; the suite itself ends with the exit code 0 then, so an
     unattended caller reads the log, the uninstall keys or the suite record. The runner starts nothing
@@ -258,3 +260,40 @@ marker, the suite scenarios assert it, and the laptop test TP-93 (Windows 11) lo
 - A product key in the suite folder with an AppId the record does not embed (a test build) is no
   candidate of source 3 any more; contract 0 already says the suite root is no install root of a product.
 - The launcher reads the suite record in every discovery, still read-only and still no source.
+
+## Amendment: the product setups run with /VERYSILENT (2026-10-06, suite 1.1.0)
+
+**Finding.** In the laptop test of suite 1.0.0 every product setup showed a window of its own next to the
+window of the suite: its installation progress window and a taskbar button, one game after the other. That
+is what Inno Setup does under `/SILENT` (`Main.pas` shows the wizard form once the installation starts, the
+background window and the pages stay hidden); under `/VERYSILENT` it shows nothing. The suite passed
+`/SILENT` (decisions 6 and 10), the test plan described the extra window as expected (TP-93).
+
+**Decision.** In the default mode the suite starts the product setups with `/VERYSILENT /SUPPRESSMSGBOXES
+/NORESTART /ALLUSERS /LANG=<suite language> /NOICONS /MERGETASKS="!desktopicon" /LOG=...` (contract 1.7
+point 3, revision 6). Nothing else changes: the runner still uses one `Exec(ewWaitUntilTerminated)`, the
+lock order, the exit code mapping and the checks of `ci/check_suite.py` stay as they are. The advanced mode
+passes no silent switch, so the user still sees the full wizard of the product. The suite's own window shows
+the status line and the marquee bar as before.
+
+**Why this is safe.** The product scripts treat both modes alike: `SilentInstall` is true for `/VERYSILENT`
+and for `WizardSilent` (`extension.iss`), every message box of the scripts is guarded by it or by
+`SuppressibleMsgBox`, and `/SUPPRESSMSGBOXES` stays on the command line. `/NORESTART` still prevents any
+restart (the only mode-specific restart behavior of Inno Setup, `imVerySilent`, is reached without it).
+Under `/VERYSILENT` the setup downloads and verifies the same files; its pages and download page are not
+shown, as they were not shown under `/SILENT` before the installation started.
+
+**Consequences.**
+
+- A hidden product setup has no window and therefore no Cancel button of its own: the user can no longer
+  stop a product by closing its progress window, and a hang looks like a frozen suite window. Until the
+  runner of the next work package (a process handle, Cancel only before the product started to install
+  files, a stall and a total time limit) is in, the suite behaves as before in one respect: Cancel of the
+  suite is only honored after the products ran. This is accepted for suite 1.1.0 because both defects
+  belong to the same release.
+- A message box that no script suppresses would be invisible. None is expected (see above), and
+  `/SUPPRESSMSGBOXES` is passed; the CI scenarios run `/VERYSILENT` products already, and TP-93 has to be
+  repeated on the laptop.
+- Contract 1.7 point 3 changes in both repositories (revision 6, compatible, `ContractVersion` stays 1).
+  `ci/tests/suite_tests.iss` expects `/VERYSILENT` and no `/SILENT` token; `ci/e2e/e2e_suite_helpers.ps1`
+  requires `/VERYSILENT` in the arguments of the product setups and rejects `/SILENT`.
