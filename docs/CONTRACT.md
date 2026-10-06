@@ -10,7 +10,7 @@ repositories at once (same text, same commit subject), see [5. Versioning](#5-ve
 |---|---|
 | Contract version | **1** |
 | Status | **Draft**: specified for setup v2 and launcher v2, not implemented by a release yet |
-| Based on | setup `setup_is6.iss`, `config_ee.iss`, `config_neoee.iss`, `utils.iss` (branch `v2` at 2ce68ee, plus the task `compatibility_legacy` that revision 2 adds) and the setup's decision records 0004, 0005, 0007, 0008 and 0010 (`docs/adr`, branch `v2` at 2ce68ee), launcher `GameDirectoryLocator.cs` (branch `v2` at 79464d4) and the launcher's decision record 0016 (branch `v2` at ec02afa), the official setups 1.7.2; revision 3 also on setup `environment.iss` (branch `v2` at 3a9498d) and the launcher v2 core library with its decision records 0015 and 0016 (branch `v2` at 1b49410); revision 4 also on the setup's decision record 0013 (suite installer) and `setup_is6.iss` (branch `v2` at 332d877) and launcher `SingleInstance.cs` (branch `v2` at 19386bb); revision 5 also on the suite `suite/suite_record.iss` (branch `v2` at 85736cf), launcher `UninstallKeyScanner.cs` (branch `v2` at d454079) and the laptop test TP-93 of the setup's test plan |
+| Based on | setup `setup_is6.iss`, `config_ee.iss`, `config_neoee.iss`, `utils.iss` (branch `v2` at 2ce68ee, plus the task `compatibility_legacy` that revision 2 adds) and the setup's decision records 0004, 0005, 0007, 0008 and 0010 (`docs/adr`, branch `v2` at 2ce68ee), launcher `GameDirectoryLocator.cs` (branch `v2` at 79464d4) and the launcher's decision record 0016 (branch `v2` at ec02afa), the official setups 1.7.2; revision 3 also on setup `environment.iss` (branch `v2` at 3a9498d) and the launcher v2 core library with its decision records 0015 and 0016 (branch `v2` at 1b49410); revision 4 also on the setup's decision record 0013 (suite installer) and `setup_is6.iss` (branch `v2` at 332d877) and launcher `SingleInstance.cs` (branch `v2` at 19386bb); revision 5 also on the suite `suite/suite_record.iss` (branch `v2` at 85736cf), launcher `UninstallKeyScanner.cs` (branch `v2` at d454079) and the laptop test TP-93 of the setup's test plan; revision 6 also on the suite `suite/suite_common.iss` (branch `v2` at 36b0e09) |
 
 The key words MUST, MUST NOT, SHOULD and MAY are used as in RFC 2119. "Setup" means the EE and the
 NeoEE setup of every build variant, including their uninstallers; "launcher" means the Empire Earth
@@ -365,14 +365,19 @@ run, the products the user selects and the launcher:
 2. **Per product**: check the game mutexes; extract the product setup to `{tmp}`; compare its SHA-256
    and size with the values fixed at build time (a mismatch stops the suite before any product setup
    runs); run it and wait until it ends; delete it.
-3. **Parameters**, default: `/SILENT /SUPPRESSMSGBOXES /NORESTART /ALLUSERS /LANG=<suite language>
+3. **Parameters**, default: `/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /ALLUSERS /LANG=<suite language>
    /NOICONS /MERGETASKS="!desktopicon" /LOG="<suite root>\Logs\<Product>-<yyyyMMdd-HHmm>.log"`, plus
-   `/TYPE=full` for the first installation of a product. A repair or an update passes neither `/TYPE`
+   `/TYPE=full` for the first installation of a product. Since revision 6 the suite passes `/VERYSILENT`
+   (up to revision 5 `/SILENT`): a product setup then shows no window and no taskbar button of its own,
+   the window of the suite is the only one, while `/SILENT` showed a progress window for each product.
+   The product setups behave the same in both modes (they ask nothing, `/SUPPRESSMSGBOXES` and
+   `/NORESTART` still apply), but a product setup without a window cannot be cancelled by the user
+   directly. A repair or an update passes neither `/TYPE`
    nor `/DIR`, so the product setup keeps its folder (`UsePreviousAppDir`) and the components and tasks
    of its previous run, `neoee_cdkeys` included ([4.1](#41-principle)). In the suite's advanced mode only
    `/ALLUSERS`, `/LANG`, `/NOICONS`, `/MERGETASKS="!desktopicon"` and `/LOG` are passed (`/ALLUSERS` only
    hides the product setup's dialog "for all users / only for me": the suite is admin-only), and the
-   product setup shows its full wizard. A silent run of the suite (`/VERYSILENT`) needs the list of products and, with NeoEE,
+   product setup shows its full wizard (no silent switch). A silent run of the suite (`/VERYSILENT`) needs the list of products and, with NeoEE,
    an explicit decision about `neoee_cdkeys` in the arguments for the NeoEE setup; without them it ends
    with an error before any product setup runs.
 4. **Legal texts**: a product setup that runs silently skips its legal question (its `ConfirmLegalCopy`
@@ -936,6 +941,7 @@ hand-off of [4.3](#43-where-the-user-gets-the-setup).
 | 1 (draft) | 2026-10-02 | revision 3 (compatible clarifications after the reviews of setup v2 and launcher v2, which already behave so): source 4 reads key before hive, the EE and AoC folders of `foreign` installations are the real folders (the AoC folder from the same hive and view), the user choice may be the AoC folder, a registry record without `install.ini` also means `community` (1.4); Modified gets no message and no repair offer, the state may be shown (2.5); at the launcher start class S is only created, and the first run only for an installation that is unambiguous for its game settings key; class S before every game start while no other game runs; the display question until the user answers (3.2, 3.5, 3.6); a request without an answer of HTTP 200 is no statement about the version (4.5); O11 also names the `<AppId>` setup data folder of setups up to 1.7.2 | v2 (planned) | v2 (planned) |
 | 1 (draft) | 2026-10-05 | revision 4 (suite installer "Empire Earth Community", setup decision record 0013; optional additions only, no MUST or MUST NOT relaxed, 4.1 and 4.3 unchanged): names and mutexes of the suite and the launcher (0); `--product=EE` or `--product=NeoEE` selects for one session (1.4); suite record (1.6); how the suite runs a product setup, the log line `CD Keys generation result: <n>` as an interface, the guard for products installed for one user only, the removal of old product shortcuts before the suite shortcuts `Empire Earth` and `Neo Empire Earth`, the launcher outside the product roots (1.7, O10 answered); the suite mutex is a setup mutex (4.2); advice with `SourceDir` (4.4); checklist of the additions (7) | suite 1.0.0 (planned) | 1.0.0 (planned) |
 | 1 (draft) | 2026-10-06 | revision 5 (laptop test TP-93: the launcher listed the suite's own uninstall key, whose `Publisher` is that of EE, as a damaged installation of EE; optional additions only, no MUST or MUST NOT relaxed): the marker `Empire Earth Community: Suite` in the suite's uninstall key (0, 1.3); source 3 skips a key with that value, and for a suite built before revision 5 a key in HKLM with the root `InstallPath` of the suite record and no AppId the record embeds (1.4, 1.6); checklist of the additions (7) | suite 1.0.0 (planned) | 1.0.0 (planned) |
+| 1 (draft) | 2026-10-06 | revision 6 (suite 1.1.0, one window during the installation; compatible, `ContractVersion` stays 1, optional additions only, no MUST or MUST NOT relaxed; further parts of this revision follow with the packages of suite 1.1.0): the suite starts the product setups with `/VERYSILENT` instead of `/SILENT`, so that they show no progress window of their own (1.7 point 3); checklist of the additions (7) | suite 1.1.0 (planned) | unchanged |
 
 ## 6. Open questions
 
@@ -1068,3 +1074,17 @@ Launcher 1.0.0 (revision 5):
   and a key in HKLM with the root `InstallPath` of the suite record and an AppId that is neither
   `EEAppId` nor `NeoEEAppId` ([1.4](#14-discovery-by-the-launcher), [1.6](#16-suite-record-optional));
   every other key counts as before.
+
+### Additions of revision 6 (suite 1.1.0)
+
+Suite 1.1.0 (revision 6, informative section 1.7 only; no registry value, file or launcher behavior
+changes):
+
+- the product setups run with `/VERYSILENT /SUPPRESSMSGBOXES /NORESTART` in the default mode instead of
+  `/SILENT`, so no product setup shows a window or a taskbar button of its own
+  ([1.7](#17-how-the-suite-runs-a-product-setup-informative) point 3); the advanced mode passes no silent
+  switch as before;
+- `ci/check_suite.py`, the unit tests of `SuiteProductArguments` and the suite scenarios of CI expect
+  `/VERYSILENT` and no `/SILENT`.
+
+Launcher 1.1.0 (revision 6): none; the launcher does not start or watch the product setups of the suite.
