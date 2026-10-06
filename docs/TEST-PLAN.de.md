@@ -3252,8 +3252,8 @@ auf dem Desktop. Es gilt:
      Earth`, `Empire Earth Launcher`, `Mod Creator`, `Uninstall Empire Earth Community` (und den
      Diagnosewerkzeugen der Spiele, falls vorhanden); in den Eigenschaften der beiden Symbole zeigt „Ziel“
      auf `Empire Earth Launcher.exe` mit `--product=EE` bzw. `--product=NeoEE`; „Apps“ zeigt den Eintrag
-     `Empire Earth Community (Launcher, EE, NeoEE)` sowie die Einträge der beiden Spiele.
-  5a. In einer Eingabeaufforderung `reg query HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall /s /f
+     `Empire Earth Community (Launcher, EE, NeoEE)` sowie die Einträge der beiden Spiele. Danach (Schritt 5a)
+     in einer Eingabeaufforderung `reg query HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall /s /f
      "Empire Earth Community: Suite" /e` ausführen (ohne die AppId der Suite; nur die Treffer notieren).
   6. Doppelklick auf das Symbol `Empire Earth`: Der Launcher öffnet sich mit EE als gewähltem Spiel
      (in der Titelzeile bzw. auf der Seite „Spielen“). Vor dem Spielstart im Launcher die Seite *Launcher*
@@ -3344,9 +3344,7 @@ auf dem Desktop. Es gilt:
     gewählt, es wurde nichts registriert.“; beides ist kein Fehler, notieren welche Zeile). Die
     Überschrift „Nicht alles wurde installiert“ erscheint nicht.
   - Schritt 4: Nach dem Reparaturlauf trägt der Deinstallationsschlüssel der Suite den Wert `Empire Earth
-    Community: Suite` weiterhin (Inno Setup schreibt den Schlüssel neu, die Suite die Markierung). Das deckt
-    auch einen Laptop ab, dessen Suite vor Revision 5 gebaut wurde: Erst die Reparatur mit dem neuen Paket
-    fügt die Markierung hinzu.
+    Community: Suite` weiterhin (Inno Setup schreibt den Schlüssel neu, die Suite die Markierung).
   - **bestanden**, wenn Hinweis, Reparatur und Manifest stimmen. **Fehler**: Die Datei fehlt weiter, das Setup
     meldet eines der Spiele als „fehlgeschlagen“ oder ein Spiel ist danach unvollständig.
 - **Log-Hinweis:** Suite-Log: `Product EE (step 1 of 2, state 1): …` (Zustand 1: schon installiert; ohne `/TYPE` und ohne `/DIR`), `Pin check of the EE setup … matches`, `Shortcut created:`; `{app}\Logs\EE-<Datum>.log`;
