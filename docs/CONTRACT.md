@@ -364,7 +364,16 @@ run, the products the user selects and the launcher:
    `ssPostInstall` instead, with the same result.
 2. **Per product**: check the game mutexes; extract the product setup to `{tmp}`; compare its SHA-256
    and size with the values fixed at build time (a mismatch stops the suite before any product setup
-   runs); run it and wait until it ends; delete it.
+   runs); run it and wait until it ends; delete it. Since revision 6 the suite starts the product setup with a
+   process handle and keeps its window alive while it waits (informative): until the product setup has logged
+   `Starting the installation process.` (point 5) the user can cancel; the suite then stops the product setup
+   and everything it started (the setup program is only the loader of the real setup), starts no further
+   product setup and ends with exit code 3. A product that finished before stays installed, and the next run
+   adopts it ([4.1](#41-principle)). From that line on the suite does not offer to cancel, because a stopped
+   product setup would leave a half installed game. A product setup whose log does not grow for 10 minutes is
+   reported to the user once (a silent run keeps waiting), one that runs for more than 90 minutes is stopped
+   and counts as failed like any other failure, so the suite goes on with the next product. The advanced mode
+   (point 3) has no limits and no cancel of the suite: the user cancels in the product setup.
 3. **Parameters**, default: `/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /ALLUSERS /LANG=<suite language>
    /NOICONS /MERGETASKS="!desktopicon" /LOG="<suite root>\Logs\<Product>-<yyyyMMdd-HHmm>.log"`, plus
    `/TYPE=full` for the first installation of a product. Since revision 6 the suite passes `/VERYSILENT`
@@ -969,7 +978,7 @@ hand-off of [4.3](#43-where-the-user-gets-the-setup).
 | 1 (draft) | 2026-10-02 | revision 3 (compatible clarifications after the reviews of setup v2 and launcher v2, which already behave so): source 4 reads key before hive, the EE and AoC folders of `foreign` installations are the real folders (the AoC folder from the same hive and view), the user choice may be the AoC folder, a registry record without `install.ini` also means `community` (1.4); Modified gets no message and no repair offer, the state may be shown (2.5); at the launcher start class S is only created, and the first run only for an installation that is unambiguous for its game settings key; class S before every game start while no other game runs; the display question until the user answers (3.2, 3.5, 3.6); a request without an answer of HTTP 200 is no statement about the version (4.5); O11 also names the `<AppId>` setup data folder of setups up to 1.7.2 | v2 (planned) | v2 (planned) |
 | 1 (draft) | 2026-10-05 | revision 4 (suite installer "Empire Earth Community", setup decision record 0013; optional additions only, no MUST or MUST NOT relaxed, 4.1 and 4.3 unchanged): names and mutexes of the suite and the launcher (0); `--product=EE` or `--product=NeoEE` selects for one session (1.4); suite record (1.6); how the suite runs a product setup, the log line `CD Keys generation result: <n>` as an interface, the guard for products installed for one user only, the removal of old product shortcuts before the suite shortcuts `Empire Earth` and `Neo Empire Earth`, the launcher outside the product roots (1.7, O10 answered); the suite mutex is a setup mutex (4.2); advice with `SourceDir` (4.4); checklist of the additions (7) | suite 1.0.0 (planned) | 1.0.0 (planned) |
 | 1 (draft) | 2026-10-06 | revision 5 (laptop test TP-93: the launcher listed the suite's own uninstall key, whose `Publisher` is that of EE, as a damaged installation of EE; optional additions only, no MUST or MUST NOT relaxed): the marker `Empire Earth Community: Suite` in the suite's uninstall key (0, 1.3); source 3 skips a key with that value, and for a suite built before revision 5 a key in HKLM with the root `InstallPath` of the suite record and no AppId the record embeds (1.4, 1.6); checklist of the additions (7) | suite 1.0.0 (planned) | 1.0.0 (planned) |
-| 1 (draft) | 2026-10-06 | revision 6 (suite 1.1.0, one window during the installation; compatible, `ContractVersion` stays 1, optional additions only, no MUST or MUST NOT relaxed; further parts of this revision follow with the packages of suite 1.1.0): the suite starts the product setups with `/VERYSILENT` instead of `/SILENT`, so that they show no progress window of their own (1.7 point 3); the lines of the product logs the suite reads for its progress display are an interface like the CD key line (1.7 point 5); checklist of the additions (7) | suite 1.1.0 (planned) | unchanged |
+| 1 (draft) | 2026-10-06 | revision 6 (suite 1.1.0, one window during the installation; compatible, `ContractVersion` stays 1, optional additions only, no MUST or MUST NOT relaxed; further parts of this revision follow with the packages of suite 1.1.0): the suite starts the product setups with `/VERYSILENT` instead of `/SILENT`, so that they show no progress window of their own (1.7 point 3); the lines of the product logs the suite reads for its progress display are an interface like the CD key line (1.7 point 5); the suite waits for a product setup with a process handle: Cancel before the installation starts, a stall and a time limit (1.7 point 2); checklist of the additions (7) | suite 1.1.0 (planned) | unchanged |
 
 ## 6. Open questions
 
@@ -1116,6 +1125,10 @@ changes):
   installation, CD key number, manifest) are listed in
   [1.7](#17-how-the-suite-runs-a-product-setup-informative) point 5; the product scripts mark each of them
   with the comment "suite parses this line", and `ci/check_suite.py` checks that they are still written;
+- the suite waits for a product setup with a process handle: Cancel of the suite works until the product setup
+  has logged `Starting the installation process.` and stops the product setup with everything it started
+  (exit code 3 of the suite, a finished first product stays installed), a stall of 10 minutes is reported
+  once, 90 minutes stop the product setup as a failure ([1.7](#17-how-the-suite-runs-a-product-setup-informative) point 2);
 - `ci/check_suite.py`, the unit tests of `SuiteProductArguments` and the suite scenarios of CI expect
   `/VERYSILENT` and no `/SILENT`.
 

@@ -7,7 +7,7 @@
   to 11), D5 (shared contract), D6 (CD-key registration untouched, no game data in the repository),
   the maintainers' decisions of 2026-10-05 (both games selectable and preselected, the launcher
   installed with them, unsigned, shortcut names "Empire Earth" and "Neo Empire Earth");
-  [docs/CONTRACT.md](../CONTRACT.md) revision 4 (revision 5: see the amendment of 2026-10-06; revision 6 and `/VERYSILENT` for the product setups: see the amendment "The product setups run with /VERYSILENT"; the product logs as the data source of the progress display: see the amendment "The log lines of the product setups are an interface")
+  [docs/CONTRACT.md](../CONTRACT.md) revision 4 (revision 5: see the amendment of 2026-10-06; revision 6 and `/VERYSILENT` for the product setups: see the amendment "The product setups run with /VERYSILENT"; the product logs as the data source of the progress display: see the amendment "The log lines of the product setups are an interface"; Cancel and time limits of the runner: see the amendment "The product setups run as processes with a handle")
 
 ## Context
 
@@ -356,3 +356,80 @@ the clamp, the byte order mark, a line split across two reads and continuation l
 - The progress is an estimate: the files of the download weigh the same although their sizes differ widely
   (their sizes are not in the log before they start), and the install block depends on a constant per
   product that components and repair runs change.
+
+## Amendment: the product setups run as processes with a handle, Cancel and time limits (2026-10-06, suite 1.1.0)
+
+**Context.** `Exec(ewWaitUntilTerminated)` gives neither a process handle nor a hook. Two defects followed: a click
+on Cancel in the suite window was only honored after both games had been installed (`Main.pas`: at `ssInstall`
+Cancel sets a flag that `Install.pas` reads after `CurStepChanged(ssInstall)` has returned), and a product
+setup that hangs (since the previous amendment without a window of its own) looks like a frozen suite.
+
+**Decision.** The maintainers decided on 2026-10-06: Cancel works only while the product setup that runs has not
+started to install files; a first product that is finished stays installed; afterwards Cancel is disabled.
+
+1. **Start and wait.** `SuiteStartProduct` (`suite/suite_common.iss`) starts the product setup with `CreateProcessW`
+   like `Exec` does (`InstExec`: the quoted program and its parameters, `SW_SHOWNORMAL`, the thread handle closed
+   at once) and keeps the process handle. `SuiteWaitForProduct` (`suite/suite_run.iss`) waits in slices of
+   50 ms and handles the messages of Setup in between (`PeekMessageW`, `DispatchMessageW`; a `WM_QUIT` is put
+   back for Setup and ends the wait), reads the product log every 500 ms (`SuiteTailLog`) and writes one line
+   `Product EE phase: <phase> (<n> of 1000)` to the log of the suite per phase change. The exit code comes from
+   `GetExitCodeProcess` after the process ended; 259 (`STILL_ACTIVE`) is no result. The mapping of exit codes
+   (`SuiteChildExitKind`), the success rule (exit code 0 and the uninstall entry), the lock on the extracted file
+   (kept until the wait has returned) and the order of the legacy shortcut cleanup are unchanged. `Exec` and
+   `ShellExec` are not used by the runner any more (`ci/check_suite.py`, part [Process]).
+2. **A job object, without limits.** The setup program of a product is only a loader: it extracts the real setup
+   to a `.tmp` file in `%TEMP%`, starts it and waits for it (two processes, seen under Wine). Stopping the loader
+   alone would leave the real setup running, and it would install the game after the user had cancelled. So the
+   process is started suspended, put into a job object and resumed; `SuiteKillProduct` ends the whole job with
+   `TerminateJobObject`, the only way a program is stopped (the three places that may call it are fixed by
+   `ci/check_suite.py`). The design said "no job object" so that a dying suite does not kill the product setups
+   (half installed games); that stays true, because no limit is set: closing the job handle or the end of the
+   suite stops nothing. Where a job cannot be used (Windows 7, the suite itself inside another job) the product
+   setup runs as it did with `Exec`, nothing is stopped, the Cancel button is off with a reason and the time cap
+   only writes a line.
+3. **Cancel.** `CancelButtonClick` answers while a product setup runs (Setup's own handling stays when none runs):
+   before the log shows `Starting the installation process.` it asks (default "No", the question names the game
+   and, in the second step, the game that is installed already and stays); "Yes" only sets a request. The wait loop
+   looks at the log once more, because the product setup went on while the question was open: if it has started to
+   install by then the request is refused with a message, otherwise the job is stopped, the run starts no further
+   product, writes `Product EE was cancelled by the user before it installed anything` and ends with `Abort`.
+   `Abort` in the installation step ends Setup with exit code 3 and no message of its own (checked under Wine:
+   "CurStepChanged raised an exception (fatal)"); the suite writes its files, record and shortcuts after this
+   step, so nothing of it exists. From the point of no return, in the advanced mode (the product setup shows its
+   own wizard with its own Cancel button) and without a job the button is off and the line below the status text says
+   why.
+4. **Time limits.** No new line in the product log for 10 minutes: the user is asked once whether to keep
+   waiting ("No" stops the product setup; the text warns that a game that started to install may be half
+   installed); a silent run only logs it and keeps waiting. 90 minutes: the product setup is stopped. A stopped
+   product setup is a new failure kind (`SuiteChildTimeout`, the reason text says whether it had started to
+   install), and the suite goes on with the next product like after any failure. The advanced mode has neither
+   limit, because the user goes through the wizard at his own pace.
+5. **CI hook.** A `/VERYSILENT` run has nobody to click Cancel, so `/TestCancel` (a CI parameter like `/EEArgs`)
+   requests the cancel for the first product setup as soon as its real setup has opened its log. Scenario S11
+   uses it with the placeholder products and expects exit code 3, no product, no record, no shortcut and no
+   process left.
+
+**Evidence.** Under Wine (placeholder suite, copied prefix, no network): the loader and the real setup are two
+processes, the job ends both at once, the exit code of a cancelled run is 3, a real click on Cancel in a `/SILENT`
+run opens the question, "Yes" stops the product setups and leaves no game file, "No" lets the run finish, a
+product that finished before is named in the question of the second step, the Cancel button is off with its
+reason once the product setup is in the install phase (checked with a forced phase), and a cap of a few seconds
+stops a product setup and goes on with the next. The unit tests start real programs: an exit code, 259, a missing
+program, and a second copy of the test setup itself (a loader with a real setup) that the job must stop together
+with its child. They run under Wine and in the workflow on Windows; scenario S11 runs only in the workflow.
+
+**Consequences.**
+
+- A stopped product setup leaves its own `%TEMP%\is-*.tmp` folder with what it had downloaded (hundreds of MB
+  in a real run). The suite does not know the name of that folder, and deleting folders by pattern is not worth
+  the risk; the test plan says so (TP-99).
+- After a cancel in the first step the suite folder holds the log of the product setup it stopped and nothing
+  else (the suite creates `{app}\Logs` before the first product runs).
+- The message pump is hand-made: Pascal Script has no `ProcessMessages`. Messages are dispatched, but the
+  keyboard handling of the Delphi forms (Tab between controls) is not part of it; the mouse and Space or Enter on
+  the focused button work.
+- 90 minutes can stop a download over a very slow connection that would have finished; the next run starts again.
+  The numbers are constants of `suite_common.iss` (`SuiteStallMs`, `SuiteProductCapMs`).
+- The consequence of the previous amendment that Cancel is only honored after the products ran is gone.
+- The message pump, the job and the click on Cancel are verified under Wine and by the unit tests; the first run
+  on Windows is the workflow (unit tests and S11), then TP-99 on the laptop.

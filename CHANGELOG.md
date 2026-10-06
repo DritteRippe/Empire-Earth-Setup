@@ -37,11 +37,12 @@ setup version stays 1.7.2 until the release.
   `-TestWrongEEPin` (placeholders only) builds the suite with a wrong pin of the EE setup for the CI scenario S5.
   A real build stops before ISCC if the legal texts the suite shows (`EULA_DSML.txt`, `neoee_rules.rtf` in `data\`)
   are missing or the placeholders of CI, and names their SHA-256 in `BUILD-INFO.txt`.
-- End-to-end test of the suite installer (job `suite-e2e` of `build.yml`, `ci/e2e/run_e2e_suite.ps1`): ten
+- End-to-end test of the suite installer (job `suite-e2e` of `build.yml`, `ci/e2e/run_e2e_suite.ps1`): eleven
   scenarios on a Windows runner with the placeholder builds, without any download: both products, EE only, a
   product installed on its own and adopted, a missing slice (exit code 11), a wrong pin (15), a running game or
   launcher (14), a product removed on its own before the suite uninstaller, the suite uninstaller keeping saved
-  games, a repair run, and a `Zone.Identifier` on the package. Silent runs with exact task lists that never
+  games, a repair run, a `Zone.Identifier` on the package, and a cancel while the first product setup runs
+  (S11, the CI parameter `/TestCancel`: exit code 3, nothing installed, no process left). Silent runs with exact task lists that never
   select `neoee_cdkeys`, `certinclude`, `directplay` or `dxwebsetup`, shortcuts read through `WScript.Shell`, a
   dummy under `Software\Sierra\CDKeys` in all views that must survive everything, one PASS/FAIL line per
   scenario in the job summary. Tested against a fake Windows in every build
@@ -732,6 +733,21 @@ setup version stays 1.7.2 until the release.
   contract revision 6): the product scripts mark each of them with a comment, and `ci/check_suite.py` fails if
   one is reworded or no longer written. Unit tests with excerpts of the laptop logs of 2026-10-06 and a
   file-level test of the share-safe read.
+- Suite installer: Cancel works while a game is installed, and a hanging game setup no longer freezes the suite.
+  The suite starts each product setup with `CreateProcessW` and keeps its handle (`SuiteStartProduct`,
+  `SuiteWaitForProduct`) instead of `Exec`: it keeps its window alive while it waits, logs every phase
+  change of the product setup, and takes the exit code from the handle. Before a game setup has logged
+  `Starting the installation process.` a click on Cancel asks and, on "Yes", stops the game setup and
+  everything it started (the job object holds the setup program and the real setup it starts, a kill of the
+  program alone would leave the game installing), starts no further game and ends the suite with exit code 3;
+  a first game that was finished stays installed and the next run adopts it. From the start of the file
+  installation on, in the advanced mode and where no job can be used the Cancel button is off and a line
+  says why; before, a click was only honored after both games. A game setup whose log does not grow for 10
+  minutes asks once whether to keep waiting (a silent run keeps waiting), one that runs for 90 minutes is
+  stopped and counts as failed, and the suite goes on with the next game. New texts in English, German and French,
+  unit tests on real programs (exit code, 259, a loader with a real setup stopped together), the part [Process] and
+  22 mutants of `ci/check_suite.py`, scenario S11, ADR 0013 (amendment), contract 1.7 point 2 (revision 6,
+  informative) and the test case TP-99. A stopped game setup leaves its `%TEMP%\is-*.tmp` folder.
 
 ### Removed
 - Entries for Windows XP and older: the WIN98 compatibility mode and the pre-Vista `netsh

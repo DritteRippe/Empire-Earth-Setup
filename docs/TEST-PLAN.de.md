@@ -115,7 +115,7 @@ Nummer ihres Blocks. Ein neues Arbeitspaket mit eigenen Fällen bekommt den näc
 | TP-6x | Umgebung | S-WP8 | Hinweis unter 768 Pixeln Höhe und Bildschirm, DPI und Spielfenster im Log (TP-60), fremde und alte Installationen: Schlüssel in HKLM, fremde Uninstall-Einträge, CD-Ordner, Wortlaut zu den CD-Keys (TP-61), EE und NeoEE in einem Ordner (TP-62), Installation in den Ordner einer GOG- oder CD-Installation (TP-63) |
 | TP-7x | Allgemeine Abläufe und Forumfälle | S-WP2, S-WP9 | Grundablauf mit Update über 1.7.2 (TP-70), Standardnutzer und VirtualStore (TP-71), Version und Mehrspieler (TP-72), Reparatur (TP-73), AoC ohne EE-Start (TP-74), EE und NeoEE getrennt, eines deinstalliert (TP-75), Firewall beim Hosten (TP-76), CD-Keys (TP-77), Deutsch (TP-78), laufendes Spiel (TP-79) |
 | TP-8x | Links in den für alle beschreibbaren Ordnern | S-WP11 | Ein Standardbenutzer ersetzt `Data\Movies` durch eine Junction; das Update als Administrator hält auf der Seite „Vorbereitung der Installation“ an, ändert nichts und läuft nach dem Entfernen des Links durch; still Exit-Code 7; ein Link im Spielerordner unter `Users` und eine feste Verknüpfung (Hardlink) dort halten ebenfalls an (TP-80) |
-| TP-9x | Suite „Empire Earth Community“ | Suite-Plan (WP10) | Fälle zum Paket mit Launcher auf dem Laptop mit echten Daten: das ZIP ohne und mit „Zulassen“ (TP-90, TP-91), Start aus der ZIP-Ansicht (TP-92), beide Spiele mit den Standardwerten und Spielstart von den Symbolen (TP-93), Reparatur (TP-94), Deinstallation mit „Behalten“ und „Löschen“ (TP-95), Pfad „Erweitert“ (TP-96), Update über ein vorhandenes Einzel-Setup (TP-97); TP-93 und TP-95 sind das Freigabekriterium für Launcher 1.0.0 und Suite 1.0.0, siehe Block 9 |
+| TP-9x | Suite „Empire Earth Community“ | Suite-Plan (WP10) | Fälle zum Paket mit Launcher auf dem Laptop mit echten Daten: das ZIP ohne und mit „Zulassen“ (TP-90, TP-91), Start aus der ZIP-Ansicht (TP-92), beide Spiele mit den Standardwerten und Spielstart von den Symbolen (TP-93), Reparatur (TP-94), Deinstallation mit „Behalten“ und „Löschen“ (TP-95), Pfad „Erweitert“ (TP-96), Update über ein vorhandenes Einzel-Setup (TP-97), Abbrechen in der Suite vor der Installation eines Spiels und nicht mehr danach (TP-99); TP-93 und TP-95 sind das Freigabekriterium für Launcher 1.0.0 und Suite 1.0.0, siehe Block 9 |
 
 ## 4. Vorlage je Fall
 
@@ -3011,7 +3011,7 @@ nur mit `rmdir <Link>` entfernen (ohne `/s`): Das löscht den Link, nicht den Or
 
 ### Block 9: Suite „Empire Earth Community“
 
-Die Fälle der Suite (Paket mit Launcher, ADR 0013) stehen unten (TP-90 bis TP-97); hier steht zuerst, was
+Die Fälle der Suite (Paket mit Launcher, ADR 0013) stehen unten (TP-90 bis TP-97 und TP-99); hier steht zuerst, was
 jede Prüfung der Deinstallation der Suite beachten muss, weil es sich nur auf echtem Windows zeigt:
 
 - **Reihenfolge und Warten:** Die Suite startet die Deinstallationsprogramme der Spiele nacheinander
@@ -3045,10 +3045,10 @@ jede Prüfung der Deinstallation der Suite beachten muss, weil es sich nur auf e
   und danach die Standardfrage von Inno Setup „Sind Sie sicher, dass Sie Empire Earth Community und alle zugehörigen Komponenten entfernen möchten?“ (vorgewählt „Nein“; „Ja“ klicken); danach der Dialog zu den
   Nutzerdaten. Im Protokoll festhalten, wenn die Anzahl oder die Reihenfolge abweicht.
 
-#### Gemeinsame Angaben der Fälle TP-90 bis TP-97
+#### Gemeinsame Angaben der Fälle TP-90 bis TP-97 und TP-99
 
 Diese Fälle prüfen das **Suite-Setup auf dem Laptop mit den echten Daten** (Build-Art B). Sie ergänzen
-die automatischen Szenarien S1 bis S10 des Jobs `suite-e2e` ([README](../README.md), „End-to-end
+die automatischen Szenarien S1 bis S11 des Jobs `suite-e2e` ([README](../README.md), „End-to-end
 test of the suite installer“), die mit Platzhalter-Setups, still und ohne Netz laufen und nichts
 von dem sehen, was hier geprüft wird: SmartScreen, den Assistenten, das Spiel, die Verknüpfungen
 auf dem Desktop. Es gilt:
@@ -3496,6 +3496,66 @@ auf dem Desktop. Es gilt:
     installiert.
 - **Log-Hinweis:** Suite-Log: `Old shortcut of the EE setup removed: …`, `Shortcut created: … Empire Earth.lnk`,
   `Product EE (step 1 of 2, state 1): …`; `{app}\Logs\EE-<Datum>.log`.
+
+#### TP-99: Abbrechen in der Suite: vor der Installation eines Spiels möglich, danach nicht mehr
+
+- **Status:** ausgearbeitet
+- **Priorität:** P2
+- **Bezug:** ADR 0013 (Ergänzung: die Setups der Spiele als Prozess mit Handle, Abbrechen, Zeitgrenzen), Vertrag 1.7
+  Punkt 2 (Hinweis zum Abbrechen), TP-93; Suite-Szenario S11 (still, `/TestCancel`, Platzhalter)
+- **Ziel:** Abbrechen während des Downloads eines Spiels fragt nach und beendet auf „Ja“ sofort das Setup des
+  Spiels und alles, was es gestartet hat; vom Spiel bleibt nichts auf dem Computer, die Suite endet sauber. Ein
+  fertig installiertes erstes Spiel bleibt installiert. Ab „Dateien werden installiert“ ist Abbrechen grau und
+  sagt warum. Das Fenster der Suite reagiert die ganze Zeit.
+- **Build-Art:** B (echter Suite-Build, echte Spieldaten, nur Laptop mit Rückweg, Regel 1)
+- **Ausgangszustand:** wie TP-93: kein EE, kein NeoEE, keine Suite, keine Reste unter `C:\Program Files (x86)\Empire
+  Earth`, `…\Neo Empire Earth`, `C:\Program Files\Empire Earth Community`; das Paket nach TP-91 entpackt; Internet
+  vorhanden (die Downloads laufen, sonst gibt es nichts zum Abbrechen); Wiederherstellungspunkt angelegt.
+- **Snapshot:** `Laptop` (Wiederherstellungspunkt)
+- **Varianten:** (a) Abbrechen während der Downloads von EE, „Ja“; (b) Abbrechen während der Downloads, „Nein“;
+  (c) während „Dateien werden installiert“; (d) EE ist fertig, Abbrechen während der Downloads von NeoEE, „Ja“;
+  Windows 10 22H2 und Windows 11 24H2.
+- **Schritte:**
+  1. Die Suite wie in TP-93 starten und die Seiten mit den Standardwerten durchgehen; ab „Installieren“ gleich
+     den Task-Manager (Registerkarte „Details“) öffnen und Prozesse mit `EE_Setup` im Namen beobachten (das
+     Setup des Spiels besteht aus zwei Prozessen, `EE_Setup.exe` und `EE_Setup.tmp`).
+  2. (a) Sobald die Statuszeile „Schritt 1 von 2: … wird installiert ...“ nennt und der Balken läuft (die Downloads
+     dauern Minuten), auf „Abbrechen“ klicken. Die Frage „Möchtest du die Installation von Empire Earth (mit The Art
+     of Conquest) abbrechen? Es wurden noch keine Spieldateien installiert, deshalb bleibt nichts davon auf diesem
+     Computer.“ erscheint; das Fenster dahinter reagiert weiter (verschieben, Größe, Balken). „Ja“ klicken. Danach
+     den Task-Manager ansehen, `C:\Program Files (x86)\Empire Earth` und `C:\Program Files\Empire Earth Community`
+     ansehen, in „Apps“ nach Einträgen suchen und das Verzeichnis `%TEMP%` auf `is-*.tmp` mit den heruntergeladenen
+     Dateien ansehen (Größe notieren).
+  3. (b) Neu, wie (a), aber in der Frage „Nein“ klicken: Die Installation läuft weiter bis zum Ende wie in TP-93.
+     Danach deinstallieren (TP-95 (a)).
+  4. (c) Neu, die Installation laufen lassen, bis die Downloads fertig sind und die Statuszeile unter dem Text
+     „Abbrechen ist nicht mehr möglich: Die Spieldateien werden gerade installiert.“ zeigt (im Log der Suite die Zeile
+     `Product EE phase: install`): Der Knopf „Abbrechen“ ist grau; das Schließen des Fensters (Kreuz oder Alt+F4)
+     bricht nichts ab (höchstens ein Hinweis mit demselben Text). Die Installation läuft zu Ende.
+  5. (d) Neu, EE fertig werden lassen (Schritt 2 von 2 beginnt), dann während der Downloads von NeoEE „Abbrechen“:
+     Die Frage nennt zusätzlich „Empire Earth (mit The Art of Conquest) ist schon installiert und bleibt installiert.“;
+     „Ja“. Danach die Suite noch einmal wie in TP-93 starten: EE steht als „Schon installiert“ da.
+- **Erwartetes Ergebnis:**
+  - (a) Auf „Ja“ sind `EE_Setup.exe` **und** `EE_Setup.tmp` sofort aus dem Task-Manager verschwunden (nicht nur das
+    eine), das Fenster der Suite schließt sich ohne weitere Meldung, kein Ordner `C:\Program Files (x86)\Empire Earth`,
+    kein Eintrag in „Apps“, kein Eintrag der Suite. Es bleibt `C:\Program Files\Empire Earth Community\Logs` mit dem
+    Log des abgebrochenen Setups; im `%TEMP%` liegt der Ordner `is-*.tmp` des abgebrochenen Setups mit den bis dahin
+    heruntergeladenen Dateien (die Speicheroptimierung von Windows oder von Hand löschen; als Hinweis festhalten, kein Fehler).
+    Das Fenster zeigt zu keinem Zeitpunkt „Keine Rückmeldung“.
+  - (b) wie TP-93; die Frage ändert nichts am Ablauf.
+  - (c) wie beschrieben; kein Abbruch, nichts halb Installiertes.
+  - (d) EE bleibt installiert und startet, NeoEE ist nicht installiert; kein Eintrag und keine Verknüpfung der
+    Suite (die Suite schreibt ihre Verknüpfungen und den Eintrag erst nach den Spielen).
+  - **bestanden**, wenn alle Punkte stimmen. **Fehler**: ein Prozess `EE_Setup.tmp` läuft nach „Ja“ weiter und
+    installiert das Spiel (dann zerstört die Suite den Ablauf nicht sauber: Log und Task-Manager sichern), die
+    Frage erscheint nach „Dateien werden installiert“ oder „Abbrechen“ ist dort noch bedienbar, das Fenster friert ein,
+    oder nach „Ja“ bleiben Spieldateien unter `Program Files (x86)`.
+- **Log-Hinweis:** Suite-Log: `Product EE phase: …` bei jedem Phasenwechsel, bei „Ja“ `Product EE: cancelled by the user
+  before it installed anything, stopping its setup and everything it started`, `Product EE: its setup is gone`,
+  `Product EE was cancelled by the user before it installed anything`, `The installation was cancelled by the user: no
+  further product setup is started, Setup ends`, dann `CurStepChanged raised an exception (fatal)` (das ist das
+  stille Abbrechen von Setup, Exit-Code 3); bei (c) nach dem Klick auf „Abbrechen“ keine solche Zeile. Kam „Ja“ zu spät:
+  `the cancel came too late, its setup has started to install the game files`.
 
 ## 9. Forum-Testfälle §8
 
