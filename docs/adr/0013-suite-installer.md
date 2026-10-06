@@ -7,7 +7,7 @@
   to 11), D5 (shared contract), D6 (CD-key registration untouched, no game data in the repository),
   the maintainers' decisions of 2026-10-05 (both games selectable and preselected, the launcher
   installed with them, unsigned, shortcut names "Empire Earth" and "Neo Empire Earth");
-  [docs/CONTRACT.md](../CONTRACT.md) revision 4 (revision 5: see the amendment of 2026-10-06; revision 6 and `/VERYSILENT` for the product setups: see the amendment "The product setups run with /VERYSILENT")
+  [docs/CONTRACT.md](../CONTRACT.md) revision 4 (revision 5: see the amendment of 2026-10-06; revision 6 and `/VERYSILENT` for the product setups: see the amendment "The product setups run with /VERYSILENT"; the product logs as the data source of the progress display: see the amendment "The log lines of the product setups are an interface")
 
 ## Context
 
@@ -297,3 +297,62 @@ shown, as they were not shown under `/SILENT` before the installation started.
 - Contract 1.7 point 3 changes in both repositories (revision 6, compatible, `ContractVersion` stays 1).
   `ci/tests/suite_tests.iss` expects `/VERYSILENT` and no `/SILENT` token; `ci/e2e/e2e_suite_helpers.ps1`
   requires `/VERYSILENT` in the arguments of the product setups and rejects `/SILENT`.
+
+## Amendment: the log lines of the product setups are an interface (2026-10-06, suite 1.1.0)
+
+**Context.** A hidden product setup (previous amendment) shows nothing, and the suite window only showed a
+marquee bar. The suite 1.1.0 progress display (status line, bar, file being downloaded, list of finished
+steps) needs a data source. The product setup has no API, but it writes a log line by line, unbuffered, in
+UTF-8 with a byte order mark, every line with a 26 character time stamp (`yyyy-mm-dd hh:nn:ss.zzz` and three
+blanks, continuation lines 26 blanks). The logs of the laptop test of 2026-10-06 (EE 299 s, NeoEE 326 s) show
+clean markers: the online files servers, `Downloading <N> online files`, one `Online file downloaded` per
+file, `<X> of <Y> bytes done.` about every 10 percent, `All <n> online files accepted`, `Starting the
+installation process.` (about 70 percent of the run), 2260 (EE) or 2697 (NeoEE) lines `Dest filename:`,
+`Installation process succeeded.`, the CD key step of NeoEE, the manifest and `Log closed.`. The download is
+the longest phase (65 to 72 percent), the installation 15 to 21 percent.
+
+**Decision.**
+
+1. The suite reads the log of the running product setup (`SuiteTailLog`, `suite/suite_common.iss`),
+   read-only, and a pure parser (`SuiteFeedLogLine`) maps the lines to a phase that only moves forward and to
+   counters; `SuiteProgressPermille` weights the blocks (prepare 3, download 65, verify 2, install 20, the
+   rest 10 percent; the download weight drops out for a run that downloads nothing). The install block is an
+   estimate (entries `Dest filename:` against a constant per product, at most 99 percent of the block), and
+   nothing is 100 percent before `Log closed.`.
+2. **Success is never decided from the log.** The exit code and the uninstall entry stay authoritative
+   (`SuiteRunSucceeded`, contract 1.7 point 5); the log only feeds the display. A reworded or missing line
+   makes the display coarser, it cannot make a product succeed or fail.
+3. The lines the parser reads are an interface between the product scripts and the suite, like the line
+   `CD Keys generation result: <n>` before: contract 1.7 point 5 lists them (contract revision 6, both
+   copies), the product scripts mark each of them with the comment "suite parses this line", and
+   `ci/check_suite.py` fails if a line is no longer written, if a mark stands above another line, or if
+   `suite_common.iss` reads a line the check does not know. A product script change that rewords such a
+   line changes the suite and the contract in the same commit.
+4. The parser reads the CD key lines only as text (`Register NeoEE CD Keys`, `CD Keys generation result:`).
+   The suite still never calls `authtools.dll`, never touches `Software\Sierra\CDKeys`, and the product
+   scripts' CD key code is not changed (only a comment was added above the log lines).
+
+**Evidence.** The reader has to open the file while the product setup holds it open for writing and allows
+only reading (`Logging.pas`: write access, share mode read): `LoadStringFromFile` opens with share mode read
+only and fails with a sharing violation, so `SuiteTailLog` opens a `TFileStream` with `fmShareDenyNone` at
+every look, takes only what was appended since the last look (at most 256 KiB per call) and carries an
+unfinished last line over to the next call; a file that is missing (the product setup creates it when it
+starts) or smaller than what was read (a new log) is handled. The unit test of the reader holds a file open
+with the product's share mode (write access, share read) and checks all of this, including that
+`LoadStringFromFile` fails on it. It also showed that `TStream.Read` does not fill an `AnsiString` buffer
+(it returned the right byte count and other bytes): the reader calls `ReadFile` on `TFileStream.Handle`, the
+same pattern `WriteFile` has in `utils.iss`. The unit tests of the parser use short excerpts typed from the two
+logs of the laptop test (neutral paths) and check the monotonic phases, the counters, the English-only run,
+the clamp, the byte order mark, a line split across two reads and continuation lines.
+
+**Consequences.**
+
+- The text of about twenty lines of `downloads.iss`, `setup_is6.iss`, `installstate.iss` and `utils.iss` is
+  now an interface; rewording one needs the contract and `suite_common.iss` in the same commit. The marker
+  comments say so where the lines are.
+- Nothing in the suite window uses the reader yet; the progress display and the product runner with a process
+  handle follow in the next work packages. Until the windows-latest run of the end-to-end scenarios, the
+  `ReadFile` path is verified by the unit test under Wine only.
+- The progress is an estimate: the files of the download weigh the same although their sizes differ widely
+  (their sizes are not in the log before they start), and the install block depends on a constant per
+  product that components and repair runs change.

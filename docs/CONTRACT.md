@@ -391,6 +391,34 @@ run, the products the user selects and the launcher:
    text in the NeoEE setup changes this section in the same commit, in both copies. The suite never
    calls `authtools.dll` and never changes `Software\Sierra\CDKeys`
    ([3.8](#38-protected-keys-and-files)); the CD-key registration stays the NeoEE setup's own.
+
+   **Progress lines** (since revision 6): while a product setup runs, the suite also reads its log, read-only
+   and without disturbing it (it opens the file for reading and sharing, because the product setup holds it
+   open for writing, and neither changes nor deletes it before the product setup has ended), and shows what
+   the product setup is doing. The lines below are an interface exactly like the CD key line: a change of
+   their text in a product script changes this table in the same commit, in both copies, and the suite's
+   own check (`ci/check_suite.py`) fails if a script no longer writes one. The suite uses them for display
+   only (phase, files downloaded, file being downloaded, an estimate of the installation, the CD key
+   number); success stays decided as described above, and a product setup that logs none of them is run and
+   judged as before, without progress detail. A line of the log starts with its time stamp
+   `yyyy-mm-dd hh:nn:ss.zzz` and three blanks (26 characters); a continuation line starts with 26 blanks and
+   is ignored; the first line of the file starts with the UTF-8 byte order mark.
+
+   | Line (after the time stamp) | Written by | Meaning for the suite |
+   |---|---|---|
+   | `Online files server <URL>: ...` | `downloads.iss` | the setup asks its online files servers |
+   | `English language selected, no need to download online files.` | `setup_is6.iss` | no downloads in this run |
+   | `Downloading <N> online files, one at a time` | `downloads.iss` | the downloads start, N files |
+   | `Downloading pinned online file ... from <URL>: <target>` | `downloads.iss` | the file being downloaded (the last part of the URL) |
+   | `<X> of <Y> bytes done.` (two blanks before X) | `downloads.iss` | bytes of the file being downloaded |
+   | `Online file downloaded, ...`, `Online file not downloaded, it failed on both servers: ...`, `Online file not downloaded, not retried: ...`, `Online file not downloaded, unexpected error: ...`, `Online file skipped, downloads stopped by the user: ...` | `downloads.iss` | one file is finished |
+   | `Online files: <n> downloaded with validated TLS ...`, `All <n> online files accepted`, `<m> of <k> selected online files are missing ...` | `downloads.iss` | the downloads are over and checked |
+   | `Starting the installation process.` | Inno Setup | the setup starts to write the game files; from here on it cannot be stopped without leaving a half installed game (before, it only downloaded into its own `%TEMP%`) |
+   | `Dest filename: ...` | Inno Setup | one file entry of the installation, counted against an estimate per product |
+   | `Installation process succeeded.` | Inno Setup | the files are installed; the rest are the entries of `[Run]`, the registry and the CD keys |
+   | `Register NeoEE CD Keys ...` and `CD Keys generation result: <n>` | `setup_is6.iss` (NeoEE) | the CD key step; the number is read as text, as above |
+   | `Checking <n> recorded destinations ...` and `Manifest: <n> files, ...` | `installstate.iss`, `utils.iss` | the setup records the installed files for the launcher |
+   | `Log closed.` | Inno Setup | the log ends (this says nothing about success) |
 6. **Products installed for one user only**: if a product is installed only in the mode `user` (its
    uninstall key in HKCU, none in HKLM64), the suite does not run its setup, reports that it is
    installed for one user only and has to be removed through Windows "Apps" first, and does not list
@@ -941,7 +969,7 @@ hand-off of [4.3](#43-where-the-user-gets-the-setup).
 | 1 (draft) | 2026-10-02 | revision 3 (compatible clarifications after the reviews of setup v2 and launcher v2, which already behave so): source 4 reads key before hive, the EE and AoC folders of `foreign` installations are the real folders (the AoC folder from the same hive and view), the user choice may be the AoC folder, a registry record without `install.ini` also means `community` (1.4); Modified gets no message and no repair offer, the state may be shown (2.5); at the launcher start class S is only created, and the first run only for an installation that is unambiguous for its game settings key; class S before every game start while no other game runs; the display question until the user answers (3.2, 3.5, 3.6); a request without an answer of HTTP 200 is no statement about the version (4.5); O11 also names the `<AppId>` setup data folder of setups up to 1.7.2 | v2 (planned) | v2 (planned) |
 | 1 (draft) | 2026-10-05 | revision 4 (suite installer "Empire Earth Community", setup decision record 0013; optional additions only, no MUST or MUST NOT relaxed, 4.1 and 4.3 unchanged): names and mutexes of the suite and the launcher (0); `--product=EE` or `--product=NeoEE` selects for one session (1.4); suite record (1.6); how the suite runs a product setup, the log line `CD Keys generation result: <n>` as an interface, the guard for products installed for one user only, the removal of old product shortcuts before the suite shortcuts `Empire Earth` and `Neo Empire Earth`, the launcher outside the product roots (1.7, O10 answered); the suite mutex is a setup mutex (4.2); advice with `SourceDir` (4.4); checklist of the additions (7) | suite 1.0.0 (planned) | 1.0.0 (planned) |
 | 1 (draft) | 2026-10-06 | revision 5 (laptop test TP-93: the launcher listed the suite's own uninstall key, whose `Publisher` is that of EE, as a damaged installation of EE; optional additions only, no MUST or MUST NOT relaxed): the marker `Empire Earth Community: Suite` in the suite's uninstall key (0, 1.3); source 3 skips a key with that value, and for a suite built before revision 5 a key in HKLM with the root `InstallPath` of the suite record and no AppId the record embeds (1.4, 1.6); checklist of the additions (7) | suite 1.0.0 (planned) | 1.0.0 (planned) |
-| 1 (draft) | 2026-10-06 | revision 6 (suite 1.1.0, one window during the installation; compatible, `ContractVersion` stays 1, optional additions only, no MUST or MUST NOT relaxed; further parts of this revision follow with the packages of suite 1.1.0): the suite starts the product setups with `/VERYSILENT` instead of `/SILENT`, so that they show no progress window of their own (1.7 point 3); checklist of the additions (7) | suite 1.1.0 (planned) | unchanged |
+| 1 (draft) | 2026-10-06 | revision 6 (suite 1.1.0, one window during the installation; compatible, `ContractVersion` stays 1, optional additions only, no MUST or MUST NOT relaxed; further parts of this revision follow with the packages of suite 1.1.0): the suite starts the product setups with `/VERYSILENT` instead of `/SILENT`, so that they show no progress window of their own (1.7 point 3); the lines of the product logs the suite reads for its progress display are an interface like the CD key line (1.7 point 5); checklist of the additions (7) | suite 1.1.0 (planned) | unchanged |
 
 ## 6. Open questions
 
@@ -1084,6 +1112,10 @@ changes):
   `/SILENT`, so no product setup shows a window or a taskbar button of its own
   ([1.7](#17-how-the-suite-runs-a-product-setup-informative) point 3); the advanced mode passes no silent
   switch as before;
+- the log lines of the product setups that the suite reads while they run (phase, downloads, start of the
+  installation, CD key number, manifest) are listed in
+  [1.7](#17-how-the-suite-runs-a-product-setup-informative) point 5; the product scripts mark each of them
+  with the comment "suite parses this line", and `ci/check_suite.py` checks that they are still written;
 - `ci/check_suite.py`, the unit tests of `SuiteProductArguments` and the suite scenarios of CI expect
   `/VERYSILENT` and no `/SILENT`.
 

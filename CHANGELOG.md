@@ -721,6 +721,17 @@ setup version stays 1.7.2 until the release.
   unit tests, the end-to-end helpers of the suite scenarios, ADR 0013 (amendment, decisions 6 and 10) and the
   text of TP-93 follow. A hidden game setup cannot be cancelled on its own; the suite's own Cancel handling
   comes with the suite 1.1.0 runner.
+- Suite installer: the progress of a running product setup can be read from its log (`SuiteTailLog`,
+  `SuiteFeedLogLine`, `SuiteProgressPermille` in `suite/suite_common.iss`): the log is read while the product
+  setup writes it (a share-safe read at every look, a line cut in the middle, a log that starts again), a pure
+  parser maps the log lines to phases (online files servers, download, verify, installation, CD keys,
+  manifest, end) and counters (files downloaded, the file and its bytes, entries installed against an
+  estimate per product), and a pure function weights them into one progress value. Nothing in the suite
+  shows it yet (the progress display follows); success is still decided by the exit code and the uninstall
+  entry only. The log lines are an interface between the product scripts and the suite (contract 1.7 point 5,
+  contract revision 6): the product scripts mark each of them with a comment, and `ci/check_suite.py` fails if
+  one is reworded or no longer written. Unit tests with excerpts of the laptop logs of 2026-10-06 and a
+  file-level test of the share-safe read.
 
 ### Removed
 - Entries for Windows XP and older: the WIN98 compatibility mode and the pre-Vista `netsh

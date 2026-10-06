@@ -414,6 +414,20 @@ Windows tests with real data are the cases TP-90 to TP-97 of the test plan (Bloc
   `ssInstall`). For NeoEE the suite
   reads the line `CD Keys generation result: <n>` of the product log and shows it; the CD-key
   registration stays the NeoEE setup's own (D6).
+- **Progress of a product setup:** the data source for the progress display of suite 1.1.0 is the log of the
+  running product setup, which the suite reads without disturbing it (`SuiteTailLog` in `suite_common.iss`:
+  the file is opened for reading with `fmShareDenyNone` at every look, because `LoadStringFromFile` fails
+  with a sharing violation while the product setup writes; bytes come in through `ReadFile`, because
+  `TStream.Read` does not fill an `AnsiString`; no file yet, a smaller file, a line cut in the middle, the
+  UTF-8 byte order mark and the 26 blanks of a continuation line are handled). `SuiteFeedLogLine` is pure:
+  the log lines of contract 1.7 point 5 (`SuiteLog*`) move a phase forward (start, online files servers,
+  download, verify, install, post install, CD keys, manifest, done) and set counters (files downloaded of
+  N, the file being downloaded and its bytes, entries `Dest filename:` against an estimate per product);
+  `SuiteProgressPermille` weights the blocks (3, 65, 2, 20, 10 percent; the download weight drops out for a
+  run without download; 100 percent only at "Log closed."). "Starting the installation process." is the
+  point of no return (`SuiteProgressInstalling`). Success is never decided from the log: exit code and
+  uninstall entry stay authoritative (`SuiteRunSucceeded`). `ci/check_suite.py` checks that the product
+  scripts still write the lines, each marked with the comment "suite parses this line".
 - **Record and mutexes:** the suite record `HKLM64\Software\Empire Earth Community\Suite` (contract
   1.6) lists the products that succeeded and the folder the package was started from (`SourceDir`), for
   the launcher's repair advice. `SetupMutex=EmpireEarthCommunity_Suite`; `AppMutex` holds the game
@@ -438,7 +452,8 @@ Windows tests with real data are the cases TP-90 to TP-97 of the test plan (Bloc
   `AppMutex`, the record's value names and types written in code, the game shortcuts to the
   launcher, the marker of the uninstall key, no reference to the protected keys); `ci/check_suite.py`
   also requires `MarkSuiteUninstallKey` after `WriteSuiteRecord` and `RegKeyExists` before its write; the
-  suite scenarios S1, S2, S3, S9 and S10 assert the marker; `ci/check_messages.py` checks `suite_messages.iss`
+  suite scenarios S1, S2, S3, S9 and S10 assert the marker; it also checks the product log lines the suite
+  parses (see above); `ci/check_messages.py` checks `suite_messages.iss`
   and forbids `MsgBox` in the suite scripts (only `SuppressibleMsgBox`).
 
 ## Plan
