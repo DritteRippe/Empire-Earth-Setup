@@ -151,15 +151,16 @@ function Get-E2ESuiteChildCommand([string[]]$Lines, [string]$Product) {
 }
 
 # Problems of the command line the suite gave a product setup (the tokens of Get-E2ESuiteChildCommand): the
-# default parameters of contract 1.7 point 3 (the suite runs the setup with /SILENT, the rules of the test name
-# /VERYSILENT: they are applied to the same line with that one switch changed), the log below the suite's
+# default parameters of contract 1.7 point 3 (the suite runs the setup with /VERYSILENT, like the rules of the
+# test, so the line is checked as it is; a /SILENT would show a progress window per product), the log below the suite's
 # Logs folder, the tasks the test selects, no folder (/DIR: a repair or adoption keeps the product's folder) and
 # not the type full (the scenarios pass the compact type)
 function Test-E2ESuiteChildArguments([string[]]$Arguments, [string]$Product) {
   $problems = @()
-  foreach ($required in @('/SILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/ALLUSERS', '/NOICONS')) {
+  foreach ($required in @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/ALLUSERS', '/NOICONS')) {
     if ($Arguments -notcontains $required) { $problems += "$required missing" }
   }
+  if ($Arguments -contains '/SILENT') { $problems += '/SILENT is passed (the product setup would show a progress window of its own)' }
   if ((Get-E2ESwitchValue $Arguments 'LANG') -ne 'en') { $problems += "/LANG=$(Get-E2ESwitchValue $Arguments 'LANG'), expected en" }
   $log = Get-E2ESwitchValue $Arguments 'LOG'
   if ($null -eq $log -or $log -notlike "*\Logs\$Product-*.log") { $problems += "/LOG= is not a file below Logs\ named $Product-*.log: $log" }
@@ -168,8 +169,7 @@ function Test-E2ESuiteChildArguments([string[]]$Arguments, [string]$Product) {
   if ($Product -eq 'NeoEE' -and $merge -notcontains '!neoee_cdkeys') { $problems += '/MERGETASKS= does not name !neoee_cdkeys' }
   if ($null -ne (Get-E2ESwitchValue $Arguments 'DIR')) { $problems += '/DIR= is passed (the product keeps its folder)' }
   if ((Get-E2ESwitchValue $Arguments 'TYPE') -eq 'full') { $problems += '/TYPE=full is passed (the scenarios use the compact type)' }
-  $checked = @($Arguments | ForEach-Object { if ($_ -eq '/SILENT') { '/VERYSILENT' } else { $_ } })
-  $problems += @(Test-E2ESetupArguments $checked 'v2' $Product $true)
+  $problems += @(Test-E2ESetupArguments $Arguments 'v2' $Product $true)
   return $problems
 }
 

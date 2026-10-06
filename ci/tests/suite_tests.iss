@@ -268,10 +268,10 @@ begin
   // the command line: first installation, repair, advanced mode (contract 1.7 point 3)
   Check('SuiteProductArguments first install',
     SuiteProductArguments(True, False, 'de', Log1, ''),
-    '/SILENT /SUPPRESSMSGBOXES /NORESTART /ALLUSERS /LANG=de /NOICONS /MERGETASKS="!desktopicon" /LOG="' + Log1 + '" /TYPE=full');
+    '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /ALLUSERS /LANG=de /NOICONS /MERGETASKS="!desktopicon" /LOG="' + Log1 + '" /TYPE=full');
   Check('SuiteProductArguments repair has no /TYPE',
     SuiteProductArguments(False, False, 'en', Log1, ''),
-    '/SILENT /SUPPRESSMSGBOXES /NORESTART /ALLUSERS /LANG=en /NOICONS /MERGETASKS="!desktopicon" /LOG="' + Log1 + '"');
+    '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /ALLUSERS /LANG=en /NOICONS /MERGETASKS="!desktopicon" /LOG="' + Log1 + '"');
   Check('SuiteProductArguments advanced first install',
     SuiteProductArguments(True, True, 'fr', Log1, ''),
     '/ALLUSERS /LANG=fr /NOICONS /MERGETASKS="!desktopicon" /LOG="' + Log1 + '"');
@@ -282,34 +282,39 @@ begin
   CheckBool('SuiteProductArguments repair has no /DIR', Pos('/DIR', Args) > 0, False);
   Args := SuiteProductArguments(True, False, 'de', Log1, '');
   CheckBool('SuiteProductArguments first install has no /DIR', Pos('/DIR', Args) > 0, False);
-  CheckBool('SuiteProductArguments never /VERYSILENT', Pos('/VERYSILENT', Args) > 0, False);
+  // /VERYSILENT, never /SILENT as a token of its own: /SILENT would show a progress window per product (the
+  // test looks for the token, "/VERYSILENT" contains "SILENT" but not " /SILENT")
+  CheckBool('SuiteProductArguments has /VERYSILENT', Pos('/VERYSILENT ', Args) = 1, True);
+  CheckBool('SuiteProductArguments never /SILENT', Pos(' /SILENT ', ' ' + Args + ' ') > 0, False);
+  Args := SuiteProductArguments(True, True, 'de', Log1, '');
+  CheckBool('SuiteProductArguments advanced has no silent switch', (Pos('SILENT', Args) > 0), False);
   Check('SuiteProductArguments language is checked',
     SuiteProductArguments(False, True, 'de /DIR=C:\x', Log1, ''), '/ALLUSERS /LANG=en /NOICONS /MERGETASKS="!desktopicon" /LOG="' + Log1 + '"');
 
   // the CI pass-through is appended last
   Check('SuiteProductArguments pass-through appended',
     SuiteProductArguments(True, False, 'en', Log1, '/TASKS=full,!certinclude'),
-    '/SILENT /SUPPRESSMSGBOXES /NORESTART /ALLUSERS /LANG=en /NOICONS /MERGETASKS="!desktopicon" /LOG="' + Log1 +
+    '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /ALLUSERS /LANG=en /NOICONS /MERGETASKS="!desktopicon" /LOG="' + Log1 +
       '" /TYPE=full /TASKS=full,!certinclude');
   Check('SuiteProductArguments pass-through with blanks around',
     SuiteProductArguments(False, False, 'en', Log1, '  /X=1  '),
-    '/SILENT /SUPPRESSMSGBOXES /NORESTART /ALLUSERS /LANG=en /NOICONS /MERGETASKS="!desktopicon" /LOG="' + Log1 + '" /X=1');
+    '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /ALLUSERS /LANG=en /NOICONS /MERGETASKS="!desktopicon" /LOG="' + Log1 + '" /X=1');
   Check('SuiteProductArguments pass-through in the advanced mode too',
     SuiteProductArguments(False, True, 'en', Log1, '/X=1'), '/ALLUSERS /LANG=en /NOICONS /MERGETASKS="!desktopicon" /LOG="' + Log1 + '" /X=1');
   // a /MERGETASKS of the pass-through is merged: one switch only, and the decision on the CD keys survives
   Check('SuiteProductArguments merges /MERGETASKS',
     SuiteProductArguments(False, False, 'en', Log1, '/MERGETASKS=!neoee_cdkeys'),
-    '/SILENT /SUPPRESSMSGBOXES /NORESTART /ALLUSERS /LANG=en /NOICONS /MERGETASKS="!desktopicon,!neoee_cdkeys" /LOG="' + Log1 + '"');
+    '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /ALLUSERS /LANG=en /NOICONS /MERGETASKS="!desktopicon,!neoee_cdkeys" /LOG="' + Log1 + '"');
   Check('SuiteProductArguments merges a quoted /MERGETASKS and keeps the rest',
     SuiteProductArguments(True, False, 'en', Log1, '/TASKS=full /MERGETASKS="!neoee_cdkeys,!certinclude" /X=1'),
-    '/SILENT /SUPPRESSMSGBOXES /NORESTART /ALLUSERS /LANG=en /NOICONS /MERGETASKS="!desktopicon,!neoee_cdkeys,!certinclude" /LOG="' + Log1 +
+    '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /ALLUSERS /LANG=en /NOICONS /MERGETASKS="!desktopicon,!neoee_cdkeys,!certinclude" /LOG="' + Log1 +
       '" /TYPE=full /TASKS=full /X=1');
   Check('SuiteProductArguments merges two /MERGETASKS',
     SuiteProductArguments(False, True, 'en', Log1, '/MERGETASKS=a /MERGETASKS=b'),
     '/ALLUSERS /LANG=en /NOICONS /MERGETASKS="!desktopicon,a,b" /LOG="' + Log1 + '"');
   Check('SuiteProductArguments /TYPE of the pass-through replaces /TYPE=full',
     SuiteProductArguments(True, False, 'en', Log1, '/TYPE=compact'),
-    '/SILENT /SUPPRESSMSGBOXES /NORESTART /ALLUSERS /LANG=en /NOICONS /MERGETASKS="!desktopicon" /LOG="' + Log1 + '" /TYPE=compact');
+    '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /ALLUSERS /LANG=en /NOICONS /MERGETASKS="!desktopicon" /LOG="' + Log1 + '" /TYPE=compact');
 
   // the quoting of a value
   Check('SuiteQuoteArgument path with blanks', SuiteQuoteArgument('C:\Program Files\x.log'), '"C:\Program Files\x.log"');

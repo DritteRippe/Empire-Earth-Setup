@@ -565,8 +565,9 @@ begin
 end;
 
 // The command line of a product setup (contract 1.7 point 3).
-//   default:  /SILENT /SUPPRESSMSGBOXES /NORESTART /ALLUSERS /LANG=<Lang> /NOICONS /MERGETASKS="!desktopicon"
-//             /LOG="<LogFile>", and /TYPE=full for the first installation of the product only: a repair or an
+//   default:  /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /ALLUSERS /LANG=<Lang> /NOICONS /MERGETASKS="!desktopicon"
+//             /LOG="<LogFile>" (/VERYSILENT: the product setup shows no window and no taskbar button of its own, the
+//             suite's window is the only one; /SILENT would show a progress window per product), and /TYPE=full for the first installation of the product only: a repair or an
 //             update passes neither /TYPE nor /DIR, so the product keeps its folder, its components and its tasks
 //   advanced: /ALLUSERS /LANG /NOICONS /MERGETASKS /LOG only, the product setup shows its full wizard; /ALLUSERS
 //             only suppresses its dialog "for all users / only for me" (the suite is admin-only, contract 0: a product
@@ -587,7 +588,7 @@ begin
   if Advanced then
     Result := '/ALLUSERS /LANG=' + SuiteLanguageArgument(Lang) + ' /NOICONS'
   else
-    Result := '/SILENT /SUPPRESSMSGBOXES /NORESTART /ALLUSERS /LANG=' + SuiteLanguageArgument(Lang) + ' /NOICONS';
+    Result := '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /ALLUSERS /LANG=' + SuiteLanguageArgument(Lang) + ' /NOICONS';
   Result := Result + ' /MERGETASKS=' + SuiteQuoteArgument(Merged) + ' /LOG=' + SuiteQuoteArgument(LogFile);
   if FirstInstall and not Advanced and (Pos('/type=', LowerCase(Extra)) = 0) then
     Result := Result + ' /TYPE=full';

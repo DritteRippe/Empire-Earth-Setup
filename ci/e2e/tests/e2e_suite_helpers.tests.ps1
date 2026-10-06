@@ -87,8 +87,8 @@ CheckProblems 'suite arguments: telemetry' (Get-E2ESuiteArgumentProblems @(New-E
 # --- What the suite gave a product setup (suite_common.iss SuiteProductArguments, suite_run.iss log line) -------------
 $logEE = 'C:\Program Files\Empire Earth Community\Logs\EE-20261005-1204.log'
 $logNeo = 'C:\Program Files\Empire Earth Community\Logs\NeoEE-20261005-1204.log'
-$lineEE = 'Product EE (step 1 of 2, state 0): C:\Users\runneradmin\AppData\Local\Temp\is-AB12C.tmp\EE_Setup.exe /SILENT /SUPPRESSMSGBOXES /NORESTART /ALLUSERS /LANG=en /NOICONS /MERGETASKS="!desktopicon" /LOG="' + $logEE + '" /TYPE=compact /TASKS=compatibility,compatibility_windows'
-$lineNeo = 'Product NeoEE (step 2 of 2, state 0): C:\Users\runneradmin\AppData\Local\Temp\is-AB12C.tmp\NeoEE_Setup.exe /SILENT /SUPPRESSMSGBOXES /NORESTART /ALLUSERS /LANG=en /NOICONS /MERGETASKS="!desktopicon,!neoee_cdkeys,!certinclude,!directplay,!dxwebsetup" /LOG="' + $logNeo + '" /TYPE=compact /TASKS=compatibility,compatibility_windows'
+$lineEE = 'Product EE (step 1 of 2, state 0): C:\Users\runneradmin\AppData\Local\Temp\is-AB12C.tmp\EE_Setup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /ALLUSERS /LANG=en /NOICONS /MERGETASKS="!desktopicon" /LOG="' + $logEE + '" /TYPE=compact /TASKS=compatibility,compatibility_windows'
+$lineNeo = 'Product NeoEE (step 2 of 2, state 0): C:\Users\runneradmin\AppData\Local\Temp\is-AB12C.tmp\NeoEE_Setup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /ALLUSERS /LANG=en /NOICONS /MERGETASKS="!desktopicon,!neoee_cdkeys,!certinclude,!directplay,!dxwebsetup" /LOG="' + $logNeo + '" /TYPE=compact /TASKS=compatibility,compatibility_windows'
 $suiteLog = @('Suite 1.0.0 (contract 1, test build 0), started from D:\x', $lineEE, 'Product EE: the setup ended with exit code 0', $lineNeo)
 $cmdEE = Get-E2ESuiteChildCommand $suiteLog 'EE'
 $cmdNeo = Get-E2ESuiteChildCommand $suiteLog 'NeoEE'
@@ -105,7 +105,9 @@ CheckProblems 'child arguments: NeoEE passes' (Test-E2ESuiteChildArguments $cmdN
 function ChangedArguments($Command, [scriptblock]$Change) { return @($Command.Arguments | ForEach-Object { & $Change $_ } | Where-Object { $null -ne $_ }) }
 CheckProblems 'child arguments: no /NOICONS' (Test-E2ESuiteChildArguments (ChangedArguments $cmdEE { param($a) if ($a -ne '/NOICONS') { $a } }) 'EE') '/NOICONS missing'
 CheckProblems 'child arguments: no /ALLUSERS' (Test-E2ESuiteChildArguments (ChangedArguments $cmdEE { param($a) if ($a -ne '/ALLUSERS') { $a } }) 'EE') '/ALLUSERS missing'
-CheckProblems 'child arguments: /VERYSILENT instead of /SILENT' (Test-E2ESuiteChildArguments (ChangedArguments $cmdEE { param($a) if ($a -eq '/SILENT') { '/VERYSILENT' } else { $a } }) 'EE') '/SILENT missing'
+CheckProblems 'child arguments: /SILENT instead of /VERYSILENT' (Test-E2ESuiteChildArguments (ChangedArguments $cmdEE { param($a) if ($a -eq '/VERYSILENT') { '/SILENT' } else { $a } }) 'EE') '/VERYSILENT missing'
+CheckProblems 'child arguments: /SILENT besides /VERYSILENT' (Test-E2ESuiteChildArguments ($cmdEE.Arguments + '/SILENT') 'EE') '/SILENT is passed'
+CheckProblems 'child arguments: no silent switch' (Test-E2ESuiteChildArguments (ChangedArguments $cmdEE { param($a) if ($a -ne '/VERYSILENT') { $a } }) 'EE') '/VERYSILENT missing'
 CheckProblems 'child arguments: /DIR' ((Test-E2ESuiteChildArguments ($cmdEE.Arguments + '/DIR="C:\x"') 'EE')) '/DIR='
 CheckProblems 'child arguments: /TYPE=full' ((Test-E2ESuiteChildArguments (ChangedArguments $cmdEE { param($a) if ($a -eq '/TYPE=compact') { '/TYPE=full' } else { $a } }) 'EE')) 'TYPE=full'
 CheckProblems 'child arguments: no !desktopicon' (Test-E2ESuiteChildArguments (ChangedArguments $cmdEE { param($a) if ($a -like '/MERGETASKS=*') { '/MERGETASKS="!other"' } else { $a } }) 'EE') '!desktopicon'

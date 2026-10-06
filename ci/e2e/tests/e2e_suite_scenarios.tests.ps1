@@ -257,7 +257,7 @@ try {
       $rest = @($extra | Where-Object { $_ -notlike '/MERGETASKS=*' })
       $productLog = "$suiteRoot\Logs\$id-20261005-1204.log"
       $first = ($state[$id] -eq 0)
-      $arguments = '/SILENT /SUPPRESSMSGBOXES /NORESTART /ALLUSERS /LANG=en /NOICONS /MERGETASKS="!desktopicon,' + $merge + '" /LOG="' + $productLog + '"'
+      $arguments = '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /ALLUSERS /LANG=en /NOICONS /MERGETASKS="!desktopicon,' + $merge + '" /LOG="' + $productLog + '"'
       if ($first -and (Get-E2ESwitchValue $rest 'TYPE') -ne 'compact') { $arguments += ' /TYPE=full' }
       $arguments += ' ' + ($rest -join ' ')
       $lines += "Product $id (step $step of $($ordered.Count), state $($state[$id])): C:\Users\x\AppData\Local\Temp\is-1.tmp\$id`_Setup.exe $arguments"
