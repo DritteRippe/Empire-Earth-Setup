@@ -218,6 +218,7 @@ begin
     Text := BuildInstallIniText({#ContractVersion}, '{#InstallType}', '{#AppID}', GetContractInstallMode(''),
       '{#MyAppVersion}', '{#MySetupVersion}', '{#SetupBuild}', WizardSelectedComponents(False),
       WizardSelectedTasks(False), GetDateTimeString('yyyy/mm/dd hh:nn:ss', '-', ':'));
+    // The suite parses this line (contract 1.7 point 5): change it only together with suite/suite_common.iss
     Log('Checking ' + IntToStr(InstalledFiles.Count) + ' recorded destinations of installed files for ' + GetManifestFilePath());
     if ManifestProgressPage <> nil then
     begin

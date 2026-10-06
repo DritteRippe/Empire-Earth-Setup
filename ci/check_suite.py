@@ -52,6 +52,11 @@ to stay safe and installable:
   [Safety]  no suite file mentions the registry key of the CD keys of the original game, the library of the
             NeoEE CD key registration or its function (the suite never reimplements or bypasses the
             registration, contract 1.7 point 5)
+  [Log]     the lines of the product logs the suite parses for its progress (the SuiteLog* constants of
+            suite/suite_common.iss, contract 1.7 point 5) are still written by the product scripts
+            (downloads.iss, installstate.iss, setup_is6.iss, utils.iss), each of them marked there with a
+            comment "suite parses this line"; every constant is listed here and used by the parser, and a
+            comment of that kind stands only above a listed line
 
 --self-test runs the check against changed temporary copies of the suite files (MinVersion 10.0, a
 number as DiskSliceSize, a launcher entry without the Check, a product setup that is compressed,
@@ -85,6 +90,32 @@ SETUP_EXPECTED = {
     "SetupLogging": "yes",
     "CloseApplications": "no",
 }
+# the product log lines the suite parses (S3, contract 1.7 point 5): per product script the SuiteLog* constants of
+# suite/suite_common.iss whose texts all stand in one line of that script. A reworded line there, or a constant
+# that is not listed here, is an error.
+PRODUCT_LOG_LINES = [
+    ("downloads.iss", ("SuiteLogProbe",)),
+    ("downloads.iss", ("SuiteLogCount", "SuiteLogCountEnd")),
+    ("downloads.iss", ("SuiteLogFile", "SuiteLogFrom")),
+    ("downloads.iss", ("SuiteLogOf", "SuiteLogBytesEnd")),
+    ("downloads.iss", ("SuiteLogFileDownloaded",)),
+    ("downloads.iss", ("SuiteLogFileFailedBoth",)),
+    ("downloads.iss", ("SuiteLogFileNotRetried",)),
+    ("downloads.iss", ("SuiteLogFileUnexpected",)),
+    ("downloads.iss", ("SuiteLogFileStopped",)),
+    ("downloads.iss", ("SuiteLogVerified", "SuiteLogVerifiedEnd")),
+    ("downloads.iss", ("SuiteLogAccepted", "SuiteLogAcceptedEnd")),
+    ("downloads.iss", ("SuiteLogOf", "SuiteLogMissingEnd")),
+    ("setup_is6.iss", ("SuiteLogNoDownload",)),
+    ("setup_is6.iss", ("SuiteLogCdKeysStart",)),
+    ("setup_is6.iss", ("SuiteLogCdKeysResult",)),
+    ("installstate.iss", ("SuiteLogChecking", "SuiteLogCheckingEnd")),
+    ("utils.iss", ("SuiteLogManifest",)),
+]
+# Inno Setup's own lines: nothing in the product scripts to check
+INNO_LOG_CONSTANTS = ("SuiteLogInstallStart", "SuiteLogInstallDone", "SuiteLogDestFile", "SuiteLogClosed")
+PRODUCT_LOG_FILES = tuple(sorted({rel for rel, _ in PRODUCT_LOG_LINES}))
+LOG_LINE_COMMENT = "suite parses this line"
 PRODUCT_SOURCES = ("{#EESetupFile}", "{#NeoEESetupFile}")
 # the legal texts of the wizard: files of the product setups, only extracted to {tmp} by the wizard
 # (ci/check_suite_texts.py compares them with the product's)
@@ -492,6 +523,57 @@ def check_forbidden_words(root, errors):
                               "of the NeoEE setup (contract 1.7 point 5)")
 
 
+def log_constants(common):
+    """{name: text} of the SuiteLog* constants of suite_common.iss (the lines of the product logs the suite reads)."""
+    pattern = re.compile(r"^[ \t]*(SuiteLog\w+)[ \t]*=[ \t]*'((?:[^']|'')*)';", re.MULTILINE)
+    return {match.group(1): match.group(2).replace("''", "'") for match in pattern.finditer(common)}
+
+
+def check_product_log_lines(root, common, errors):
+    """The product log lines the suite parses are still there, marked, listed and used. Returns the number of rows."""
+    constants = log_constants(common)
+    listed = {name for _, names in PRODUCT_LOG_LINES for name in names} | set(INNO_LOG_CONSTANTS)
+    for name in sorted(set(constants) - listed):
+        errors.append(f"suite/suite_common.iss: {name} names a product log line the suite reads, but ci/check_suite.py "
+                      "does not list it (PRODUCT_LOG_LINES)")
+    for name in sorted(listed - set(constants)):
+        errors.append(f"ci/check_suite.py lists {name}, which suite/suite_common.iss does not declare")
+    for name in sorted(constants):
+        if len(re.findall(rf"\b{name}\b", common)) < 2:
+            errors.append(f"suite/suite_common.iss: {name} is declared, but the progress parser does not use it")
+    lines = {}
+    for rel in PRODUCT_LOG_FILES:
+        try:
+            lines[rel] = list(enumerate(read(root, rel).splitlines(), 1))
+        except CheckError as error:
+            errors.append(str(error))
+    matched = {rel: set() for rel in lines}
+    for rel, names in PRODUCT_LOG_LINES:
+        if rel not in lines or any(name not in constants for name in names):
+            continue
+        texts = [constants[name] for name in names]
+        found = [no for no, line in lines[rel] if not line.lstrip().startswith("//") and all(text in line for text in texts)]
+        if not found:
+            errors.append(f"{rel}: no line contains {' and '.join(repr(text) for text in texts)} ({', '.join(names)}): "
+                          "the suite parses this line of the product log (contract 1.7 point 5); a change of it "
+                          "changes suite/suite_common.iss and the contract in the same commit")
+        matched[rel].update(found)
+    for rel, entries in lines.items():
+        for index, (no, line) in enumerate(entries):
+            if no in matched[rel]:
+                before = next((text for _, text in reversed(entries[:index]) if text.strip()), "")
+                if not (before.lstrip().startswith("//") and LOG_LINE_COMMENT in before):
+                    errors.append(f"{rel}:{no}: this log line is parsed by the suite and needs the comment "
+                                  f"\"{LOG_LINE_COMMENT}\" in the line above (contract 1.7 point 5)")
+            elif line.lstrip().startswith("//") and LOG_LINE_COMMENT in line:
+                after = next(((n, text) for n, text in entries[index + 1:] if text.strip() and not text.lstrip().startswith("//")),
+                             (0, ""))
+                if after[0] not in matched[rel]:
+                    errors.append(f"{rel}:{no}: the comment \"{LOG_LINE_COMMENT}\" stands above a line that "
+                                  "ci/check_suite.py does not list as a product log line the suite parses")
+    return len(PRODUCT_LOG_LINES) + len(INNO_LOG_CONSTANTS)
+
+
 def check(root):
     """(errors, summary) for the repository root."""
     errors = []
@@ -525,9 +607,10 @@ def check(root):
     frame = check_frame_rules(main, files, errors)
     removal = check_uninstaller(uninstaller, main, files, errors)
     check_forbidden_words(root, errors)
+    log_lines = check_product_log_lines(root, common, errors)
     return errors, (f"suite frame: {directives} [Setup] directives, {products} product setups and {launcher} "
                     f"launcher, license and legal text entries in [Files], {codes} exit codes, {frame} slice, mode and registry view rules, product runner "
-                    f"{steps} rules, uninstall key marker {marker} rules, uninstaller {removal} rules, no CD key registry or library reference")
+                    f"{steps} rules, uninstall key marker {marker} rules, uninstaller {removal} rules, no CD key registry or library reference, {log_lines} product log lines the suite parses")
 
 
 def self_test(source_root):
@@ -712,14 +795,35 @@ def self_test(source_root):
          "the uninstaller uses a function of Setup"),
         ("the logs folder is not the only deletion", replace(main, 'Name: "{app}\\Logs"', 'Name: "{app}"'), "[UninstallDelete] must name {app}\\Logs only"),
         ("the CD key registry key in the uninstaller", replace(uninstall, "  Total := 0;\n", "  Log('Software\\Sierra');\n  Total := 0;\n"),
-         "the suite never touches the CD key registration"),
+         "the suite never touches the CD key registration"),        ("a parsed product log line reworded",
+         replace("downloads.iss", "Log('Downloading ' + IntToStr(Count) + ' online files, one at a time');",
+                 "Log('Fetching ' + IntToStr(Count) + ' online files, one at a time');"),
+         "no line contains 'Downloading ' and ' online files, one at a time'"),
+        ("a parsed product log line of the CD key step reworded",
+         replace("setup_is6.iss", "Log('CD Keys generation result: ' + IntToStr(AuthExitCode));", "Log('CD keys result: ' + IntToStr(AuthExitCode));"),
+         "no line contains 'CD Keys generation result:'"),
+        ("a parsed product log line of the manifest reworded",
+         replace("utils.iss", "Result := 'Manifest: ' + IntToStr(FileCount)", "Result := 'Manifest written: ' + IntToStr(FileCount)"),
+         "no line contains 'Manifest: '"),
+        ("a parsed product log line without the comment",
+         replace("downloads.iss", "  // The suite parses this line (contract 1.7 point 5): change it only together with suite/suite_common.iss\n  Log('Downloading ' + IntToStr(Count)", "  Log('Downloading ' + IntToStr(Count)"),
+         "needs the comment"),
+        ("the text of a log line changed in the suite", replace(common, "SuiteLogProbe = 'Online files server ';", "SuiteLogProbe = 'Online file server ';"),
+         "no line contains 'Online file server '"),
+        ("a log line that is not listed", replace(common, "  SuiteLogClosed = 'Log closed.';", "  SuiteLogClosed = 'Log closed.';\n  SuiteLogMore = 'More';"),
+         "SuiteLogMore names a product log line the suite reads"),
+        ("a log line the parser does not use", replace(common, "else if SuiteStartsWith(T, SuiteLogClosed) then", "else if False then"),
+         "SuiteLogClosed is declared, but the progress parser does not use it"),
+        ("the comment above a line that is not a parsed log line",
+         replace("installstate.iss", "    Log('Wrote ' + IniPath", "    // The suite parses this line (contract 1.7 point 5): x\n    Log('Wrote ' + IniPath"),
+         "stands above a line that"),
     ]
     passing = [("unchanged copy", None, None)]
     failures = 0
     with tempfile.TemporaryDirectory(prefix="check_suite_selftest_") as temp:
         for number, (name, change, expected) in enumerate(passing + cases):
             root = Path(temp) / f"case{number}"
-            for rel in SUITE_FILES:
+            for rel in SUITE_FILES + list(PRODUCT_LOG_FILES):
                 (root / rel).parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(source_root / rel, root / rel)
             try:

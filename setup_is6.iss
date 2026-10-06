@@ -1674,8 +1674,10 @@ begin
   end;
 
   if (AoCDir = '') then
+    // The suite parses this line (contract 1.7 point 5): change it only together with suite/suite_common.iss
     Log('Register NeoEE CD Keys for EE')
   else
+    // The suite parses this line (contract 1.7 point 5): change it only together with suite/suite_common.iss
     Log('Register NeoEE CD Keys for EE and AoC');
 
   try
@@ -1687,6 +1689,7 @@ begin
     Exit;
   end;
 
+  // The suite parses this line (contract 1.7 point 5): change it only together with suite/suite_common.iss
   Log('CD Keys generation result: ' + IntToStr(AuthExitCode));
   case AuthExitCode of
     CDKeysResultOK: Log('CD Keys registered');
@@ -1811,6 +1814,7 @@ begin
   LobbyDir := GetLobbyDir(Lang);
   if (LangCode = 'en') then
   begin
+    // The suite parses this line (contract 1.7 point 5): change it only together with suite/suite_common.iss
     Log('English language selected, no need to download online files.');
     Exit;
   end;

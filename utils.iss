@@ -1367,6 +1367,7 @@ begin
   Ms := ElapsedMs;
   if Ms < 1 then
     Ms := 1;
+  // The suite parses this line (contract 1.7 point 5): change it only together with suite/suite_common.iss
   Result := 'Manifest: ' + IntToStr(FileCount) + ' files, ' + TenthsToStr((Bytes * 10 + 524288) div 1048576) + ' MB, ' +
     IntToStr(ElapsedMs) + ' ms, ' + TenthsToStr((Bytes * 10000 + Ms * 524288) div (Ms * 1048576)) + ' MB/s';
 end;

@@ -348,11 +348,14 @@ begin
     Lenient := GetHttpStatusIgnoringCertificate(Url);
   Result := ClassifyOnlineFilesServer(Strict, Lenient);
   if Result = OnlineServerCertificateInvalid then
+    // The suite parses this line (contract 1.7 point 5): change it only together with suite/suite_common.iss
     Log('Online files server ' + Url + ': answers only without certificate validation (HTTP ' + IntToStr(Lenient) + '); ' +
       'pinned files are downloaded from it with WinHTTP, certificate errors ignored, the SHA-256 decides; files without SHA-256 are not')
   else if (Result = OnlineServerUnreachable) and WithPins then
+    // The suite parses this line (contract 1.7 point 5): change it only together with suite/suite_common.iss
     Log('Online files server ' + Url + ': no answer, neither with nor without certificate validation')
   else if Result = OnlineServerUnreachable then
+    // The suite parses this line (contract 1.7 point 5): change it only together with suite/suite_common.iss
     Log('Online files server ' + Url + ': no answer over validated TLS (not asked without certificate validation: this setup has no pins)');
 end;
 
@@ -658,6 +661,7 @@ begin
       end;
       if (Total > 0) and (NextLogPercent <= 100) and (Received * 100 >= Total * NextLogPercent) then
       begin
+        // The suite parses this line (contract 1.7 point 5): change it only together with suite/suite_common.iss
         Log('  ' + IntToStr(Received) + ' of ' + IntToStr(Total) + ' bytes done.');
         while (NextLogPercent <= 100) and (Received * 100 >= Total * NextLogPercent) do
           NextLogPercent := NextLogPercent + 10;
@@ -699,6 +703,7 @@ begin
   if FileExists(PartFile) then
     DeleteFile(PartFile);
   ForceDirectories(ExtractFileDir(Target));
+  // The suite parses this line (contract 1.7 point 5): change it only together with suite/suite_common.iss
   Log('Downloading pinned online file without certificate validation (WinHTTP) from ' + Url + ': ' + Target);
   OnlineFilesDownloadPage.SetText(OnlineFilesDownloadPage.Msg1Label.Caption, Url);
   OnlineFilesDownloadPage.Msg2Label.Visible := True;
@@ -771,6 +776,7 @@ begin
       Result := DownloadOutcomePinMismatch;
     end
     else if RenameFile(PartFile, Target) then
+      // The suite parses this line (contract 1.7 point 5): change it only together with suite/suite_common.iss
       Log('Online file downloaded, SHA-256 pinned, transport WinHTTP without certificate validation: ' + Url + ' (' +
         IntToStr(Received) + ' bytes, ' + IntToStr(TicksSince(Started)) + ' ms)')
     else
@@ -866,6 +872,7 @@ begin
     end;
     if Hash = OnlineFiles[Index].SHA256 then
     begin
+      // The suite parses this line (contract 1.7 point 5): change it only together with suite/suite_common.iss
       Log('Online file downloaded, SHA-256 pinned: ' + Url);
       OnlineFilesByBuiltIn := OnlineFilesByBuiltIn + 1;
     end
@@ -881,8 +888,10 @@ begin
   begin
     OnlineFilesByBuiltIn := OnlineFilesByBuiltIn + 1;
     if DownloadSizeAnnounced then
+      // The suite parses this line (contract 1.7 point 5): change it only together with suite/suite_common.iss
       Log('Online file downloaded, TLS-verified, size checked: ' + Url)
     else
+      // The suite parses this line (contract 1.7 point 5): change it only together with suite/suite_common.iss
       Log('Online file downloaded, TLS-verified, accepted without size check (the server sent no Content-Length): ' + Url);
   end;
 end;
@@ -926,8 +935,10 @@ begin
         else
           OnlineFiles[Index].DownloadProblem := 'DownloadFileMissing';
         if OtherTried then
+          // The suite parses this line (contract 1.7 point 5): change it only together with suite/suite_common.iss
           Log('Online file not downloaded, it failed on both servers: ' + OnlineFiles[Index].RelPath)
         else
+          // The suite parses this line (contract 1.7 point 5): change it only together with suite/suite_common.iss
           Log('Online file not downloaded, not retried: the other server is not used for it (see "Other server not used for" above): ' + OnlineFiles[Index].RelPath);
       end;
     end;
@@ -953,6 +964,7 @@ begin
   if Count = 0 then
     Exit;
 
+  // The suite parses this line (contract 1.7 point 5): change it only together with suite/suite_common.iss
   Log('Downloading ' + IntToStr(Count) + ' online files, one at a time');
   OnlineFilesDownloadPage.Show;
   try
@@ -963,6 +975,7 @@ begin
         begin
           NoteDownloadsStopped;
           OnlineFiles[I].DownloadProblem := 'DownloadFileSkipped';
+          // The suite parses this line (contract 1.7 point 5): change it only together with suite/suite_common.iss
           Log('Online file skipped, downloads stopped by the user: ' + OnlineFiles[I].RelPath);
         end
         else
@@ -970,12 +983,14 @@ begin
             DownloadOnlineFile(I);
           except
             OnlineFiles[I].DownloadProblem := 'DownloadFileMissing';
+            // The suite parses this line (contract 1.7 point 5): change it only together with suite/suite_common.iss
             Log('Online file not downloaded, unexpected error: ' + GetExceptionMessage);
           end;
       end;
   finally
     OnlineFilesDownloadPage.Hide;
   end;
+  // The suite parses this line (contract 1.7 point 5): change it only together with suite/suite_common.iss
   Log('Online files: ' + IntToStr(OnlineFilesByBuiltIn) + ' downloaded with validated TLS (Inno Setup), ' + IntToStr(OnlineFilesByWinHttp) +
     ' pinned ones with WinHTTP without certificate validation, of ' + IntToStr(Count));
 end;
@@ -1094,10 +1109,12 @@ begin
   if Missing = 0 then
   begin
     if GetArrayLength(OnlineFiles) > 0 then
+      // The suite parses this line (contract 1.7 point 5): change it only together with suite/suite_common.iss
       Log('All ' + IntToStr(GetArrayLength(OnlineFiles)) + ' online files accepted');
     Exit;
   end;
 
+  // The suite parses this line (contract 1.7 point 5): change it only together with suite/suite_common.iss
   Log(IntToStr(Missing) + ' of ' + IntToStr(GetArrayLength(OnlineFiles) + GetArrayLength(RefusedOnlineFiles)) + ' selected online files are missing, the setup installs its own files instead:' + Report);
   // A pin mismatch (a file updated on the server after this setup was built, or a damaged or
   // tampered download) is reported like the other cases: the file was discarded, nothing of it is
