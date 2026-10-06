@@ -3,6 +3,48 @@
 [![Setup Version](https://img.shields.io/badge/Setup%20Version-v1.7.2-blue)](https://github.com/EE-modders/Empire-Earth-Setup)
 # 📥 Empire Earth Community Setup
 
+## Why this fork?
+This fork builds on the Empire Earth Community Setup by [EE-modders](https://github.com/EE-modders/Empire-Earth-Setup) and its contributors: the setup, its content and the 1.7.2 release are their work. Branch `v2` rebuilds their Inno Setup 6 script (upstream `master`, "Updated to v1.7.2") with verified downloads, statistics only with consent, safer updates, automated tests and documentation. It also adds the suite installer "Empire Earth Community" for both games and the Empire Earth Launcher. There is no new game content ([CHANGELOG.md](CHANGELOG.md), "Unreleased").
+
+| | Upstream 1.7.2 | This fork (`v2`) |
+|---|---|---|
+| Installers | EE and NeoEE setups (regular and portable) | The same four setups, plus the suite installer: both games and, with .NET Framework 4.8, the launcher and the Mod Creator in one run ([details](#empire-earth-community-suite-installer)) |
+| Online localized files | Inno Download Plugin 1.6.0 (third-party DLL); downloaded files are not checked against a hash | HTTPS only; every online file is pinned by SHA-256 and size and installed only if it matches. From a server with an invalid certificate (today `files.empireearth.eu`) only pinned files are fetched, without certificate validation, and the hash decides ([details](#online-localized-files), [ADR 0012](docs/adr/0012-pinned-downloads-despite-invalid-certificates.md)) |
+| Setup statistics | Sent also when the player declines, and by the uninstaller | Only with consent; the uninstaller sends nothing |
+| Player-made random maps | `Data\Random Map Scripts` deleted on every install, repair and update | Only maps the setup installed itself are replaced; the first update from 1.7.2 moves the old folder aside once and says where |
+| Files removed by antivirus | Only the NeoEE CD-key tool is checked | Page "Checking the installed files" names every missing file and how to repair ([Support](#support)) |
+| Setup log | Only with `/LOG` | Every run writes `%TEMP%\Setup Log <date> #<n>.txt` ([Support](#support)) |
+| Checksum of a setup | None | The build writes `<setup>.exe.sha256` next to every setup ([details](#checksums-of-the-setups)) |
+| Run as administrator | Set by default for the installing account (all-users installs) | Opt-in task; an update removes the old default value |
+| Community certificate (signed builds) | Task preselected for administrators, trusted root store | Unchecked task, trusted publishers only; updates remove the old root entry |
+| Update check | HTTPS with HTTP fallback | HTTPS only; opens only https links of the community hosts, in the browser of the non-elevated user |
+| Links in `Data` and `Users` | No such check | An all-users installation or update stops before changing anything if it finds links there ([Security](#security)) |
+| Windows 7 compatibility values | Windows XP SP3 mode with flags for `EE-AOC.exe` by default | None by default; the flags without the XP mode as an opt-in task ([details](#compatibility-and-graphics-options)) |
+| Launcher integration | None | Install record, `install.ini` and the integrity manifest `files.sha256`, specified in [docs/CONTRACT.md](docs/CONTRACT.md) ([details](#empire-earth-launcher)) |
+| Tests and CI | None | On every push and pull request: build of all four variants with Inno Setup 6.2.2 (placeholder data), unit tests, policy checks and ten suite scenarios on Windows; a real-data end-to-end workflow on request ([details](#continuous-integration)) |
+| Documentation | README, release notes in the script header | [Decision records](docs/adr/README.md), [ARCHITECTURE.md](docs/ARCHITECTURE.md), [CONTRACT.md](docs/CONTRACT.md), [CHANGELOG.md](CHANGELOG.md), [SERVER-OPERATIONS.md](docs/SERVER-OPERATIONS.md), [TRANSLATING.md](TRANSLATING.md), manual [test plan](docs/TEST-PLAN.de.md) (German) |
+
+### Also new
+- **Suite installer:** desktop icons `Empire Earth` and `Neo Empire Earth` open the launcher for that game (without .NET Framework 4.8 they start the game). It needs administrator rights and Windows 7 SP1 or later, checks every embedded setup against its SHA-256 and size before running it, and its uninstaller keeps saved games and profiles unless you choose "Delete" ([details](#empire-earth-community-suite-uninstalling)). Its own code never touches `Software\Sierra\CDKeys`; the NeoEE setup it runs registers the CD keys as before. This repository builds the suite only with placeholder products; no suite download is offered here.
+- **Clearer notices when servers fail**, in German and French too: the setup installs its bundled files, names every file it did not install from the download and, if no server can be reached, tells you to run it again later.
+- **Hints before installing**, which change nothing: a screen lower than 768 pixels, traces of CD, GOG or old NeoEE installations, EE and NeoEE in one folder ([Support](#support)).
+- **German and French** texts for installation types, tasks, components and all new notices, which were English in every language before.
+- **For maintainers:** build switches on the ISCC command line instead of edits in the script; `ci/build.ps1` builds and checks all four variants and writes the checksum files; downloads, install state, environment hints, statistics and random maps are separate modules ([ARCHITECTURE.md](docs/ARCHITECTURE.md)); the CI check `ci/check_tls_policy.py` fails if certificate errors are ignored anywhere except for pinned files.
+
+### What changed or was dropped
+- The Inno Download Plugin with its detail view and URL-list error dialog; one download page with a stop button replaces it.
+- Any retry over `http://`. Windows 7 without updated root certificates or TLS 1.2 cannot use the update check; the game is installed with the bundled files ([Support](#support)).
+- An online file that changes on the servers after a build is discarded by that setup until a setup with new pins is released.
+- Entries for Windows XP and older (8 compatibility values, 4 of them with the WIN98 mode, and 15 pre-Vista firewall entries) and the Quick Launch task; Inno Setup 6 setups do not start on those systems.
+- The default Windows 7 compatibility mode, the default run-as-administrator value and the preselected certificate in the trusted root store (now unchecked tasks, see above).
+- An all-users installation or update through a link in `Data` or `Users` stops before changing anything (silent mode: exit code 7) until the link is removed; or install "for me only".
+- The statistics no longer count refusals.
+- Texts added since 1.7.2 exist in English, German and French only; other languages show them in English until translated ([TRANSLATING.md](TRANSLATING.md)). The suite installer has these three languages only.
+- The hidden setup data folder `{app}\<AppId>` is now `_setupdata_EE` or `_setupdata_NeoEE`; updates remove the old one.
+
+### Status
+Not released. The setup version stays 1.7.2 until v2 is released; there is no v2 tag, and the manual Windows tests are written but not yet recorded as passed. The suite installer gets its 1.0.0 tag only after its Windows tests pass.
+
 ## Features
 🎮 Empire Earth & The Art of Conquest\
 🌐 NeoEE (with CD Keys generation)\
@@ -24,13 +66,7 @@
 🛠️ Tool included: Empire Earth Diagnostic v1.0.0.1\
 🔐 Digitally (self-)signed
 
-New in setup v2 (not released yet, see [CHANGELOG.md](CHANGELOG.md) "Unreleased"):
-- A log of every run, without any switch (see [Support](#support)), and a SHA-256 file next to every built setup (see [Checksums of the setups](#checksums-of-the-setups)).
-- Launcher integration: an install record, `install.ini` and the integrity manifest `files.sha256` for the [Empire Earth Launcher](#empire-earth-launcher); files that disappear during the installation (antivirus) are named at the end.
-- Hints before the installation: a screen lower than 768 pixels, traces of other or old installations (original CD, GOG, old NeoEE installers) and their folders, EE and NeoEE in one folder; nothing is changed or deleted.
-- No elevated installation through links in the folders `Data` and `Users` (see [Security](#security)).
-- Downloads with Inno Setup's built-in support instead of a third-party plug-in: HTTPS only (TLS 1.2 requested also on Windows 7), the mirror as fallback, a clear notice of what was not installed. Every online file is pinned by its SHA-256 and size (`pins/online-files.txt`), so the voices, campaigns and intro movie (the movie with the component "Install intro videos") also arrive from a file server whose certificate is invalid; a file without pin still needs a valid certificate (see [Online localized files](#online-localized-files)).
-- Windows 7: no compatibility values by default, the flags of 1.7.2 without the Windows XP mode as an option (see [Compatibility and graphics options](#compatibility-and-graphics-options)).
+New in setup v2 (not released yet): see [Why this fork?](#why-this-fork) above and [CHANGELOG.md](CHANGELOG.md) "Unreleased".
 
 ## Support
 - **Check the download:** the SHA-256 of every released setup is published next to its download. Compare it with `Get-FileHash <setup>.exe -Algorithm SHA256` in PowerShell before you run the setup, see [Checksums of the setups](#checksums-of-the-setups).
