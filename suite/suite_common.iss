@@ -638,6 +638,76 @@ begin
   Result := (ExpectedHash <> '') and (CompareText(Trim(ActualHash), Trim(ExpectedHash)) = 0) and (ActualSize = ExpectedSize);
 end;
 
+// ---- the progress of a product setup, read from its log (S3, contract 1.7 point 5) ----------------
+
+const
+  // The phases of a product setup in the order of its log; the parser only moves forward (SuiteRaisePhase)
+  SuitePhaseStart = 0;             // the log is open, the setup prepares
+  SuitePhaseProbe = 1;             // it asks the online files servers
+  SuitePhaseDownload = 2;          // it downloads the online files
+  SuitePhaseVerify = 3;            // the downloads are over, it checks what it has
+  SuitePhaseInstall = 4;           // "Starting the installation process.": the point of no return, the game files are written
+  SuitePhasePost = 5;              // the files are installed; entries of [Run], shortcuts, registry
+  SuitePhaseCdKeys = 6;            // NeoEE only: the setup registers the CD keys
+  SuitePhaseManifest = 7;          // it records the installed files for the launcher
+  SuitePhaseDone = 8;              // "Log closed.": the log ends (the exit code and the uninstall entry tell if it worked)
+
+  // Weights of the blocks of the progress bar, in percent of the whole run (measured on the logs of the laptop
+  // test 2026-10-06: start and probe 3, download 65 to 72, verify 2, install 15 to 21, the rest 9 to 11).
+  // The download weight drops out for a run that downloads nothing.
+  SuiteWeightPrepare = 3;
+  SuiteWeightDownload = 65;
+  SuiteWeightVerify = 2;
+  SuiteWeightInstall = 20;
+  SuiteWeightPost = 10;
+
+  // Entries "Dest filename:" in the log of a default installation (laptop test 2026-10-06: EE 2260, NeoEE 2697);
+  // the install block of the bar is only an estimate, never 100 % before the log ends
+  SuiteInstallEstimateEE = 2260;
+  SuiteInstallEstimateNeoEE = 2697;
+  SuiteInstallEstimateOther = 2500;
+
+  // How much of a log SuiteTailLog reads at most per call (the rest follows with the next call)
+  SuiteTailChunkMax = 262144;
+  // A line without a line end that grows beyond this is dropped (no log line is that long)
+  SuiteTailCarryMax = 65536;
+
+  // The lines of the product logs the suite reads. These strings are an interface between the product setups
+  // and the suite (contract 1.7 point 5): a change of one of these lines in the product scripts changes this
+  // list and the contract in the same commit. ci/check_suite.py checks that the lines are still in the product
+  // scripts (each one marked there with "suite parses this line") and that this list names nothing else.
+  // downloads.iss
+  SuiteLogProbe = 'Online files server ';
+  SuiteLogCount = 'Downloading ';
+  SuiteLogCountEnd = ' online files, one at a time';
+  SuiteLogFile = 'Downloading pinned online file ';
+  SuiteLogFrom = ' from ';
+  SuiteLogOf = ' of ';
+  SuiteLogBytesEnd = ' bytes done.';
+  SuiteLogFileDownloaded = 'Online file downloaded, ';
+  SuiteLogFileFailedBoth = 'Online file not downloaded, it failed on both servers: ';
+  SuiteLogFileNotRetried = 'Online file not downloaded, not retried: ';
+  SuiteLogFileUnexpected = 'Online file not downloaded, unexpected error: ';
+  SuiteLogFileStopped = 'Online file skipped, downloads stopped by the user: ';
+  SuiteLogVerified = 'Online files: ';
+  SuiteLogVerifiedEnd = ' downloaded with validated TLS';
+  SuiteLogAccepted = 'All ';
+  SuiteLogAcceptedEnd = ' online files accepted';
+  SuiteLogMissingEnd = ' selected online files are missing';
+  // setup_is6.iss
+  SuiteLogNoDownload = 'English language selected, no need to download online files.';
+  SuiteLogCdKeysStart = 'Register NeoEE CD Keys';
+  SuiteLogCdKeysResult = 'CD Keys generation result:';
+  // installstate.iss and utils.iss
+  SuiteLogChecking = 'Checking ';
+  SuiteLogCheckingEnd = ' recorded destinations';
+  SuiteLogManifest = 'Manifest: ';
+  // Inno Setup's own lines (not in the product scripts)
+  SuiteLogInstallStart = 'Starting the installation process.';
+  SuiteLogInstallDone = 'Installation process succeeded.';
+  SuiteLogDestFile = 'Dest filename: ';
+  SuiteLogClosed = 'Log closed.';
+
 // The number of the last line "CD Keys generation result: <n>" in the text of a product's log (setup_is6.iss
 // logs it, contract 1.7 point 5); '' if there is none. Tolerant: any prefix on the line (the time stamp), upper
 // and lower case, blanks after the colon, text after the number; a line without a number is ignored. Only reads.
@@ -648,7 +718,7 @@ var
   Start, P, I: Integer;
 begin
   Result := '';
-  Marker := 'cd keys generation result:';
+  Marker := LowerCase(SuiteLogCdKeysResult);
   Lower := LowerCase(LogText);
   Start := 1;
   while Start <= Length(Lower) do
@@ -674,6 +744,429 @@ begin
     if (Number <> '') and (Number <> '-') then
       Result := Number;
   end;
+end;
+
+type
+  // What the suite knows about a running product setup, read from its log (SuiteTailLog, SuiteFeedLogLine).
+  // The counters are for display; success is never decided from the log (SuiteRunSucceeded: exit code and
+  // uninstall entry).
+  TSuiteProgress = record
+    Phase: Integer;              // SuitePhase*, only moves forward
+    NoDownload: Boolean;         // the setup downloads nothing (English, nothing selected): the download weight drops out
+    DownloadFiles: Integer;      // N of "Downloading <N> online files", 0 = not known (yet)
+    DownloadDone: Integer;       // files finished (downloaded, failed or skipped), at most DownloadFiles
+    CurrentFile: String;         // file name of the online file being downloaded, '' = not known
+    CurrentBytes: Int64;         // bytes of it done, of CurrentTotal, from the last "<X> of <Y> bytes done." line
+    CurrentTotal: Int64;
+    OnlineMissing: Integer;      // M of "<M> of <K> selected online files are missing", else 0
+    InstallFiles: Integer;       // entries "Dest filename:" since the installation started
+    InstallEstimate: Integer;    // how many entries to expect (SuiteInstallEstimate)
+    ManifestDone: Boolean;       // "Manifest: <n> files, ..." is there
+    CdKeyResult: String;         // the number after "CD Keys generation result:", '' = no such line yet
+    TailOffset: Int64;           // SuiteTailLog: bytes of the log read so far
+    TailCarry: String;           // SuiteTailLog: the last line of them, if it has no line end yet
+  end;
+
+// How many entries "Dest filename:" to expect for the installation of a product
+function SuiteInstallEstimate(const Product: String): Integer;
+begin
+  if CompareText(Product, SuiteProductEE) = 0 then
+    Result := SuiteInstallEstimateEE
+  else if CompareText(Product, SuiteProductNeoEE) = 0 then
+    Result := SuiteInstallEstimateNeoEE
+  else
+    Result := SuiteInstallEstimateOther;
+end;
+
+// The start of the progress of a product setup whose log is not read yet
+procedure SuiteProgressInit(var P: TSuiteProgress; const Product: String);
+begin
+  P.Phase := SuitePhaseStart;
+  P.NoDownload := False;
+  P.DownloadFiles := 0;
+  P.DownloadDone := 0;
+  P.CurrentFile := '';
+  P.CurrentBytes := 0;
+  P.CurrentTotal := 0;
+  P.OnlineMissing := 0;
+  P.InstallFiles := 0;
+  P.InstallEstimate := SuiteInstallEstimate(Product);
+  P.ManifestDone := False;
+  P.CdKeyResult := '';
+  P.TailOffset := 0;
+  P.TailCarry := '';
+end;
+
+// True from "Starting the installation process." on: the product setup writes the game files and cannot be
+// stopped without leaving a half installed game (before that it only downloaded into its own %TEMP%)
+function SuiteProgressInstalling(const P: TSuiteProgress): Boolean;
+begin
+  Result := P.Phase >= SuitePhaseInstall;
+end;
+
+// Moves the phase forward, never back
+procedure SuiteRaisePhase(var P: TSuiteProgress; Phase: Integer);
+begin
+  if Phase > P.Phase then
+    P.Phase := Phase;
+end;
+
+function SuiteStartsWith(const Text, Prefix: String): Boolean;
+begin
+  Result := Copy(Text, 1, Length(Prefix)) = Prefix;
+end;
+
+// True if Text[Start..] begins with a time stamp of the product log, "yyyy-mm-dd hh:nn:ss.zzz" and three blanks
+function SuiteHasLogTimestamp(const Text: String; Start: Integer): Boolean;
+var
+  Shape: String;
+  I: Integer;
+begin
+  Shape := 'dddd-dd-dd dd:dd:dd.ddd   ';
+  Result := Length(Text) >= Start + Length(Shape) - 1;
+  I := 1;
+  while Result and (I <= Length(Shape)) do
+  begin
+    if Shape[I] = 'd' then
+      Result := (Text[Start + I - 1] >= '0') and (Text[Start + I - 1] <= '9')
+    else
+      Result := Text[Start + I - 1] = Shape[I];
+    I := I + 1;
+  end;
+end;
+
+// The text of a line of the product log after its 26 characters of time stamp, '' for anything that is no
+// entry: a continuation line (26 blanks, no time stamp), an empty line or any other text. The first line starts
+// with the byte order mark of the UTF-8 file (3 characters in an ANSI code page, 1 in the UTF-8 one): skipped.
+function SuiteLogEntryText(const Line: String): String;
+var
+  Skip: Integer;
+begin
+  Result := '';
+  for Skip := 0 to 3 do
+    if (Skip <> 2) and SuiteHasLogTimestamp(Line, Skip + 1) then
+    begin
+      Result := Copy(Line, Skip + 27, Length(Line));
+      while (Length(Result) > 0) and ((Result[Length(Result)] = #13) or (Result[Length(Result)] = #10)) do
+        Delete(Result, Length(Result), 1);
+      Exit;
+    end;
+end;
+
+// The digits of Text from Start on as a number (at most 15 digits); Next is the index after them. False if
+// there is no digit there.
+function SuiteTakeNumber(const Text: String; Start: Integer; var Value: Int64; var Next: Integer): Boolean;
+var
+  I, Count: Integer;
+  Number: Int64;
+begin
+  I := Start;
+  Count := 0;
+  Number := 0;
+  while (I <= Length(Text)) and (Text[I] >= '0') and (Text[I] <= '9') and (Count < 15) do
+  begin
+    Number := Number * 10 + (Ord(Text[I]) - Ord('0'));
+    Count := Count + 1;
+    I := I + 1;
+  end;
+  Result := Count > 0;
+  if Result then
+  begin
+    Value := Number;
+    Next := I;
+  end;
+end;
+
+// True if Text is "<Prefix><n><Suffix>..." (more text may follow); n is the number
+function SuiteNumberBetween(const Text, Prefix, Suffix: String; var Value: Int64): Boolean;
+var
+  Next: Integer;
+begin
+  Result := SuiteStartsWith(Text, Prefix) and SuiteTakeNumber(Text, Length(Prefix) + 1, Value, Next) and
+    (Copy(Text, Next, Length(Suffix)) = Suffix);
+end;
+
+// True if Text is "<m><SuiteLogOf><k><Suffix>..." (more text may follow)
+function SuiteTwoNumbers(const Text, Suffix: String; var First, Second: Int64): Boolean;
+var
+  Next: Integer;
+begin
+  Result := SuiteTakeNumber(Text, 1, First, Next) and (Copy(Text, Next, Length(SuiteLogOf)) = SuiteLogOf) and
+    SuiteTakeNumber(Text, Next + Length(SuiteLogOf), Second, Next) and (Copy(Text, Next, Length(Suffix)) = Suffix);
+end;
+
+// The file name of the line "Downloading pinned online file ... from <URL>: <target>": the last part of the URL
+function SuiteLogDownloadName(const Text: String): String;
+var
+  Start, I: Integer;
+  Url: String;
+begin
+  Result := '';
+  Start := Pos(SuiteLogFrom, Text);
+  if Start = 0 then
+    Exit;
+  Url := Copy(Text, Start + Length(SuiteLogFrom), Length(Text));
+  if Pos(': ', Url) > 0 then
+    Url := Copy(Url, 1, Pos(': ', Url) - 1);
+  Result := Url;
+  for I := Length(Url) downto 1 do
+    if Url[I] = '/' then
+    begin
+      Result := Copy(Url, I + 1, Length(Url));
+      Exit;
+    end;
+end;
+
+// A file of the download phase is finished (downloaded, failed or skipped)
+procedure SuiteDownloadFileFinished(var P: TSuiteProgress);
+begin
+  if P.Phase <> SuitePhaseDownload then
+    Exit;
+  if (P.DownloadFiles = 0) or (P.DownloadDone < P.DownloadFiles) then
+    P.DownloadDone := P.DownloadDone + 1;
+  P.CurrentBytes := 0;
+  P.CurrentTotal := 0;
+end;
+
+// Feeds one line of the product log (without its line end) to the progress. Pure: the markers set the phase
+// (forward only) and the counters, every other line is ignored. The lines are listed with SuiteLog* above.
+procedure SuiteFeedLogLine(var P: TSuiteProgress; const Line: String);
+var
+  T: String;
+  A, B: Int64;
+begin
+  T := SuiteLogEntryText(Line);
+  if T = '' then
+    Exit;
+  // by far the most lines of a log
+  if SuiteStartsWith(T, SuiteLogDestFile) then
+  begin
+    if P.Phase = SuitePhaseInstall then
+      P.InstallFiles := P.InstallFiles + 1;
+  end
+  else if SuiteStartsWith(T, SuiteLogProbe) then
+    SuiteRaisePhase(P, SuitePhaseProbe)
+  else if SuiteStartsWith(T, SuiteLogNoDownload) then
+  begin
+    if P.Phase < SuitePhaseDownload then
+      P.NoDownload := True;
+  end
+  else if SuiteStartsWith(T, SuiteLogFile) then
+  begin
+    SuiteRaisePhase(P, SuitePhaseDownload);
+    P.NoDownload := False;
+    P.CurrentFile := SuiteLogDownloadName(T);
+    P.CurrentBytes := 0;
+    P.CurrentTotal := 0;
+  end
+  else if SuiteNumberBetween(T, SuiteLogCount, SuiteLogCountEnd, A) then
+  begin
+    SuiteRaisePhase(P, SuitePhaseDownload);
+    P.NoDownload := False;
+    P.DownloadFiles := A;
+  end
+  else if SuiteTwoNumbers(Trim(T), SuiteLogBytesEnd, A, B) then
+  begin
+    if (P.Phase = SuitePhaseDownload) and (B > 0) then
+    begin
+      P.CurrentBytes := A;
+      P.CurrentTotal := B;
+    end;
+  end
+  else if SuiteStartsWith(T, SuiteLogFileDownloaded) or SuiteStartsWith(T, SuiteLogFileFailedBoth) or
+    SuiteStartsWith(T, SuiteLogFileNotRetried) or SuiteStartsWith(T, SuiteLogFileUnexpected) or
+    SuiteStartsWith(T, SuiteLogFileStopped) then
+    SuiteDownloadFileFinished(P)
+  else if (SuiteStartsWith(T, SuiteLogVerified) and (Pos(SuiteLogVerifiedEnd, T) > 0)) or
+    SuiteNumberBetween(T, SuiteLogAccepted, SuiteLogAcceptedEnd, A) then
+    SuiteRaisePhase(P, SuitePhaseVerify)
+  else if SuiteTwoNumbers(T, SuiteLogMissingEnd, A, B) then
+  begin
+    SuiteRaisePhase(P, SuitePhaseVerify);
+    P.OnlineMissing := A;
+  end
+  else if SuiteStartsWith(T, SuiteLogInstallStart) then
+  begin
+    // a run that logged no download at all has none
+    if P.DownloadFiles = 0 then
+      P.NoDownload := True;
+    SuiteRaisePhase(P, SuitePhaseInstall);
+  end
+  else if SuiteStartsWith(T, SuiteLogInstallDone) then
+    SuiteRaisePhase(P, SuitePhasePost)
+  else if SuiteStartsWith(T, SuiteLogCdKeysStart) then
+    SuiteRaisePhase(P, SuitePhaseCdKeys)
+  else if SuiteStartsWith(T, SuiteLogCdKeysResult) then
+  begin
+    SuiteRaisePhase(P, SuitePhaseCdKeys);
+    P.CdKeyResult := SuiteParseCdKeyResult(T);
+  end
+  else if SuiteNumberBetween(T, SuiteLogChecking, SuiteLogCheckingEnd, A) then
+    SuiteRaisePhase(P, SuitePhaseManifest)
+  else if SuiteStartsWith(T, SuiteLogManifest) then
+  begin
+    SuiteRaisePhase(P, SuitePhaseManifest);
+    P.ManifestDone := True;
+  end
+  else if SuiteStartsWith(T, SuiteLogClosed) then
+    SuiteRaisePhase(P, SuitePhaseDone);
+end;
+
+// Feeds a piece of the log, as read from the file: it may start and end in the middle of a line. The complete
+// lines go to SuiteFeedLogLine, the rest waits in TailCarry for the next piece.
+procedure SuiteFeedLogChunk(var P: TSuiteProgress; const Chunk: String);
+var
+  Buffer: String;
+  I, Start: Integer;
+begin
+  Buffer := P.TailCarry + Chunk;
+  Start := 1;
+  for I := 1 to Length(Buffer) do
+    if Buffer[I] = #10 then
+    begin
+      SuiteFeedLogLine(P, Copy(Buffer, Start, I - Start));
+      Start := I + 1;
+    end;
+  P.TailCarry := Copy(Buffer, Start, Length(Buffer));
+  if Length(P.TailCarry) > SuiteTailCarryMax then
+    P.TailCarry := '';
+end;
+
+// Reads bytes of a file handle (TFileStream.Handle) into an AnsiString buffer unchanged, like WriteFile in utils.iss
+// writes them: TStream.Read fills a string buffer with something else (the unit test of SuiteTailLog showed it)
+function SuiteReadFile(FileHandle: Integer; Buffer: AnsiString; BytesToRead: Cardinal; var BytesRead: Cardinal; Overlapped: Cardinal): BOOL;
+  external 'ReadFile@kernel32.dll stdcall';
+
+// Reads what the product setup appended to its log since the last call (P.TailOffset) and feeds it to the
+// progress. True if there was something new. Read-only and share-safe: the product holds its log open for
+// writing and allows only reading (LoadStringFromFile would fail with a sharing violation), so the file is opened
+// for reading while sharing everything. No file yet (the product setup creates it when it starts), a file
+// the product setup holds back for a moment or any other error is "nothing new". A file that became smaller
+// than what was read is a new log: reading starts again at its beginning (the phase stays).
+function SuiteTailLog(const LogFile: String; var P: TSuiteProgress): Boolean;
+var
+  S: TFileStream;
+  Size, Offset, Want: Longint;
+  Got: Cardinal;
+  Chunk: AnsiString;
+begin
+  Result := False;
+  try
+    S := TFileStream.Create(LogFile, fmOpenRead or fmShareDenyNone);
+    try
+      Size := S.Size;
+      if Size < P.TailOffset then
+      begin
+        P.TailOffset := 0;
+        P.TailCarry := '';
+      end;
+      if Size > P.TailOffset then
+      begin
+        Offset := P.TailOffset;
+        Want := Size - Offset;
+        if Want > SuiteTailChunkMax then
+          Want := SuiteTailChunkMax;
+        S.Position := Offset;
+        SetLength(Chunk, Want);
+        Got := 0;
+        if SuiteReadFile(S.Handle, Chunk, Want, Got, 0) then
+          if Got > 0 then
+          begin
+            P.TailOffset := P.TailOffset + Got;
+            SuiteFeedLogChunk(P, Copy(Chunk, 1, Got));
+            Result := True;
+          end;
+      end;
+    finally
+      S.Free;
+    end;
+  except
+    // nothing new: the next call tries again
+  end;
+end;
+
+// The part of the download block that is done, in thousandths: finished files and the part of the current one,
+// all files weighing the same (their sizes are not in the log before they start)
+function SuiteDownloadPermille(const P: TSuiteProgress): Integer;
+var
+  Current: Int64;
+begin
+  Result := 0;
+  if P.DownloadFiles <= 0 then
+    Exit;
+  Current := 0;
+  if P.CurrentTotal > 0 then
+  begin
+    Current := (P.CurrentBytes * 1000) div P.CurrentTotal;
+    if Current > 999 then
+      Current := 999;
+  end;
+  Result := ((P.DownloadDone * 1000) + Current) div P.DownloadFiles;
+  if Result > 1000 then
+    Result := 1000;
+end;
+
+// The progress of the whole run in thousandths (0 to 1000): the weighted blocks before the phase count full, the
+// block of the phase by its own measure (files downloaded, entries installed against the estimate). 1000 only at
+// the end of the log, at most 990 before. Pure.
+function SuiteProgressPermille(const P: TSuiteProgress): Integer;
+var
+  WDown, Total, Before, Weight, Within: Integer;
+begin
+  if P.Phase >= SuitePhaseDone then
+  begin
+    Result := 1000;
+    Exit;
+  end;
+  WDown := SuiteWeightDownload;
+  if P.NoDownload then
+    WDown := 0;
+  Total := SuiteWeightPrepare + WDown + SuiteWeightVerify + SuiteWeightInstall + SuiteWeightPost;
+  Before := 0;
+  Weight := SuiteWeightPrepare;
+  Within := 0;
+  case P.Phase of
+    SuitePhaseProbe:
+      Within := 500;
+    SuitePhaseDownload:
+      begin
+        Before := SuiteWeightPrepare;
+        Weight := WDown;
+        Within := SuiteDownloadPermille(P);
+      end;
+    SuitePhaseVerify:
+      begin
+        Before := SuiteWeightPrepare + WDown;
+        Weight := SuiteWeightVerify;
+        Within := 500;
+      end;
+    SuitePhaseInstall:
+      begin
+        Before := SuiteWeightPrepare + WDown + SuiteWeightVerify;
+        Weight := SuiteWeightInstall;
+        if P.InstallEstimate > 0 then
+          Within := (P.InstallFiles * 1000) div P.InstallEstimate;
+        if (P.InstallEstimate <= 0) or (Within > 990) then
+          Within := 990;
+      end;
+    SuitePhasePost, SuitePhaseCdKeys, SuitePhaseManifest:
+      begin
+        Before := SuiteWeightPrepare + WDown + SuiteWeightVerify + SuiteWeightInstall;
+        Weight := SuiteWeightPost;
+        if P.Phase = SuitePhaseCdKeys then
+          Within := 400
+        else if P.Phase = SuitePhaseManifest then
+        begin
+          if P.ManifestDone then
+            Within := 950
+          else
+            Within := 700;
+        end;
+      end;
+  end;
+  Result := ((Before * 1000) + (Weight * Within)) div Total;
+  if Result > 990 then
+    Result := 990;
 end;
 
 // ---- the uninstaller (suite_uninstall.iss) -------------------------------------------------------

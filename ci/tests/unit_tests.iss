@@ -1921,6 +1921,8 @@ begin
     TestSuiteRunner;
     TestSuiteUninstaller;
     TestSuiteLinks;
+    TestSuiteProgress;
+    TestSuiteTailLog;
   except
     Failures := Failures + 1;
     Results.Add('FAIL exception: ' + GetExceptionMessage);

@@ -3,7 +3,8 @@
 // after its own helpers (Check, CheckBool) and run by its InitializeSetup. The helpers compute
 // something from their arguments; SuiteFindSliceProblems reads file sizes, so its tests write small
 // files into a folder of their own below {tmp}. Nothing here sends a request or starts a program.
-// Requires: Check, CheckBool, Results (unit_tests.iss), suite/suite_common.iss.
+// Requires: Check, CheckBool, Results (unit_tests.iss), suite/suite_common.iss; the log tail tests also CreateFile, WriteFile,
+// CloseHandle and FILE_SHARE_READ of utils.iss.
 
 procedure TestSuiteSliceFileName;
 begin
@@ -575,4 +576,401 @@ begin
   Check('SuiteLauncherDataFolder 0', SuiteLauncherDataFolder('C:\U\Local', 0), '');
   Check('SuiteLauncherDataFolder 3', SuiteLauncherDataFolder('C:\U\Local', SuiteLauncherFolderCount + 1), '');
   Check('SuiteLauncherDataFolder empty folder', SuiteLauncherDataFolder('', 1), '');
+end;
+
+// ---- the progress of a product setup, read from its log (S3) -----------------------------------------
+
+// A line of a product log as Inno Setup writes it: 23 characters of time stamp, three blanks, the text. The
+// time stamps of the excerpts below are those of the laptop test 2026-10-06 (their paths are made neutral).
+function SuiteTestLine(const Text: String): String;
+begin
+  Result := '2026-10-06 21:31:58.478   ' + Text;
+end;
+
+// Feeds the lines (the text of each without time stamp) like a tail that read them whole
+procedure SuiteTestFeed(var P: TSuiteProgress; const Texts: array of String);
+var
+  I: Integer;
+begin
+  for I := 0 to GetArrayLength(Texts) - 1 do
+    SuiteFeedLogChunk(P, SuiteTestLine(Texts[I]) + #13#10);
+end;
+
+// The phase after the single line Text of a log that has just been opened
+function SuiteTestPhaseAfter(const Text: String): Integer;
+var
+  P: TSuiteProgress;
+begin
+  SuiteProgressInit(P, 'EE');
+  SuiteFeedLogLine(P, SuiteTestLine(Text));
+  Result := P.Phase;
+end;
+
+procedure TestSuiteProgress;
+var
+  P, Q: TSuiteProgress;
+  Crlf, Bom, Blanks: String;
+  I, Sum: Integer;
+begin
+  Crlf := #13#10;
+
+  // the start
+  SuiteProgressInit(P, 'EE');
+  Check('SuiteProgressInit phase', IntToStr(P.Phase), IntToStr(SuitePhaseStart));
+  Check('SuiteProgressInit estimate EE', IntToStr(P.InstallEstimate), '2260');
+  Check('SuiteProgressPermille at the start', IntToStr(SuiteProgressPermille(P)), '0');
+  CheckBool('SuiteProgressInstalling at the start', SuiteProgressInstalling(P), False);
+  SuiteProgressInit(Q, 'NeoEE');
+  Check('SuiteProgressInit estimate NeoEE', IntToStr(Q.InstallEstimate), '2697');
+  SuiteProgressInit(Q, 'AoC');
+  Check('SuiteProgressInit estimate of another product', IntToStr(Q.InstallEstimate), IntToStr(SuiteInstallEstimateOther));
+  Check('SuiteInstallEstimate lower case', IntToStr(SuiteInstallEstimate('neoee')), '2697');
+
+  // the weights add up to 100 (percent)
+  Sum := SuiteWeightPrepare + SuiteWeightDownload + SuiteWeightVerify + SuiteWeightInstall + SuiteWeightPost;
+  Check('the weights of the blocks add up to 100', IntToStr(Sum), '100');
+
+  // every marker sets its phase (each line is the text of the real log line)
+  Check('marker probe', IntToStr(SuiteTestPhaseAfter('Online files server https://files.empireearth.eu/localized: answers only without certificate validation (HTTP 200); pinned files are downloaded from it with WinHTTP')),
+    IntToStr(SuitePhaseProbe));
+  Check('marker probe, no answer', IntToStr(SuiteTestPhaseAfter('Online files server https://storage.ee.zocker-160.de/localized: no answer, neither with nor without certificate validation')),
+    IntToStr(SuitePhaseProbe));
+  Check('marker download count', IntToStr(SuiteTestPhaseAfter('Downloading 17 online files, one at a time')), IntToStr(SuitePhaseDownload));
+  Check('marker download of a file',
+    IntToStr(SuiteTestPhaseAfter('Downloading pinned online file without certificate validation (WinHTTP) from https://files.empireearth.eu/localized/Game/de/EE/Language.dll: C:\T\is-AAAAA.tmp\EE\Language.dll')),
+    IntToStr(SuitePhaseDownload));
+  Check('marker verify, the end of the downloads',
+    IntToStr(SuiteTestPhaseAfter('Online files: 0 downloaded with validated TLS (Inno Setup), 17 pinned ones with WinHTTP without certificate validation, of 17')),
+    IntToStr(SuitePhaseVerify));
+  Check('marker verify, all accepted', IntToStr(SuiteTestPhaseAfter('All 20 online files accepted')), IntToStr(SuitePhaseVerify));
+  Check('marker verify, some missing',
+    IntToStr(SuiteTestPhaseAfter('2 of 20 selected online files are missing, the setup installs its own files instead:')), IntToStr(SuitePhaseVerify));
+  Check('marker install', IntToStr(SuiteTestPhaseAfter('Starting the installation process.')), IntToStr(SuitePhaseInstall));
+  Check('marker post install', IntToStr(SuiteTestPhaseAfter('Installation process succeeded.')), IntToStr(SuitePhasePost));
+  Check('marker CD keys, EE only', IntToStr(SuiteTestPhaseAfter('Register NeoEE CD Keys for EE')), IntToStr(SuitePhaseCdKeys));
+  Check('marker CD keys, EE and AoC', IntToStr(SuiteTestPhaseAfter('Register NeoEE CD Keys for EE and AoC')), IntToStr(SuitePhaseCdKeys));
+  Check('marker CD keys result', IntToStr(SuiteTestPhaseAfter('CD Keys generation result: 0')), IntToStr(SuitePhaseCdKeys));
+  Check('marker manifest, checking', IntToStr(SuiteTestPhaseAfter('Checking 1966 recorded destinations of installed files for C:\G\_setupdata_EE\files.sha256')),
+    IntToStr(SuitePhaseManifest));
+  Check('marker manifest, written', IntToStr(SuiteTestPhaseAfter('Manifest: 1905 files, 683.4 MB, 10500 ms, 65.1 MB/s')), IntToStr(SuitePhaseManifest));
+  Check('marker done', IntToStr(SuiteTestPhaseAfter('Log closed.')), IntToStr(SuitePhaseDone));
+
+  // lines that look alike but are no markers
+  Check('no marker: online files counted', IntToStr(SuiteTestPhaseAfter('Online files: 124 SHA-256 hashes known')), '0');
+  Check('no marker: online files pins', IntToStr(SuiteTestPhaseAfter('Online files: 230 SHA-256 pins with sizes of pins\online-files.txt')), '0');
+  Check('no marker: online files order', IntToStr(SuiteTestPhaseAfter('Online files: https://files.empireearth.eu/localized first (invalid certificate), then https://x (no answer: not used)')), '0');
+  Check('no marker: stopped by the user', IntToStr(SuiteTestPhaseAfter('Online files: downloads stopped by the user, no further request')), '0');
+  Check('no marker: a file not downloaded in the preparation',
+    IntToStr(SuiteTestPhaseAfter('Online file not downloaded, no SHA-256 is known for Game/x.dll and http://x is not https')), '0');
+  Check('no marker: Downloading without a count', IntToStr(SuiteTestPhaseAfter('Downloading something else')), '0');
+  Check('no marker: Checking without a count', IntToStr(SuiteTestPhaseAfter('Checking the installation')), '0');
+  Check('no marker: the manifest page', IntToStr(SuiteTestPhaseAfter('Manifest page shown')), '0');
+  Check('no marker: other lines', IntToStr(SuiteTestPhaseAfter('Deinitializing Setup.')), '0');
+  SuiteProgressInit(P, 'EE');
+  SuiteFeedLogLine(P, 'Starting the installation process.');
+  Check('a line without a time stamp is ignored', IntToStr(P.Phase), '0');
+  SuiteFeedLogLine(P, '');
+  Check('an empty line is ignored', IntToStr(P.Phase), '0');
+  SuiteFeedLogLine(P, '2026-10-06 21:31:58.478   ');
+  Check('an entry without text is ignored', IntToStr(P.Phase), '0');
+
+  // the phases never go back
+  SuiteProgressInit(P, 'NeoEE');
+  SuiteTestFeed(P, ['Starting the installation process.', 'Online files server https://x/localized: no answer', 'Downloading 5 online files, one at a time',
+    'Online files: 0 downloaded with validated TLS (Inno Setup), 5 pinned ones with WinHTTP without certificate validation, of 5']);
+  Check('the phases never go back', IntToStr(P.Phase), IntToStr(SuitePhaseInstall));
+  CheckBool('SuiteProgressInstalling after "Starting the installation process."', SuiteProgressInstalling(P), True);
+  SuiteTestFeed(P, ['Installation process succeeded.', 'Register NeoEE CD Keys for EE', 'Starting the installation process.']);
+  Check('the phases never go back after the installation', IntToStr(P.Phase), IntToStr(SuitePhaseCdKeys));
+  CheckBool('SuiteProgressInstalling stays True', SuiteProgressInstalling(P), True);
+  SuiteTestFeed(P, ['Log closed.', 'Starting the installation process.']);
+  Check('nothing follows "Log closed."', IntToStr(P.Phase), IntToStr(SuitePhaseDone));
+  Check('SuiteProgressPermille at the end of the log', IntToStr(SuiteProgressPermille(P)), '1000');
+
+  // the download: counters, the file being downloaded, bytes
+  SuiteProgressInit(P, 'EE');
+  SuiteTestFeed(P, ['Downloading 17 online files, one at a time']);
+  Check('download count', IntToStr(P.DownloadFiles), '17');
+  Check('download done at the start', IntToStr(P.DownloadDone), '0');
+  SuiteTestFeed(P, ['Downloading pinned online file without certificate validation (WinHTTP) from https://files.empireearth.eu/localized/Game/de/EE/Data/data.ssa: C:\T\is-AAAAA.tmp\EE\Data\data.ssa',
+    '  17170432 of 171671814 bytes done.']);
+  Check('current file', P.CurrentFile, 'data.ssa');
+  Check('current bytes', IntToStr(P.CurrentBytes), '17170432');
+  Check('current total', IntToStr(P.CurrentTotal), '171671814');
+  Check('SuiteDownloadPermille of a tenth of the file', IntToStr(SuiteDownloadPermille(P)), '5');
+  SuiteTestFeed(P, ['  171671814 of 171671814 bytes done.']);
+  Check('SuiteDownloadPermille never completes a file before its line', IntToStr(SuiteDownloadPermille(P)), '58');
+  SuiteTestFeed(P, ['Online file downloaded, SHA-256 pinned, transport WinHTTP without certificate validation: https://files.empireearth.eu/localized/Game/de/EE/Data/data.ssa (171671814 bytes, 75735 ms)']);
+  Check('download done after one file', IntToStr(P.DownloadDone), '1');
+  Check('current bytes after the file', IntToStr(P.CurrentBytes), '0');
+  Check('current total after the file', IntToStr(P.CurrentTotal), '0');
+  Check('the file name stays until the next file', P.CurrentFile, 'data.ssa');
+  Check('SuiteDownloadPermille after one file of 17', IntToStr(SuiteDownloadPermille(P)), '58');
+  SuiteTestFeed(P, ['Online file downloaded, TLS-verified, size checked: https://x/localized/a.dll',
+    'Online file downloaded, TLS-verified, accepted without size check (the server sent no Content-Length): https://x/localized/b.dll',
+    'Online file downloaded, SHA-256 pinned: https://x/localized/c.dll']);
+  Check('download done after the other transports', IntToStr(P.DownloadDone), '4');
+  SuiteTestFeed(P, ['Online file not downloaded, it failed on both servers: Game/de/EE/d.dll',
+    'Online file not downloaded, not retried: the other server is not used for it (see "Other server not used for" above): Game/de/EE/e.dll',
+    'Online file not downloaded, unexpected error: out of memory', 'Online file skipped, downloads stopped by the user: Game/de/EE/f.dll']);
+  Check('download done counts the files that failed or were skipped', IntToStr(P.DownloadDone), '8');
+  Check('a line of a retry on the other server is not a finished file', IntToStr(SuiteTestPhaseAfter('Online file: trying the other server, https://x/localized/y.dll')), '0');
+  SuiteTestFeed(P, ['Online file not downloaded from https://x/localized/g.dll: no answer', 'Online file download failed from https://x/localized/g.dll: timeout after 5 bytes']);
+  Check('the lines of one attempt are not a finished file', IntToStr(P.DownloadDone), '8');
+  // more finished files than announced: stays at the count
+  SuiteProgressInit(Q, 'EE');
+  SuiteTestFeed(Q, ['Downloading 2 online files, one at a time', 'Online file downloaded, SHA-256 pinned: https://x/localized/a.dll',
+    'Online file downloaded, SHA-256 pinned: https://x/localized/b.dll', 'Online file downloaded, SHA-256 pinned: https://x/localized/c.dll']);
+  Check('download done stays at the count', IntToStr(Q.DownloadDone), '2');
+  Check('SuiteDownloadPermille of all files', IntToStr(SuiteDownloadPermille(Q)), '1000');
+  // a file that finishes before the count line is no download of the phase
+  SuiteProgressInit(Q, 'EE');
+  SuiteTestFeed(Q, ['Online file downloaded, SHA-256 pinned: https://x/localized/a.dll']);
+  Check('a downloaded file before the download phase is not counted', IntToStr(Q.DownloadDone), '0');
+  // after the download phase nothing counts any more
+  SuiteTestFeed(Q, ['Downloading 2 online files, one at a time', 'Online files: 0 downloaded with validated TLS (Inno Setup), 2 pinned ones, of 2',
+    'Online file downloaded, SHA-256 pinned: https://x/localized/a.dll', '  5 of 10 bytes done.']);
+  Check('a downloaded file after the verify marker is not counted', IntToStr(Q.DownloadDone), '0');
+  Check('bytes after the download phase are not taken', IntToStr(Q.CurrentTotal), '0');
+  // the missing files
+  SuiteProgressInit(Q, 'EE');
+  SuiteTestFeed(Q, ['2 of 20 selected online files are missing, the setup installs its own files instead:', '  Language.dll is missing']);
+  Check('online files missing', IntToStr(Q.OnlineMissing), '2');
+  // bytes lines are tolerant about the blanks
+  SuiteProgressInit(Q, 'EE');
+  SuiteTestFeed(Q, ['Downloading 1 online files, one at a time', '65536 of 249856 bytes done.']);
+  Check('bytes without the two blanks', IntToStr(Q.CurrentBytes), '65536');
+  SuiteTestFeed(Q, ['0 of 0 bytes done.']);
+  Check('a total of 0 is not taken', IntToStr(Q.CurrentTotal), '249856');
+  SuiteTestFeed(Q, ['x of y bytes done.', '12 of 99']);
+  Check('bytes line without numbers or end is not taken', IntToStr(Q.CurrentBytes), '65536');
+  // the name of a file with a path and spaces and without any URL
+  SuiteProgressInit(Q, 'EE');
+  SuiteTestFeed(Q, ['Downloading pinned online file without certificate validation (WinHTTP) from https://files.empireearth.eu/localized/Mods/NeoEE/Game/de/EE/Language.dll: C:\T\x']);
+  Check('current file below folders', Q.CurrentFile, 'Language.dll');
+  SuiteTestFeed(Q, ['Downloading pinned online file somewhere']);
+  Check('current file without a URL', Q.CurrentFile, '');
+
+  // a run without download: English
+  SuiteProgressInit(P, 'EE');
+  SuiteTestFeed(P, ['English language selected, no need to download online files.']);
+  CheckBool('English run: no download', P.NoDownload, True);
+  Check('English run: the phase does not move', IntToStr(P.Phase), IntToStr(SuitePhaseStart));
+  Check('English run: permille at the start (the download weight drops out)', IntToStr(SuiteProgressPermille(P)), '0');
+  SuiteTestFeed(P, ['Starting the installation process.']);
+  Check('English run: install start, 5 of 35', IntToStr(SuiteProgressPermille(P)), '142');
+  SuiteProgressInit(Q, 'EE');
+  SuiteTestFeed(Q, ['Starting the installation process.']);
+  CheckBool('a run with no download line at all has no download either', Q.NoDownload, True);
+  Check('same permille', IntToStr(SuiteProgressPermille(Q)), '142');
+  SuiteProgressInit(Q, 'EE');
+  SuiteTestFeed(Q, ['Downloading 3 online files, one at a time', 'Starting the installation process.']);
+  CheckBool('a run with downloads keeps the download weight', Q.NoDownload, False);
+  Check('permille at the install start with downloads', IntToStr(SuiteProgressPermille(Q)), '700');
+  // the English line after the downloads started changes nothing
+  SuiteTestFeed(Q, ['English language selected, no need to download online files.']);
+  CheckBool('the English line after the download phase is ignored', Q.NoDownload, False);
+
+  // the install estimate: counted from the start of the installation, clamped, never 100 %
+  SuiteProgressInit(P, 'EE');
+  SuiteTestFeed(P, ['Dest filename: C:\G\a.dll']);
+  Check('entries before the installation are not counted', IntToStr(P.InstallFiles), '0');
+  SuiteTestFeed(P, ['Downloading 1 online files, one at a time', 'Online files: 0 downloaded with validated TLS (Inno Setup), 1 pinned ones, of 1',
+    'Starting the installation process.']);
+  Check('permille at the install start', IntToStr(SuiteProgressPermille(P)), '700');
+  P.InstallEstimate := 1000;
+  for I := 1 to 500 do
+    SuiteFeedLogLine(P, SuiteTestLine('Dest filename: C:\G\f' + IntToStr(I) + '.dll'));
+  Check('install entries counted', IntToStr(P.InstallFiles), '500');
+  Check('permille at half of the estimate', IntToStr(SuiteProgressPermille(P)), '800');
+  for I := 501 to 2000 do
+    SuiteFeedLogLine(P, SuiteTestLine('Dest filename: C:\G\f' + IntToStr(I) + '.dll'));
+  Check('install entries beyond the estimate are counted', IntToStr(P.InstallFiles), '2000');
+  Check('permille beyond the estimate is clamped at 99 % of the install block', IntToStr(SuiteProgressPermille(P)), '898');
+  CheckBool('permille before the end of the log stays below 100 %', SuiteProgressPermille(P) <= 990, True);
+  SuiteTestFeed(P, ['Installation process succeeded.', 'Dest filename: C:\G\later.dll']);
+  Check('entries after the installation are not counted', IntToStr(P.InstallFiles), '2000');
+  Check('permille after the installation', IntToStr(SuiteProgressPermille(P)), '900');
+  P.InstallEstimate := 0;
+  P.Phase := SuitePhaseInstall;
+  Check('no estimate: the install block stays below its end', IntToStr(SuiteProgressPermille(P)), '898');
+
+  // post install, CD keys, manifest, end
+  SuiteProgressInit(P, 'NeoEE');
+  SuiteTestFeed(P, ['Downloading 1 online files, one at a time', 'Starting the installation process.', 'Installation process succeeded.']);
+  Check('CD key result before the line', P.CdKeyResult, '');
+  SuiteTestFeed(P, ['Register NeoEE CD Keys for EE and AoC']);
+  Check('permille in the CD key step', IntToStr(SuiteProgressPermille(P)), '940');
+  SuiteTestFeed(P, ['CD Keys generation result: 0', 'CD Keys registered']);
+  Check('CD key result is read as text', P.CdKeyResult, '0');
+  Check('the CD key line is the same as the one SuiteParseCdKeyResult reads', SuiteParseCdKeyResult(SuiteTestLine('CD Keys generation result: 0')), '0');
+  SuiteTestFeed(P, ['Checking 2351 recorded destinations of installed files for C:\G\_setupdata_NeoEE\files.sha256']);
+  Check('permille in the manifest step', IntToStr(SuiteProgressPermille(P)), '970');
+  CheckBool('manifest not done yet', P.ManifestDone, False);
+  SuiteTestFeed(P, ['Manifest: 2253 files, 714.6 MB, 15328 ms, 46.6 MB/s']);
+  CheckBool('manifest done', P.ManifestDone, True);
+  Check('permille after the manifest, below 100 % until the log ends', IntToStr(SuiteProgressPermille(P)), '990');
+  SuiteTestFeed(P, ['Deinitializing Setup.', 'Log closed.']);
+  Check('permille at "Log closed."', IntToStr(SuiteProgressPermille(P)), '1000');
+  // a run without the CD key lines (the task not chosen): nothing in the result
+  SuiteProgressInit(Q, 'NeoEE');
+  SuiteTestFeed(Q, ['Starting the installation process.', 'Installation process succeeded.', 'Checking 5 recorded destinations of installed files for C:\G\files.sha256']);
+  Check('no CD key line: no result', Q.CdKeyResult, '');
+  Check('no CD key line: the manifest step follows the installation', IntToStr(Q.Phase), IntToStr(SuitePhaseManifest));
+
+  // the permille grows from phase to phase of a normal run (every step at least as far as the one before)
+  SuiteProgressInit(P, 'EE');
+  Sum := SuiteProgressPermille(P);
+  Check('permille 0 at the start', IntToStr(Sum), '0');
+  SuiteTestFeed(P, ['Online files server https://x/localized: no answer']);
+  Check('permille at the probe', IntToStr(SuiteProgressPermille(P)), '15');
+  SuiteTestFeed(P, ['Downloading 17 online files, one at a time']);
+  Check('permille at the start of the downloads', IntToStr(SuiteProgressPermille(P)), '30');
+  SuiteTestFeed(P, ['Online file downloaded, SHA-256 pinned: https://x/localized/a.dll']);
+  Check('permille after one of 17 files', IntToStr(SuiteProgressPermille(P)), '67');
+  for I := 2 to 17 do
+    SuiteTestFeed(P, ['Online file downloaded, SHA-256 pinned: https://x/localized/a.dll']);
+  Check('permille after all 17 files', IntToStr(SuiteProgressPermille(P)), '680');
+  SuiteTestFeed(P, ['Online files: 0 downloaded with validated TLS (Inno Setup), 17 pinned ones, of 17']);
+  Check('permille at the verify step', IntToStr(SuiteProgressPermille(P)), '690');
+  SuiteTestFeed(P, ['All 20 online files accepted', 'Starting the installation process.']);
+  Check('permille at the install start of a run with downloads', IntToStr(SuiteProgressPermille(P)), '700');
+  SuiteTestFeed(P, ['Installation process succeeded.']);
+  Check('permille after the installation', IntToStr(SuiteProgressPermille(P)), '900');
+
+  // the first line starts with the byte order mark (3 characters in an ANSI code page, 1 in the UTF-8 one);
+  // continuation lines (26 blanks, no time stamp) and lines without a time stamp are no entries
+  Bom := Chr(239) + Chr(187) + Chr(191);
+  SuiteProgressInit(P, 'EE');
+  SuiteFeedLogChunk(P, Bom + SuiteTestLine('Online files server https://x/localized: no answer') + Crlf);
+  Check('the byte order mark (3 characters) of the first line is skipped', IntToStr(P.Phase), IntToStr(SuitePhaseProbe));
+  SuiteProgressInit(P, 'EE');
+  SuiteFeedLogChunk(P, #$FEFF + SuiteTestLine('Online files server https://x/localized: no answer') + Crlf);
+  Check('the byte order mark (1 character) of the first line is skipped', IntToStr(P.Phase), IntToStr(SuitePhaseProbe));
+  SuiteProgressInit(P, 'EE');
+  SuiteFeedLogChunk(P, Bom + SuiteTestLine('Log opened. (Time zone: UTC+02:00)') + Crlf + SuiteTestLine('Downloading 2 online files, one at a time') + Crlf);
+  Check('the lines after the first one are read with the byte order mark', IntToStr(P.DownloadFiles), '2');
+  SuiteProgressInit(P, 'EE');
+  SuiteFeedLogChunk(P, StringOfChar(' ', 26) + 'Starting the installation process.' + Crlf + 'Starting the installation process.' + Crlf + 'xx' + SuiteTestLine('Starting the installation process.') + Crlf);
+  Check('continuation lines, lines without a time stamp and junk before it are ignored', IntToStr(P.Phase), '0');
+
+  // pieces of the log: a line split across two reads, line ends CRLF and LF, the last line without a line end
+  SuiteProgressInit(P, 'EE');
+  SuiteFeedLogChunk(P, SuiteTestLine('Starting the installa'));
+  Check('a line without a line end is not parsed', IntToStr(P.Phase), '0');
+  Check('the unfinished line waits', P.TailCarry, SuiteTestLine('Starting the installa'));
+  SuiteFeedLogChunk(P, 'tion process.' + #13);
+  Check('a line split across two reads: the CR alone is no line end', IntToStr(P.Phase), '0');
+  SuiteFeedLogChunk(P, #10 + SuiteTestLine('Dest filename: C:\G\a.dll') + #10 + SuiteTestLine('Dest filename: C:\G\b.dll') + #10 + SuiteTestLine('Dest file'));
+  Check('a line split across two reads is joined', IntToStr(P.Phase), IntToStr(SuitePhaseInstall));
+  Check('LF alone ends a line', IntToStr(P.InstallFiles), '2');
+  Check('the last line waits', P.TailCarry, SuiteTestLine('Dest file'));
+  SuiteFeedLogChunk(P, 'name: C:\G\c.dll' + Crlf);
+  Check('the line is complete with the next read', IntToStr(P.InstallFiles), '3');
+  Check('nothing is left over', P.TailCarry, '');
+  SuiteFeedLogChunk(P, '');
+  Check('an empty read changes nothing', IntToStr(P.InstallFiles), '3');
+  // one character at a time
+  SuiteProgressInit(P, 'EE');
+  Blanks := SuiteTestLine('Starting the installation process.') + Crlf;
+  for I := 1 to Length(Blanks) do
+    SuiteFeedLogChunk(P, Copy(Blanks, I, 1));
+  Check('a log read one character at a time', IntToStr(P.Phase), IntToStr(SuitePhaseInstall));
+  // a line with no end that grows too long is dropped
+  SuiteProgressInit(P, 'EE');
+  Blanks := 'xxxxxxxxxx';
+  for I := 1 to 13 do
+    Blanks := Blanks + Blanks;
+  SuiteFeedLogChunk(P, Blanks);
+  Check('a line without an end that is too long is dropped', P.TailCarry, '');
+  SuiteFeedLogChunk(P, SuiteTestLine('Starting the installation process.') + Crlf);
+  Check('the log goes on after a dropped piece', IntToStr(P.Phase), IntToStr(SuitePhaseInstall));
+end;
+
+// Writes Text (ASCII) to a file handle of CreateFile, as the product setup writes its log
+procedure SuiteTestWrite(Handle: Cardinal; const Text: AnsiString);
+var
+  Written: Cardinal;
+  Count: Integer;
+begin
+  Count := Length(Text);
+  Written := 0;
+  if not WriteFile(Handle, Text, Count, Written, 0) then
+    Results.Add('FAIL cannot write the test log')
+  else if Integer(Written) <> Count then
+    Results.Add('FAIL the test log was written in part');
+end;
+
+const
+  SuiteTestGenericWrite = $40000000;
+  SuiteTestCreateAlways = 2;
+
+procedure TestSuiteTailLog;
+var
+  Dir, LogFile, Text: String;
+  P: TSuiteProgress;
+  Handle: Cardinal;
+  I, Reads: Integer;
+  Size: Int64;
+  Whole: AnsiString;
+begin
+  Dir := ExpandConstant('{tmp}\suite_tail');
+  ForceDirectories(Dir);
+  LogFile := Dir + '\EE-test.log';
+  DeleteFile(LogFile);
+  SuiteProgressInit(P, 'EE');
+
+  // no log yet (the product setup creates it when it starts)
+  CheckBool('SuiteTailLog without a file', SuiteTailLog(LogFile, P), False);
+  Check('SuiteTailLog without a file: phase', IntToStr(P.Phase), '0');
+  Check('SuiteTailLog without a file: offset', IntToStr(P.TailOffset), '0');
+
+  // the product setup holds its log open for writing and allows only reading (its Logging unit: faWrite, fsRead);
+  // LoadStringFromFile would fail on such a file
+  Handle := CreateFile(LogFile, SuiteTestGenericWrite, FILE_SHARE_READ, 0, SuiteTestCreateAlways, 0, 0);
+  CheckBool('the test log is held open for writing', Handle <> INVALID_HANDLE_VALUE, True);
+  CheckBool('LoadStringFromFile cannot read a log that is held open like this', LoadStringFromFile(LogFile, Whole), False);
+  CheckBool('SuiteTailLog of an empty log', SuiteTailLog(LogFile, P), False);
+  SuiteTestWrite(Handle, SuiteTestLine('Online files server https://x/localized: no answer') + #13#10 + SuiteTestLine('Downloading 3 online fi'));
+  CheckBool('SuiteTailLog reads a log the product setup holds open', SuiteTailLog(LogFile, P), True);
+  Check('SuiteTailLog: the complete line was read', IntToStr(P.Phase), IntToStr(SuitePhaseProbe));
+  CheckBool('SuiteTailLog: the unfinished line waits', Length(P.TailCarry) > 0, True);
+  CheckBool('SuiteTailLog without news', SuiteTailLog(LogFile, P), False);
+  SuiteTestWrite(Handle, 'les, one at a time' + #13#10);
+  CheckBool('SuiteTailLog reads the rest of the line', SuiteTailLog(LogFile, P), True);
+  Check('SuiteTailLog: the line was joined', IntToStr(P.DownloadFiles), '3');
+  Check('SuiteTailLog: nothing is left over', P.TailCarry, '');
+  CheckBool('SuiteTailLog without news again', SuiteTailLog(LogFile, P), False);
+  Size := 0;
+  CheckBool('FileSize64 of the log', FileSize64(LogFile, Size), True);
+  Check('SuiteTailLog: the offset is the size of the log', IntToStr(P.TailOffset), IntToStr(Size));
+  CloseHandle(Handle);
+
+  // a smaller log than what was read is a new log: read from the start, the phase stays
+  Handle := CreateFile(LogFile, SuiteTestGenericWrite, FILE_SHARE_READ, 0, SuiteTestCreateAlways, 0, 0);
+  SuiteTestWrite(Handle, SuiteTestLine('Starting the installation process.') + #13#10);
+  CheckBool('SuiteTailLog reads a log that was recreated', SuiteTailLog(LogFile, P), True);
+  Check('SuiteTailLog: the new log was read', IntToStr(P.Phase), IntToStr(SuitePhaseInstall));
+  CloseHandle(Handle);
+  CheckBool('SuiteTailLog: the new log was read from its start', P.TailOffset < Size, True);
+  DeleteFile(LogFile);
+  CheckBool('SuiteTailLog after the file is gone', SuiteTailLog(LogFile, P), False);
+
+  // more than one read: SuiteTailChunkMax bytes at most per call, lines cut at the limit are joined
+  SuiteProgressInit(P, 'EE');
+  Text := SuiteTestLine('Starting the installation process.') + #13#10;
+  for I := 1 to 6000 do
+    Text := Text + SuiteTestLine('Dest filename: C:\Program Files (x86)\Empire Earth\Data\f' + IntToStr(I) + '.ssa') + #13#10;
+  CheckBool('the long test log is written', SaveStringToFile(LogFile, Text, False), True);
+  CheckBool('the long test log is longer than one read', Length(Text) > SuiteTailChunkMax, True);
+  CheckBool('SuiteTailLog: first read of a long log', SuiteTailLog(LogFile, P), True);
+  Check('SuiteTailLog: the first read is SuiteTailChunkMax bytes', IntToStr(P.TailOffset), IntToStr(SuiteTailChunkMax));
+  Reads := 1;
+  while (Reads < 10) and SuiteTailLog(LogFile, P) do
+    Reads := Reads + 1;
+  Check('SuiteTailLog: the long log takes one read per SuiteTailChunkMax bytes', IntToStr(Reads), IntToStr((Length(Text) + SuiteTailChunkMax - 1) div SuiteTailChunkMax));
+  Check('SuiteTailLog: every entry of the long log was counted', IntToStr(P.InstallFiles), '6000');
+  Check('SuiteTailLog: the long log was read completely', IntToStr(P.TailOffset), IntToStr(Length(Text)));
+  DeleteFile(LogFile);
+  RemoveDir(Dir);
 end;
