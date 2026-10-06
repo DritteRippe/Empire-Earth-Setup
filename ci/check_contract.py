@@ -93,7 +93,9 @@ what ssInstall had set), so the rules read them from the [Code] lines of the scr
                                                CurrentVersion\\Uninstall\\{{#SuiteAppID}}_is1',
                                                '<name>', <data>) (or the [Registry] entry): root
                                                HKLM, REG_DWORD, the data of the row, the AppId of
-                                               the suite, never one of the products
+                                               the suite, never one of the products; no line of a
+                                               product script (.iss in the repository root, comment
+                                               lines left out) names the value
   3.8 (protected keys)                         no code line (comments left out) names Software\Sierra,
                                                CDKeys or authtools: the CD key registration stays
                                                the NeoEE setup's own
@@ -2132,6 +2134,24 @@ def check_suite_uninstall_marker(script, names, errors):
     return len(entries)
 
 
+PRODUCT_COMMENT_LINE = re.compile(r"^\s*(;|//)")
+
+
+def check_products_without_suite_marker(root, contract_lines, errors):
+    """The value of the row 'Suite uninstall key marker' of contract 0 is the suite's alone (1.3): no line of
+    the product scripts (the .iss files of the repository root, comment lines left out) names it, so that
+    source 3 of the launcher (1.4) never skips the uninstall key of EE or NeoEE. Returns the number of
+    scripts read."""
+    name = suite_names(contract_lines)[SUITE_UNINSTALL_MARKER_ROW][0]
+    scripts = sorted(root.glob("*.iss"))
+    for path in scripts:
+        for number, line in enumerate(path.read_text(encoding="utf-8-sig").splitlines(), 1):
+            if not PRODUCT_COMMENT_LINE.match(line) and name.lower() in line.lower():
+                errors.append(f"{path.name}:{number}: the product script names {name}, the value that only "
+                              "the suite writes into its own uninstall key [1.3, 1.4]")
+    return len(scripts)
+
+
 def check_suite_shortcuts(script, contract_lines, names, errors):
     """[Icons]: per row of the table of contract 1.7 and per place, an entry <place>\\<shortcut>
     that starts the launcher with the row's parameters; every entry of a game shortcut name starts
@@ -2262,6 +2282,8 @@ def check(root):
     summary.append(f"contract version {version}")
     count = rule("0", lambda: check_publishers(root, contract_lines, errors))
     summary.append(f"0: {count} publishers")
+    count = rule("1.3", lambda: check_products_without_suite_marker(root, contract_lines, errors))
+    summary.append(f"1.3: no product script of {count} names the suite uninstall key marker")
     count = rule("2.4", lambda: check_code_extensions(root, contract_lines, errors))
     summary.append(f"2.4: {count} code extensions")
 
@@ -2827,6 +2849,10 @@ end;
                    "  RegWriteDWordValue(HKLM, 'Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{{#SuiteAppID}}_is1', 'Empire Earth Community: Suite', 1);\n"
                    "  RegWriteDWordValue(HKLM, 'Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{{#SuiteAppID}}_is1', 'Empire Earth Community: Suite', 1);\n"),
          "is written more than once"),
+        ("product: a product script writes the suite uninstall key marker",
+         replace("installstate.iss", "  else if RegWriteDWordValue(HKA, Key, ContractVersionValueName, {#ContractVersion}) then",
+                 "  else if RegWriteDWordValue(HKA, Key, 'Empire Earth Community: Suite', 1) then"),
+         "installstate.iss:152: the product script names Empire Earth Community: Suite"),
         ("suite: row of the uninstall key marker missing in the contract",
          replace(contract, "| Suite uninstall key marker | `Empire Earth Community: Suite`, REG_DWORD `1` ([1.3](#13-uninstall-key-informative)) |\n", ""),
          "has no row 'Suite uninstall key marker'"),

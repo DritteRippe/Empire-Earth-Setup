@@ -572,8 +572,8 @@ setup version stays 1.7.2 until the release.
   before revision 5, a key whose root is the `InstallPath` of the suite record (1.4, 1.6). Found in
   the laptop test TP-93: the suite's key has the `Publisher` of EE and showed up in the launcher as
   a damaged EE installation. The publisher stays, so Windows "Apps" still shows
-  `Empire Earth Community`. `ci/check_contract.py` and `ci/check_suite.py` check the marker; the
-  suite scenarios assert it.
+  `Empire Earth Community`. `ci/check_contract.py` and `ci/check_suite.py` check the marker, and
+  `ci/check_contract.py` also that no product script names it; the suite scenarios assert it.
 - `suite/`: the frame of the suite installer "Empire Earth Community" (ADR 0013, not yet the whole
   installer): `suite.iss` (`[Setup]` for Windows 7 SP1 and later, 64-bit install mode, disk spanning
   into slices of `DiskSliceSize` bytes; the launcher, the Mod Creator and the licenses only with

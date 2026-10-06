@@ -30,7 +30,8 @@ to stay safe and installable:
 
   [Runner]  suite/suite_run.iss (the product runner): suite.iss includes it, runs it at ssInstall and
             creates the shortcuts, writes the record and marks its own uninstall key
-            (MarkSuiteUninstallKey) only at ssPostInstall (so after the legacy shortcut cleanup); there is exactly one Exec call, in SuiteRunProduct after SuiteExtractAndCheck
+            (MarkSuiteUninstallKey) only at ssPostInstall (so after the legacy shortcut cleanup);
+            there is exactly one Exec call, in SuiteRunProduct after SuiteExtractAndCheck
             (which compares size and SHA-256 with SuitePinMatches), and PrepareToInstall stops with
             SuiteExitProductSetup; no DelTree and no registry deletion; DeleteFile only on the
             extracted product setup, the log of the product setup and the old shortcut files of
