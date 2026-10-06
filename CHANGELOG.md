@@ -566,6 +566,14 @@ setup version stays 1.7.2 until the release.
   (`SetupMutex`, `AppMutex` with the launcher mutex, the value names and types of the suite record,
   the game shortcuts to the launcher) and skips these rules while the file does not exist (90
   self-test cases). ADR 0013 and ARCHITECTURE section 11 describe the suite.
+- `docs/CONTRACT.md` revision 5 (optional additions, still contract version 1; the same text in the
+  launcher repository): the suite marks its own uninstall key with `Empire Earth Community: Suite`
+  (REG_DWORD 1; 0, 1.3), and launcher source 3 skips a key with that value, or, for a suite built
+  before revision 5, a key whose root is the `InstallPath` of the suite record (1.4, 1.6). Found in
+  the laptop test TP-93: the suite's key has the `Publisher` of EE and showed up in the launcher as
+  a damaged EE installation. The publisher stays, so Windows "Apps" still shows
+  `Empire Earth Community`. `ci/check_contract.py` and `ci/check_suite.py` check the marker; the
+  suite scenarios assert it.
 - `suite/`: the frame of the suite installer "Empire Earth Community" (ADR 0013, not yet the whole
   installer): `suite.iss` (`[Setup]` for Windows 7 SP1 and later, 64-bit install mode, disk spanning
   into slices of `DiskSliceSize` bytes; the launcher, the Mod Creator and the licenses only with
@@ -786,6 +794,9 @@ setup version stays 1.7.2 until the release.
   (which has no such list) moves the old folder aside once, keeps there only the files this setup
   does not install again (own maps, maps of older versions) and says where they are. If that
   installation is cancelled or fails, the old folder is moved back.
+- Suite installer: its own uninstall key (Publisher `Empire Earth Community`, the publisher of EE)
+  no longer looks like an EE installation to the launcher: the suite marks it with
+  `Empire Earth Community: Suite` at the end of every run (see Changed, revision 5; laptop test TP-93).
 
 ### Security
 - Online localized files: downloads use HTTPS only, from both servers, and TLS certificates are

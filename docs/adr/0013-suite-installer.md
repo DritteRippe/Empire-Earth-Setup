@@ -7,7 +7,7 @@
   to 11), D5 (shared contract), D6 (CD-key registration untouched, no game data in the repository),
   the maintainers' decisions of 2026-10-05 (both games selectable and preselected, the launcher
   installed with them, unsigned, shortcut names "Empire Earth" and "Neo Empire Earth");
-  [docs/CONTRACT.md](../CONTRACT.md) revision 4
+  [docs/CONTRACT.md](../CONTRACT.md) revision 4 (revision 5: see the amendment of 2026-10-06)
 
 ## Context
 
@@ -217,3 +217,44 @@ fallback of decision 5 is the implemented behaviour; the alternative "Run the pr
   collision.
 - **`MinVersion=10.0`** (the first draft): rejected, it would drop Windows 7 SP1 and 8.1, which the
   products and the launcher support (D4).
+
+## Amendment: the uninstall key of the suite (2026-10-06, laptop test TP-93)
+
+**Finding.** The uninstall key of the suite has `AppPublisher` `Empire Earth Community`, which is
+exactly the contract publisher of EE ([contract 0, Products](../CONTRACT.md)). The launcher's source 3
+(contract 1.4) matches by publisher, so it took the suite key (root = the suite folder) for an EE
+installation without install record and `install.ini`: a phantom `community-legacy` installation in
+the state damaged. The EE game settings were then shared by two installations (ambiguous), so the
+launcher did not write the defaults at the start. The CI did not see it, because the suite scenarios
+use a stub launcher.
+
+**Decision.** Contract revision 5. The suite marks its own key: `MarkSuiteUninstallKey`
+(`suite/suite_record.iss`) writes the REG_DWORD `Empire Earth Community: Suite` = 1 into
+`{<suite AppId>}_is1` at `ssPostInstall` of every run, after the suite record, and only if the key
+exists (no stub key; a missing key is logged). Every run writes it again because Inno Setup deletes
+and rewrites the key, as the products do for `Empire Earth Community: ContractVersion`. The uninstaller
+removes the whole key, so the value needs no removal code. The launcher skips a marked key, whatever the
+type and data of the value. A fallback covers a suite built before revision 5, which has no marker: a
+key in HKLM whose root is the `InstallPath` of the suite record and whose AppId is neither `EEAppId` nor
+`NeoEEAppId` of the record is skipped too. `ci/check_contract.py` and `ci/check_suite.py` check the
+marker, the suite scenarios assert it, and the laptop test TP-93 (Windows 11) looks at it.
+
+**Rejected: another `AppPublisher` for the suite.** It would remove the cause, but:
+
+- `IsForeignUninstallEntry` ([ADR 0007](0007-environment-warnings.md)) leaves the
+  suite key out of the "foreign or old installation" report only because of the community publisher.
+  The `DisplayName` of the suite, "Empire Earth Community (Launcher, EE, NeoEE)", names Empire Earth, so
+  the EE and NeoEE setups, including the silent ones the suite runs, would log the suite key, and an
+  interactive standalone product setup would show it as a foreign installation.
+- Windows "Apps" should keep showing the community publisher for the suite.
+- Suites that are already installed keep the old publisher until they are installed again, so the
+  launcher would need a fallback anyway.
+
+**Consequences.**
+
+- A suite built before revision 5 whose record was deleted or cannot be read still shows up as an
+  installation. Running the suite again (a repair) adds the marker. The `DisplayName` could close this
+  gap, but the contract stays free of display strings.
+- A product key in the suite folder with an AppId the record does not embed (a test build) is no
+  candidate of source 3 any more; contract 0 already says the suite root is no install root of a product.
+- The launcher reads the suite record in every discovery, still read-only and still no source.

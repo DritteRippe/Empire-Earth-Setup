@@ -417,7 +417,11 @@ Windows tests with real data are the cases TP-90 to TP-97 of the test plan (Bloc
 - **Record and mutexes:** the suite record `HKLM64\Software\Empire Earth Community\Suite` (contract
   1.6) lists the products that succeeded and the folder the package was started from (`SourceDir`), for
   the launcher's repair advice. `SetupMutex=EmpireEarthCommunity_Suite`; `AppMutex` holds the game
-  mutexes and the launcher's `EmpireEarthCommunityLauncher`.
+  mutexes and the launcher's `EmpireEarthCommunityLauncher`. The suite's own uninstall key has the
+  `Publisher` of EE (`Empire Earth Community`, which "Apps" shows and the product setups rely on, ADR
+  0007), so the suite marks it with the value `Empire Earth Community: Suite` = 1 (contract 1.3,
+  revision 5), written in code at `ssPostInstall` after the record, in every run, only if the key
+  exists; the launcher skips a marked key (ADR 0013, amendment of 2026-10-06).
 - **Uninstall:** one entry in Windows "Apps" for the package (`suite_uninstall.iss`, ADR 0013 decision
   11). One question lists what goes; the uninstallers of the products it lists run one after the other and
   the suite waits until their uninstall keys and program files are gone (10 minutes at most; the exit
@@ -428,11 +432,13 @@ Windows tests with real data are the cases TP-90 to TP-97 of the test plan (Bloc
 - **Files:** `suite/suite.iss` (`[Setup]`, payload, prechecks with the exit codes 10 to 15),
   `suite_common.iss` (pure helpers, tested by `ci/tests/suite_tests.iss`), `suite_messages.iss`
   (English, German, French), `suite_shortcuts.iss` and `suite_record.iss` (what the suite leaves
-  besides its files), `suite_uninstall.iss` (its uninstaller). Build values (AppIds, the pins and sizes of the embedded setups, the slice
+  besides its files: the record and the marker of its uninstall key), `suite_uninstall.iss` (its uninstaller). Build values (AppIds, the pins and sizes of the embedded setups, the slice
   count and total size of a two-pass build) are `/D` defines, listed at the top of `suite.iss`.
 - **Checks:** `ci/check_contract.py` reads `suite/suite.iss` and its includes (`SetupMutex`,
   `AppMutex`, the record's value names and types written in code, the game shortcuts to the
-  launcher, no reference to the protected keys); `ci/check_messages.py` checks `suite_messages.iss`
+  launcher, the marker of the uninstall key, no reference to the protected keys); `ci/check_suite.py`
+  also requires `MarkSuiteUninstallKey` after `WriteSuiteRecord` and `RegKeyExists` before its write; the
+  suite scenarios S1, S2, S3, S9 and S10 assert the marker; `ci/check_messages.py` checks `suite_messages.iss`
   and forbids `MsgBox` in the suite scripts (only `SuppressibleMsgBox`).
 
 ## Plan
