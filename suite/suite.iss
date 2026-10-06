@@ -40,6 +40,7 @@
 ;
 ; Files are UTF-8 with BOM and CRLF (.editorconfig). The shortcuts and the suite record are created in
 ; code at ssPostInstall and removed by the uninstaller (ADR 0013 Evidence), not by [Icons] and [Registry].
+; So is the marker of the uninstall key of the suite (contract 1.3, revision 5), which is removed with the key.
 
 #define SuiteName "Empire Earth Community"
 #define SuiteVersion "1.0.0"
@@ -214,6 +215,8 @@ AppId={{{#SuiteAppID}}
 AppName={#SuiteName}
 AppVersion={#SuiteVersion}
 AppVerName={#SuiteName} {#SuiteVersion}
+; The Publisher of EE on purpose (Windows "Apps", IsForeignUninstallEntry); the marker of contract 1.3
+; (revision 5, MarkSuiteUninstallKey) tells the launcher that the key is no installation
 AppPublisher={#SuiteName}
 AppPublisherURL=https://empireearth.eu/
 AppSupportURL=https://empireearth.eu/
@@ -515,7 +518,8 @@ end;
 // ssInstall, after PrepareToInstall compared them with their pins; the shortcuts and the suite record are
 // written after everything else, at ssPostInstall, in code: the Check functions of [Icons] and [Registry]
 // did not reliably see what ssInstall had set (ADR 0013 Evidence), and the uninstaller removes them
-// explicitly.
+// explicitly. The last step marks the uninstall key of the suite (MarkSuiteUninstallKey): Inno Setup wrote
+// it before ssPostInstall, and every run rewrites it.
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
   if CurStep = ssInstall then
@@ -524,6 +528,7 @@ begin
   begin
     ApplySuiteShortcuts(False);
     WriteSuiteRecord;
+    MarkSuiteUninstallKey;
   end;
 end;
 

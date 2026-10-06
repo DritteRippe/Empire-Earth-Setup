@@ -29,12 +29,15 @@ to stay safe and installable:
             line first; the precheck codes 10 to 14 are used by suite.iss
 
   [Runner]  suite/suite_run.iss (the product runner): suite.iss includes it, runs it at ssInstall and
-            creates the shortcuts and the record only at ssPostInstall (so after the legacy shortcut
-            cleanup); there is exactly one Exec call, in SuiteRunProduct after SuiteExtractAndCheck
+            creates the shortcuts, writes the record and marks its own uninstall key
+            (MarkSuiteUninstallKey) only at ssPostInstall (so after the legacy shortcut cleanup); there is exactly one Exec call, in SuiteRunProduct after SuiteExtractAndCheck
             (which compares size and SHA-256 with SuitePinMatches), and PrepareToInstall stops with
             SuiteExitProductSetup; no DelTree and no registry deletion; DeleteFile only on the
             extracted product setup, the log of the product setup and the old shortcut files of
             SuiteLegacyShortcutPath; no ShellExec
+  [Marker]  MarkSuiteUninstallKey (suite/suite_record.iss, contract 1.3, revision 5) asks RegKeyExists
+            before it writes with RegWriteDWordValue (no stub key is created) and deletes nothing
+            (ci/check_contract.py checks the value, its type and the key)
   [Uninstaller] suite/suite_uninstall.iss: suite.iss includes it and runs the product uninstallers at
             usUninstall, the shortcuts, the record and the user data at usPostUninstall; InitializeUninstall
             checks the game and launcher mutexes, holds the setup mutex of [Setup] and asks one question
@@ -301,11 +304,11 @@ def check_runner(runner, main, errors):
         errors.append('suite/suite.iss: no #include "suite_run.iss" (the product runner)')
     step = re.search(r"CurStepChanged.*?\bif\s+CurStep\s*=\s*ssInstall\s+then\s+SuiteRunProducts\b"
                      r".*?\belse\s+if\s+CurStep\s*=\s*ssPostInstall\s+then\s+begin\s+ApplySuiteShortcuts\(False\);"
-                     r"\s+WriteSuiteRecord;", main_code, re.DOTALL)
+                     r"\s+WriteSuiteRecord;\s+MarkSuiteUninstallKey;", main_code, re.DOTALL)
     if not step:
         errors.append("suite/suite.iss: CurStepChanged must run SuiteRunProducts at ssInstall and create the shortcuts "
-                      "and the record (ApplySuiteShortcuts(False), WriteSuiteRecord) only at ssPostInstall, after "
-                      "the legacy shortcut cleanup of the runner")
+                      "and the record and mark the uninstall key of the suite (ApplySuiteShortcuts(False), WriteSuiteRecord, "
+                      "MarkSuiteUninstallKey) only at ssPostInstall, after the legacy shortcut cleanup of the runner")
     execs = [e.replace(" ", "") for e in re.findall(r"\b(?:Exec|ExecAsOriginalUser|ShellExec|ShellExecAsOriginalUser)\s*\(", all_code)]
     if execs != ["Exec("]:
         errors.append(f"{where}: the runner must call Exec exactly once and nothing else that starts a program "
@@ -347,6 +350,26 @@ def check_runner(runner, main, errors):
             run.find("SuiteRunSucceeded(") > run.find("SuiteRemoveLegacyShortcuts(Product)"):
         errors.append(f"{where}: the legacy shortcuts are deleted only after SuiteRunSucceeded said the product succeeded")
     return 9
+
+
+def check_marker(record, errors):
+    """MarkSuiteUninstallKey (suite_record.iss): RegKeyExists before RegWriteDWordValue, so that no stub key is
+    created, and no registry deletion (Inno Setup's uninstaller removes the value with the key); the number of
+    rules checked."""
+    where = "suite/suite_record.iss"
+    body = function_bodies(code_lines(record)).get("MarkSuiteUninstallKey")
+    if body is None:
+        errors.append(f"{where}: no procedure MarkSuiteUninstallKey (contract 1.3, revision 5)")
+        return 2
+    exists_at, write_at = body.find("RegKeyExists("), body.find("RegWriteDWordValue(")
+    if write_at < 0:
+        errors.append(f"{where}: MarkSuiteUninstallKey does not write the marker with RegWriteDWordValue")
+    elif exists_at < 0 or exists_at > write_at:
+        errors.append(f"{where}: MarkSuiteUninstallKey must ask RegKeyExists for the uninstall key before it writes "
+                      "(it must not create a stub key)")
+    if re.search(r"\bRegDelete\w*\s*\(", body):
+        errors.append(f"{where}: MarkSuiteUninstallKey must not delete registry keys or values")
+    return 2
 
 
 def check_uninstaller(uninstaller, main, files, errors):
@@ -488,6 +511,11 @@ def check(root):
         runner = ""
     steps = check_runner(runner, main, errors)
     try:
+        marker = check_marker(read(root, SUITE_FILES[4]), errors)
+    except CheckError as error:
+        errors.append(str(error))
+        marker = 0
+    try:
         uninstaller = read(root, SUITE_FILES[7])
     except CheckError as error:
         errors.append(str(error))
@@ -498,7 +526,7 @@ def check(root):
     check_forbidden_words(root, errors)
     return errors, (f"suite frame: {directives} [Setup] directives, {products} product setups and {launcher} "
                     f"launcher, license and legal text entries in [Files], {codes} exit codes, {frame} slice, mode and registry view rules, product runner "
-                    f"{steps} rules, uninstaller {removal} rules, no CD key registry or library reference")
+                    f"{steps} rules, uninstall key marker {marker} rules, uninstaller {removal} rules, no CD key registry or library reference")
 
 
 def self_test(source_root):
@@ -589,6 +617,15 @@ def self_test(source_root):
          replace(main, "  if CurStep = ssInstall then\n    SuiteRunProducts\n  else if CurStep = ssPostInstall then\n  begin\n    ApplySuiteShortcuts(False);",
                  "  if CurStep = ssInstall then\n    ApplySuiteShortcuts(False)\n  else if CurStep = ssPostInstall then\n  begin\n    SuiteRunProducts;"),
          "CurStepChanged must run SuiteRunProducts at ssInstall"),
+        ("the uninstall key is no longer marked at ssPostInstall",
+         replace(main, "    WriteSuiteRecord;\n    MarkSuiteUninstallKey;\n", "    WriteSuiteRecord;\n"),
+         "CurStepChanged must run SuiteRunProducts at ssInstall"),
+        ("marker written without asking RegKeyExists",
+         replace("suite/suite_record.iss", "if not RegKeyExists(HKLM, SuiteUninstallKey('{#SuiteAppID}')) then", "if False then"),
+         "MarkSuiteUninstallKey must ask RegKeyExists"),
+        ("marker procedure deletes a value",
+         replace("suite/suite_record.iss", "    Exit;\n  end;\n  RegWriteDWordValue(", "    Exit;\n  end;\n  RegDeleteValue(HKLM, 'Software', 'x');\n  RegWriteDWordValue("),
+         "MarkSuiteUninstallKey must not delete registry keys or values"),
         ("second Exec", replace(run, "  Started := Exec(Exe, Params,", "  Exec(Exe, Params, '', SW_SHOW, ewNoWait, Code);\n  Started := Exec(Exe, Params,"),
          "must call Exec exactly once"),
         ("a program started by ShellExec", replace(run, "  DeleteFile(LogFile);\n", "  DeleteFile(LogFile);\n  ShellExec('open', Exe, '', '', SW_SHOW, ewNoWait, Code);\n"),

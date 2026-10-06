@@ -271,7 +271,8 @@ function Invoke-E2ESuiteCleanup([string]$Scenario) {
 
 # --- Checks -------------------------------------------------------------------------------------------------------
 
-# The suite record, its uninstall key and where they are not (contract 1.6: the 64-bit view of HKLM only)
+# The suite record, its uninstall key with the marker the launcher needs (contract 1.3, revision 5: DWord 1, written
+# in every run) and where they are not (contract 1.6: the 64-bit view of HKLM only)
 function Test-E2ESuiteRecord([string]$Scenario, [string]$Step, [string]$Products, [string]$SourceDir) {
   $root = Get-E2ESuiteRoot
   $problems = @(Test-E2ESuiteRecordValues (Get-E2ERegValues 'HKLM64' $E2ESuiteConst.RecordKey) $Products $root $SourceDir (Get-E2ESuiteAppIds))
@@ -285,11 +286,15 @@ function Test-E2ESuiteRecord([string]$Scenario, [string]$Step, [string]$Products
     if ((Get-E2ERegString $uninstall 'Inno Setup: App Path').TrimEnd('\') -ine $root) { $problems += "the uninstall key of the suite names the folder '$(Get-E2ERegString $uninstall 'Inno Setup: App Path')'" }
     if ((Get-E2ERegString $uninstall 'DisplayName') -cne $E2ESuiteConst.UninstallName) { $problems += "DisplayName of the uninstall key is '$(Get-E2ERegString $uninstall 'DisplayName')'" }
     if ((Get-E2ERegString $uninstall 'UninstallString') -eq '') { $problems += 'the uninstall key of the suite has no UninstallString' }
+    $marker = $E2ESuiteConst.UninstallMarker
+    if (-not $uninstall.ContainsKey($marker) -or $uninstall[$marker].Kind -ne 'DWord' -or [string]$uninstall[$marker].Value -ne '1') {
+      $problems += "the uninstall key of the suite has no '$marker' = 1 (contract 1.3, revision 5)"
+    }
   }
   foreach ($other in @('HKLM32', 'HKCU')) {
     if (Test-E2ERegKey $other $keyPath) { $problems += "$other\$keyPath exists too" }
   }
-  [void](Complete-E2ECheck $Scenario "$Step/REC" $problems "HKLM64\$($E2ESuiteConst.RecordKey): Products=$Products")
+  [void](Complete-E2ECheck $Scenario "$Step/REC" $problems "HKLM64\$($E2ESuiteConst.RecordKey): Products=$Products, uninstall key marked")
 }
 
 # A product the suite installed: uninstall key, install record, files, the defaults in HKCU; no forbidden task

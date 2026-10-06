@@ -18,6 +18,9 @@ $E2ESuiteConst = @{
   SliceFilter    = 'Empire Earth Community Setup-*.bin'
   UninstallName  = 'Empire Earth Community (Launcher, EE, NeoEE)'
   RecordKey      = 'Software\Empire Earth Community\Suite'
+  # The value the suite writes (DWord 1) into its own uninstall key at ssPostInstall of every run, so that the launcher
+  # does not take the key (Publisher of EE) for an installation of EE: contract 0 "Suite and launcher" and 1.3, revision 5
+  UninstallMarker = 'Empire Earth Community: Suite'
   RecordValues   = @('ContractVersion', 'SuiteVersion', 'InstallPath', 'Products', 'SourceDir', 'EEAppId', 'NeoEEAppId', 'Written')
   SetupMutex     = 'EmpireEarthCommunity_Suite'
   GameMutexEE    = 'StainlessSteelStudiosPresentsEmpireEarth'

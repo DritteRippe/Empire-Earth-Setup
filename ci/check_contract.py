@@ -88,6 +88,12 @@ what ssInstall had set), so the rules read them from the [Code] lines of the scr
                                                of the fallback column without parameters; every
                                                shortcut that passes --product= starts the launcher
                                                and names that product
+  0 "Suite and launcher", row "Suite uninstall  the uninstall key of the suite (revision 5): exactly one
+  key marker" (name and data in backticks)     RegWriteDWordValue(HKLM, 'Software\\Microsoft\\Windows\\
+                                               CurrentVersion\\Uninstall\\{{#SuiteAppID}}_is1',
+                                               '<name>', <data>) (or the [Registry] entry): root
+                                               HKLM, REG_DWORD, the data of the row, the AppId of
+                                               the suite, never one of the products
   3.8 (protected keys)                         no code line (comments left out) names Software\Sierra,
                                                CDKeys or authtools: the CD key registration stays
                                                the NeoEE setup's own
@@ -1761,6 +1767,9 @@ SUITE_LAUNCHER_MUTEX_ROW = "Launcher mutex"
 SUITE_APP_MUTEX_ROW = "Suite AppMutex"
 SUITE_LAUNCHER_ROW = "Launcher program"
 SUITE_RECORD_KEY_ROW = "Suite record key"
+SUITE_UNINSTALL_MARKER_ROW = "Suite uninstall key marker"
+# The uninstall key of the suite itself, as written in the script (raw: the AppId of the suite is a define)
+SUITE_UNINSTALL_MARKER_KEY = "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{{#SuiteAppID}}_is1"
 SUITE_DEFINE = re.compile(r'^\s*#\s*define\s+([A-Za-z_]\w*)\s*(?:=\s*)?(?:"([^"]*)"|(\d+))\s*$')
 SUITE_DEFINE_REF = re.compile(r"\{#\s*([A-Za-z_]\w*)\s*\}")
 SUITE_RECORD_ROOTS = ("hklm", "hklm64")
@@ -1977,7 +1986,7 @@ def suite_names(contract_lines):
     require_columns(header, ["Name", "Value"], SUITE_NAMES_SECTION)
     names = {plain(row["Name"]): code_spans(row["Value"]) for _, row in rows}
     for row in (SUITE_SETUP_MUTEX_ROW, SUITE_LAUNCHER_MUTEX_ROW, SUITE_APP_MUTEX_ROW, SUITE_LAUNCHER_ROW,
-                SUITE_RECORD_KEY_ROW):
+                SUITE_RECORD_KEY_ROW, SUITE_UNINSTALL_MARKER_ROW):
         if not names.get(row):
             raise CheckError(f"{CONTRACT}: the table of '{SUITE_NAMES_SECTION}' has no row '{row}' with a "
                              "value in backticks")
@@ -2080,6 +2089,49 @@ def check_suite_record(script, contract_lines, names, version, errors):
     return len(table)
 
 
+def check_suite_uninstall_marker(script, names, errors):
+    """The suite marks its own uninstall key (contract 0 row 'Suite uninstall key marker', 1.3, 1.4 source 3,
+    revision 5): exactly one write of that value name, Root HKLM (the 64-bit view in the 64-bit install mode;
+    HKLM64 is not used by the suite), REG_DWORD, the data of the row, into {<suite AppId>}_is1 and never into
+    the key of a product. Returns the number of checked writes (1)."""
+    values = names[SUITE_UNINSTALL_MARKER_ROW]
+    if len(values) != 2 or not values[1].isdigit():
+        raise CheckError(f"{CONTRACT}: the row '{SUITE_UNINSTALL_MARKER_ROW}' of '{SUITE_NAMES_SECTION}' must "
+                         "hold the value name and the data, both in backticks")
+    name, data = values
+    entries = [(where, params) for where, params in script.entries("Registry") + script.code_registry_entries()
+               if params.get("valuename", "").strip().lower() == name.lower()]
+    if not entries:
+        errors.append(f"{SUITE_SCRIPT}: the suite does not write the value {name} into its uninstall key "
+                      f"(row '{SUITE_UNINSTALL_MARKER_ROW}' of contract 0) [suite 1.3]")
+        return 0
+    if len(entries) > 1:
+        errors.append(f"{entries[1][0]}: the value {name} is written more than once "
+                      f"(first at {entries[0][0]}) [suite 1.3]")
+    for where, params in entries:
+        written = params.get("valuename", "").strip()
+        root = params.get("root", "").strip().lower()
+        value_type = params.get("valuetype", "").strip().lower()
+        key = params.get("subkey", "").strip().strip('"').strip("\\").lower()
+        if written != name:
+            errors.append(f"{where}: value name {written}, the contract writes {name} [suite 1.3]")
+        if root != "hklm":
+            errors.append(f"{where}: {name} is written to Root {params.get('root', '(none)')}; the uninstall key "
+                          "of the suite is in HKLM, which is the 64-bit view in its 64-bit install mode; "
+                          "the suite does not use HKLM64 [suite 1.3]")
+        if value_type != "dword":
+            errors.append(f"{where}: {name} is {REG_TYPES.get(value_type, value_type) or '(no ValueType)'}, "
+                          "contract 0 REG_DWORD [suite 1.3]")
+        if params.get("valuedata", "").strip().strip('"') != data:
+            errors.append(f"{where}: {name} has the data {params.get('valuedata', '(none)')}, contract 0 {data} "
+                          "[suite 1.3]")
+        if key != SUITE_UNINSTALL_MARKER_KEY.lower():
+            errors.append(f"{where}: {name} is written to {params.get('subkey', '(none)')}, not to the uninstall "
+                          f"key of the suite ({SUITE_UNINSTALL_MARKER_KEY}); the uninstall keys of the products "
+                          "never get it [suite 1.3]")
+    return len(entries)
+
+
 def check_suite_shortcuts(script, contract_lines, names, errors):
     """[Icons]: per row of the table of contract 1.7 and per place, an entry <place>\\<shortcut>
     that starts the launcher with the row's parameters; every entry of a game shortcut name starts
@@ -2180,9 +2232,11 @@ def check_suite(root, contract_lines, version, errors):
     mutexes = check_suite_mutexes(script, names, errors)
     values = check_suite_record(script, contract_lines, names, version, errors)
     shortcuts = check_suite_shortcuts(script, contract_lines, names, errors)
+    check_suite_uninstall_marker(script, names, errors)
     lines = check_suite_protected(script, errors)
     return (f"suite: SetupMutex and AppMutex ({mutexes} names), record with {values} values, "
-            f"{shortcuts} game shortcuts to the launcher, no protected key in {lines} code lines")
+            f"{shortcuts} game shortcuts to the launcher, the uninstall key marker, no protected key in "
+            f"{lines} code lines")
 
 
 # ---------------------------------------------------------------------------------------------
@@ -2383,6 +2437,7 @@ def self_test(source_root):
 #define SuiteName "Empire Earth Community"
 #define LauncherExe "Empire Earth Launcher.exe"
 #define SuiteKey "Software\Empire Earth Community\Suite"
+#define SuiteAppID ""
 #define ContractVersion 1
 
 [Setup]
@@ -2403,6 +2458,7 @@ Root: HKLM; Subkey: "{#SuiteKey}"; ValueType: string; ValueName: "SourceDir"; Va
 Root: HKLM; Subkey: "{#SuiteKey}"; ValueType: string; ValueName: "EEAppId"; ValueData: "{code:EEAppId}"
 Root: HKLM; Subkey: "{#SuiteKey}"; ValueType: string; ValueName: "NeoEEAppId"; ValueData: "{code:NeoEEAppId}"
 Root: HKLM; Subkey: "{#SuiteKey}"; ValueType: string; ValueName: "Written"; ValueData: "{code:WrittenTime}"
+Root: HKLM; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\{{#SuiteAppID}}_is1"; ValueType: dword; ValueName: "Empire Earth Community: Suite"; ValueData: "1"
 
 [Icons]
 Name: "{autodesktop}\Empire Earth"; Filename: "{app}\{#LauncherExe}"; Parameters: "--product=EE"; WorkingDir: "{app}"; Check: ProductOk('EE') and IsDotNet48
@@ -2419,6 +2475,8 @@ Name: "{group}\{cm:UninstallProgram,{#SuiteName}}"; Filename: "{uninstallexe}"
 #define SuiteName "Empire Earth Community"
 #define LauncherExe "Empire Earth Launcher.exe"
 #define SuiteKey "Software\Empire Earth Community\Suite"
+#define SuiteAppID ""
+#define EE_AppID ""
 #define ContractVersion 1
 
 [Setup]
@@ -2444,6 +2502,13 @@ procedure RemoveSuiteRecord;
 begin
   RegDeleteKeyIncludingSubkeys(HKLM, '{#SuiteKey}');
   RegDeleteKeyIfEmpty(HKLM, 'Software\Empire Earth Community');
+end;
+
+procedure MarkSuiteUninstallKey;
+begin
+  if not RegKeyExists(HKLM, 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{{#SuiteAppID}}_is1') then
+    Exit;
+  RegWriteDWordValue(HKLM, 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{{#SuiteAppID}}_is1', 'Empire Earth Community: Suite', 1);
 end;
 
 // SuiteShortcut('{autodesktop}', 'Nothing', 'in a comment', '--product=EE', 'EE', '');
@@ -2731,6 +2796,40 @@ end;
         ("suite: mutex from an unknown define",
          suite_case("SetupMutex=EmpireEarthCommunity_Suite", "SetupMutex={#SuiteMutex}"),
          "cannot read '{#SuiteMutex}'"),
+        ("suite: no marker in the uninstall key of the suite",
+         suite_case('Root: HKLM; Subkey: "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{{#SuiteAppID}}_is1"; '
+                    'ValueType: dword; ValueName: "Empire Earth Community: Suite"; ValueData: "1"\n', ''),
+         "the suite does not write the value Empire Earth Community: Suite into its uninstall key"),
+        ("suite code: no marker in the uninstall key of the suite",
+         code_case("  RegWriteDWordValue(HKLM, 'Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{{#SuiteAppID}}_is1', "
+                   "'Empire Earth Community: Suite', 1);\n", ""),
+         "the suite does not write the value Empire Earth Community: Suite into its uninstall key"),
+        ("suite code: marker in the uninstall key of EE",
+         code_case("  RegWriteDWordValue(HKLM, 'Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{{#SuiteAppID}}_is1', 'Empire",
+                   "  RegWriteDWordValue(HKLM, 'Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{{#EE_AppID}}_is1', 'Empire"),
+         "not to the uninstall key of the suite"),
+        ("suite code: marker as a string",
+         code_case("RegWriteDWordValue(HKLM, 'Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{{#SuiteAppID}}_is1', 'Empire Earth Community: Suite', 1);",
+                   "RegWriteStringValue(HKLM, 'Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{{#SuiteAppID}}_is1', 'Empire Earth Community: Suite', '1');"),
+         "Empire Earth Community: Suite is REG_SZ, contract 0 REG_DWORD"),
+        ("suite code: marker with the data 0",
+         code_case("'Empire Earth Community: Suite', 1);", "'Empire Earth Community: Suite', 0);"),
+         "Empire Earth Community: Suite has the data 0, contract 0 1"),
+        ("suite code: marker with another value name",
+         code_case("'Empire Earth Community: Suite', 1);", "'Empire Earth Community: Suit', 1);"),
+         "the suite does not write the value Empire Earth Community: Suite into its uninstall key"),
+        ("suite code: marker in HKCU",
+         code_case("RegWriteDWordValue(HKLM, 'Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{{#SuiteAppID}}_is1'",
+                   "RegWriteDWordValue(HKCU, 'Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{{#SuiteAppID}}_is1'"),
+         "is written to Root HKCU"),
+        ("suite code: marker written twice",
+         code_case("  RegWriteDWordValue(HKLM, 'Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{{#SuiteAppID}}_is1', 'Empire Earth Community: Suite', 1);\n",
+                   "  RegWriteDWordValue(HKLM, 'Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{{#SuiteAppID}}_is1', 'Empire Earth Community: Suite', 1);\n"
+                   "  RegWriteDWordValue(HKLM, 'Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{{#SuiteAppID}}_is1', 'Empire Earth Community: Suite', 1);\n"),
+         "is written more than once"),
+        ("suite: row of the uninstall key marker missing in the contract",
+         replace(contract, "| Suite uninstall key marker | `Empire Earth Community: Suite`, REG_DWORD `1` ([1.3](#13-uninstall-key-informative)) |\n", ""),
+         "has no row 'Suite uninstall key marker'"),
         ("suite: record without the value Written",
          suite_case('ValueName: "Written"; ValueData: "{code:WrittenTime}"\n', 'ValueName: "Writen"; ValueData: "{code:WrittenTime}"\n'),
          "the suite record has no value Written"),
@@ -2850,7 +2949,7 @@ end;
         ("suite: minimal suite/suite.iss as the contract describes it", fixture,
          "suite: SetupMutex and AppMutex (4 names), record with 8 values, 4 game shortcuts to the launcher"),
         ("suite code: record and shortcuts in code as the contract describes them", code_fixture,
-         "record with 8 values, 4 game shortcuts to the launcher, no protected key in"),
+         "record with 8 values, 4 game shortcuts to the launcher, the uninstall key marker, no protected key in"),
         ("suite code: a protected key named in a comment only",
          code_case("// SuiteShortcut('{autodesktop}'", "// never touches Software\\Sierra\\CDKeys or authtools.dll\n// SuiteShortcut('{autodesktop}'"),
          "no protected key in"),

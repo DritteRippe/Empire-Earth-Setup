@@ -320,6 +320,8 @@ try {
     Set-E2ERegValue 'HKLM64' $key 'Inno Setup: App Path' $suiteRoot 'String'
     Set-E2ERegValue 'HKLM64' $key 'DisplayName' $E2ESuiteConst.UninstallName 'String'
     Set-E2ERegValue 'HKLM64' $key 'UninstallString' ('"' + $suiteRoot + '\unins000.exe"') 'String'
+    # MarkSuiteUninstallKey (suite_record.iss, contract 1.3, revision 5): after the record, in every run
+    if ($script:Bug -ne 'nomarker') { Set-E2ERegValue 'HKLM64' $key $E2ESuiteConst.UninstallMarker 1 'DWord' }
     $lines += "Suite record written: $merged"
     if ($script:Bug -eq 'cdkeys') { Set-E2ERegValue 'HKCU' $E2EConst.CdKeysKey 'Added' 'x' 'String' }
     Add-FakeLog $log $lines
@@ -407,7 +409,9 @@ try {
     @{ Bug = 'legacykept'; Scenario = 'S3'; Check = 'suite/LNK' },
     @{ Bug = 'keepproduct'; Scenario = 'S8'; Check = 'suite-uninstall/REMOVED' },
     @{ Bug = 'keepproduct'; Scenario = 'S7'; Check = 'suite-uninstall/SKIPPED' },
-    @{ Bug = 'cdkeys'; Scenario = 'S1'; Check = 'install/K9' }
+    @{ Bug = 'cdkeys'; Scenario = 'S1'; Check = 'install/K9' },
+    @{ Bug = 'nomarker'; Scenario = 'S1'; Check = 'install/REC' },
+    @{ Bug = 'nomarker'; Scenario = 'S9'; Check = 'repair/REC' }
   )
   foreach ($defect in $defects) {
     $script:Bug = $defect.Bug
