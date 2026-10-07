@@ -662,12 +662,22 @@ way to the line, but a human click can hit the window as well, and a game withou
    function, `SuiteStopBeforeInstall` (`suite_run.iss`), which first **suspends every process of the job**, then reads the
    log once more from the last offset **to its end**, and only then decides with the pure function `SuiteStopDecision`
    (`suite_common.iss`, unit-tested with the lines read after the freeze, the last line without a line end and the freeze
-   result). Frozen processes cannot write to the log, change the game folder or start another process, so what the log
-   shows is what the setup did. The three outcomes: *stop* (no sign of the install step and everything frozen: the job
-   is terminated while frozen; frozen processes can be terminated), *too late* (the line is in the log, or any later phase,
-   or the last line without a line end is the start of it, or the state is not certain: the processes are resumed and the
-   setup runs on; the existing outcome "the cancel came too late, its setup has started to install the game files", Cancel
-   applies to the next game as before) and *incomplete* (see point 3).
+   result). A frozen process starts no other process and runs no further statement, but the freeze is **not an instant**:
+   `NtSuspendProcess` returns before every thread has actually stopped, and a thread finishes the one system call it is in.
+   That is enough because of how Inno Setup 6.2.2 writes its log (checked in the source, `Logging.pas` `Log` and
+   `FileClass.pas` `TFile.WriteBuffer`): the time stamp, the text and the line end of a line are **separate `WriteFile`
+   calls, and there is no buffer** (a line is in the file when its call has returned). The setup has to finish the call that
+   writes the text of `Install step: ...`, and then make another call (the line end, then the deletion of the install
+   state), before it changes anything. So at most one call completes after the freeze: if the change lies behind the
+   freeze, the text was written and the read after the freeze sees it; if the text call is the one still finishing, the
+   read sees only the time stamp (or a part of the text), which counts as unclear (point 4), so the cancel is not carried
+   out; if the call of the time stamp is the one, the setup never writes the text and changes nothing. The read after the
+   kill (point 3) catches anything that is left. The four outcomes: *stop* (no sign of the install step and everything
+   frozen, and the stop confirmed, point 7: the job is terminated while frozen; frozen processes can be terminated),
+   *too late* (the line is in the log, or any later phase, or the last line without a line end is the start of its text:
+   the processes are resumed and the setup runs on; the existing outcome "the cancel came too late, its setup has started
+   to install the game files", Cancel applies to the next game as before), *unclear* (point 4 and point 7: resumed and
+   running on, but nobody can say that it installs) and *incomplete* (see point 3).
 2. **How the freeze is done.** `QueryInformationJobObject(JobObjectBasicProcessIdList)` lists the processes of the job
    (the loader, the real setup, and the 64-bit helper of Inno Setup once it exists); each is opened by its id for
    `PROCESS_SUSPEND_RESUME` and `PROCESS_QUERY_INFORMATION`, **proved to be in the job with `IsProcessInJob`** (an id the job
@@ -683,21 +693,23 @@ way to the line, but a human click can hit the window as well, and a game withou
 3. **When the freeze or the read is not certain, nothing is killed.** If a process cannot be opened or suspended, if the
    job cannot be listed (also more than 128 processes), if the job keeps growing or if the log exists but cannot be read
    to its end (`SuiteTailLogToEnd` tells that from "nothing new"), the suite resumes what it froze, logs why and treats the
-   cancel as too late: a product setup that could not be frozen is never killed. After a termination the log is read one
-   last time (it cannot grow any more, but a line the suite missed, for example one buffered in the setup until its end,
-   shows up now): if the install step is in it, or in its last line, or the log cannot be read, the result is *incomplete*:
+   cancel as not carried out (*unclear*, point 4): a product setup that could not be frozen is never killed. After a
+   termination the log is read one last time (it cannot grow any more, but a line the suite missed, for example one whose
+   text call finished after the freeze, shows up now): if the install step is in it, or in its last line, or the log
+   cannot be read, the result is *incomplete*:
    the suite does not claim "cancelled before it installed anything", it logs `its log shows the install step ... it may
    be incomplete`, starts no further game, counts the game as failed (the last page lists it as failed, not as
    cancelled) and tells the user, in English, German and French (`SuiteRunCancelledLate`), that the game may be only
    partly installed and must be repaired by running the suite again. The stall question and the cap, which also end a
    product setup, report it with the text they already had (`SuiteReasonTimeoutInstalling`).
 4. **A partial last line counts.** A log line that is only partly written (the product was frozen between two writes of one
-   line, or the line has no line end yet) counts as the line of the install step when its text is the start of
-   `Install step: the game folder is changed from here on` or of Inno Setup's `Starting the installation process.`, and
-   so does a line of which only the time stamp (or a part of it) is there, because its text is not known: the suite
-   would rather let a game setup run on than kill one that is about to change the game folder. After a termination only a
-   line that is the start of the marker counts (nothing can grow any more). The price is that a click that arrives while a
-   line is being written is answered with "not now", which is harmless.
+   line, which the separate calls of `Log` make possible, or the line has no line end yet) counts as the line of the
+   install step when its text is the start of `Install step: the game folder is changed from here on` or of Inno Setup's
+   `Starting the installation process.`: *too late*. A line of which only the time stamp (or a part of it) is there has no
+   text yet and is *unclear*: the suite would rather let a game setup run on than kill one that is about to change the game
+   folder, but it cannot say that the game is being installed either. After a termination only a line that is the start of
+   the marker counts (nothing can grow any more). A click that arrives while a line is being written is therefore not
+   answered with "the game is being installed" (see point 7 for what it gets).
 5. **The stall question keeps the user's informed choice.** The text for a setup that installs says the game may be only
    partly installed and the answer "stop" is the user's decision, so `SuiteWaitForProduct` still stops such a setup
    directly (the one remaining direct call of `SuiteStopProduct`); only the answer given to the text "no game files have
@@ -716,19 +728,51 @@ way to the line, but a human click can hit the window as well, and a game withou
    the log held back while it waits, so the progress of the suite has not seen the line when the cancel is requested: the
    decision has to find the line itself. Scenario **S14** (`/TestCancelAtInstall /TestCancelNeoEE`) expects the outcome
    "too late" for EE (log lines `freezing ...`, `N processes frozen`, `its log shows the install step, its setup is not
-   stopped`, `N processes run again`, `the cancel came too late`), EE complete (folder, `install.ini`, `files.sha256`,
+   stopped`, `its N processes run again`, `the cancel came too late`), EE complete (folder, `install.ini`, `files.sha256`,
    uninstall key, record, the checks of S2), the pause lines in its product log in the order *before - Install step -
-   after - Install state deleted*, exit code 0, and the cancel of NeoEE stopping it before its install step as in S12.
+   after - Install state deleted*, exit code 0, and the cancel of NeoEE stopping it before its install step as in S12. The
+   phase line `Product EE phase: install` between `N processes frozen` and `its log shows the install step` proves that the
+   decision found the line itself: it is written by the read after the freeze, a read before the freeze would put it before
+   `freezing`.
    Without the first pause S11, S12 and S13 would flip with the fix: their cancel is requested when the log is first
    read, a placeholder setup reaches the install step within about 50 milliseconds from there, and the decision now
    correctly answers "too late" when it is faster than the suite; the pause before the install step keeps "before" before.
    S11, S12 and S13 now also expect the freeze lines and no line that shows the install step.
-7. **Evidence.** Unit tests (`ci/tests/suite_tests.iss`): the decision for 34 combinations of new lines, partial last
+7. **The stop is confirmed, the freeze proves the loader, an unclear cancel is tried again** (review of the race fix).
+   (a) `SuiteKillProduct` returns what `TerminateJobObject` returned and `SuiteStopProduct` returns True only if the order
+   was taken **and the setup is gone** within `SuiteKillWaitMs`. `SuiteStopBeforeInstall` closes the handles of the frozen
+   processes without resuming them (`Killed`) only after that. Before, a failed kill left a hidden (`/VERYSILENT`) setup
+   frozen for good, holding its mutex, and the read after the kill still saw no install step: the suite reported
+   "cancelled before it installed anything" and went on. Now the processes run again and the result is *unclear*.
+   (b) `SuiteFreezeJob` takes the loader (`SuiteChildProc`, the process the job was made for). A pass that finds nothing new
+   is a success only if the loader has ended or its id (`GetProcessId`) is among the frozen processes: an id that
+   `OpenProcess` rejects with `ERROR_INVALID_PARAMETER` counts as ended, so a wrong or empty list of the job (a layout
+   mistake of the record under WOW64) would otherwise end as a success with 0 frozen processes, and the kill would go
+   ahead on a running setup, which is the old race again. A frozen loader means at least one frozen process while it runs.
+   (c) `SuiteStopDecision` tells *too late* (`SuiteStopTooLate`) from *unclear* (`SuiteStopUnclear`: not everything frozen,
+   the log not read to its end, a last line with only its time stamp, the stop did not happen). Only *too late* is
+   answered with `SuiteCancelNotNow` ("Cancel is no longer possible: the game is being installed"), which would be untrue
+   otherwise and dropped the "Yes" of the user. A confirmed cancel with an *unclear* result stays requested and is decided
+   again after the next wait slice, `SuiteCancelTriesMax` (5) times (a line that is being written is complete within
+   milliseconds, a freeze that failed once usually works the next time); if it stays unclear, the log says `the cancel was
+   not carried out, its setup could not be stopped safely` and the user gets the new text `SuiteCancelRetry` (English,
+   German, French: it could not be stopped safely right now, the installation goes on unchanged, click Cancel again). The
+   stall question and the cap end a product setup only on `SuiteStopDone` (stopped or incomplete), so a result that the wait
+   does not know is no stop.
+8. **`/TestCancelAtInstall` reads to the end of the log.** `SuiteTestLogShowsInstall` reads its copy of the progress with
+   `SuiteTailLogToEnd`: one `SuiteTailLog` call reads one chunk of at most 256 KB, and a log that is longer before the install
+   step would never have triggered the test cancel.
+9. **Evidence.** Unit tests (`ci/tests/suite_tests.iss`): the decision for 34 combinations of new lines, partial last
    lines, freeze result and termination; `SuiteTailLogToEnd` on a log longer than one chunk, with a cut marker line, missing
    and unreadable; `SuiteFreezeJob` and `SuiteResumeFrozen` on real programs (the setup of the test as a loader with a real
    setup that writes every 25 ms: frozen, nothing is written; resumed, it goes on; terminated while frozen, it ends with
-   `SuiteKillCode`; no job; a job whose program ended). `ci/check_suite.py` parts [Freeze], [Hook] and the list of the log lines
-   the scenarios match, with mutants. A Wine run of the placeholder suite (copied prefix, no network): `/TestCancelAtInstall
+   `SuiteKillCode`; no job; a job whose program ended; a loader that runs outside the job and an empty job, both no freeze; a
+   64-bit program frozen, resumed and stopped by the 32-bit test setup; a pause after the freeze before the first size is read,
+   because a write that was in progress finishes; `SuiteKillProduct` on a closed job). `ci/check_suite.py` parts [Freeze], [Hook]
+   and the list of the log lines the scenarios match, with mutants. The smoke test of the scenarios (the fake Windows) takes the
+   lines of the cancel from the `Log(` templates of `suite/*.iss`, filled in with sample values, instead of writing them by hand,
+   and runs every pattern of S11 to S14 against those lines: the first version of S14 expected `N processes run again` where the
+   code writes `its N processes run again`, and the fake wrote the same wrong line, so nothing caught it before Windows. A Wine run of the placeholder suite (copied prefix, no network): `/TestCancelAtInstall
    /TestCancelNeoEE` gave the S14 sequence above with exit code 0 and EE complete, `/TestCancel` and `/TestCancelNeoEE`
    froze 2 processes and stopped the job before the line (exit codes 3 and 0), and a cancelled repair left every file of
    EE as it was. On Windows the job `suite-e2e` (S11 to S14) and TP-99 on the laptop remain.
@@ -740,9 +784,10 @@ way to the line, but a human click can hit the window as well, and a game withou
 - The freeze takes milliseconds. A suite that dies while a product setup is frozen leaves it frozen (nothing resumes it):
   the window is the few milliseconds between the freeze and the decision, and a frozen setup is visible and can be ended in
   the Task Manager; the alternative, a kill, is what this amendment avoids.
-- The placeholder setups of CI are 4 seconds slower per product run. The residual risk that remains is a game setup that
-  buffers the line `Install step: ...` in memory and writes it later than it changes the game folder: the logs of
-  CI show that the suite reads a line within milliseconds of its time stamp, so Inno Setup does not hold lines back for
-  long, and the read after the termination reports a line that shows up late as *incomplete* instead of claiming that
-  nothing was installed.
+- The placeholder setups of CI are 4 seconds slower per product run. There is no buffering risk: Inno Setup 6.2.2 keeps no
+  buffer for its log (point 1). The residual window is the late suspension: one system call can finish after the freeze, which
+  leaves at most a time stamp or a part of the text in the log (unclear, not stopped), and the read after the termination
+  reports a line that shows up late as *incomplete* instead of claiming that nothing was installed. The cases that remain are
+  a suite that dies during the few milliseconds of the freeze (documented above) and a stop that Windows does not carry out
+  (the processes run again, the click is answered with `SuiteCancelRetry`).
 - The contract (1.7 point 2, informative) says that the suite decides on the log of a frozen setup.

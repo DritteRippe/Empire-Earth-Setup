@@ -995,7 +995,18 @@ setup version stays 1.7.2 until the release.
   terminated while frozen and the log read once more, and a line that shows up now (a missed one) gives the message that
   the game may be only partly installed and must be repaired by running the suite again (new text
   `SuiteRunCancelledLate` in English, German and French) instead of "cancelled before it installed anything". The log
-  of the suite names the steps (`freezing its setup ...`, `N processes frozen`, `N processes run again`).
+  of the suite names the steps (`freezing its setup ...`, `N processes frozen`, `its N processes run again`).
+  Review of this fix: a stop counts only when Windows took the order and the setup is gone (a failed kill used to leave a
+  hidden game setup frozen for good, holding its mutex, while the suite said "cancelled before it installed anything");
+  the freeze succeeds only if the loader has ended or is among the frozen processes (an empty or wrong list of the job was
+  taken for a freeze); a decision that is not certain (a process that cannot be frozen, a log that cannot be read, a last
+  line with only its time stamp) is no longer answered with "the game is being installed": the "Yes" stays requested and is
+  decided again a few times, then the new text `SuiteCancelRetry` (English, German, French) says that the game setup
+  could not be stopped safely right now; the comments and the ADR give the real reason the late suspension is safe (Inno
+  Setup writes the time stamp, the text and the line end of a log line in separate calls without a buffer); the CI scenario
+  S14 matched `N processes run again` while the suite writes `its N processes run again`: the smoke test of the scenarios
+  now takes the lines of the cancel from the `Log(` templates of the suite and runs every pattern of S11 to S14 against
+  them.
   Unit-tested (decision, partial lines, `SuiteTailLogToEnd`, freeze and resume of real processes), checked by
   `ci/check_suite.py` (part [Freeze]). CI: the placeholder setups pause 2 seconds before and after the install step
   (only `ci/build.ps1 -Placeholders`; `build.ps1` and `check_suite.py` prove that no other build has the hook), so S11,

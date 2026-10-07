@@ -3944,12 +3944,21 @@ auf dem Desktop. Es gilt:
   `the cancel came too late, its setup has started to install the game files`.
   Das Einfrieren steht in beiden Fällen im Log der Suite: vor dem Beenden `Product EE: freezing its setup and everything
   it started, to look at its log once more before it is stopped` und `Product EE: 2 processes frozen` (mit dem Setup des
-  Spiels sind es zwei Prozesse, bei einer Installation mit dem 64-Bit-Helfer drei), bei „Ja“ danach `cancelled by the
-  user before it installed anything, stopping its setup ...`; kam „Ja“ zu spät, steht stattdessen `Product EE: its log
-  shows the install step, its setup is not stopped`, `Product EE: 2 processes run again` und `the cancel came too late
-  …`, und das Setup läuft zu Ende (ein Prozess, der nach dem späten „Ja“ stehen bleibt, ist ein Fehler: dann fehlt die
-  Zeile `processes run again`). Steht `its setup could not be frozen (…)` im Log, hat Windows das Anhalten verweigert: das
-  Setup wurde bewusst nicht beendet (Befund festhalten). Die Zeile `Product EE was cancelled by the user, but its log shows
+  Spiels sind es zwei Prozesse; der 64-Bit-Helfer von Inno Setup, den das Setup mit `Starting 64-bit helper process.` erst im
+  Installationsschritt startet, ist vor dem Installationsschritt noch nicht da, drei Prozesse kann also nur ein zu spätes
+  Anhalten zeigen, das nach dieser Zeile liegt), bei „Ja“ danach `cancelled by the user before it installed anything,
+  stopping its setup ...`; kam „Ja“ zu spät, steht stattdessen `Product EE: its log shows the install step, its setup is
+  not stopped`, `Product EE: its 2 processes run again` und `the cancel came too late …`, und das Setup läuft zu Ende (ein
+  Prozess, der nach dem späten „Ja“ stehen bleibt, ist ein Fehler: dann fehlt die Zeile `processes run again`). Steht `its
+  setup could not be frozen (…)` im Log, hat Windows das Anhalten verweigert oder die Prozessliste des Jobs war leer oder
+  falsch (`the loader of the product setup … runs, but is not among the … processes the job named`): das Setup wurde bewusst
+  nicht beendet (Befund festhalten). Die Suite entscheidet dann in den nächsten Wartetakten noch bis zu viermal neu
+  (`the state of its setup is not certain, the cancel stays requested (try n of 5)`); bleibt es unklar, steht `the cancel was
+  not carried out, its setup could not be stopped safely` im Log, das Fenster sagt „… ließ sich gerade nicht sicher beenden …
+  Klicke in einem Moment erneut auf Abbrechen“ (nicht „Das Spiel wird gerade installiert“, das wäre falsch) und das Setup
+  läuft unverändert weiter. Steht `Windows did not stop its setup (…)` oder `its setup did not end within … ms after it was
+  stopped` im Log, hat das Beenden nicht geklappt: die Prozesse laufen wieder (`its setup was not stopped, it runs on`),
+  nichts bleibt angehalten (Task-Manager prüfen). Die Zeile `Product EE was cancelled by the user, but its log shows
   …` mit der Meldung „… ist möglicherweise nur teilweise installiert“ bedeutet, dass das Protokoll die Zeile erst nach dem
   Beenden zeigte: die Suite muss noch einmal laufen (Reparatur), nichts davon als bestanden werten.
 
