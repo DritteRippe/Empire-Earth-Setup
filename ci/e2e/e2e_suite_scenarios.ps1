@@ -1104,7 +1104,7 @@ function Invoke-E2EScenarioS13 {
     $run = Invoke-E2ESuiteInstall $s 'install' $env:E2E_SUITE 'EE' $false
     if (-not $run.Ok) { return }
     $roots = Get-E2ESuiteProductRoots
-    $before = @(Get-E2EFileTreeLines $roots['EE'])
+    $before = @(Get-E2EFileTreeLines $roots['EE'] -NoFolderTimes)
     $stateBefore = Get-E2ESuiteState @('EE')
     $recordBefore = Get-E2ERegValues 'HKLM64' $E2ESuiteConst.RecordKey
     $problems = @()
@@ -1128,7 +1128,7 @@ function Invoke-E2EScenarioS13 {
         '^Product EE: its setup did not end', '^Product EE phase: (install|post install|CD keys|manifest|done)'))
     [void](Complete-E2ECheck $s 'repair-cancel/STOP' $problems 'the repair of EE was stopped before it changed anything, exit code 3')
 
-    $after = @(Get-E2EFileTreeLines $roots['EE'])
+    $after = @(Get-E2EFileTreeLines $roots['EE'] -NoFolderTimes)
     $problems = @(Compare-E2ESnapshot $before $after 'a file or folder of EE')
     $stateAfter = Get-E2ESuiteState @('EE')
     if ($stateAfter['EE'].Root -ine $stateBefore['EE'].Root) { $problems += "the folder of EE changed from $($stateBefore['EE'].Root) to $($stateAfter['EE'].Root)" }

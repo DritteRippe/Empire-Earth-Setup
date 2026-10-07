@@ -190,9 +190,16 @@ function Remove-E2EFolder([string]$Path) {
   [System.IO.Directory]::Delete($Path, $true)
 }
 
-# Sorted lines 'rel|size|ticks|attributes' of the tree, for the before/after comparisons
-function Get-E2EFileTreeLines([string]$Root) {
-  return @(Get-E2EFileTree $Root | ForEach-Object { '{0}|{1}|{2}|{3}' -f $_.Rel, $_.Size, $_.Ticks, $_.Attributes } | Sort-Object)
+# Sorted lines 'rel|size|ticks|attributes' of the tree, for the before/after comparisons. With
+# NoFolderTimes a folder has '-' instead of its ticks: NTFS updates the time of a folder in the
+# index of its parent lazily, so a listing right after files were written below it can show an
+# older time than a later listing although nothing changed in between.
+function Get-E2EFileTreeLines([string]$Root, [switch]$NoFolderTimes) {
+  return @(Get-E2EFileTree $Root | ForEach-Object {
+      $ticks = $_.Ticks
+      if ($NoFolderTimes -and $_.IsDir) { $ticks = '-' }
+      '{0}|{1}|{2}|{3}' -f $_.Rel, $_.Size, $ticks, $_.Attributes
+    } | Sort-Object)
 }
 
 function Get-E2EFileSha1([string]$Path) {
