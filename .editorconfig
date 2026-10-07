@@ -9,3 +9,10 @@ charset = utf-8-bom
 end_of_line = crlf
 indent_style = space
 indent_size = 2
+
+# dgVoodoo configurations: ASCII, CRLF, a line end at the end, tabs kept (ADR 0005)
+[config/dgVoodoo/*.conf]
+end_of_line = crlf
+insert_final_newline = true
+trim_trailing_whitespace = false
+indent_style = unset

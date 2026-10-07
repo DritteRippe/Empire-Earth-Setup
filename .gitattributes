@@ -11,6 +11,9 @@
 # The pins of the online files: LF on every checkout (ci/online_pins.ps1 refuses CR, downloads.iss
 # reads the lines with ISPP)
 pins/*.txt text eol=lf
+# The dgVoodoo configurations (config/dgVoodoo, ADR 0005): stored and checked out byte for byte (CRLF, tabs), because
+# ci/dgvoodoo_pins.ps1 and the end-to-end test compare them with the installed dgVoodoo.conf
+config/dgVoodoo/*.conf -text
 
 # Binary files: never touch line endings, never diff/merge as text.
 *.bmp  binary
