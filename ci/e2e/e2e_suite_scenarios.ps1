@@ -1030,7 +1030,7 @@ function Get-E2ECancelStopNotMatches([string]$Id) {
     "^Product ${Id} phase: (install|post install|CD keys|manifest|done)")
 }
 
-# What a cancelled run may leave: the folder of the suite with the log of the product setup it stopped, and nothing# What a cancelled run may leave: the folder of the suite with the log of the product setup it stopped, and nothing
+# What a cancelled run may leave: the folder of the suite with the log of the product setup it stopped, and nothing
 # else; no product, no record, no shortcut, no uninstall key
 function Test-E2ECancelledState([string]$Scenario, [string]$Step) {
   $root = Get-E2ESuiteRoot
@@ -1249,36 +1249,55 @@ function Invoke-E2ESuitePrepare {
 # state (install.ini, files.sha256), the uninstall key and the record as after any installation, and the setup was not
 # stopped. The second cancel (/TestCancelNeoEE) is requested before the install step of NeoEE, which waits 2 seconds before
 # that line, so it stops NeoEE and the suite finishes its part for EE like in S12: the cancel stops what comes after.
+# The line that asks for the cancel of S14 (suite_run.iss, SuiteWaitForProduct)
+$E2ECancelAtInstallRequest = '/TestCancelAtInstall, its log shows the install step, the cancel is requested now'
+
+# The lines S14 expects of the suite log, and the ones it must not find. The smoke test of the scenarios runs these patterns
+# against the lines that the Log( calls of suite/suite_run.iss write when their templates are filled in, so a pattern that
+# spells a line the code does not write (finding 1 of the review of the race fix) fails there and not on Windows.
+function Get-E2ECancelLateMatches {
+  return @(
+    '^Product EE \(step 1 of 2, state 0\): ',
+    '^Product NeoEE \(step 2 of 2, state 0\): ',
+    '^Products that succeeded in this run: "EE"$',
+    '^The installation of NeoEE was cancelled by the user: no further product setup is started, the suite finishes its own part for "EE"$',
+    '^Suite record written: EE$')
+}
+
+function Get-E2ECancelLateNotMatches {
+  return @('^Product EE: cancelled by the user', '^Product EE: .*stopping its setup and everything it started', '^Product EE: its setup is gone', '^Product EE: its setup did not end',
+    '^Product EE was cancelled', '^Product EE failed', '^Product EE: its setup could not be frozen', '^Product EE: its log could not be read',
+    '^Product EE: the state of its setup is not certain', '^Product EE: the cancel was not carried out',
+    '^Product EE: Windows did not stop its setup', '^Product EE: its setup was not stopped',
+    '^Product EE: \d+ of its processes could not be resumed', '^Product EE: its log shows the install step \(or could not be read\)',
+    '^The installation was cancelled by the user: no further product setup is started, Setup ends$')
+}
+
+# The order of the decision for EE: the request, the freeze, the log read after it (its phase line "install" is written by that
+# read: a read before the freeze would put the line before "freezing"), the refusal, the processes running again, the end of
+# the setup with exit code 0. The count of processes: the loader and the real setup at least.
+function Get-E2ECancelLateOrder {
+  return @(
+    '^Product EE \(step 1 of 2, state 0\): ',
+    "^Product EE: $E2ECancelAtInstallRequest`$",
+    '^Product EE: freezing its setup and everything it started, to look at its log once more before it is stopped$',
+    '^Product EE: ([2-9]|[1-9]\d+) processes frozen$',
+    '^Product EE phase: install',
+    '^Product EE: its log shows the install step, its setup is not stopped$',
+    '^Product EE: its ([2-9]|[1-9]\d+) processes run again$',
+    '^Product EE: the cancel came too late, its setup has started to install the game files$',
+    '^Product EE: the setup ended with exit code 0 \(kind 0\), uninstall entry 1$',
+    '^Product NeoEE \(step 2 of 2, state 0\): ')
+}
+
 function Invoke-E2EScenarioS14 {
   $s = 'S14'
   if (-not (Initialize-E2ESuiteScenario $s)) { return }
   try {
     $run = Invoke-E2ESuiteRun -Scenario $s -Step 'cancel-late' -Package $env:E2E_SUITE -Products 'EE,NeoEE' -ExtraSwitches @('/TestCancelAtInstall', '/TestCancelNeoEE')
     if (-not $run.Ok) { return }
-    $request = '/TestCancelAtInstall, its log shows the install step, the cancel is requested now'
-    $problems = @(Test-E2ELogLines -Lines $run.LogLines -Matches @(
-        '^Product EE \(step 1 of 2, state 0\): ',
-        '^Product NeoEE \(step 2 of 2, state 0\): ',
-        '^Products that succeeded in this run: "EE"$',
-        '^The installation of NeoEE was cancelled by the user: no further product setup is started, the suite finishes its own part for "EE"$',
-        '^Suite record written: EE$') `
-      -NotMatches @('^Product EE: cancelled by the user', '^Product EE: stopping', '^Product EE: its setup is gone', '^Product EE: its setup did not end',
-        '^Product EE was cancelled', '^Product EE failed', '^Product EE: its setup could not be frozen', '^Product EE: its log could not be read',
-        '^Product EE: the state of its setup is not certain', '^Product EE: the cancel came too late, its setup could not be stopped safely',
-        '^Product EE: \d+ of its processes could not be resumed', '^Product EE: its log shows the install step \(or could not be read\)',
-        '^The installation was cancelled by the user: no further product setup is started, Setup ends$'))
-    # the order of the decision for EE: the request, the freeze, the log read after it, the refusal, the processes running
-    # again, the end of the setup with exit code 0
-    $problems += @(Test-E2ELogOrder $run.LogLines @(
-        '^Product EE \(step 1 of 2, state 0\): ',
-        "^Product EE: $request`$",
-        '^Product EE: freezing its setup and everything it started, to look at its log once more before it is stopped$',
-        '^Product EE: ([2-9]|[1-9]\d+) processes frozen$',
-        '^Product EE: its log shows the install step, its setup is not stopped$',
-        '^Product EE: ([2-9]|[1-9]\d+) processes run again$',
-        '^Product EE: the cancel came too late, its setup has started to install the game files$',
-        '^Product EE: the setup ended with exit code 0 \(kind 0\), uninstall entry 1$',
-        '^Product NeoEE \(step 2 of 2, state 0\): '))
+    $problems = @(Test-E2ELogLines -Lines $run.LogLines -Matches @(Get-E2ECancelLateMatches) -NotMatches @(Get-E2ECancelLateNotMatches))
+    $problems += @(Test-E2ELogOrder $run.LogLines @(Get-E2ECancelLateOrder))
     $problems += @(Test-E2ELogOrder $run.LogLines (Get-E2ECancelStopPatterns 'NeoEE' '/TestCancel, the cancel is requested as if the user had answered the question with Yes'))
     $problems += @(Test-E2ELogLines -Lines $run.LogLines -NotMatches (Get-E2ECancelStopNotMatches 'NeoEE'))
     [void](Complete-E2ECheck $s 'cancel-late/DECISION' $problems 'the cancel at the install step of EE came too late (frozen, log read again, EE not stopped), the cancel of NeoEE stopped it')
@@ -1306,7 +1325,7 @@ function Invoke-E2EScenarioS14 {
   }
 }
 
-# --- The scenarios by name ------------------------------------------------------------------------------------------------# --- The scenarios by name ------------------------------------------------------------------------------------------------
+# --- The scenarios by name ------------------------------------------------------------------------------------------------
 
 function Invoke-E2ESuiteScenario([string]$Id) {
   switch ($Id) {

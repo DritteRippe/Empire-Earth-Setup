@@ -163,9 +163,9 @@ PRODUCT_LOG_LINES = [
 # (check_install_marker).
 INNO_LOG_CONSTANTS = ("SuiteLogInstallStart", "SuiteLogTempFile", "SuiteLogInstallDone", "SuiteLogDestFile", "SuiteLogClosed")
 PRODUCT_LOG_FILES = tuple(sorted({rel for rel, _ in PRODUCT_LOG_LINES}))
-# the build files that pass the test hook of the placeholder builds (check_placeholder_hook) and the scenarios that read the
-# log lines of the cancel (check_test_log_lines)
-HOOK_FILES = ["ci/build.ps1", "ci/build_helpers.ps1", "ci/e2e/e2e_suite_scenarios.ps1"]
+# the build files that pass the test hook of the placeholder builds (check_placeholder_hook) and the scenarios and their smoke test
+# that read the log lines of the cancel (check_test_log_lines)
+HOOK_FILES = ["ci/build.ps1", "ci/build_helpers.ps1", "ci/e2e/e2e_suite_scenarios.ps1", "ci/e2e/tests/e2e_suite_scenarios.tests.ps1"]
 # The lines the scenarios S11 to S14 of ci/e2e/e2e_suite_scenarios.ps1 match (the suite log and the log of the placeholder
 # product setup): file, text, written by the code of that file, and the part of it the scenarios spell (None: all of it). A reworded line fails here instead of in the job on Windows;
 # they are no lines the suite parses (PRODUCT_LOG_LINES), but the tests depend on them (TEST-PLAN TP-99 names them, too).
@@ -193,6 +193,8 @@ TEST_LOG_LINES = [
     ("setup_is6.iss", "Test hook of a placeholder build: pausing 2000 ms before the install step", None),
     ("setup_is6.iss", "Test hook of a placeholder build: pausing 2000 ms after the install step line", None),
 ]
+# the smoke test of the scenarios: its fake suite writes the lines of the cancel from the templates in suite/*.iss
+SMOKE_TEST = "ci/e2e/tests/e2e_suite_scenarios.tests.ps1"
 LOG_LINE_COMMENT = "suite parses this line"
 PRODUCT_SOURCES = ("{#EESetupFile}", "{#NeoEESetupFile}")
 # the legal texts of the wizard: files of the product setups, only extracted to {tmp} by the wizard
@@ -777,10 +779,12 @@ def check_placeholder_hook(root, errors):
 
 
 def check_test_log_lines(root, errors):
-    """The log lines the scenarios S11 to S14 match (TEST_LOG_LINES) are written by the code, and the scenario file of the
-    end-to-end test still names them; the number of rules checked."""
+    """The log lines the scenarios S11 to S14 match (TEST_LOG_LINES) are written by the code, the scenario file of the
+    end-to-end test still names them, and the smoke test of the scenarios takes them from the code instead of writing them by
+    hand (the fake once wrote "N processes run again" where the code writes "its N processes run again", and the scenario
+    agreed with the fake); the number of rules checked."""
     texts = {}
-    for rel in {entry[0] for entry in TEST_LOG_LINES} | {"ci/e2e/e2e_suite_scenarios.ps1"}:
+    for rel in {entry[0] for entry in TEST_LOG_LINES} | {"ci/e2e/e2e_suite_scenarios.ps1", SMOKE_TEST}:
         try:
             texts[rel] = read(root, rel)
         except CheckError as error:
@@ -793,7 +797,17 @@ def check_test_log_lines(root, errors):
                           "(TEST_LOG_LINES): a change of this log line changes the scenarios and the test plan in the same commit")
         if (spelled or line) not in scenarios:
             errors.append(f"ci/e2e/e2e_suite_scenarios.ps1 does not name {(spelled or line)!r}, which {rel} writes (TEST_LOG_LINES)")
-    return len(TEST_LOG_LINES)
+    smoke = texts[SMOKE_TEST]
+    for needed in ("function CodeLine", "function Get-RenderedLogLines", "Get-PascalLogArguments",
+                   "a line the code writes matches the pattern"):
+        if needed not in smoke:
+            errors.append(f"{SMOKE_TEST}: the smoke test must fill in the Log( templates of suite/*.iss and run the patterns of S11 to S14 "
+                          f"against them ({needed!r} is missing)")
+    for rel, line, spelled in TEST_LOG_LINES:
+        if rel == "suite/suite_run.iss" and re.search(r'\$lines \+= "[^"\n]*' + re.escape(spelled or line), smoke):
+            errors.append(f"{SMOKE_TEST}: the fake writes the log line {(spelled or line)!r} by hand; it takes the lines of the cancel from "
+                          "the code (CodeLine), so that it cannot drift from suite_run.iss")
+    return len(TEST_LOG_LINES) + 2
 
 
 def check_display(files, errors):
@@ -1345,6 +1359,12 @@ def self_test(source_root):
         ("a log line of the cancel reworded in the scenarios",
          replace("ci/e2e/e2e_suite_scenarios.ps1", "processes run again", "processes go on", 2),
          "does not name 'processes run again'"),
+        ("a line of the cancel written by hand in the fake",
+         replace("ci/e2e/tests/e2e_suite_scenarios.tests.ps1", "$lines += CodeLine ' processes run again' $id", "$lines += \"Product ${id}: 2 processes run again\""),
+         "the fake writes the log line 'processes run again' by hand"),
+        ("the patterns are not run against the code",
+         replace("ci/e2e/tests/e2e_suite_scenarios.tests.ps1", "a line the code writes matches the pattern", "a pattern"),
+         "the smoke test must fill in the Log( templates"),
         ("a hook line reworded in the product script",
          replace("setup_is6.iss", "Test hook of a placeholder build: pausing 2000 ms after the install step line", "Test hook of a placeholder build: pausing after the install step"),
          "which the scenarios S11 to S14 of ci/e2e/e2e_suite_scenarios.ps1 match"),

@@ -79,6 +79,130 @@ try {
   . (Join-Path $E2EFolder 'e2e_suite_scenarios.ps1')
   Set-E2EAppIdOverride $E2ESuiteConst.ProductAppIds
 
+  # --- The log lines of the suite code ----------------------------------------------------------------------------------
+  # The fake suite below must write the lines that suite/*.iss writes, not lines that look like them (the scenarios matched
+  # "N processes run again" while the code wrote "its N processes run again", and the fake agreed with the scenario). So the
+  # Log( calls of the suite scripts are read, their templates ('Product ' + Product + ': ...' + IntToStr(...)) are filled in with
+  # sample values, and the fake takes its lines from there (CodeLine). The patterns of S11 to S14 are run against the same lines.
+  function Get-PascalLogArguments([string]$Text) {
+    # the argument text of every Log( call, with strings ('' is a quote inside) and // comments skipped
+    $found = New-Object System.Collections.Generic.List[string]
+    $n = $Text.Length
+    $i = 0
+    while ($i -lt $n) {
+      $c = $Text[$i]
+      if ($c -eq "'") {
+        $i++
+        while ($i -lt $n) {
+          if ($Text[$i] -eq "'") { if ($i + 1 -lt $n -and $Text[$i + 1] -eq "'") { $i += 2; continue } else { break } }
+          $i++
+        }
+        $i++; continue
+      }
+      if ($c -eq '/' -and $i + 1 -lt $n -and $Text[$i + 1] -eq '/') {
+        while ($i -lt $n -and $Text[$i] -ne "`n") { $i++ }
+        continue
+      }
+      if ($c -eq 'L' -and $i + 3 -lt $n -and $Text.Substring($i, 4) -ceq 'Log(' -and ($i -eq 0 -or $Text[$i - 1] -notmatch '[A-Za-z0-9_]')) {
+        $start = $i + 4
+        $depth = 1
+        $j = $start
+        while ($j -lt $n -and $depth -gt 0) {
+          $d = $Text[$j]
+          if ($d -eq "'") {
+            $j++
+            while ($j -lt $n) {
+              if ($Text[$j] -eq "'") { if ($j + 1 -lt $n -and $Text[$j + 1] -eq "'") { $j += 2; continue } else { break } }
+              $j++
+            }
+          } elseif ($d -eq '(') { $depth++ } elseif ($d -eq ')') { $depth-- }
+          $j++
+        }
+        $found.Add($Text.Substring($start, $j - 1 - $start))
+        $i = $j; continue
+      }
+      $i++
+    }
+    return , $found.ToArray()
+  }
+  function Split-PascalConcat([string]$Argument) {
+    # the top-level parts of 'a' + b + 'c'
+    $parts = New-Object System.Collections.Generic.List[string]
+    $depth = 0
+    $current = New-Object System.Text.StringBuilder
+    $i = 0
+    $n = $Argument.Length
+    while ($i -lt $n) {
+      $c = $Argument[$i]
+      if ($c -eq "'") {
+        [void]$current.Append($c); $i++
+        while ($i -lt $n) {
+          [void]$current.Append($Argument[$i])
+          if ($Argument[$i] -eq "'") { if ($i + 1 -lt $n -and $Argument[$i + 1] -eq "'") { $i++; [void]$current.Append($Argument[$i]) } else { break } }
+          $i++
+        }
+        $i++; continue
+      }
+      if ($c -eq '(') { $depth++ } elseif ($c -eq ')') { $depth-- }
+      if ($c -eq '+' -and $depth -eq 0) { $parts.Add($current.ToString().Trim()); [void]$current.Clear() } else { [void]$current.Append($c) }
+      $i++
+    }
+    $parts.Add($current.ToString().Trim())
+    return , $parts.ToArray()
+  }
+  # The templates: one array of parts per Log( call of the suite scripts
+  $script:LogTemplates = @()
+  foreach ($file in @(Get-ChildItem -LiteralPath (Join-Path (Split-Path -Parent (Split-Path -Parent $E2EFolder)) 'suite') -Filter '*.iss' -File)) {
+    # (both functions return their array wrapped in a second one, so that a single entry stays an array: no @( ) around the calls)
+    foreach ($argument in (Get-PascalLogArguments ([System.IO.File]::ReadAllText($file.FullName)))) {
+      $script:LogTemplates += , (Split-PascalConcat $argument)
+    }
+  }
+  # What an expression of a template stands for in a sample line (the product, the text of the stop, the counts of a decision to
+  # stop a setup that has not started to install and of a setup that ended with exit code 0)
+  function Get-SampleValue([string]$Expression, [string]$Product) {
+    switch -regex ($Expression) {
+      '^Product$' { return $Product }
+      '^Why$' { return 'cancelled by the user before it installed anything' }
+      '^Reason$' { return 'process 4 cannot be suspended' }
+      '^(SuiteProductsOk|SuiteMergeProducts\(Earlier, SuiteProductsOk\))$' { return 'EE' }
+      '^SuiteCancelledProduct$' { return 'NeoEE' }
+      '^SysErrorMessage\(' { return 'Access is denied' }
+      '^SuitePhaseName\(' { return 'install' }
+      '^Detail$' { return '' }
+      '^IntToStr\(SuiteRunStep\)$' { if ($Product -eq 'NeoEE') { return '2' } else { return '1' } }
+      '^IntToStr\(SuiteRunSteps\)$' { return '2' }
+      '^IntToStr\((Code|Kind|SuiteStateOf\(Product\))\)$' { return '0' }
+      '^IntToStr\(Ord\(' { return '1' }
+      '^IntToStr\(' { return '2' }
+      default { return 'x' }
+    }
+  }
+  # Every line the templates write for a product
+  function Get-RenderedLogLines([string]$Product) {
+    $lines = @()
+    foreach ($parts in $script:LogTemplates) {
+      $text = ''
+      foreach ($part in $parts) {
+        if ($part.StartsWith("'")) {
+          # a quoted text, perhaps followed by character codes ('abc':#13#10)
+          $m = [regex]::Match($part, "^'((?:[^']|'')*)'((?:#\d+)*)$")
+          if (-not $m.Success) { throw "unexpected part of a Log( template: $part" }
+          $text += $m.Groups[1].Value.Replace("''", "'")
+          foreach ($code in [regex]::Matches($m.Groups[2].Value, '#(\d+)')) { $text += [string][char][int]$code.Groups[1].Value }
+        } else { $text += (Get-SampleValue $part $Product) }
+      }
+      $lines += $text
+    }
+    return $lines
+  }
+  # The one line of the code that contains a text, for a product: the fake writes it, so it cannot drift from the code
+  function CodeLine([string]$Contains, [string]$Product) {
+    $hits = @(Get-RenderedLogLines $Product | Where-Object { $_.Contains($Contains) })
+    if ($hits.Count -ne 1) { throw "CodeLine: $($hits.Count) log lines of suite/*.iss contain '$Contains' (expected exactly one)" }
+    return $hits[0]
+  }
+
   # --- Fake registry (HKLM64, HKLM32, HKCU; a key exists if it has values or a key below it) ------------------------
   $script:Reg = @{}
   function Get-FakeKey([string]$Hive, [string]$SubKey) { return ($Hive + '|' + $SubKey.ToLowerInvariant().TrimEnd('\')) }
@@ -280,26 +404,29 @@ try {
       # the line found: too late, the processes run again and the setup completes (the defect 'latekilled' stops it as the old code did)
       $atInstall = (($tokens -contains '/TestCancelAtInstall') -and $step -eq 1)
       $stopped = ((($tokens -contains '/TestCancel') -and $step -eq 1) -or (($tokens -contains '/TestCancelNeoEE') -and $id -eq 'NeoEE') -or ($atInstall -and $script:Bug -eq 'latekilled'))
+      # (the lines of the cancel are the ones the code writes: CodeLine fills in the templates of suite_run.iss)
       if ($atInstall -and -not $stopped) {
-        $lines += "Product ${id}: /TestCancelAtInstall, its log shows the install step, the cancel is requested now"
+        $lines += CodeLine '/TestCancelAtInstall, its log shows the install step' $id
+        # the phase line is written by the read after the freeze; the defect 'prefreezeread' reads before it
+        if ($script:Bug -eq 'prefreezeread') { $lines += CodeLine "Product $id phase: " $id }
         if ($script:Bug -ne 'nofreeze') {
-          $lines += "Product ${id}: freezing its setup and everything it started, to look at its log once more before it is stopped"
-          $lines += "Product ${id}: 2 processes frozen"
+          $lines += CodeLine 'freezing its setup and everything it started' $id
+          $lines += CodeLine ' processes frozen' $id
         }
-        $lines += "Product ${id} phase: install (200 of 1000)"
-        $lines += "Product ${id}: its log shows the install step, its setup is not stopped"
-        $lines += "Product ${id}: 2 processes run again"
-        $lines += "Product ${id}: the cancel came too late, its setup has started to install the game files"
+        if ($script:Bug -ne 'prefreezeread') { $lines += CodeLine "Product $id phase: " $id }
+        $lines += CodeLine 'its log shows the install step, its setup is not stopped' $id
+        $lines += CodeLine ' processes run again' $id
+        $lines += CodeLine 'the cancel came too late, its setup has started to install' $id
       }
       if ($stopped) {
-        $lines += "Product ${id}: /TestCancel, the cancel is requested as if the user had answered the question with Yes"
+        $lines += CodeLine '/TestCancel, the cancel is requested as if the user' $id
         if ($script:Bug -ne 'nofreeze') {
-          $lines += "Product ${id}: freezing its setup and everything it started, to look at its log once more before it is stopped"
-          $lines += "Product ${id}: 2 processes frozen"
+          $lines += CodeLine 'freezing its setup and everything it started' $id
+          $lines += CodeLine ' processes frozen' $id
         }
-        $lines += "Product ${id}: cancelled by the user before it installed anything, stopping its setup and everything it started"
-        $lines += "Product ${id}: its setup is gone"
-        $lines += "Product $id was cancelled by the user before it installed anything"
+        $lines += CodeLine 'before it installed anything, stopping its setup and everything it started' $id
+        $lines += CodeLine 'its setup is gone' $id
+        $lines += CodeLine " was cancelled by the user before it installed anything" $id
         New-Item -ItemType Directory -Force -Path "$suiteRoot\Logs" | Out-Null
         Add-FakeLog "$suiteRoot\Logs\$id-20261005-1204.log" @('Log opened.')
         if ($ok.Count -eq 0 -or $script:Bug -eq 'cancel2abort') {
@@ -324,7 +451,7 @@ try {
       foreach ($phase in $phases) { $lines += "Product $id phase: $phase" }
       if ($script:Bug -ne 'phasenoend') { $lines += "Product $id log read: last phase done, language files 0 of 0 (0 missing), 3 file entries installed (estimate 3), CD key result `"`"" }
       Install-FakeProduct $id $false $tasks (Join-Path (Join-Path $suiteRoot 'Logs') "$id-20261005-1204.log") (-not $first)
-      $lines += "Product ${id}: the setup ended with exit code 0 (kind 0), uninstall entry 1"
+      $lines += CodeLine ': the setup ended with exit code' $id
       $ok += $id
       # the old shortcuts of earlier standalone runs
       if ($script:Bug -ne 'legacykept') {
@@ -466,6 +593,33 @@ try {
   # The results of a scenario: the names of its FAIL checks
   function Get-Failures([string]$Id) { return @(Get-Results | Where-Object { $_.scenario -eq $Id -and $_.status -eq 'FAIL' } | ForEach-Object { $_.check }) }
 
+  # --- The patterns of S11 to S14 spell lines that the code writes ---------------------------------------------------------
+  # Every pattern of the order checks and of the "must not" lists, run against the lines the Log( templates of suite/*.iss
+  # write (both products): a pattern that matches none of them spells a line the code does not write, and the scenario would
+  # fail on Windows only (S14 expected "N processes run again" while the code writes "its N processes run again")
+  $codeLines = @(Get-RenderedLogLines 'EE') + @(Get-RenderedLogLines 'NeoEE')
+  Check 'the suite scripts hold Log( templates' ($script:LogTemplates.Count -gt 100) $true
+  Check 'the templates are filled in: no expression is left in a line' (@($codeLines | Where-Object { $_.Contains('IntToStr(') }).Count) 0
+  $cancelRequest = '/TestCancel, the cancel is requested as if the user had answered the question with Yes'
+  $cancelPatterns = @()
+  foreach ($id in @('EE', 'NeoEE')) { $cancelPatterns += @(Get-E2ECancelStopPatterns $id $cancelRequest) + @(Get-E2ECancelStopNotMatches $id) }
+  $cancelPatterns += @(Get-E2ECancelLateMatches) + @(Get-E2ECancelLateNotMatches) + @(Get-E2ECancelLateOrder)
+  Check 'the patterns of S11 to S14 are many' ($cancelPatterns.Count -gt 40) $true
+  foreach ($pattern in @($cancelPatterns | Select-Object -Unique)) {
+    Check "a line the code writes matches the pattern $pattern" (@($codeLines | Where-Object { $_ -cmatch $pattern }).Count -gt 0) $true
+  }
+  # the check bites: the pattern the review found (no "its" before the count) matches no line of the code
+  Check 'drift: the S14 pattern without its matches no line of the code' (@($codeLines | Where-Object { $_ -cmatch '^Product EE: ([2-9]|[1-9]\d+) processes run again$' }).Count) 0
+  Check 'drift: a line of the code matches the corrected pattern' (@($codeLines | Where-Object { $_ -cmatch '^Product EE: its ([2-9]|[1-9]\d+) processes run again$' }).Count) 1
+  Check 'the fake takes a line from the code' (CodeLine ' processes run again' 'EE') 'Product EE: its 2 processes run again'
+  Check 'the fake takes a line from the code: NeoEE' (CodeLine ': the setup ended with exit code' 'NeoEE') 'Product NeoEE: the setup ended with exit code 0 (kind 0), uninstall entry 1'
+  $threw = $false
+  try { [void](CodeLine 'this text is in no Log( call of the suite' 'EE') } catch { $threw = $true }
+  Check 'the fake refuses a line the code does not write' $threw $true
+  $threw = $false
+  try { [void](CodeLine 'Product EE' 'EE') } catch { $threw = $true }
+  Check 'the fake refuses a text that fits more than one line' $threw $true
+
   Initialize-Results
   Invoke-Quiet 'Prepare'
   Check 'Prepare passes' ((Get-Failures 'Prepare') -join ',') ''
@@ -503,6 +657,7 @@ try {
     @{ Bug = 'nofreeze'; Scenario = 'S12'; Check = 'cancel/STOP' },
     @{ Bug = 'nofreeze'; Scenario = 'S13'; Check = 'repair-cancel/STOP' },
     @{ Bug = 'nofreeze'; Scenario = 'S14'; Check = 'cancel-late/DECISION' },
+    @{ Bug = 'prefreezeread'; Scenario = 'S14'; Check = 'cancel-late/DECISION' },
     @{ Bug = 'latekilled'; Scenario = 'S14'; Check = 'cancel-late/RUN' },
     @{ Bug = 'nohook'; Scenario = 'S14'; Check = 'cancel-late/HOOK' },
     @{ Bug = 'cancelinstalled'; Scenario = 'S11'; Check = 'cancel/NOTHING' },
