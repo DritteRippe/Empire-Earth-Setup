@@ -224,3 +224,16 @@ the community publishers (`82974d4`), the screen in the log and the notice for a
   uninstaller delete files of another installation.
 - **Check at start instead of at the folder page:** the chosen folder is unknown then, so the shared
   folder case and own "Installed From" values could not be told apart.
+
+## Amendment 2026-10-07 (setup 1.1.0: game window up to 1200 high, the wide-screen limit)
+
+Point 1 ("The clamp of the window size (1024 to 1920 x 768 to 1080) stays") is superseded: the height limit is 1200, and on
+a screen wider than 1920 the height is in addition at most the larger of 1080 and the screen height scaled to the width 1920
+(`WideScreenGameWindowHeight`, `GameWindowHeight` in `utils.iss`, contract 3.3 revision 6). Why: the test laptop is 1920 x
+1200, and a game window of the size of the screen needs no display mode change (ADR 0005, amendment 2026-10-07). The limit
+for wide screens keeps what revision 5 gave them: a limit of 1200 per dimension would turn every 2560 x 1440 and 4K screen
+(16:9) into a 16:10 window of 1920 x 1200. Examples: 1920 x 1200 gives 1920 x 1200, 1600 x 1200 stays, 2560 x 1600 and
+3840 x 2400 give 1920 x 1200, 2560 x 1440, 3840 x 2160, 3440 x 1440 and 2560 x 1080 give 1920 x 1080, everything up to 1080
+high is unchanged. Evidence: the unit tests (`TestGameWindow`, including a sweep over wide screens), rule 3.3 of
+`ci/check_contract.py` with its mutants, the end-to-end check K5, TP-26; the forum crash reports are about 2560-wide modes,
+empireearth.eu names 1920x1200 as the upper limit.

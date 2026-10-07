@@ -152,3 +152,13 @@ clean machine) and 8 (pinned launcher commit), with the README sections on runs,
 the pin and the caches; `ci/e2e/tests/test_e2e_tools.py` checks that the job condition and the
 concurrency group agree, that the launcher is a full commit, that every action is pinned and that
 each budget lies below its step limit and leaves room for a setup run and the uninstallation.
+
+## Amendment 2026-10-07 (setup 1.1.0: the dgVoodoo archive as a third public download)
+
+The job downloads a third public file: the official dgVoodoo archive (`dgVoodoo2_87_5.zip`). Its URL, SHA-256 and size are
+those of `pins/dgvoodoo.txt` (the workflow repeats none of them), the archive is cached by its SHA-256, verified in every run
+and extracted below `E2E_ROOT`; it is never uploaded: the asset map lists its three files (origin `download:<name>`, placed
+by `ci/e2e/place_assets.py --download`), so `guard_upload.py` refuses them in the report folder. The five configurations are
+not assets any more (`config/dgVoodoo`, tracked). Step D5 of scenario D installs a dgVoodoo level over the installation and
+check K10 compares the three files and the configuration with the pins and the repository. The URL of the archive in the pin
+list is unverified until the first run (the job stops if the download does not have the pinned SHA-256).

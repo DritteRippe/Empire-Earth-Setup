@@ -2,7 +2,8 @@
 
 - Status: Accepted, implemented (S-WP4, see [Implementation](#implementation)); point 1 amended by
   [ADR 0010](0010-opt-in-compatibility-on-windows-7.md) (opt-in flags on Windows 7, Windows 8/8.1
-  compared with 1.7.2, rules for the graphics matrix)
+  compared with 1.7.2, rules for the graphics matrix); the wrapper section amended on 2026-10-07 (dgVoodoo 2.87.5, the
+  window keys, intro videos by default, see the last section)
 - Date: 2026-10-02
 - Requirements: R15, contract question O7
 - Revised: 2026-10-02, plan review before implementation (the 1.7.2 baseline was described wrongly;
@@ -162,3 +163,81 @@ then the change of the setup together with README, CHANGELOG and architecture do
   which 1.7.2 never did, without any evidence for it.
 - **Make "native" the default:** no evidence that it is better on current Windows; the setup's wrapper
   defaults are the community's current practice.
+
+## Amendment 2026-10-07 (setup 1.1.0: dgVoodoo 2.87.5, the window keys of K1, the configurations in the repository, intro videos by default)
+
+### Context
+
+The laptop matrix of the runs 5c and 5d (Windows 11, Intel graphics, screen 1920x1200 at 100 %, dgVoodoo 2.87.5 x86
+`DDraw.dll` and `D3DImm.dll` in the game folder) found how the window settings of dgVoodoo decide three things the
+players report: the multiplayer lobby, Alt+Tab and the mouse at the start.
+
+- Real fullscreen with `DeferredScreenModeSwitch = false` and the game at 1920x1080 (a real display mode change at the
+  start): the mouse works at the start (rows B, H, the stock configuration). With Alt+Enter disabled (B) the multiplayer
+  lobby minimizes the game (dgVoodoo's lost-mode emulation minimizes a covered real fullscreen window, which hides the
+  lobby); with Alt+Enter enabled (H) the lobby is fine, but the restore after Alt+Tab fails or comes back shifted (a mode
+  change 1080 to 1200 and back).
+- Fake fullscreen (`FullscreenAttributes = fake`, Alt+Enter disabled) at 1080 (rows E, F) and at 1200 (K1): lobby, scenario
+  editor and Alt+Tab work; bars at 1080, none at 1200. The mouse is dead at the start in every fake case.
+- K2 = H at 1200 (real fullscreen without a mode change): lobby and Alt+Tab work, the mouse is dead at the start.
+- With the intro videos installed (`Data\Movies` with `Sierra.bik`, `SSSI.bik`, `Empire Earth.bik`) the mouse is still
+  dead at the start, even during the intro (a click cannot skip it), until Alt+Tab; afterwards it works and skips the
+  intro. A direct start (double-click on `Empire Earth.exe`) is as dead as a start from launcher 1.0.0.
+
+The mechanism: the game acquires its DirectInput 7 devices (exclusive, foreground) during its start-up and acquires them
+again only when it is activated (`WM_ACTIVATE` not `WA_INACTIVE` and not minimized, or `WM_ACTIVATEAPP(TRUE)`). Only a real
+display mode change during the start-up happened to give it a valid activation. No dgVoodoo setting gives a live mouse
+together with a working lobby and Alt+Tab.
+
+### Decision
+
+1. The dgVoodoo levels install dgVoodoo **2.87.5** (official release; `DDraw.dll` and `D3DImm.dll` x86, the control panel
+   `dgVoodooCpl.exe` x64 only, 2.86.3 dropped the x86 one, so only on 64-bit Windows). `InstallDelete` still removes the
+   2.82.1 files; 32-bit Windows has no control panel afterwards. Windows 10 on ARM64 cannot start the x64 control panel
+   (it is optional).
+2. **The window keys of K1 in every level** (the tier keys `OutputAPI` and `VRAM`, the video card, the vendor IDs, the
+   watermark and `WindowedAttributes` stay as they were):
+
+   | Section | Key | Value |
+   |---|---|---|
+   | (none) | `Version` | `0x287` |
+   | `[General]` | `FullScreenMode` | `true` |
+   | `[DirectX]` | `AppControlledScreenMode` | `true` |
+   | `[DirectX]` | `DisableAltEnterToToggleScreenMode` | `true` |
+   | `[DirectXExt]` | `DeferredScreenModeSwitch` | `false` |
+   | `[GeneralExt]` | `FullscreenAttributes` | `fake` |
+
+   Fake fullscreen trades the bars at 1080 (gone at 1200, contract 3.3 revision 6) and the dead mouse at the start (no
+   dgVoodoo setting fixes it; the launcher's activation signal, launcher ADR 0010 amendment A1b, does) for a working lobby,
+   editor and Alt+Tab. K1 is preferred over K2 because it needs no Alt+Enter-enabled restyling and no display mode change,
+   which K2 would need on every screen larger than the game.
+3. **The five configurations are in the repository** (`config/dgVoodoo/dgVoodoo_<LEVEL>.conf`, byte for byte as tested,
+   `-text` in `.gitattributes`), the three dgVoodoo files are **pinned** (`pins/dgvoodoo.txt`: SHA-256, size and the path in
+   the official archive). Why files: the values become reviewable as the very bytes that were tested (a diff of a
+   configuration is the review), and the real-data end-to-end test needs a source for them (they are in no official setup
+   and no download). Rejected: `[INI]` entries (Inno's `[INI]` rewrites a found line as `Key=value`, cannot write the
+   top-level `Version` key before `[General]`, makes two sources of truth, and whether dgVoodoo 2.87.5 parses the rewritten
+   lines the same way is not verified) and a pin table of the keys while the configurations stay in `data\` (the same
+   review value, but the end-to-end job would still have no source for them). `ci/dgvoodoo_pins.ps1` (every push) checks the
+   window keys, the tier keys and that the five files differ only in `OutputAPI` and `VRAM`; `ci/build.ps1` compares the
+   files of `data\` with the pins (a release build stops, a test build warns).
+4. The intro videos belong to the types `full` and `compact`; an installation with custom components gets them once on
+   the first update (install record value `ComponentDefaults`, [ADR 0004](0004-install-record-and-integrity-manifest.md)
+   amendment). `dreXmod` options stay (`SkipIntroMovie 0`).
+5. dgVoodoo's terms allow shipping individual files with a game or mod, not bundling it in launchers or frameworks for
+   general use (`THIRD-PARTY-NOTICES.md`): dgVoodoo stays in the setups; the launcher neither contains nor downloads it.
+
+### Evidence
+
+- The rows of the matrix above (A, B, D to H, K1, K2, stock, direct start; test configurations in the maintainers'
+  scratch folder, not committed), measured by hand on one laptop.
+- CI: `ci/dgvoodoo_pins.ps1` and its 47 changed copies that must fail, the tests of `ci/build_helpers.ps1`, the end-to-end
+  step D5 (files and configuration of a level, byte for byte). The behaviour on the laptop is the test case TP-25.
+
+### Consequences
+
+- The dx12 levels stay "experimental": fake fullscreen uses a flip-model window there, untested on NVIDIA and AMD.
+- "Keine Rückmeldung" during long loads is possible with the borderless window (Dege).
+- Screens larger than 1920 x 1200 show the capped game through dgVoodoo's scaling, untested.
+- The README "Known issues" texts changed (mouse, notification, `dgVoodoo.conf`).
+- A user's own edits of `dgVoodoo.conf` are replaced by every run, as before.

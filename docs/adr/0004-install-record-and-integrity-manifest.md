@@ -360,3 +360,15 @@ page, the notice and the messages (`4eafaed`), this documentation with test case
   that exists.
 - **Comparing file times with `Written`** to detect a later older setup: Inno Setup keeps the time
   stamps of the source files, so the file times say nothing about the run.
+
+## Amendment 2026-10-07 (setup 1.1.0: the record value ComponentDefaults)
+
+The install record has the optional value `ComponentDefaults` (REG_DWORD, contract 1.1 revision 6, setup-internal: the
+launcher ignores it). It holds the revision of the default components the installation has received
+(`ComponentDefaultsRevision` in `utils.iss`; 1 = the intro movies belong to the types `full` and `compact`). It is written
+anew by every run like the other values and read once per run in `InitializeWizard` (`SelectNewDefaultComponents`): an
+update of an installation of the type `custom` whose record has no value or a lower one selects the new default components
+once, because Inno Setup restores the earlier selection of that type, in which they are deselected. It is not read for
+`/TYPE` or `/COMPONENTS` on the command line, the type `raw`, or portable setups (no record). Why in the record: it survives
+a later run of the official setup 1.7.2 (which rewrites the uninstall key but not the record), the uninstaller removes it (a
+reinstallation is a first installation), and `MySetupVersion` cannot tell suite 1.0.0 builds from 1.7.2 (both say 1.7.2).

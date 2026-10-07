@@ -477,8 +477,28 @@ setup version stays 1.7.2 until the release.
   integrity check, every run), and how to measure the memory of a running game (PowerShell, Task Manager,
   VMMap, Event Viewer). Test plan: TP-23 gets the steps 7 to 10 (mouse at the start, self-minimizing and "Do not
   disturb", VirtualStore copy, optional memory measurement) as observations, section 12 names them.
+- `THIRD-PARTY-NOTICES.md` with the terms of dgVoodoo.
+- The real-data end-to-end test downloads the pinned dgVoodoo archive and installs a dgVoodoo level in scenario D
+  (step D5).
 
 ### Changed
+- DirectX wrapper: dgVoodoo 2.87.5 instead of 2.82.1 (x86 `DDraw.dll` and `D3DImm.dll`; the control panel
+  `dgVoodooCpl.exe`, x64 only since dgVoodoo 2.86.3, only on 64-bit Windows). The five configurations of the dgVoodoo
+  levels have new window settings: fake fullscreen (`FullscreenAttributes = fake`), Alt+Enter off
+  (`DisableAltEnterToToggleScreenMode = true`), no deferred screen mode switch (`DeferredScreenModeSwitch = false`),
+  `Version = 0x287`; the API, VRAM, video card, vendor IDs, watermark and `WindowedAttributes` are unchanged. With them
+  the multiplayer lobby no longer minimizes the game and Alt+Tab returns at full size on the test laptop (ADR 0005,
+  amendment 2026-10-07).
+- The configurations are part of the repository (`config/dgVoodoo`) and the dgVoodoo files are pinned
+  (`pins/dgvoodoo.txt`): CI checks the window keys of every configuration and the `[Files]` entries of both game
+  folders, `ci/build.ps1` stops a release build whose dgVoodoo files are not the pinned ones (`ci/dgvoodoo_pins.ps1`).
+- The intro videos are part of the installation types "full" and "compact". An installation with custom components
+  (every installation of the wizard's "Recommended settings" and of the suite) gets them once with the first update by
+  this setup; an explicit `/TYPE` or `/COMPONENTS` and the type "raw" are kept. The install record has the new value
+  `ComponentDefaults` (contract 1.1, revision 6).
+- Game window: up to 1920 x 1200 (was 1920 x 1080), so a 1920 x 1200 screen gets the game at its own resolution without
+  a display mode change; screens wider than 1920 keep their shape (2560 x 1440 and 4K stay 1920 x 1080, 2560 x 1600 gets
+  1920 x 1200; contract 3.3, revision 6).
 - The hidden setup data folder (holds `EEStatsSetup.dll` for the uninstaller) is now
   `{app}\_setupdata_EE` or `{app}\_setupdata_NeoEE` instead of `{app}\<AppId>`: a fixed name, but
   still one per product, so EE and NeoEE installed into the same folder do not delete each
