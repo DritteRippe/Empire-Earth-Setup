@@ -601,4 +601,8 @@ launcher. The launcher keeps `--product=` for shortcuts that players made or tha
 
 Evidence: `ci/tests/suite_tests.iss` (`SuiteOldSuiteShortcutPath`, `SuiteOldSuiteShortcutRemovable`,
 `SuiteFirstInstalledProduct`), `ci/check_contract.py` and `ci/check_suite.py` with their self-tests, CI scenarios S1,
-S3, S8 and S9 (`repair/OLD-SHORTCUTS`), laptop TP-93, TP-94 (c), TP-97.
+S3, S8 and S9 (`repair/OLD-SHORTCUTS`), laptop TP-93, TP-94 (c), TP-97. A Wine run of the placeholder suite (copied
+prefix, no network, no .NET Framework 4.8) with the seven shortcuts of suite 1.0.0 planted: the run deleted six of them
+and the desktop `Empire Earth` only when its link named the launcher (a log line each, the one that named a game program
+stayed), left a foreign `Decoy.lnk`, created `Empire Earth Community` to the game program of the installed product on the
+desktop and in the folder (none for the Mod Creator), and the uninstaller removed these and the old ones again.
