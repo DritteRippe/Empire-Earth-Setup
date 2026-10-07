@@ -19,17 +19,15 @@ const
   DomainMain = 'empireearth.eu';
   DomainMirror = 'ee.zocker-160.de';
   // One base URL per endpoint; the code only appends paths and parameters
-  SetupURL = 'https://' + DomainMain + '/download';                      // download page of the setup
+  SetupURL = 'https://' + DomainMain + '/download/';                     // download page of the website, both games
+  SetupURLEE = SetupURL + 'ee/';                                         // download page of Empire Earth
+  SetupURLNeoEE = SetupURL + 'neo/';                                     // download page of NeoEE
   ApiURL = 'https://api.' + DomainMain;                                  // web API of the website
   UpdateApiURL = ApiURL + '/setup/?product={#AppID}';                    // update check (QueryUpdateApi)
   TelemetryApiURL = ApiURL + '/eestats/setup/';                          // setup statistics (SendSetupTelemetry)
   OnlineFilesURL = 'https://files.' + DomainMain + '/localized';         // localized files (downloads.iss)
   OnlineFilesMirrorURL = 'https://storage.' + DomainMirror + '/localized';
   GogStoreURL = 'https://www.gog.com/game/empire_earth_gold_edition';    // legal question
-  // Besides DomainMain, the hosts a download URL of the update API may point to (IsAllowedUpdateUrl)
-  DomainNeoEE = 'neoee.net';
-  GitHubHost = 'github.com';
-  GitHubProjectPath = '/EE-modders/';
 
 // Splits Text at every Separator (Pascal Script of Inno Setup 6.2 has no split function)
 function StrSplit(Text: String; Separator: String): TArrayOfString;
@@ -365,27 +363,18 @@ begin
   Result := (Host <> '') and (Pos('@', Host) = 0) and (Pos(':', Host) = 0);
 end;
 
-// True if Host is Domain itself or one of its subdomains (both lowercase)
-function IsDomainOrSubdomain(const Host, Domain: String): Boolean;
+// The page of the website where the user gets the setup of a product (the product id is InstallType of the setup: EE or
+// NeoEE; anything else, e.g. a foreign installation, gets the general page with both games). The pages are constants:
+// the update API used to answer a download URL of cdn.empireearth.eu, which no longer resolves (the website's buttons go
+// to r2.empireearth.eu through these pages), so the setup does not ask the API for it any more.
+function GetSetupDownloadUrl(const Product: String): String;
 begin
-  Result := (Host = Domain) or ((Length(Host) > Length(Domain) + 1) and
-    (Copy(Host, Length(Host) - Length(Domain), Length(Domain) + 1) = '.' + Domain));
-end;
-
-// The download URL comes from the update API: only https URLs on the project's own hosts may be
-// opened (EE community website, NeoEE website, EE-modders on GitHub)
-function IsAllowedUpdateUrl(const Url: String): Boolean;
-var
-  Host, Path: String;
-begin
-  Result := False;
-  if not SplitHttpsUrl(Url, Host, Path) then
-    Exit;
-  if IsDomainOrSubdomain(Host, DomainMain) or IsDomainOrSubdomain(Host, DomainNeoEE) then
-    Result := True
-  else if Host = GitHubHost then
-    // Anyone can publish on github.com: only the EE-modders organization, no dot segments/escapes
-    Result := (CompareText(Copy(Path, 1, Length(GitHubProjectPath)), GitHubProjectPath) = 0) and (Pos('..', Path) = 0) and (Pos('%', Path) = 0);
+  if CompareText(Product, 'EE') = 0 then
+    Result := SetupURLEE
+  else if CompareText(Product, 'NeoEE') = 0 then
+    Result := SetupURLNeoEE
+  else
+    Result := SetupURL;
 end;
 
 // Download policy of the online localized files (downloads.iss)

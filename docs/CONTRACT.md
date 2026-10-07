@@ -128,7 +128,7 @@ Key: `Software\Empire Earth Community\Installations\<Product>`
 | `ContractVersion` | REG_DWORD | `1` | version of this contract the setup implements |
 | `InstallPath` | REG_SZ | `C:\Program Files (x86)\Neo Empire Earth` | install root (`{app}`), full path, no trailing backslash |
 | `InstallMode` | REG_SZ | `admin` | `admin` or `user` |
-| `AppId` | REG_SZ | `00000000-0000-0000-0000-000000000AEE` | AppId without braces: uninstall key `{<AppId>}_is1`, `product` of the update API ([4.3](#43-where-the-user-gets-the-setup)) |
+| `AppId` | REG_SZ | `00000000-0000-0000-0000-000000000AEE` | AppId without braces: uninstall key `{<AppId>}_is1`, `product` of the update API ([4.5](#45-update-check-optional)) |
 | `GameVersion` | REG_SZ | `2.0.0.5` | `MyAppVersion` of the setup |
 | `SetupVersion` | REG_SZ | `2.0.0` | `MySetupVersion` of the setup |
 | `SetupBuild` | REG_SZ | `a1b2c3d` | optional: build identifier of the setup (build switch `SetupBuild`, e.g. the short Git commit, test builds `test<TestID>-<commit>`); absent if the build sets none; informative only, e.g. to tell test builds of the same `SetupVersion` apart |
@@ -935,17 +935,25 @@ The other way round, the setup does not install while a game mutex
 
 ### 4.3 Where the user gets the setup
 
-1. If the installation has an AppId: `GET https://api.empireearth.eu/setup/?product=<AppId>`. An answer
-   with HTTP 200 contains (trimmed) the download URL of the latest setup.
-2. That URL is accepted only if it passes the setup's `IsAllowedUpdateUrl` (`utils.iss`): `https://`; no
-   user information, port, backslash, space, control or non-ASCII character; host `empireearth.eu`,
-   `neoee.net` or a subdomain of either, or `github.com` with a path that starts with `/EE-modders/`
-   (ignoring case) and contains neither `..` nor `%`.
-3. Otherwise (no AppId, no answer, URL refused): `https://empireearth.eu/download`.
-4. The URL opens in the default browser with the rights of the launcher (not elevated).
+The launcher and the setup open the download page of the website for the product directly. The page is a
+constant chosen by the product of the installation; nothing is requested to find it:
 
-Requests use HTTPS with certificate validation (TLS 1.2 or newer), never fall back to HTTP, have
-timeouts and send nothing but the query above (no telemetry).
+| Product of the installation | Page |
+|---|---|
+| `EE` | `https://empireearth.eu/download/ee/` |
+| `NeoEE` | `https://empireearth.eu/download/neo/` |
+| unknown, `foreign`, no installation | `https://empireearth.eu/download/` |
+
+The page opens in the default browser with the rights of the launcher (not elevated). Up to this revision the
+launcher asked `GET https://api.empireearth.eu/setup/?product=<AppId>` for a download URL and opened it if the setup's
+`IsAllowedUpdateUrl` accepted it, else the general page. The answer names `https://cdn.empireearth.eu/setup/...`,
+whose host no longer resolves (a CNAME to a traffic manager that does not exist any more), while the buttons of the
+pages above work (`https://r2.empireearth.eu/...` behind a 301). The launcher MUST NOT use the answer of the update API
+as the download URL any more, and the setup does not (`GetSetupDownloadUrl`, `utils.iss`); the version check of
+[4.5](#45-update-check-optional) is unchanged and is the only request left in this section.
+
+Requests (4.5) use HTTPS with certificate validation (TLS 1.2 or newer), never fall back to HTTP, have timeouts and
+send nothing but the query there (no telemetry).
 
 ### 4.4 What the launcher tells the user
 
@@ -1184,3 +1192,9 @@ suite part asks nothing of it):
   backup of [3.6](#36-launcher-procedures); if a backup fails, nothing is changed;
 - the page says that the next run of a setup (repair, update) writes the recommended size again
   ([3.2](#32-values)).
+
+Download page (revision 6, launcher 1.1.0 and the product setups; [4.3](#43-where-the-user-gets-the-setup)): the
+hand-off to the setup download opens the page of the website for the product, `https://empireearth.eu/download/ee/` or
+`https://empireearth.eu/download/neo/` (the general page `https://empireearth.eu/download/` for an unknown or foreign
+installation), and no longer asks the update API for a download URL, whose host `cdn.empireearth.eu` no longer
+resolves. The version check of [4.5](#45-update-check-optional) is unchanged.

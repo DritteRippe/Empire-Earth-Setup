@@ -786,6 +786,15 @@ setup version stays 1.7.2 until the release.
   phase lines in the checks of the scenarios that install (S1, S2, S3, S9, S10; and two more defects of the fake), ADR 0013 (amendment) and the
   test case TP-98.
 
+- The download link of the update dialogs: the setups opened the URL that the update API answers
+  (`GET api.empireearth.eu/setup/?product=<AppId>` without parameters), which names `cdn.empireearth.eu/setup/...`; that
+  host no longer resolves (a CNAME to a traffic manager that does not exist any more), so the button of the dialog
+  led nowhere. The setups open the download page of the website for their product directly,
+  `https://empireearth.eu/download/ee/` (EE) or `https://empireearth.eu/download/neo/` (NeoEE), and do not ask the API
+  for a download URL any more (`GetSetupDownloadUrl` in `utils.iss`, unit-tested; the version check of the API stays).
+  `IsAllowedUpdateUrl` (the allow-list for that URL, with `IsDomainOrSubdomain` and its constants) is gone with the only
+  caller; `SplitHttpsUrl` stays. Contract 4.3 (revision 6, which the launcher follows) describes the pages.
+
 ### Removed
 - Entries for Windows XP and older: the WIN98 compatibility mode and the pre-Vista `netsh
   firewall` rules (23 entries). Setups made with Inno Setup 6 do not start on these systems, so

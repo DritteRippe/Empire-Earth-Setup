@@ -1305,7 +1305,7 @@ end;
 // Update API of the community website, answers with HTTP 200 and
 //   &type=<game|setup>&version=<v>  'false' if <v> is outdated
 //   &type=<game|setup>               the latest version
-//   (no parameter)                   the download URL of the latest setup
+// (without parameters it answers a download URL, which the setup no longer uses: OpenUpdateDownloadPage)
 // True only for HTTP 200; Response is the trimmed answer ('' otherwise)
 function QueryUpdateApi(const Params: String; var Response: String): Boolean;
 begin
@@ -1338,20 +1338,15 @@ begin
     end;
 end;
 
-// Opens the download of the latest setup, or the fixed download page if the API gives no
-// acceptable URL. The browser runs as the original user, not with the setup's admin rights.
+// Opens the download page of this product on the website (GetSetupDownloadUrl: EE or NeoEE). The update API is not asked
+// for the download URL: its answer names a CDN host that no longer resolves, while the buttons of these pages work. The
+// browser runs as the original user, not with the setup's admin rights.
 procedure OpenUpdateDownloadPage;
 var
   Url: String;
   ErrorCode: Integer;
 begin
-  if not QueryUpdateApi('', Url) then
-    Url := SetupURL
-  else if not IsAllowedUpdateUrl(Url) then
-  begin
-    Log('Update URL rejected (not an https URL of the project): ' + Url);
-    Url := SetupURL;
-  end;
+  Url := GetSetupDownloadUrl('{#InstallType}');
   Log('Opening ' + Url);
   if not ShellExecAsOriginalUser('open', Url, '', '', SW_SHOWNORMAL, ewNoWait, ErrorCode) then
     Log('Unable to open ' + Url + ': ' + SysErrorMessage(ErrorCode));

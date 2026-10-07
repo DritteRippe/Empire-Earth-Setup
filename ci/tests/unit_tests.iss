@@ -296,30 +296,20 @@ begin
   CheckSplit('https://empireearth.eu/' + #$E9, False, '', '');
 end;
 
-procedure TestIsDomainOrSubdomain;
+// The download pages of the website (finding U1: the update API no longer gives the download URL)
+procedure TestGetSetupDownloadUrl;
 begin
-  CheckBool('IsDomainOrSubdomain same', IsDomainOrSubdomain('empireearth.eu', 'empireearth.eu'), True);
-  CheckBool('IsDomainOrSubdomain subdomain', IsDomainOrSubdomain('files.empireearth.eu', 'empireearth.eu'), True);
-  CheckBool('IsDomainOrSubdomain suffix only', IsDomainOrSubdomain('evilempireearth.eu', 'empireearth.eu'), False);
-  CheckBool('IsDomainOrSubdomain prefix only', IsDomainOrSubdomain('empireearth.eu.evil.example', 'empireearth.eu'), False);
-  CheckBool('IsDomainOrSubdomain dot only', IsDomainOrSubdomain('.empireearth.eu', 'empireearth.eu'), False);
-end;
-
-procedure TestIsAllowedUpdateUrl;
-begin
-  CheckBool('IsAllowedUpdateUrl website', IsAllowedUpdateUrl('https://empireearth.eu/download'), True);
-  CheckBool('IsAllowedUpdateUrl website subdomain', IsAllowedUpdateUrl('https://files.empireearth.eu/setup.exe'), True);
-  CheckBool('IsAllowedUpdateUrl NeoEE', IsAllowedUpdateUrl('https://www.neoee.net/download'), True);
-  CheckBool('IsAllowedUpdateUrl GitHub project', IsAllowedUpdateUrl('https://github.com/EE-modders/Empire-Earth-Setup/releases'), True);
-  CheckBool('IsAllowedUpdateUrl GitHub other', IsAllowedUpdateUrl('https://github.com/someone/Empire-Earth-Setup/releases'), False);
-  CheckBool('IsAllowedUpdateUrl GitHub dot segment', IsAllowedUpdateUrl('https://github.com/EE-modders/../someone/x'), False);
-  CheckBool('IsAllowedUpdateUrl GitHub escape', IsAllowedUpdateUrl('https://github.com/EE-modders/%2e%2e/someone/x'), False);
-  CheckBool('IsAllowedUpdateUrl GitHub root', IsAllowedUpdateUrl('https://github.com/'), False);
-  CheckBool('IsAllowedUpdateUrl mirror', IsAllowedUpdateUrl('https://storage.ee.zocker-160.de/setup.exe'), False);
-  CheckBool('IsAllowedUpdateUrl http', IsAllowedUpdateUrl('http://empireearth.eu/download'), False);
-  CheckBool('IsAllowedUpdateUrl look-alike', IsAllowedUpdateUrl('https://empireearth.eu.evil.example/'), False);
-  CheckBool('IsAllowedUpdateUrl user info', IsAllowedUpdateUrl('https://empireearth.eu@evil.example/'), False);
-  CheckBool('IsAllowedUpdateUrl empty', IsAllowedUpdateUrl(''), False);
+  Check('GetSetupDownloadUrl EE', GetSetupDownloadUrl('EE'), 'https://empireearth.eu/download/ee/');
+  Check('GetSetupDownloadUrl NeoEE', GetSetupDownloadUrl('NeoEE'), 'https://empireearth.eu/download/neo/');
+  Check('GetSetupDownloadUrl neoee lower case', GetSetupDownloadUrl('neoee'), 'https://empireearth.eu/download/neo/');
+  Check('GetSetupDownloadUrl ee lower case', GetSetupDownloadUrl('ee'), 'https://empireearth.eu/download/ee/');
+  Check('GetSetupDownloadUrl unknown product', GetSetupDownloadUrl('AoC'), 'https://empireearth.eu/download/');
+  Check('GetSetupDownloadUrl foreign installation', GetSetupDownloadUrl('foreign'), 'https://empireearth.eu/download/');
+  Check('GetSetupDownloadUrl empty', GetSetupDownloadUrl(''), 'https://empireearth.eu/download/');
+  Check('GetSetupDownloadUrl the general page is SetupURL', SetupURL, 'https://empireearth.eu/download/');
+  CheckBool('GetSetupDownloadUrl EE is https', IsHttpsUrl(GetSetupDownloadUrl('EE')), True);
+  CheckBool('GetSetupDownloadUrl NeoEE is https', IsHttpsUrl(GetSetupDownloadUrl('NeoEE')), True);
+  CheckBool('GetSetupDownloadUrl no CDN host', Pos('cdn.', GetSetupDownloadUrl('EE') + GetSetupDownloadUrl('NeoEE') + SetupURL) = 0, True);
 end;
 
 procedure TestFileNameExtension;
@@ -1914,8 +1904,7 @@ begin
     TestUninstallKeys;
     TestUrlEncode;
     TestSplitHttpsUrl;
-    TestIsDomainOrSubdomain;
-    TestIsAllowedUpdateUrl;
+    TestGetSetupDownloadUrl;
     TestFileNameExtension;
     TestIsCodeFileName;
     TestIsHttpsUrl;
