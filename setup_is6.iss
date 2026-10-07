@@ -75,6 +75,8 @@
 ;                 install record: A-Z a-z 0-9 . _ -, at most 64
 ;                 characters (ci\build.ps1: test<TestID>-<commit>
 ;                 for a test build, the short commit in CI)
+;   PlaceholderInstallPause  1 = the test hook of the placeholder builds   (default: not defined;
+;                 (pauses around the install step, see below)   only ci\build.ps1 -Placeholders passes it)
 ;   EE_AppID      AppId GUID of the EE setup, without braces   (required, see AppId notes below)
 ;   NeoEE_AppID   AppId GUID of the NeoEE setup, w/o braces    (required, see AppId notes below)
 ; Example: ISCC /DInstallType=NeoEE /DInstallMode=Portable /DEE_AppID=<GUID> /DNeoEE_AppID=<GUID> setup_is6.iss
@@ -213,6 +215,18 @@
 #endif
 #if TestID < 0
   #error TestID must be a non-negative integer (0 = release build)
+#endif
+
+; PlaceholderInstallPause: the test hook of the placeholder builds for the suite scenarios of CI (ADR 0013, amendment of the race
+; of Cancel). Only ci\build.ps1 -Placeholders passes it (Get-PlaceholderPauseDefine), never a release build or a build with the
+; real data (build.ps1 stops if the resolved script holds a hook line without it, and ci/check_suite.py checks that every hook
+; line stands inside this #ifdef). The setup then waits 2 seconds at the end of PrepareToInstall, before the install step, and 2
+; seconds after the line "Install step: ..." (CurStepChanged): a cancel of the suite that is decided before the line is
+; deterministic, and a cancel that is decided at the line has a product setup that is still there to be left alone.
+#ifdef PlaceholderInstallPause
+  #if SignSetup
+    #error PlaceholderInstallPause is the test hook of the placeholder builds and cannot be part of a signed build
+  #endif
 #endif
 
 ; SetupBuild: identifier of this build. install.ini and the install record carry it (contract 1.1,
@@ -1967,6 +1981,14 @@ begin
     Result := CheckGameFoldersForLinks()
   else
     Log('Link check skipped: not the administrative install mode');
+#ifdef PlaceholderInstallPause
+  // Test hook of the placeholder builds (PlaceholderInstallPause, top of this file): the install step is 2 seconds away
+  if Result = '' then
+  begin
+    Log('Test hook of a placeholder build: pausing 2000 ms before the install step');
+    Sleep(2000);
+  end;
+#endif
 end;
 
 // Installation steps
@@ -1981,6 +2003,11 @@ begin
     // returned), too late for that.
     // The suite parses this line (contract 1.7 point 5): change it only together with suite/suite_common.iss
     Log('Install step: the game folder is changed from here on');
+#ifdef PlaceholderInstallPause
+    // Test hook of the placeholder builds (top of this file): the line is written, nothing is changed yet
+    Log('Test hook of a placeholder build: pausing 2000 ms after the install step line');
+    Sleep(2000);
+#endif
     // First, before [Files]: install.ini and files.sha256 of the previous run go, so that an aborted
     // installation leaves none that claims a valid state; a failed deletion is remembered
     // (WriteInstallState)

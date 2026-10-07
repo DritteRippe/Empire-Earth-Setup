@@ -742,6 +742,12 @@ const
 
   // How much of a log SuiteTailLog reads at most per call (the rest follows with the next call)
   SuiteTailChunkMax = 262144;
+  // How many such chunks SuiteTailLogToEnd reads at most (the log of a default installation is about 1 MB)
+  SuiteTailToEndMax = 64;
+  // What SuiteStopDecision finds
+  SuiteStopGo = 0;                 // stop the product setup (before it is stopped), or: it was cancelled before it installed anything
+  SuiteStopTooLate = 1;            // the log shows the install step, or the state is not certain: the product setup is not stopped
+  SuiteStopIncomplete = 2;         // it was stopped, but the log shows the install step now: the game may be only partly installed
   // A line without a line end that grows beyond this is dropped (no log line is that long)
   SuiteTailCarryMax = 65536;
 
@@ -1150,7 +1156,8 @@ function SuiteReadFile(FileHandle: Integer; Buffer: AnsiString; BytesToRead: Car
 // for reading while sharing everything. No file yet (the product setup creates it when it starts), a file
 // the product setup holds back for a moment or any other error is "nothing new". A file that became smaller
 // than what was read is a new log: reading starts again at its beginning (the phase stays).
-function SuiteTailLog(const LogFile: String; var P: TSuiteProgress): Boolean;
+// Failed is set when the log exists but could not be read (SuiteTailLogToEnd needs to tell that from "nothing new").
+function SuiteTailLogChecked(const LogFile: String; var P: TSuiteProgress; var Failed: Boolean): Boolean;
 var
   S: TFileStream;
   Size, Offset, Want: Longint;
@@ -1177,19 +1184,104 @@ begin
         SetLength(Chunk, Want);
         Got := 0;
         if SuiteReadFile(S.Handle, Chunk, Want, Got, 0) then
+        begin
           if Got > 0 then
           begin
             P.TailOffset := P.TailOffset + Got;
             SuiteFeedLogChunk(P, Copy(Chunk, 1, Got));
             Result := True;
           end;
+        end
+        else
+          Failed := True;
       end;
     finally
       S.Free;
     end;
   except
     // nothing new: the next call tries again
+    if FileExists(LogFile) then
+      Failed := True;
   end;
+end;
+
+function SuiteTailLog(const LogFile: String; var P: TSuiteProgress): Boolean;
+var
+  Failed: Boolean;
+begin
+  Failed := False;
+  Result := SuiteTailLogChecked(LogFile, P, Failed);
+end;
+
+// Reads the log up to its end (SuiteTailLog reads at most SuiteTailChunkMax per call): the last look before the suite
+// decides about stopping a product setup. False if the log exists but could not be read, or is still growing after
+// the reads of SuiteTailToEndMax chunks: what the log says is then not certain.
+function SuiteTailLogToEnd(const LogFile: String; var P: TSuiteProgress): Boolean;
+var
+  Failed: Boolean;
+  Round: Integer;
+begin
+  Result := False;
+  for Round := 1 to SuiteTailToEndMax do
+  begin
+    Failed := False;
+    if not SuiteTailLogChecked(LogFile, P, Failed) then
+    begin
+      Result := not Failed;
+      Exit;
+    end;
+  end;
+end;
+
+// ---- the decision to stop a product setup before its install step (the race of Cancel, ADR 0013 amendment) -------
+
+// True if the last line of the log that has no line end yet (Partial, P.TailCarry) is, or may become, the line of the
+// install step: its text is the start of SuiteLogInstallPhase or of Inno Setup's SuiteLogInstallStart, or starts with
+// one of them. A line of which only the time stamp (or a part of it) is written has no text yet: Unclear says what it
+// counts as. Before a product setup is stopped it counts as the line (it might be, so the product is not stopped); after
+// it was stopped the log cannot grow any more, so it does not. A trailing CR is no part of the text.
+function SuitePartialLineIsInstall(const Partial: String; Unclear: Boolean): Boolean;
+var
+  Text: String;
+begin
+  Result := False;
+  if Trim(Partial) = '' then
+    Exit;
+  Text := SuiteLogEntryText(Partial);
+  if Text = '' then
+  begin
+    Result := Unclear;
+    Exit;
+  end;
+  Result := SuiteStartsWith(Text, SuiteLogInstallPhase) or SuiteStartsWith(SuiteLogInstallPhase, Text) or
+    SuiteStartsWith(Text, SuiteLogInstallStart) or SuiteStartsWith(SuiteLogInstallStart, Text);
+end;
+
+// What the suite does with a product setup it is about to stop because of Cancel, the stall question or the cap, or has
+// stopped. Pure: P is what the log told, with the lines read after the processes were frozen (the phase moves to
+// SuitePhaseInstall with the line of the install step or any later one) and the last line without a line end (TailCarry);
+// Safe says that the state is certain: before the stop every process of the job is frozen and the log was read to its
+// end, after it the log was read to its end. Terminated says that the product setup was stopped already.
+//   before the stop: SuiteStopGo (nothing says it started to install: stop it), or SuiteStopTooLate (the log shows the
+//   install step or may be about to, or the state is not certain: it is not stopped, it finishes)
+//   after the stop: SuiteStopGo (the log still shows nothing: it was cancelled before it installed anything), or
+//   SuiteStopIncomplete (the log shows the install step now, or could not be read: the game may be only partly installed)
+function SuiteStopDecision(const P: TSuiteProgress; Safe, Terminated: Boolean): Integer;
+var
+  Installing: Boolean;
+begin
+  Installing := SuiteProgressInstalling(P) or SuitePartialLineIsInstall(P.TailCarry, not Terminated);
+  if Terminated then
+  begin
+    if Installing or not Safe then
+      Result := SuiteStopIncomplete
+    else
+      Result := SuiteStopGo;
+  end
+  else if Installing or not Safe then
+    Result := SuiteStopTooLate
+  else
+    Result := SuiteStopGo;
 end;
 
 // The part of the download block that is done, in thousandths: finished files and the part of the current one,
@@ -1437,6 +1529,8 @@ const
   SuiteEndCancelled = 1;           // the user cancelled before it installed anything: it was stopped
   SuiteEndTimedOut = 2;            // the suite stopped it for its time limits (SuiteTimeoutCheck)
   SuiteEndQuit = 3;                // Setup itself is closing (WM_QUIT): the product setup was left running
+  SuiteEndCancelledLate = 4;       // the user cancelled, the product setup was stopped, but its log shows the install step
+                                   // now (a missed line): the game may be only partly installed
 
   // What SuiteTimeoutCheck finds
   SuiteTimeoutNone = 0;
@@ -1474,6 +1568,12 @@ const
   SuiteStillActive = 259;
   SuiteWmQuit = $0012;
   SuitePmRemove = 1;
+  // Freezing the processes of a job (SuiteFreezeJob)
+  SuiteJobObjectBasicProcessIdList = 3;
+  SuiteProcessSuspendResume = $0800;
+  SuiteProcessQueryInformation = $0400;
+  SuiteErrorInvalidParameter = 87;
+  SuiteFreezePasses = 20;          // how often the job is looked at for processes that came meanwhile
 
 type
   // The records of CreateProcessW and PeekMessageW, as in the Windows headers: every field is 4 bytes or, in
@@ -1505,6 +1605,18 @@ type
     dwProcessId: DWORD;
     dwThreadId: DWORD;
   end;
+  // JOBOBJECT_BASIC_PROCESS_ID_LIST with room for 128 process ids (ULONG_PTR is 4 bytes in the 32-bit Setup); a job with
+  // more processes makes QueryInformationJobObject fail with ERROR_MORE_DATA, which counts as "could not be frozen"
+  TSuiteJobProcessList = record
+    NumberOfAssignedProcesses: DWORD;
+    NumberOfProcessIdsInList: DWORD;
+    ProcessIdList: array[0..127] of DWORD;
+  end;
+  // A process SuiteFreezeJob froze: its id and the handle that is kept until it runs again (so its id cannot be reused)
+  TSuiteFrozenProcess = record
+    Pid: DWORD;
+    Handle: THandle;
+  end;
   TSuiteMsg = record
     hwnd: HWND;
     message: UINT;
@@ -1532,6 +1644,17 @@ function SuiteTerminateJob(hJob: THandle; uExitCode: UINT): BOOL;
   external 'TerminateJobObject@kernel32.dll stdcall';
 function SuiteTerminateProcess(hProcess: THandle; uExitCode: UINT): BOOL;
   external 'TerminateProcess@kernel32.dll stdcall';
+function SuiteQueryJob(hJob: THandle; JobObjectInformationClass: Longint; var lpJobObjectInformation: TSuiteJobProcessList;
+  cbJobObjectInformationLength: DWORD; lpReturnLength: DWORD): BOOL;
+  external 'QueryInformationJobObject@kernel32.dll stdcall';
+function SuiteOpenProcess(dwDesiredAccess: DWORD; bInheritHandle: BOOL; dwProcessId: DWORD): THandle;
+  external 'OpenProcess@kernel32.dll stdcall';
+function SuiteIsProcessInJob(hProcess, hJob: THandle; var pbResult: Longint): Longint;
+  external 'IsProcessInJob@kernel32.dll stdcall';
+function SuiteSuspendProcess(hProcess: THandle): Longint;
+  external 'NtSuspendProcess@ntdll.dll stdcall';
+function SuiteResumeProcess(hProcess: THandle): Longint;
+  external 'NtResumeProcess@ntdll.dll stdcall';
 function SuiteWaitObject(hHandle: THandle; dwMilliseconds: DWORD): Longint;
   external 'WaitForSingleObject@kernel32.dll stdcall';
 function SuiteGetExitCode(hProcess: THandle; var lpExitCode: DWORD): BOOL;
@@ -1592,6 +1715,145 @@ begin
     SuiteTerminateJob(Job, SuiteKillCode)
   else
     SuiteTerminateProcess(Proc, SuiteKillCode);
+end;
+
+// Freezes every process of the job of the product setup, so that nothing in it can run, write to the log or start another
+// process while the suite looks at the log once more (the decision to stop it, ADR 0013 amendment of the race of Cancel).
+// NtSuspendProcess of ntdll (undocumented, but there since Windows NT and used by every process tool) suspends all threads
+// of a process in one call under the lock of its thread list, so a thread created at that moment is not missed; a walk
+// over the threads (Toolhelp snapshot, SuspendThread each) would leave threads out that start between the snapshot and the
+// call. The loader, the real setup and the 64-bit helper of Inno Setup are three processes, and a process that was started
+// by one not yet frozen shows up in the next look at the job: the job is looked at again until a look finds no process that
+// is not frozen (a frozen process starts none). Every process is opened by the id the job gave and must be in the job
+// (IsProcessInJob), so that an id that was reused by another program meanwhile is never suspended. A process that ended
+// meanwhile is no failure. Frozen holds what was frozen; Why says what failed. Result False: not everything could be
+// frozen (no job, the job cannot be read, a process cannot be suspended, the job keeps growing): the caller resumes what
+// was frozen (SuiteResumeFrozen) and does not stop the product setup. The only place that suspends a process
+// (ci/check_suite.py).
+function SuiteFreezeJob(Job: THandle; var Frozen: array of TSuiteFrozenProcess; var Why: String): Boolean;
+var
+  List: TSuiteJobProcessList;
+  Pass, I, J, Count, Added: Integer;
+  Known: Boolean;
+  InJob: Longint;
+  Pid: DWORD;
+  H: THandle;
+begin
+  Result := False;
+  Why := '';
+  SetArrayLength(Frozen, 0);
+  Count := 0;
+  if Job = 0 then
+  begin
+    Why := 'the product setup is not in a job object';
+    Exit;
+  end;
+  try
+    for Pass := 1 to SuiteFreezePasses do
+    begin
+      List.NumberOfAssignedProcesses := 0;
+      List.NumberOfProcessIdsInList := 0;
+      if not SuiteQueryJob(Job, SuiteJobObjectBasicProcessIdList, List, SizeOf(List), 0) then
+      begin
+        Why := 'the processes of the job cannot be listed (' + SysErrorMessage(DLLGetLastError) + ')';
+        Exit;
+      end;
+      Added := 0;
+      for I := 0 to Integer(List.NumberOfProcessIdsInList) - 1 do
+      begin
+        Pid := List.ProcessIdList[I];
+        Known := False;
+        for J := 0 to Count - 1 do
+          if Frozen[J].Pid = Pid then
+            Known := True;
+        if Known then
+          Continue;
+        H := SuiteOpenProcess(SuiteProcessSuspendResume or SuiteProcessQueryInformation, False, Pid);
+        if H = 0 then
+        begin
+          // no such process any more: it ended after the list was made
+          if DLLGetLastError <> SuiteErrorInvalidParameter then
+          begin
+            Why := 'process ' + IntToStr(Pid) + ' cannot be opened (' + SysErrorMessage(DLLGetLastError) + ')';
+            Exit;
+          end;
+          Continue;
+        end;
+        InJob := 0;
+        if (SuiteIsProcessInJob(H, Job, InJob) = 0) or (InJob = 0) then
+        begin
+          // the id belongs to another process now, or the process is gone: not ours, not touched
+          SuiteCloseHandle(H);
+          Continue;
+        end;
+        if SuiteWaitObject(H, 0) = SuiteWaitObject0 then
+        begin
+          // it ended since the list was made (its object lives on while a handle is open)
+          SuiteCloseHandle(H);
+          Continue;
+        end;
+        if SuiteSuspendProcess(H) < 0 then
+        begin
+          if SuiteWaitObject(H, 0) = SuiteWaitObject0 then
+          begin
+            // it ended while it was suspended
+            SuiteCloseHandle(H);
+            Continue;
+          end;
+          Why := 'process ' + IntToStr(Pid) + ' cannot be suspended';
+          SuiteCloseHandle(H);
+          Exit;
+        end;
+        Count := Count + 1;
+        SetArrayLength(Frozen, Count);
+        Frozen[Count - 1].Pid := Pid;
+        Frozen[Count - 1].Handle := H;
+        Added := Added + 1;
+      end;
+      if Added = 0 then
+      begin
+        Result := True;
+        Exit;
+      end;
+    end;
+    Why := 'the job kept starting new processes';
+  except
+    Why := 'error while freezing: ' + GetExceptionMessage;
+  end;
+end;
+
+// Lets the processes SuiteFreezeJob froze run again, in the reverse order, and closes their handles. Returns how many
+// could not be resumed (a process that has ended counts as resumed); each is tried three times. The only place that
+// resumes a process after a freeze (ci/check_suite.py).
+function SuiteResumeFrozen(var Frozen: array of TSuiteFrozenProcess): Integer;
+var
+  I, Attempt: Integer;
+  Done: Boolean;
+begin
+  Result := 0;
+  for I := GetArrayLength(Frozen) - 1 downto 0 do
+  begin
+    Done := False;
+    for Attempt := 1 to 3 do
+      if not Done and (SuiteResumeProcess(Frozen[I].Handle) >= 0) then
+        Done := True;
+    if not Done and (SuiteWaitObject(Frozen[I].Handle, 0) = SuiteWaitObject0) then
+      Done := True;
+    if not Done then
+      Result := Result + 1;
+    SuiteCloseHandle(Frozen[I].Handle);
+  end;
+  SetArrayLength(Frozen, 0);
+end;
+
+// Closes the handles of the frozen processes without resuming them: for a job that was terminated
+procedure SuiteForgetFrozen(var Frozen: array of TSuiteFrozenProcess);
+var
+  I: Integer;
+begin
+  for I := GetArrayLength(Frozen) - 1 downto 0 do
+    SuiteCloseHandle(Frozen[I].Handle);
+  SetArrayLength(Frozen, 0);
 end;
 
 // Starts the setup of a product the way Exec does (InstFunc.pas InstExec: CreateProcess with the quoted program

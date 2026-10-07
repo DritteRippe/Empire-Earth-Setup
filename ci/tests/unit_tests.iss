@@ -1918,7 +1918,7 @@ end;
 function InitializeSetup: Boolean;
 var
   Lines: TArrayOfString;
-  I: Integer;
+  I, ProcTick: Integer;
   ResultFile, ProcDir: String;
 begin
   // TestSuiteProcess starts this setup again as a program that runs for a while (a loader and a real setup, like a
@@ -1929,6 +1929,18 @@ begin
     SaveStringToFile(ProcDir + '\started.txt', 'started', False);
     Sleep(6000);
     SaveStringToFile(ProcDir + '\survived.txt', 'survived', False);
+    Result := False;
+    Exit;
+  end;
+  // TestSuiteFreeze starts this setup as a program that writes a byte every 25 ms for 10 seconds (a loader and a real setup)
+  ProcDir := ExpandConstant('{param:ProcTickDir|}');
+  if ProcDir <> '' then
+  begin
+    for ProcTick := 1 to 400 do
+    begin
+      Sleep(25);
+      SaveStringToFile(ProcDir + '\ticks.txt', 'x', True);
+    end;
     Result := False;
     Exit;
   end;
@@ -2008,8 +2020,11 @@ begin
     TestSuiteProgress;
     TestSuiteDisplay;
     TestSuiteTailLog;
+    TestSuiteTailLogToEnd;
+    TestSuiteStopDecision;
     TestSuiteRunLimits;
     TestSuiteProcess;
+    TestSuiteFreeze;
   except
     Failures := Failures + 1;
     Results.Add('FAIL exception: ' + GetExceptionMessage);

@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  Smoke test of the suite scenarios S1 to S13 (ci\e2e\e2e_suite_scenarios.ps1) against a FAKE Windows: no installer runs.
+  Smoke test of the suite scenarios S1 to S14 (ci\e2e\e2e_suite_scenarios.ps1) against a FAKE Windows: no installer runs.
 
 .DESCRIPTION
   The scenarios read and write the registry, shortcuts, files and processes of a Windows runner. Here the glue
@@ -200,7 +200,14 @@ try {
     if ($LogFile -and (Test-Path -LiteralPath $LogFile)) { Remove-Item -LiteralPath $LogFile -Force }
     # the defect of setups up to M1: the whole Data\dxm folder is deleted on every run
     if ($Repair -and $script:Bug -eq 'delmods' -and (Test-Path -LiteralPath (Join-Path $root 'Empire Earth\Data\dxm'))) { Remove-Item -LiteralPath (Join-Path $root 'Empire Earth\Data\dxm') -Recurse -Force }
-    $lines = @('Installation process succeeded.', 'English language selected, no need to download online files.')
+    # the placeholder setup (setup_is6.iss, PlaceholderInstallPause): a pause before the install step and one right after its line
+    $lines = @()
+    if ($script:Bug -ne 'nohook') {
+      $lines += @('Test hook of a placeholder build: pausing 2000 ms before the install step', 'Install step: the game folder is changed from here on',
+        'Test hook of a placeholder build: pausing 2000 ms after the install step line')
+    }
+    $lines += @('Install state of the previous run deleted (or there was none): x\install.ini, x\files.sha256',
+      'Installation process succeeded.', 'English language selected, no need to download online files.')
     if ($Repair) { $lines += "Will append to existing uninstall log: $root\unins000.dat" } else { $lines += "Creating new uninstall log: $root\unins000.dat" }
     Add-FakeLog $LogFile $lines
   }
@@ -269,8 +276,27 @@ try {
       $lines += "Product $id (step $step of $($ordered.Count), state $($state[$id])): C:\Users\x\AppData\Local\Temp\is-1.tmp\$id`_Setup.exe $arguments"
       # /TestCancel (suite_run.iss): the first product setup is stopped before it installs anything, Setup ends with Abort;
       # /TestCancelNeoEE: the same for the second one, but a product that finished before makes the suite finish its own part
-      if ((($tokens -contains '/TestCancel') -and $step -eq 1) -or (($tokens -contains '/TestCancelNeoEE') -and $id -eq 'NeoEE')) {
+      # /TestCancelAtInstall: the cancel is requested when the log shows the install step, the setup is frozen, the log read again,
+      # the line found: too late, the processes run again and the setup completes (the defect 'latekilled' stops it as the old code did)
+      $atInstall = (($tokens -contains '/TestCancelAtInstall') -and $step -eq 1)
+      $stopped = ((($tokens -contains '/TestCancel') -and $step -eq 1) -or (($tokens -contains '/TestCancelNeoEE') -and $id -eq 'NeoEE') -or ($atInstall -and $script:Bug -eq 'latekilled'))
+      if ($atInstall -and -not $stopped) {
+        $lines += "Product ${id}: /TestCancelAtInstall, its log shows the install step, the cancel is requested now"
+        if ($script:Bug -ne 'nofreeze') {
+          $lines += "Product ${id}: freezing its setup and everything it started, to look at its log once more before it is stopped"
+          $lines += "Product ${id}: 2 processes frozen"
+        }
+        $lines += "Product ${id} phase: install (200 of 1000)"
+        $lines += "Product ${id}: its log shows the install step, its setup is not stopped"
+        $lines += "Product ${id}: 2 processes run again"
+        $lines += "Product ${id}: the cancel came too late, its setup has started to install the game files"
+      }
+      if ($stopped) {
         $lines += "Product ${id}: /TestCancel, the cancel is requested as if the user had answered the question with Yes"
+        if ($script:Bug -ne 'nofreeze') {
+          $lines += "Product ${id}: freezing its setup and everything it started, to look at its log once more before it is stopped"
+          $lines += "Product ${id}: 2 processes frozen"
+        }
         $lines += "Product ${id}: cancelled by the user before it installed anything, stopping its setup and everything it started"
         $lines += "Product ${id}: its setup is gone"
         $lines += "Product $id was cancelled by the user before it installed anything"
@@ -292,6 +318,7 @@ try {
       }
       # what the suite read from the product log (SuiteLookAtLog, S4): the phases of a placeholder setup in the order of its log
       $phases = @('install (200 of 1000)', 'post install (840 of 1000)', 'manifest (900 of 1000)', 'done (1000 of 1000)')
+      if ($atInstall) { $phases = @($phases | Where-Object { $_ -notlike 'install *' }) }
       if ($script:Bug -eq 'phaseback') { $phases = @('post install (840 of 1000)', 'install (200 of 1000)', 'manifest (900 of 1000)', 'done (1000 of 1000)') }
       if ($script:Bug -eq 'phasenoend') { $phases = @('install (200 of 1000)', 'post install (840 of 1000)', 'manifest (900 of 1000)') }
       foreach ($phase in $phases) { $lines += "Product $id phase: $phase" }
@@ -455,7 +482,7 @@ try {
   Check 'the summary of a good run' (ConvertTo-E2ESuiteSummary -JsonLines @(Get-Content -LiteralPath (Join-Path $env:E2E_REPORT 'results.jsonl') | ForEach-Object { $_ } | Where-Object { $_ -notlike '*"Prepare"*' } | ForEach-Object { $_ }) -Scenarios @() -Titles $E2ESuiteTitles).Failed $false
   $all = @(Get-Content -LiteralPath (Join-Path $env:E2E_REPORT 'results.jsonl') | Where-Object { $_ })
   $withDone = @($all) + @($E2ESuiteConst.Scenarios | ForEach-Object { '{"scenario":"' + $_ + '","check":"DONE","status":"INFO","details":[]}' })
-  Check 'the summary: thirteen scenarios PASS' ((ConvertTo-E2ESuiteSummary -JsonLines $withDone -Scenarios $E2ESuiteConst.Scenarios -Titles $E2ESuiteTitles).Lines | Where-Object { $_ -like 'PASS *' }).Count 13
+  Check 'the summary: fourteen scenarios PASS' ((ConvertTo-E2ESuiteSummary -JsonLines $withDone -Scenarios $E2ESuiteConst.Scenarios -Titles $E2ESuiteTitles).Lines | Where-Object { $_ -like 'PASS *' }).Count 14
 
   # --- The checks bite: a defect of the fake must fail the check that is meant to catch it ------------------------------------
   $defects = @(
@@ -472,6 +499,12 @@ try {
     @{ Bug = 'nomarker'; Scenario = 'S1'; Check = 'install/REC' },
     @{ Bug = 'nomarker'; Scenario = 'S9'; Check = 'repair/REC' },
     @{ Bug = 'delmods'; Scenario = 'S9'; Check = 'repair/MODS' },
+    @{ Bug = 'nofreeze'; Scenario = 'S11'; Check = 'cancel/STOP' },
+    @{ Bug = 'nofreeze'; Scenario = 'S12'; Check = 'cancel/STOP' },
+    @{ Bug = 'nofreeze'; Scenario = 'S13'; Check = 'repair-cancel/STOP' },
+    @{ Bug = 'nofreeze'; Scenario = 'S14'; Check = 'cancel-late/DECISION' },
+    @{ Bug = 'latekilled'; Scenario = 'S14'; Check = 'cancel-late/RUN' },
+    @{ Bug = 'nohook'; Scenario = 'S14'; Check = 'cancel-late/HOOK' },
     @{ Bug = 'cancelinstalled'; Scenario = 'S11'; Check = 'cancel/NOTHING' },
     @{ Bug = 'cancelnext'; Scenario = 'S11'; Check = 'cancel/STOP' },
     @{ Bug = 'cancelexit0'; Scenario = 'S11'; Check = 'cancel/RUN' },

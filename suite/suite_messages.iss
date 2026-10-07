@@ -241,6 +241,10 @@ fr.SuiteRunGameRunning=%1 n'a pas été installé. Empire Earth, The Art of Conq
 SuiteRunFailed=%1 was not installed (%2).%n%nThe log of the game setup: %3%n%nThe setup goes on with the next game.
 de.SuiteRunFailed=%1 wurde nicht installiert (%2).%n%nDas Protokoll des Spiel-Setups: %3%n%nDas Setup macht mit dem nächsten Spiel weiter.
 fr.SuiteRunFailed=%1 n'a pas été installé (%2).%n%nLe journal du programme d'installation du jeu : %3%n%nLe programme continue avec le jeu suivant.
+; The user cancelled and the game setup was stopped, but its log shows that it had started to install the game files: %1 = the game, %2 = the log file
+SuiteRunCancelledLate=%1 may be only partly installed.%n%nYou cancelled the installation, but the setup of this game had already started to install the game files when it was stopped. Start this setup again to repair the game.%n%nThe log of the game setup: %2%n%nThe setup installs no further game.
+de.SuiteRunCancelledLate=%1 ist möglicherweise nur teilweise installiert.%n%nDu hast die Installation abgebrochen, aber das Setup dieses Spiels hatte schon begonnen, die Spieldateien zu installieren, als es beendet wurde. Starte dieses Setup erneut, um das Spiel zu reparieren.%n%nDas Protokoll des Spiel-Setups: %2%n%nDas Setup installiert kein weiteres Spiel.
+fr.SuiteRunCancelledLate=%1 n'est peut-être installé qu'en partie.%n%nVous avez annulé l'installation, mais le programme d'installation de ce jeu avait déjà commencé à installer les fichiers du jeu lorsqu'il a été arrêté. Relancez ce programme d'installation pour réparer le jeu.%n%nLe journal du programme d'installation du jeu : %2%n%nLe programme n'installe aucun autre jeu.
 ; %1 = exit code of the game setup, %2 = what it means (SuiteReason...)
 SuiteReasonCode=exit code %1: %2
 de.SuiteReasonCode=Exit-Code %1: %2

@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  Tests of ci\e2e\e2e_suite_helpers.ps1, the rules of the suite end-to-end scenarios S1 to S13, with fake data.
+  Tests of ci\e2e\e2e_suite_helpers.ps1, the rules of the suite end-to-end scenarios S1 to S14, with fake data.
 
 .DESCRIPTION
   The command lines of the suite and of the product setups it runs (valid ones must pass, each kind of defect must be
@@ -72,6 +72,11 @@ CheckProblems 'suite arguments: /TestCancel passes the rules' (Get-E2ESuiteArgum
 $cancelSecond = @(New-E2ESuiteArguments -LogFile $log -Products 'EE,NeoEE' -EEArgs $ee -NeoEEArgs $neo -ExtraSwitches @('/TestCancelNeoEE'))
 Check 'suite arguments: /TestCancelNeoEE is the last switch' $cancelSecond[-1] '/TestCancelNeoEE'
 CheckProblems 'suite arguments: /TestCancelNeoEE passes the rules' (Get-E2ESuiteArgumentProblems $cancelSecond) ''
+# S14: /TestCancelAtInstall (the first product setup, at the install step) and /TestCancelNeoEE (the second one, before it)
+$cancelAtInstall = @(New-E2ESuiteArguments -LogFile $log -Products 'EE,NeoEE' -EEArgs $ee -NeoEEArgs $neo -ExtraSwitches @('/TestCancelAtInstall', '/TestCancelNeoEE'))
+Check 'suite arguments: /TestCancelAtInstall and /TestCancelNeoEE are the last switches' ($cancelAtInstall[-2] + ' ' + $cancelAtInstall[-1]) '/TestCancelAtInstall /TestCancelNeoEE'
+Check 'suite arguments: /TestCancelAtInstall changes nothing else' (($cancelAtInstall | Select-Object -First ($cancelAtInstall.Count - 2)) -join ' ') ($switches -join ' ')
+CheckProblems 'suite arguments: /TestCancelAtInstall passes the rules' (Get-E2ESuiteArgumentProblems $cancelAtInstall) ''
 Check 'the code of a cancel' $E2ESuiteConst.ExitCancelled 3
 Check 'the default NeoEE arguments decide against the CD key task' (@(Split-E2EList (Get-E2ESwitchValue (Split-E2ECommandLine $neo) 'MERGETASKS')) -contains '!neoee_cdkeys') $true
 
@@ -277,8 +282,18 @@ Check 'summary: the warning is shown' ($result.Markdown -like '*Warnings*cleanup
 $result = ConvertTo-E2ESuiteSummary -JsonLines @((Json 'S1' 'DONE' 'INFO')) -Scenarios @('S1') -Titles $titles
 Check 'summary: no check passed' $result.Failed $true
 
+# --- Test-E2ELogOrder: the order of log lines ---------------------------------------------------------------------------------------
+$orderLines = @('start', 'freezing x', '2 processes frozen', 'not stopped', 'run again', 'too late', 'end')
+CheckProblems 'log order: in order' (Test-E2ELogOrder $orderLines @('^start$', '^freezing', 'frozen$', '^not stopped$', '^run again$', '^too late$')) ''
+CheckProblems 'log order: gaps are fine' (Test-E2ELogOrder $orderLines @('^start$', 'frozen$', '^end$')) ''
+CheckProblems 'log order: one pattern alone' (Test-E2ELogOrder $orderLines @('^too late$')) ''
+CheckProblems 'log order: a line missing' (Test-E2ELogOrder $orderLines @('^start$', '^nothing$', '^end$')) ([regex]::Escape("log line missing, or not after '^start`$': ^nothing`$"))
+CheckProblems 'log order: out of order' (Test-E2ELogOrder $orderLines @('^run again$', '^not stopped$')) ([regex]::Escape("log line missing, or not after '^run again`$': ^not stopped`$"))
+CheckProblems 'log order: the same line is not used twice' (Test-E2ELogOrder $orderLines @('^end$', '^end$')) ([regex]::Escape("log line missing, or not after '^end`$': ^end`$"))
+CheckProblems 'log order: no lines' (Test-E2ELogOrder @() @('^a$')) ([regex]::Escape("log line missing, or not after '(start of the log)': ^a`$"))
+
 # --- The scenarios and their titles ---------------------------------------------------------------------------------------------------
-Check 'scenarios: thirteen' $E2ESuiteConst.Scenarios.Count 13
+Check 'scenarios: fourteen' $E2ESuiteConst.Scenarios.Count 14
 foreach ($id in $E2ESuiteConst.Scenarios) { Check "title of $id" ($E2ESuiteTitles.ContainsKey($id) -and $E2ESuiteTitles[$id].Length -gt 10) $true }
 Check 'the AppIds are the dummies of ci/build.ps1' ($E2ESuiteConst.ProductAppIds['EE'] + '|' + $E2ESuiteConst.ProductAppIds['NeoEE'] + '|' + $E2ESuiteConst.SuiteAppId) `
   '00000000-0000-0000-0000-0000000000EE|00000000-0000-0000-0000-000000000AEE|00000000-0000-0000-0000-0000000005EE'

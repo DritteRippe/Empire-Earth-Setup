@@ -40,7 +40,11 @@
 
 .PARAMETER Placeholders
   Generate placeholder assets for missing files (CI / contributors without the game data).
-  Also uses dummy AppIds unless -EEAppID / -NeoEEAppID are given.
+  Also uses dummy AppIds unless -EEAppID / -NeoEEAppID are given, and passes the ISCC switch of the
+  test hook (Get-PlaceholderPauseDefine in build_helpers.ps1): the placeholder setups pause 2 seconds
+  before and 2 seconds after the install step (setup_is6.iss), which the cancel scenarios S11 to S14
+  of the suite need. A build without -Placeholders never gets that switch (and stops if its resolved
+  script holds the hook).
 
 .PARAMETER EEAppID
   AppId GUID of the EE setup, without braces. Default: the EE_AppID define in setup_is6.iss.
@@ -298,6 +302,8 @@ try {
     }
   }
   $defines += Get-SetupBuildDefine $SetupBuildValue
+  # The pauses of the placeholder product setups for the suite scenarios of CI: only with -Placeholders
+  $defines += Get-PlaceholderPauseDefine ([bool]$Placeholders)
   if ($SetupBuildValue) {
     Write-Host "SetupBuild: $SetupBuildValue"
   } else {
@@ -339,6 +345,14 @@ try {
       throw 'Preprocessing failed.'
     }
     $resolved += $dump
+  }
+
+  # A build with the real data must not hold the test hook of the placeholder builds (setup_is6.iss, PlaceholderInstallPause)
+  if (-not $Placeholders) {
+    $hooked = @(Find-PlaceholderHook $resolved)
+    if ($hooked.Count -gt 0) {
+      throw "The resolved script holds the test hook of the placeholder builds without -Placeholders ($($hooked -join ', ')); a build with the real data must not pause in its install step."
+    }
   }
 
   if ($KeepPreprocessed) {

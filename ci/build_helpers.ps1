@@ -158,6 +158,28 @@ function Get-SetupBuildDefine([string]$Value) {
   return @("/DSetupBuild=$Value")
 }
 
+# The text of the log lines of the test hook of the placeholder builds (setup_is6.iss, PlaceholderInstallPause)
+$PlaceholderHookText = 'Test hook of a placeholder build'
+
+# ISCC switch of the test hook of the placeholder builds: "/DPlaceholderInstallPause=1" with -Placeholders, nothing otherwise.
+# The placeholder product setups pause 2 seconds before and after the install step (setup_is6.iss), which the suite scenarios
+# S11 to S14 of CI need to cancel at a known moment. This is the only place that builds the switch, and ci\build.ps1 calls it
+# with $Placeholders only; a release build and a build with the real data never get it.
+function Get-PlaceholderPauseDefine([bool]$Placeholders) {
+  if ($Placeholders) { return @('/DPlaceholderInstallPause=1') }
+  return @()
+}
+
+# The preprocessed scripts (files) that hold a line of the test hook of the placeholder builds; a build without -Placeholders
+# must find none (ci\build.ps1 checks the resolved script of every variant before it compiles)
+function Find-PlaceholderHook([string[]]$Files) {
+  $found = @()
+  foreach ($file in $Files) {
+    if ((Get-Content -LiteralPath $file -Raw) -clike "*$PlaceholderHookText*") { $found += $file }
+  }
+  return $found
+}
+
 # Short commit of the Git checkout $Root ("git rev-parse --short=7 HEAD": 7 or more lowercase hex
 # digits), '' if Git is missing or $Root is not a checkout.
 function Get-GitShortCommit([string]$Root) {

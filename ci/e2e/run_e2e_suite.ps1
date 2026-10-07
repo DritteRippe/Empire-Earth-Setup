@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  The end-to-end scenarios S1 to S13 of the suite installer on a GitHub-hosted Windows runner, with placeholder builds.
+  The end-to-end scenarios S1 to S14 of the suite installer on a GitHub-hosted Windows runner, with placeholder builds.
 
 .DESCRIPTION
   Called by the job suite-e2e of .github/workflows/build.yml after the job compile built the placeholder suite
@@ -24,7 +24,9 @@
     S11      cancel while the first product setup runs (/TestCancel): stopped before it installs anything, exit code 3
     S12      cancel while the second product setup runs (/TestCancelNeoEE): the suite finishes its part for the first one
     S13      cancel of a repair (/TestCancel): the installed product stays exactly as it was, exit code 3
-    All      Prepare, then S1 to S13 (a failed Prepare stops the run)
+    S14      cancel at the install step of the first product setup (/TestCancelAtInstall, the placeholder setup holds still
+             there): too late, EE is not stopped and completes; the cancel of the second (/TestCancelNeoEE) stops NeoEE
+    All      Prepare, then S1 to S14 (a failed Prepare stops the run)
     Report   the job summary from the results
 
   Every result is a line of $env:E2E_REPORT\results.jsonl; the setup logs and the logs of the product setups go to
@@ -37,7 +39,7 @@
   Windows PowerShell 5.1 compatible, ASCII only.
 
 .PARAMETER Scenario
-  Prepare, S1 to S13, All or Report.
+  Prepare, S1 to S14, All or Report.
 
 .PARAMETER BudgetMinutes
   The time of the whole run, below the timeout-minutes of the workflow step (0: no budget, only the limits of the
@@ -46,7 +48,7 @@
 #Requires -Version 5.1
 [CmdletBinding()]
 param(
-  [ValidateSet('All', 'Prepare', 'S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8', 'S9', 'S10', 'S11', 'S12', 'S13', 'Report')][string]$Scenario = 'All',
+  [ValidateSet('All', 'Prepare', 'S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8', 'S9', 'S10', 'S11', 'S12', 'S13', 'S14', 'Report')][string]$Scenario = 'All',
   [ValidateRange(0, 360)][int]$BudgetMinutes = 0
 )
 

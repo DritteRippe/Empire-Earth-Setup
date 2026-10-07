@@ -1,4 +1,4 @@
-# Pure helpers of the end-to-end scenarios S1 to S13 of the suite installer (suite/suite.iss, ADR 0013), run by
+# Pure helpers of the end-to-end scenarios S1 to S14 of the suite installer (suite/suite.iss, ADR 0013), run by
 # ci/e2e/run_e2e_suite.ps1 in the job suite-e2e of .github/workflows/build.yml with the PLACEHOLDER builds (dummy
 # AppIds, stub launcher, no game data, no official download). Like e2e_helpers.ps1 nothing here touches the
 # registry, the network or a process: constants, the command lines of the suite and of its child setups and the
@@ -54,7 +54,7 @@ $E2ESuiteConst = @{
   # components (a /TYPE would replace them by the components of that type, without the choice of the GPU page)
   RepairEEArgs    = '/TASKS=compatibility,compatibility_windows'
   RepairNeoEEArgs = '/TASKS=compatibility,compatibility_windows /MERGETASKS=!neoee_cdkeys,!certinclude,!directplay,!dxwebsetup'
-  Scenarios = @('S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8', 'S9', 'S10', 'S11', 'S12', 'S13')
+  Scenarios = @('S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8', 'S9', 'S10', 'S11', 'S12', 'S13', 'S14')
 }
 
 $E2ESuiteTitles = @{
@@ -72,6 +72,7 @@ $E2ESuiteTitles = @{
   S11 = 'Cancel while the first product setup runs: it is stopped before it installs anything (exit code 3)'
   S12 = 'Cancel while the second product setup runs: the suite finishes its part for the first one (exit code 0)'
   S13 = 'Cancel of a repair: the installed product stays exactly as it was (exit code 3)'
+  S14 = 'Cancel at the install step of the first product setup: too late, it is not stopped and completes; the second one is stopped (exit code 0)'
 }
 
 # The one shortcut of the suite 1.1.0 (contract 1.7 point 8): it starts the launcher without an argument
@@ -91,7 +92,8 @@ function Split-E2ECommandLine([string]$Text) {
 # The switches of a silent run of the suite. The value of /EEArgs= and /NeoEEArgs= is quoted as a whole: Setup
 # removes the quotes ({param:EEArgs|}), so the product setups get the arguments with their blanks. ExtraSwitches go
 # last (S11, S13: /TestCancel, which cancels the first product setup as soon as its real setup has opened its log; S12:
-# /TestCancelNeoEE, which does the same for the second).
+# /TestCancelNeoEE, which does the same for the second; S14: /TestCancelAtInstall, which cancels the first product setup
+# at the moment its log shows the install step, together with /TestCancelNeoEE).
 function New-E2ESuiteArguments {
   param(
     [Parameter(Mandatory = $true)][string]$LogFile,
@@ -138,6 +140,24 @@ function Get-E2ESuiteArgumentProblems([string[]]$Switches) {
       $merge = Get-E2ESwitchValue $child 'MERGETASKS'
       if ((Split-E2EList $merge) -notcontains '!neoee_cdkeys') { $problems += '/NeoEEArgs= needs /MERGETASKS= with !neoee_cdkeys (the explicit decision against the CD key registration)' }
     }
+  }
+  return $problems
+}
+
+# Problems of the order of log lines: the patterns must match lines in this order (the first line after the line of the
+# pattern before it); a pattern with no such line is missing or comes too early
+function Test-E2ELogOrder([string[]]$Lines, [string[]]$Patterns) {
+  $problems = @()
+  $last = -1
+  $before = '(start of the log)'
+  foreach ($pattern in $Patterns) {
+    $index = -1
+    for ($i = $last + 1; $i -lt @($Lines).Count; $i++) {
+      if ($Lines[$i] -cmatch $pattern) { $index = $i; break }
+    }
+    if ($index -lt 0) { $problems += "log line missing, or not after '$before': $pattern"; continue }
+    $last = $index
+    $before = $pattern
   }
   return $problems
 }

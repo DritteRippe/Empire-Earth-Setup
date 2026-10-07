@@ -159,6 +159,15 @@ try {
   Check 'Get-SetupBuildDefine' (Get-SetupBuildDefine 'test1-ab12cd3') '/DSetupBuild=test1-ab12cd3'
   Check 'Get-SetupBuildDefine of none' @(Get-SetupBuildDefine '').Count 0
   CheckThrows 'Get-SetupBuildDefine refuses an invalid value' { Get-SetupBuildDefine 'a b' }
+  # --- Get-PlaceholderPauseDefine, Find-PlaceholderHook: the test hook of the placeholder builds (setup_is6.iss)
+  Check 'Get-PlaceholderPauseDefine with -Placeholders' (Get-PlaceholderPauseDefine $true) '/DPlaceholderInstallPause=1'
+  Check 'Get-PlaceholderPauseDefine without -Placeholders: nothing' @(Get-PlaceholderPauseDefine $false).Count 0
+  $hookFree = Join-Path $temp 'hook_free.iss'
+  $hooked = Join-Path $temp 'hooked.iss'
+  [System.IO.File]::WriteAllText($hookFree, "Log('Install step: the game folder is changed from here on');`n")
+  [System.IO.File]::WriteAllText($hooked, "Log('Install step: x');`nLog('${PlaceholderHookText}: pausing 2000 ms');`nSleep(2000);`n")
+  Check 'Find-PlaceholderHook finds the hook' (@(Find-PlaceholderHook @($hookFree, $hooked)) -join '|') $hooked
+  Check 'Find-PlaceholderHook finds nothing in a script without it' @(Find-PlaceholderHook @($hookFree)).Count 0
   Check 'Get-GitShortCommit outside a checkout' (Get-GitShortCommit $temp) ''
   $git = Get-Command 'git' -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
   # A Git checkout with one commit (a temporary repository; no settings of the user needed)
@@ -625,7 +634,9 @@ Add-Content -LiteralPath '%CALLS%' -Value ($args -join ' ')
 if ($script -like '*version_probe.iss') { 'ISCC_VERSION=6.2.2'; exit 0 }
 $match = [regex]::Match([System.IO.File]::ReadAllText($script), 'SaveToFile\(AddBackslash\(SourcePath\) \+ "([^"]+)"\)')
 if ($match.Success) {
-  [System.IO.File]::WriteAllText((Join-Path (Split-Path -Parent $script) $match.Groups[1].Value), '; resolved')
+  $resolved = '; resolved'
+  if (Test-Path -LiteralPath '%HOOKFLAG%') { $resolved += " Test hook of a placeholder build" }
+  [System.IO.File]::WriteAllText((Join-Path (Split-Path -Parent $script) $match.Groups[1].Value), $resolved)
   exit 0
 }
 $out = ''; $type = ''; $mode = ''
@@ -637,7 +648,8 @@ foreach ($arg in $args) {
 [System.IO.File]::WriteAllText((Join-Path $out "${type}_${mode}_dry_run.exe"), '')
 exit 0
 '@
-  [System.IO.File]::WriteAllText($fakeIscc, $fake.Replace('%CALLS%', $calls))
+  $hookFlag = Join-Path $temp 'fake_iscc_hook.flag'
+  [System.IO.File]::WriteAllText($fakeIscc, $fake.Replace('%CALLS%', $calls).Replace('%HOOKFLAG%', $hookFlag))
   $build = Join-Path $repoCi 'build.ps1'
   $common = @{
     Iscc = $fakeIscc
@@ -657,6 +669,7 @@ exit 0
   Check 'dry run -TestID 1: version probe without SetupBuild' ($lines[0] -like '*/DSetupBuild*') $false
   Check 'dry run -TestID 1: SetupBuild printed' @($buildOutput | Where-Object { $_ -ceq "SetupBuild: $testBuild" }).Count 1
   Check 'dry run -TestID 1: setups' @(Get-ChildItem -LiteralPath (Join-Path $repo 'out') -Recurse -Filter '*.exe').Count 2
+  Check 'dry run -TestID 1: no test hook of the placeholder builds (/DPlaceholderInstallPause) in any call' @(Get-Content -LiteralPath $calls | Where-Object { $_ -like '*PlaceholderInstallPause*' }).Count 0
   # A SHA-256 file next to every setup that passed, and the hash in the output
   foreach ($variantName in @('EE_Regular', 'NeoEE_Portable')) {
     $leaf = "${variantName}_dry_run.exe"
@@ -694,6 +707,7 @@ exit 0
     $env:GITHUB_ACTIONS = $null
   }
   Check 'dry run -TestID 0: /DTestID=0 in every compile' @(Get-Content -LiteralPath $calls | Where-Object { " $_ " -like '* /DTestID=0 *' }).Count 4
+  Check 'dry run -TestID 0: no test hook of the placeholder builds in any call' @(Get-Content -LiteralPath $calls | Where-Object { $_ -like '*PlaceholderInstallPause*' }).Count 0
   if ($repoCommit) {
     Check 'dry run -TestID 0 in CI: /DSetupBuild=<commit> in every compile' @(Get-Content -LiteralPath $calls | Where-Object { " $_ " -like "* /DSetupBuild=$repoCommit *" }).Count 4
   } else {
@@ -711,6 +725,17 @@ exit 0
     }
     return [pscustomobject]@{ Output = $output.ToArray(); Error = $message }
   }
+
+  # The resolved script holds a line of the test hook of the placeholder builds, but the build is none (-Placeholders is not
+  # given): it stops before ISCC compiles (a build with the real data must not pause in its install step)
+  [System.IO.File]::WriteAllText($hookFlag, 'x')
+  Remove-Item -LiteralPath $calls
+  $run = Invoke-DryBuild ($common + @{ TestID = 0 })
+  Check 'dry run release, hook in the resolved script: stops' ($run.Error -like 'The resolved script holds the test hook of the placeholder builds without -Placeholders (*') $true
+  Check 'dry run release, hook in the resolved script: no compile' @(Get-Content -LiteralPath $calls | Where-Object { $_ -like '*/DInstallType=*' -and $_ -notlike '*/O- *' }).Count 0
+  $run = Invoke-DryBuild ($common + @{ TestID = 1 })
+  Check 'dry run test build, hook in the resolved script: stops too' ($run.Error -like 'The resolved script holds the test hook of the placeholder builds without -Placeholders (*') $true
+  Remove-Item -LiteralPath $hookFlag
 
   # A dgVoodoo file of data\ that is not the pinned one (ADR 0005): a release build stops before ISCC compiles, a
   # test build warns and compiles; a placeholder counts as another file; the old folder dgVoodoo_conf is only a warning

@@ -41,11 +41,25 @@ to stay safe and installable:
             SuiteStartProduct, which starts the process suspended, puts it in a job object and only then resumes
             it), no other import that starts a program or limits a job (no kill on close); TerminateJobObject and
             TerminateProcess only in SuiteKillProduct, which only SuiteStartProduct (a start that failed) and
-            SuiteStopProduct call, and SuiteStopProduct only in the three places of SuiteWaitForProduct that may
-            stop a product setup (the confirmed cancel before the point of no return, the answer to the stall
-            question, the cap with a job); every wait for a process is bounded; the wait pumps the messages and
-            watches the limits; CancelButtonClick answers while a product setup runs; /TestCancel is read once;
-            after a cancel no further product setup starts and Setup ends with Abort
+            SuiteStopProduct call; SuiteStopProduct only in SuiteStopBeforeInstall (the stop that freezes first)
+            and, for the stall question answered with stop while the product setup installs, in
+            SuiteWaitForProduct; SuiteStopBeforeInstall only in the three places of SuiteWaitForProduct that may
+            stop a product setup before its install step (the confirmed cancel, the answer to the stall question,
+            the cap with a job); every wait for a process is bounded; the wait pumps the messages and watches the
+            limits; CancelButtonClick answers while a product setup runs; /TestCancel and /TestCancelAtInstall are
+            read once; after a cancel no further product setup starts and Setup ends with Abort
+  [Freeze]  the race of Cancel (ADR 0013 amendment, run 5f): NtSuspendProcess and NtResumeProcess are imported once
+            each and called only by SuiteFreezeJob and SuiteResumeFrozen; SuiteFreezeJob lists the job, opens only
+            processes that IsProcessInJob confirms and looks again until no process is new; SuiteStopBeforeInstall
+            freezes first, reads the log to its end, decides with SuiteStopDecision, only then stops the job, reads
+            the log once more after the stop, and resumes in a finally block unless it terminated; SuiteStopDecision
+            leaves a product setup alone (SuiteStopTooLate) when the state is not certain or the log shows the
+            install step or a part of its line; /TestCancelAtInstall reads a copy of the progress
+  [Hook]    the test hook of the placeholder builds (setup_is6.iss, PlaceholderInstallPause): every hook line of the
+            product script stands inside an #ifdef PlaceholderInstallPause block, the only place that passes
+            /DPlaceholderInstallPause is Get-PlaceholderPauseDefine of ci/build_helpers.ps1, which ci/build.ps1 calls
+            with its -Placeholders switch only, and a build without -Placeholders stops if the resolved script holds
+            a hook line
   [Display] the progress in the window of the suite (suite 1.1.0, S4): SuiteShowProgress (called by SuiteLookAtLog) leaves
             the advanced mode alone, takes the bar from SuiteRunningPermille (never 100 percent while a product setup
             runs), fails only into a log line (try/except, SuiteProgressBroken) and does not touch the bar's end; the bar
@@ -143,6 +157,33 @@ PRODUCT_LOG_LINES = [
 # (check_install_marker).
 INNO_LOG_CONSTANTS = ("SuiteLogInstallStart", "SuiteLogTempFile", "SuiteLogInstallDone", "SuiteLogDestFile", "SuiteLogClosed")
 PRODUCT_LOG_FILES = tuple(sorted({rel for rel, _ in PRODUCT_LOG_LINES}))
+# the build files that pass the test hook of the placeholder builds (check_placeholder_hook) and the scenarios that read the
+# log lines of the cancel (check_test_log_lines)
+HOOK_FILES = ["ci/build.ps1", "ci/build_helpers.ps1", "ci/e2e/e2e_suite_scenarios.ps1"]
+# The lines the scenarios S11 to S14 of ci/e2e/e2e_suite_scenarios.ps1 match (the suite log and the log of the placeholder
+# product setup): file, text, written by the code of that file, and the part of it the scenarios spell (None: all of it). A reworded line fails here instead of in the job on Windows;
+# they are no lines the suite parses (PRODUCT_LOG_LINES), but the tests depend on them (TEST-PLAN TP-99 names them, too).
+TEST_LOG_LINES = [
+    ("suite/suite_run.iss", "/TestCancel, the cancel is requested as if the user had answered the question with Yes", None),
+    ("suite/suite_run.iss", "/TestCancelAtInstall, its log shows the install step, the cancel is requested now", None),
+    ("suite/suite_run.iss", "freezing its setup and everything it started, to look at its log once more before it is stopped", None),
+    ("suite/suite_run.iss", " processes frozen", "processes frozen"),
+    ("suite/suite_run.iss", "its setup could not be frozen (", "its setup could not be frozen"),
+    ("suite/suite_run.iss", "its log could not be read to its end", "its log could not be read"),
+    ("suite/suite_run.iss", "its log shows the install step, its setup is not stopped", None),
+    ("suite/suite_run.iss", "the last line of its log may be the install step, its setup is not stopped", "the last line of its log may be the install step"),
+    ("suite/suite_run.iss", "the state of its setup is not certain, it is not stopped", "the state of its setup is not certain"),
+    ("suite/suite_run.iss", " processes run again", "processes run again"),
+    ("suite/suite_run.iss", "could not be resumed, its setup may hang", "could not be resumed"),
+    ("suite/suite_run.iss", "its log shows the install step (or could not be read) after its setup was stopped, it may be incomplete",
+     "its log shows the install step (or could not be read)"),
+    ("suite/suite_run.iss", "the cancel came too late, its setup has started to install the game files", None),
+    ("suite/suite_run.iss", "the cancel came too late, its setup could not be stopped safely", None),
+    ("suite/suite_run.iss", "cancelled by the user before it installed anything", None),
+    ("suite/suite_run.iss", "was cancelled by the user, but its log shows that it had started to install", "was cancelled by the user, but its log shows"),
+    ("setup_is6.iss", "Test hook of a placeholder build: pausing 2000 ms before the install step", None),
+    ("setup_is6.iss", "Test hook of a placeholder build: pausing 2000 ms after the install step line", None),
+]
 LOG_LINE_COMMENT = "suite parses this line"
 PRODUCT_SOURCES = ("{#EESetupFile}", "{#NeoEESetupFile}")
 # the legal texts of the wizard: files of the product setups, only extracted to {tmp} by the wizard
@@ -453,11 +494,16 @@ def check_runner(runner, main, errors):
 PROGRAM_IMPORTS_FORBIDDEN = re.compile(r"^(CreateProcess(?!W$)\w*|ShellExecute\w*|WinExec|CreateRemoteThread|"
                                        r"SetInformationJobObject|NtTerminate\w*|CreateThread)$")
 PROGRAM_IMPORTS = {"CreateProcessW": "SuiteCreateProcess", "TerminateProcess": "SuiteTerminateProcess",
-                   "TerminateJobObject": "SuiteTerminateJob"}
+                   "TerminateJobObject": "SuiteTerminateJob", "NtSuspendProcess": "SuiteSuspendProcess",
+                   "NtResumeProcess": "SuiteResumeProcess"}
 # who may call what: name -> the functions that call it (each of them must, the rest must not)
 PROGRAM_CALLERS = {"SuiteCreateProcess": {"SuiteStartProduct"}, "SuiteTerminateProcess": {"SuiteKillProduct"},
                    "SuiteTerminateJob": {"SuiteKillProduct"}, "SuiteKillProduct": {"SuiteStartProduct", "SuiteStopProduct"},
-                   "SuiteStopProduct": {"SuiteWaitForProduct"}, "SuiteStartProduct": {"SuiteRunProduct"}}
+                   "SuiteStopProduct": {"SuiteWaitForProduct", "SuiteStopBeforeInstall"},
+                   "SuiteStopBeforeInstall": {"SuiteWaitForProduct"}, "SuiteStartProduct": {"SuiteRunProduct"},
+                   "SuiteSuspendProcess": {"SuiteFreezeJob"}, "SuiteResumeProcess": {"SuiteResumeFrozen"},
+                   "SuiteFreezeJob": {"SuiteStopBeforeInstall"}, "SuiteResumeFrozen": {"SuiteStopBeforeInstall"},
+                   "SuiteForgetFrozen": {"SuiteStopBeforeInstall"}}
 
 
 def dll_imports(code):
@@ -503,25 +549,28 @@ def check_process(files, errors):
         if callers != allowed:
             errors.append(f"{name} is called by {sorted(callers) or 'nobody'}, expected {sorted(allowed)}: the one place that "
                           "starts a product setup, the one that stops it and who may call them are fixed")
-    counts = {name: sum(n for _, _, n in call_sites(files, name)) for name in ("SuiteCreateProcess", "SuiteStartProduct", "SuiteStopProduct")}
-    for name, number in (("SuiteCreateProcess", 1), ("SuiteStartProduct", 1), ("SuiteStopProduct", 3)):
+    counts = {name: sum(n for _, _, n in call_sites(files, name))
+              for name in ("SuiteCreateProcess", "SuiteStartProduct", "SuiteStopProduct", "SuiteStopBeforeInstall")}
+    for name, number in (("SuiteCreateProcess", 1), ("SuiteStartProduct", 1), ("SuiteStopProduct", 2), ("SuiteStopBeforeInstall", 3)):
         if counts[name] != number:
             errors.append(f"{name} is called {counts[name]} times, expected {number}")
     bodies = {}
     for text in files.values():
         bodies.update(function_bodies(code_lines(text)))
     wait = bodies.get("SuiteWaitForProduct", "")
-    cancel = re.search(r"SuiteCancelRequested then.*?SuiteProgressInstalling\(SuiteChildProgress\) then.*?\bend\s+else\s+begin\s+"
-                       r"SuiteStopProduct\(", wait, re.DOTALL)
-    stall = re.search(r"SuiteTimeoutStall:.*?SuiteStallStopWanted\(.*?SuiteStopProduct\(", wait, re.DOTALL)
+    cancel = re.search(r"SuiteCancelRequested then.*?case\s+SuiteStopBeforeInstall\(.*?SuiteStopGo:\s*begin\s+Result\s*:=\s*SuiteEndCancelled;",
+                       wait, re.DOTALL)
+    stall = re.search(r"SuiteTimeoutStall:.*?SuiteStallStopWanted\(.*?SuiteProgressInstalling\(SuiteChildProgress\)\s+then\s+begin\s+"
+                      r"SuiteStopProduct\(.*?case\s+SuiteStopBeforeInstall\(", wait, re.DOTALL)
     cap = re.search(r"SuiteTimeoutCap:.*?SuiteProgressInstalling\(SuiteChildProgress\)\s+then\s+Log\(.*?"
-                    r"SuiteChildJob\s*<>\s*0\s+then\s+begin\s+SuiteStopProduct\(", wait, re.DOTALL)
-    if not (cancel and stall and cap):
+                    r"SuiteChildJob\s*<>\s*0\s+then\s+begin\s+case\s+SuiteStopBeforeInstall\(", wait, re.DOTALL)
+    if not (cancel and stall and cap) or len(re.findall(r"\bSuiteStopProduct\(", wait)) != 1:
         errors.append("suite/suite_run.iss: SuiteWaitForProduct may stop the product setup only (1) after the user confirmed "
-                      "the cancel and the log shows that it has not started to install (SuiteCancelRequested, "
-                      "SuiteProgressInstalling), (2) after the user answered the stall question (SuiteStallStopWanted) and "
-                      "(3) at the cap, only before it started to install (SuiteProgressInstalling is looked at first) and "
-                      "with a job (SuiteChildJob <> 0)")
+                      "the cancel, through SuiteStopBeforeInstall (SuiteCancelRequested), (2) after the user answered the stall "
+                      "question (SuiteStallStopWanted): directly only if the product setup installs and the user was asked with "
+                      "that text, else through SuiteStopBeforeInstall, and (3) at the cap, only before it started to install "
+                      "(SuiteProgressInstalling is looked at first) and with a job (SuiteChildJob <> 0), through "
+                      "SuiteStopBeforeInstall")
     if "SuiteTimeoutCapInstalling:" not in wait or not re.search(r"SuiteTimeoutCheck\([^;]*SuiteProgressInstalling\(SuiteChildProgress\)", wait):
         errors.append("suite/suite_run.iss: SuiteWaitForProduct must give SuiteTimeoutCheck whether the product setup is installing "
                       "and only log the cap then (SuiteTimeoutCapInstalling): a product setup that installs is never stopped "
@@ -533,6 +582,9 @@ def check_process(files, errors):
                       "the question was open")
     if not re.search(r"\bSuiteProgressInstalling\(SuiteChildProgress\)\s+then\s+Log\(.*?/TestCancel not requested", wait, re.DOTALL):
         errors.append("suite/suite_run.iss: /TestCancel must not request a cancel of a product setup that is installing already")
+    if sum(text.count("SuiteHasParam('/TestCancelAtInstall')") for text in code.values()) != 1 \
+            or "SuiteHasParam('/TestCancelAtInstall')" not in bodies.get("SuiteRunProducts", ""):
+        errors.append("suite/suite_run.iss: /TestCancelAtInstall (CI scenario S14) must be read once, in SuiteRunProducts")
     for needed in ("SuitePumpMessages", "SuiteTimeoutCheck(", "SuiteLookAtLog(", "Terminated"):
         if needed not in wait:
             errors.append(f"suite/suite_run.iss: SuiteWaitForProduct must keep the window alive and watch the limits ({needed})")
@@ -564,7 +616,127 @@ def check_process(files, errors):
         errors.append("suite/suite_pages.iss: the last page must name the product the user cancelled (SuiteProductResult)")
     if "SuiteChildTimeout" not in bodies.get("SuiteReasonText", ""):
         errors.append("suite/suite_run.iss: SuiteReasonText must name the reason of a product setup the suite stopped")
-    return 12
+    return 14
+
+
+def check_freeze(files, errors):
+    """Rules for freezing a product setup before it is stopped (the race of Cancel, ADR 0013 amendment of run 5f): who
+    suspends and resumes, how the job is frozen, the order of the decision, what it does with doubt; the number of rules
+    checked."""
+    bodies = {}
+    for text in files.values():
+        bodies.update(function_bodies(code_lines(text)))
+    where = "suite/suite_common.iss"
+    freeze = bodies.get("SuiteFreezeJob", "")
+    for needed in ("SuiteQueryJob(", "SuiteOpenProcess(", "SuiteIsProcessInJob(", "SuiteSuspendProcess(", "SuiteFreezePasses", "Added = 0"):
+        if needed not in freeze:
+            errors.append(f"{where}: SuiteFreezeJob must list the job, open the processes, confirm that they are in the job, "
+                          f"suspend them and look again until no process is new ({needed})")
+    if freeze.find("SuiteIsProcessInJob(") > freeze.find("SuiteSuspendProcess(") or freeze.find("SuiteIsProcessInJob(") < 0:
+        errors.append(f"{where}: SuiteFreezeJob must confirm with IsProcessInJob that a process belongs to the job before it suspends it "
+                      "(an id the job gave may belong to another program by then)")
+    resume = bodies.get("SuiteResumeFrozen", "")
+    if "SuiteResumeProcess(" not in resume or "SuiteCloseHandle(" not in resume:
+        errors.append(f"{where}: SuiteResumeFrozen must resume the frozen processes and close their handles")
+    stop = bodies.get("SuiteStopBeforeInstall", "")
+    run = "suite/suite_run.iss"
+    order = [stop.find(token) for token in ("SuiteFreezeJob(", "SuiteTailLogToEnd(", "SuiteStopDecision(", "SuiteStopProduct(")]
+    if min(order) < 0 or order != sorted(order):
+        errors.append(f"{run}: SuiteStopBeforeInstall must freeze the job (SuiteFreezeJob), then read the log to its end "
+                      "(SuiteTailLogToEnd), then decide (SuiteStopDecision) and only then stop it (SuiteStopProduct)")
+    if stop.count("SuiteTailLogToEnd(") != 2 or not re.search(r"SuiteStopProduct\(.*?SuiteTailLogToEnd\(.*?SuiteStopDecision\([^;]*,\s*True\)", stop, re.DOTALL):
+        errors.append(f"{run}: SuiteStopBeforeInstall must read the log once more after the stop and decide again "
+                      "(SuiteStopDecision with Terminated = True): a line the suite missed makes the result SuiteStopIncomplete")
+    if not re.search(r"\bfinally\b.*?\bif\s+not\s+Killed\s+then.*?SuiteResumeFrozen\(", stop, re.DOTALL):
+        errors.append(f"{run}: SuiteStopBeforeInstall must resume the frozen processes in a finally block unless it terminated them")
+    if not re.search(r"SuiteStopDecision\(SuiteChildProgress,\s*FreezeOk and ReadOk,\s*False\)", stop):
+        errors.append(f"{run}: SuiteStopBeforeInstall must take the freeze and the read of the log into the decision (FreezeOk and ReadOk)")
+    decision = bodies.get("SuiteStopDecision", "")
+    for needed in ("SuiteProgressInstalling(P)", "SuitePartialLineIsInstall(P.TailCarry", "SuiteStopGo"):
+        if needed not in decision:
+            errors.append(f"{where}: SuiteStopDecision must leave a product setup alone when the install step is in the log (also a part of "
+                          f"its line) or the state is not certain, and tell a stop that came too late ({needed})")
+    if not re.search(r"if\s+Installing\s+or\s+not\s+Safe\s+then\s+Result\s*:=\s*SuiteStopIncomplete", decision) \
+            or not re.search(r"else\s+if\s+Installing\s+or\s+not\s+Safe\s+then\s+Result\s*:=\s*SuiteStopTooLate", decision):
+        errors.append(f"{where}: SuiteStopDecision must leave a product setup alone when the install step is in the log (also a part of "
+                      "its line) or the state is not certain (Installing or not Safe), and must not call a stopped one clean in that case")
+    peek = bodies.get("SuiteTestLogShowsInstall", "")
+    if "Peek := SuiteChildProgress;" not in peek or "SuiteTailLog(LogFile, Peek)" not in peek:
+        errors.append(f"{run}: /TestCancelAtInstall must read a copy of the progress (SuiteTestLogShowsInstall): the progress of the "
+                      "suite must not know the line, so that the decision has to find it itself")
+    return 8
+
+
+def check_placeholder_hook(root, errors):
+    """The test hook of the placeholder builds (setup_is6.iss, ci/build.ps1): every hook line of the product script stands inside
+    an #ifdef PlaceholderInstallPause block, no #define of it exists, the switch is passed only by Get-PlaceholderPauseDefine,
+    which build.ps1 calls with its -Placeholders switch only, and build.ps1 refuses a resolved script with a hook line when it
+    is no placeholder build; the number of rules checked."""
+    hook_text = "Test hook of a placeholder build"
+    try:
+        script = read(root, "setup_is6.iss").splitlines()
+        helpers = read(root, "ci/build_helpers.ps1")
+        build = read(root, "ci/build.ps1")
+    except CheckError as error:
+        errors.append(str(error))
+        return 1
+    blocks, hooks = [], 0  # one entry per open #if block: True if it is the #ifdef of the hook
+    for number, line in enumerate(script, 1):
+        stripped = line.strip()
+        if re.match(r"#\s*(ifdef|ifndef|if)\b", stripped):
+            blocks.append(bool(re.match(r"#\s*ifdef\s+PlaceholderInstallPause\b", stripped)))
+        elif re.match(r"#\s*else\b", stripped) and blocks:
+            blocks[-1] = False
+        elif re.match(r"#\s*endif\b", stripped) and blocks:
+            blocks.pop()
+        if hook_text in line and not stripped.startswith("//"):
+            hooks += 1
+            if not any(blocks):
+                errors.append(f"setup_is6.iss:{number}: this hook line stands outside #ifdef PlaceholderInstallPause: a build "
+                              "with the real data would pause in its install step")
+    if hooks < 2:
+        errors.append(f"setup_is6.iss: expected the two hook lines of the placeholder builds (before and after the install step), found {hooks}")
+    if re.search(r"#\s*define\s+PlaceholderInstallPause\b", "\n".join(script)):
+        errors.append("setup_is6.iss: PlaceholderInstallPause must not be defined in the script (only ci/build.ps1 -Placeholders passes it)")
+    if not re.search(r"function Get-PlaceholderPauseDefine\(\[bool\]\$Placeholders\)\s*\{\s*if \(\$Placeholders\) \{ return @\('/DPlaceholderInstallPause=1'\) \}\s*return @\(\)",
+                     helpers):
+        errors.append("ci/build_helpers.ps1: Get-PlaceholderPauseDefine must return /DPlaceholderInstallPause=1 for $Placeholders and nothing otherwise")
+    if "Get-PlaceholderPauseDefine ([bool]$Placeholders)" not in build or not re.search(
+            r"if \(-not \$Placeholders\) \{\s*\$hooked = @\(Find-PlaceholderHook \$resolved\)\s*if \(\$hooked\.Count -gt 0\) \{\s*throw", build):
+        errors.append("ci/build.ps1: the switch must come from Get-PlaceholderPauseDefine ([bool]$Placeholders), and a build without "
+                      "-Placeholders must stop if the resolved script holds a hook line (Find-PlaceholderHook)")
+    for rel in ("ci", "suite", ".github"):
+        base = root / rel
+        paths = [base] if base.is_file() else sorted(p for p in base.rglob("*") if p.is_file() and p.suffix in (".ps1", ".sh", ".yml", ".py", ".md", ".iss"))
+        for path in paths:
+            relative = path.relative_to(root).as_posix()
+            if relative in ("ci/build_helpers.ps1", "ci/check_suite.py") or relative.startswith("ci/tests/"):
+                continue
+            for line in path.read_text(encoding="utf-8-sig", errors="replace").splitlines():
+                if "PlaceholderInstallPause" in line and not line.lstrip().startswith(("#", "//")):
+                    errors.append(f"{relative} names PlaceholderInstallPause in code: only Get-PlaceholderPauseDefine passes the switch")
+                    break
+    return 6
+
+
+def check_test_log_lines(root, errors):
+    """The log lines the scenarios S11 to S14 match (TEST_LOG_LINES) are written by the code, and the scenario file of the
+    end-to-end test still names them; the number of rules checked."""
+    texts = {}
+    for rel in {entry[0] for entry in TEST_LOG_LINES} | {"ci/e2e/e2e_suite_scenarios.ps1"}:
+        try:
+            texts[rel] = read(root, rel)
+        except CheckError as error:
+            errors.append(str(error))
+            texts[rel] = ""
+    scenarios = texts["ci/e2e/e2e_suite_scenarios.ps1"].replace("\\", "").replace("`", "")
+    for rel, line, spelled in TEST_LOG_LINES:
+        if line not in texts[rel]:
+            errors.append(f"{rel}: no line contains {line!r}, which the scenarios S11 to S14 of ci/e2e/e2e_suite_scenarios.ps1 match "
+                          "(TEST_LOG_LINES): a change of this log line changes the scenarios and the test plan in the same commit")
+        if (spelled or line) not in scenarios:
+            errors.append(f"ci/e2e/e2e_suite_scenarios.ps1 does not name {(spelled or line)!r}, which {rel} writes (TEST_LOG_LINES)")
+    return len(TEST_LOG_LINES)
 
 
 def check_display(files, errors):
@@ -582,8 +754,8 @@ def check_display(files, errors):
     if "SuiteRunningPermille(" not in show or re.search(r"SuiteSetPosition\s*\([^;]*\b1000\b", show):
         errors.append("suite/suite_run.iss: SuiteShowProgress must take the bar from SuiteRunningPermille and never set the end of "
                       "the bar: 100 percent only when the exit code is known (SuiteEndProductDisplay)")
-    if "SuiteShowProgress(" not in bodies.get("SuiteLookAtLog", ""):
-        errors.append("suite/suite_run.iss: SuiteLookAtLog must show what it read (SuiteShowProgress)")
+    if "SuiteShowProgress(" not in bodies.get("SuiteNoteLogRead", "") or "SuiteNoteLogRead(" not in bodies.get("SuiteLookAtLog", ""):
+        errors.append("suite/suite_run.iss: SuiteLookAtLog must show what it read (SuiteNoteLogRead, SuiteShowProgress)")
     ends = [name for name, body in bodies.items()
             if re.search(r"SuiteOverallPermille\s*\([^;]*,\s*1000\s*\)", body) and name != "SuiteOverallPermille"]
     if ends != ["SuiteEndProductDisplay"]:
@@ -856,13 +1028,16 @@ def check(root):
     frame = check_frame_rules(main, files, errors)
     removal = check_uninstaller(uninstaller, main, files, errors)
     process = check_process(files, errors)
+    freeze = check_freeze(files, errors)
+    hook = check_placeholder_hook(root, errors)
+    test_lines = check_test_log_lines(root, errors)
     display = check_display(files, errors)
     check_forbidden_words(root, errors)
     log_lines = check_product_log_lines(root, common, errors)
     check_install_marker(root, common, errors)
     return errors, (f"suite frame: {directives} [Setup] directives, {products} product setups and {launcher} "
                     f"launcher, license and legal text entries in [Files], {codes} exit codes, {frame} slice, mode and registry view rules, product runner "
-                    f"{steps} rules, process {process} rules, display {display} rules, uninstall key marker {marker} rules, uninstaller {removal} rules, no CD key registry or library reference, {log_lines} product log lines the suite parses, the install marker first in CurStepChanged(ssInstall)")
+                    f"{steps} rules, process {process} rules, freeze {freeze} rules, placeholder hook {hook} rules, {test_lines} log lines of the cancel that the scenarios match, display {display} rules, uninstall key marker {marker} rules, uninstaller {removal} rules, no CD key registry or library reference, {log_lines} product log lines the suite parses, the install marker first in CurStepChanged(ssInstall)")
 
 
 def self_test(source_root):
@@ -1001,18 +1176,86 @@ def self_test(source_root):
          "SuiteTerminateJob is called by"),
         ("a product setup stopped outside the cancel and the limits",
          replace(run, "    Waited := SuiteWaitObject(SuiteChildProc, SuiteWaitSliceMs);\n", "    SuiteStopProduct(Product, 'x');\n    Waited := SuiteWaitObject(SuiteChildProc, SuiteWaitSliceMs);\n"),
-         "SuiteStopProduct is called 4 times, expected 3"),
+         "SuiteStopProduct is called 3 times, expected 2"),
         ("a stop outside the wait", replace(run, "  SuiteLogProgressEnd(Product);\n\n  // (e)", "  SuiteLogProgressEnd(Product);\n  SuiteKillProduct(Proc, Job);\n\n  // (e)"),
          "SuiteKillProduct is called by"),
-        ("cancel while the product setup installs",
-         replace(run, "      if SuiteProgressInstalling(SuiteChildProgress) then\n      begin\n        Log('Product ' + Product + ': the cancel came too late, its setup has started",
-                 "      if False then\n      begin\n        Log('Product ' + Product + ': the cancel came too late, its setup has started"),
+        ("cancel stops without the freeze and the log",
+         replace(run, "      case SuiteStopBeforeInstall(Product, LogFile, 'cancelled by the user before it installed anything', Phase) of\n        SuiteStopGo:",
+                 "      SuiteStopProduct(Product, 'x');\n      case 0 of\n        SuiteStopGo:"),
          "SuiteWaitForProduct may stop the product setup only"),
         ("a stall stopped without the question", replace(run, "            if SuiteStallStopWanted(Product, LogFile, Phase) then\n", "            if True then\n"),
          "SuiteWaitForProduct may stop the product setup only"),
-        ("the cap stops without a job", replace(run, "          else if SuiteChildJob <> 0 then\n          begin\n            SuiteStopProduct(Product, 'runs for more than '",
-                                               "          else if True then\n          begin\n            SuiteStopProduct(Product, 'runs for more than '"),
+        ("the cap stops without a job", replace(run, "          else if SuiteChildJob <> 0 then\n          begin\n            case SuiteStopBeforeInstall(",
+                                               "          else if True then\n          begin\n            case SuiteStopBeforeInstall("),
          "SuiteWaitForProduct may stop the product setup only"),
+        ("a stall stopped directly although the setup does not install",
+         replace(run, "              if SuiteProgressInstalling(SuiteChildProgress) then\n              begin\n                // the user was asked",
+                 "              if True then\n              begin\n                // the user was asked"),
+         "SuiteWaitForProduct may stop the product setup only"),
+        ("a second /TestCancelAtInstall",
+         replace(run, "SuiteTestCancelAtInstall := SuiteHasParam('/TestCancelAtInstall') and not SuiteAdvanced;",
+                 "SuiteTestCancelAtInstall := SuiteHasParam('/TestCancelAtInstall') and not SuiteHasParam('/TestCancelAtInstall') and not SuiteAdvanced;"),
+         "/TestCancelAtInstall (CI scenario S14) must be read once"),
+        ("the product setup is stopped without the freeze",
+         replace(run, "  FreezeOk := SuiteFreezeJob(SuiteChildJob, Frozen, Reason);\n", "  FreezeOk := True;\n"),
+         "SuiteStopBeforeInstall must freeze the job (SuiteFreezeJob)"),
+        ("the log is not read once more after the stop",
+         replace(run, "      ReadOk := not SuiteAdvanced and SuiteTailLogToEnd(LogFile, SuiteChildProgress);\n      SuiteNoteLogRead(Product, Phase);\n      Result := SuiteStopDecision(SuiteChildProgress, ReadOk, True);",
+                 "      Result := SuiteStopGo;"),
+         "SuiteStopBeforeInstall must read the log once more after the stop"),
+        ("the frozen processes are not resumed", replace(run, "      Stuck := SuiteResumeFrozen(Frozen);\n", "      Stuck := 0;\n"),
+         "SuiteStopBeforeInstall must resume the frozen processes in a finally block"),
+        ("the freeze and the read of the log are not part of the decision",
+         replace(run, "SuiteStopDecision(SuiteChildProgress, FreezeOk and ReadOk, False)", "SuiteStopDecision(SuiteChildProgress, True, False)"),
+         "SuiteStopBeforeInstall must take the freeze and the read of the log into the decision"),
+        ("a product setup is stopped when the state is not certain",
+         replace(common, "  else if Installing or not Safe then\n    Result := SuiteStopTooLate", "  else if Installing then\n    Result := SuiteStopTooLate"),
+         "SuiteStopDecision must leave a product setup alone"),
+        ("a stopped product setup is called clean although its log is unreadable",
+         replace(common, "    if Installing or not Safe then\n      Result := SuiteStopIncomplete", "    if Installing then\n      Result := SuiteStopIncomplete"),
+         "SuiteStopDecision must leave a product setup alone"),
+        ("a partial line of the log is ignored",
+         replace(common, "Installing := SuiteProgressInstalling(P) or SuitePartialLineIsInstall(P.TailCarry, not Terminated);", "Installing := SuiteProgressInstalling(P);"),
+         "SuiteStopDecision must leave a product setup alone"),
+        ("a process is suspended outside the freeze",
+         replace(run, "  SuiteLogProgressEnd(Product);\n\n  // (e)", "  SuiteLogProgressEnd(Product);\n  SuiteSuspendProcess(Proc);\n\n  // (e)"),
+         "SuiteSuspendProcess is called by"),
+        ("a process is resumed outside SuiteResumeFrozen",
+         replace(run, "  SuiteLogProgressEnd(Product);\n\n  // (e)", "  SuiteLogProgressEnd(Product);\n  SuiteResumeProcess(Proc);\n\n  // (e)"),
+         "SuiteResumeProcess is called by"),
+        ("a process of the job is suspended without the proof that it belongs to it",
+         replace(common, "        if (SuiteIsProcessInJob(H, Job, InJob) = 0) or (InJob = 0) then", "        if False then"),
+         "SuiteFreezeJob must confirm with IsProcessInJob"),
+        ("the test hook of /TestCancelAtInstall reads the progress itself",
+         replace(run, "  SuiteTailLog(LogFile, Peek);", "  SuiteTailLog(LogFile, SuiteChildProgress);"),
+         "/TestCancelAtInstall must read a copy of the progress"),
+        ("the hook line outside the #ifdef of the placeholder builds",
+         replace("setup_is6.iss", "#ifdef PlaceholderInstallPause\n    // Test hook of the placeholder builds (top of this file): the line is written", "#if True\n    // Test hook of the placeholder builds (top of this file): the line is written"),
+         "this hook line stands outside #ifdef PlaceholderInstallPause"),
+        ("the test hook defined in the script",
+         replace("setup_is6.iss", "#ifdef PlaceholderInstallPause\n  #if SignSetup", "#define PlaceholderInstallPause 1\n#ifdef PlaceholderInstallPause\n  #if SignSetup"),
+         "PlaceholderInstallPause must not be defined in the script"),
+        ("the test hook switch passed in every build",
+         replace("ci/build.ps1", "Get-PlaceholderPauseDefine ([bool]$Placeholders)", "Get-PlaceholderPauseDefine $true"),
+         "the switch must come from Get-PlaceholderPauseDefine ([bool]$Placeholders)"),
+        ("a build with the real data does not refuse the hook",
+         replace("ci/build.ps1", "  if (-not $Placeholders) {\n    $hooked = @(Find-PlaceholderHook $resolved)", "  if ($false) {\n    $hooked = @(Find-PlaceholderHook $resolved)"),
+         "a build without -Placeholders must stop if the resolved script holds a hook line"),
+        ("the helper passes the switch without -Placeholders",
+         replace("ci/build_helpers.ps1", "  if ($Placeholders) { return @('/DPlaceholderInstallPause=1') }", "  if ($true) { return @('/DPlaceholderInstallPause=1') }"),
+         "Get-PlaceholderPauseDefine must return /DPlaceholderInstallPause=1 for $Placeholders and nothing otherwise"),
+        ("a log line of the cancel reworded in the suite",
+         replace(run, "freezing its setup and everything it started, to look at its log once more before it is stopped'", "freezing the setup, to look at its log once more before it is stopped'"),
+         "which the scenarios S11 to S14 of ci/e2e/e2e_suite_scenarios.ps1 match"),
+        ("a log line of the cancel reworded in the scenarios",
+         replace("ci/e2e/e2e_suite_scenarios.ps1", "processes run again", "processes go on", 2),
+         "does not name 'processes run again'"),
+        ("a hook line reworded in the product script",
+         replace("setup_is6.iss", "Test hook of a placeholder build: pausing 2000 ms after the install step line", "Test hook of a placeholder build: pausing after the install step"),
+         "which the scenarios S11 to S14 of ci/e2e/e2e_suite_scenarios.ps1 match"),
+        ("another place passes the test hook switch",
+         replace("ci/build.ps1", "  $defines += Get-SetupBuildDefine $SetupBuildValue\n", "  $defines += Get-SetupBuildDefine $SetupBuildValue\n  $defines += '/DPlaceholderInstallPause=1'\n"),
+         "ci/build.ps1 names PlaceholderInstallPause in code"),
         ("an unbounded wait", replace(run, "SuiteWaitObject(SuiteChildProc, SuiteWaitSliceMs)", "SuiteWaitObject(SuiteChildProc, $FFFFFFFF)"),
          "every wait for a process must be bounded"),
         ("the wait does not keep the window alive", replace(run, "    if not SuitePumpMessages or Terminated then\n", "    if Terminated then\n"),
@@ -1194,7 +1437,7 @@ def self_test(source_root):
     with tempfile.TemporaryDirectory(prefix="check_suite_selftest_") as temp:
         for number, (name, change, expected) in enumerate(passing + cases):
             root = Path(temp) / f"case{number}"
-            for rel in SUITE_FILES + list(PRODUCT_LOG_FILES):
+            for rel in SUITE_FILES + list(PRODUCT_LOG_FILES) + HOOK_FILES:
                 (root / rel).parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(source_root / rel, root / rel)
             try:

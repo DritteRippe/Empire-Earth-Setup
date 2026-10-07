@@ -1241,6 +1241,130 @@ begin
   RemoveDir(Dir);
 end;
 
+// The progress of a product setup after a log that stood in the download phase, then these complete lines and then the last
+// line without a line end (Partial), as SuiteTailLog hands them to SuiteStopDecision
+function SuiteTestStopDecision(const Lines: array of String; const Partial: String; Safe, Terminated: Boolean): Integer;
+var
+  P: TSuiteProgress;
+begin
+  SuiteProgressInit(P, 'EE');
+  SuiteTestFeed(P, ['Downloading 17 online files, one at a time']);
+  SuiteTestFeed(P, Lines);
+  if Partial <> '' then
+    SuiteFeedLogChunk(P, Partial);
+  Result := SuiteStopDecision(P, Safe, Terminated);
+end;
+
+// The decision to stop a product setup before its install step (the race of Cancel, ADR 0013): what the log shows after the
+// processes were frozen, the last line without a line end, and whether the state is certain. Pure.
+procedure TestSuiteStopDecision;
+var
+  Marker, Stamp: String;
+  Nothing: array of String;
+  P: TSuiteProgress;
+begin
+  Marker := 'Install step: the game folder is changed from here on';
+  Stamp := SuiteTestLine('');
+  SetArrayLength(Nothing, 0);
+  Check('the three results are different', IntToStr(SuiteStopGo) + IntToStr(SuiteStopTooLate) + IntToStr(SuiteStopIncomplete), '012');
+
+  // before the stop: nothing new, or lines that are no sign of the install step, and everything frozen: stop it
+  Check('stop: nothing new in the log', IntToStr(SuiteTestStopDecision(Nothing, '', True, False)), IntToStr(SuiteStopGo));
+  Check('stop: new lines of the download phase',
+    IntToStr(SuiteTestStopDecision(['Downloading pinned online file x from y: z', 'Online file downloaded, x'], '', True, False)), IntToStr(SuiteStopGo));
+  Check('stop: a line that only contains the text of the marker',
+    IntToStr(SuiteTestStopDecision(['Log: ' + Marker], '', True, False)), IntToStr(SuiteStopGo));
+  // the line of the install step among the new lines: too late
+  Check('too late: the marker is among the new lines', IntToStr(SuiteTestStopDecision([Marker], '', True, False)), IntToStr(SuiteStopTooLate));
+  Check('too late: the marker and what follows it',
+    IntToStr(SuiteTestStopDecision([Marker, 'Install state of the previous run deleted (or there was none): x'], '', True, False)), IntToStr(SuiteStopTooLate));
+  Check('too late: the line of Inno Setup without the marker (a product setup that logs none)',
+    IntToStr(SuiteTestStopDecision(['Starting the installation process.'], '', True, False)), IntToStr(SuiteStopTooLate));
+  Check('too late: a later phase', IntToStr(SuiteTestStopDecision(['Installation process succeeded.'], '', True, False)), IntToStr(SuiteStopTooLate));
+  Check('too late: the end of the log', IntToStr(SuiteTestStopDecision(['Log closed.'], '', True, False)), IntToStr(SuiteStopTooLate));
+  // the state is not certain (a process that cannot be frozen, a log that cannot be read): never stop it
+  Check('too late: not everything is frozen, no sign of the install step', IntToStr(SuiteTestStopDecision(Nothing, '', False, False)), IntToStr(SuiteStopTooLate));
+  Check('too late: not everything is frozen, and the marker', IntToStr(SuiteTestStopDecision([Marker], '', False, False)), IntToStr(SuiteStopTooLate));
+  // it was known already before the freeze
+  SuiteProgressInit(P, 'EE');
+  SuiteTestFeed(P, [Marker]);
+  Check('too late: the progress showed the install step already', IntToStr(SuiteStopDecision(P, True, False)), IntToStr(SuiteStopTooLate));
+
+  // the last line without a line end counts as the marker when it is, or may become, the marker line
+  Check('too late: the marker line, only the line end is missing', IntToStr(SuiteTestStopDecision(Nothing, Stamp + Marker, True, False)), IntToStr(SuiteStopTooLate));
+  Check('too late: the marker line with a CR', IntToStr(SuiteTestStopDecision(Nothing, Stamp + Marker + #13, True, False)), IntToStr(SuiteStopTooLate));
+  Check('too late: the marker line is cut at "game fo"', IntToStr(SuiteTestStopDecision(Nothing, Stamp + 'Install step: the game fo', True, False)), IntToStr(SuiteStopTooLate));
+  Check('too late: the marker line is cut after "Install"', IntToStr(SuiteTestStopDecision(Nothing, Stamp + 'Install', True, False)), IntToStr(SuiteStopTooLate));
+  Check('too late: the marker line is cut after its first letter', IntToStr(SuiteTestStopDecision(Nothing, Stamp + 'I', True, False)), IntToStr(SuiteStopTooLate));
+  Check('too late: the line of Inno Setup is cut', IntToStr(SuiteTestStopDecision(Nothing, Stamp + 'Starting the installa', True, False)), IntToStr(SuiteStopTooLate));
+  Check('too late: only the time stamp of the line is written', IntToStr(SuiteTestStopDecision(Nothing, Stamp, True, False)), IntToStr(SuiteStopTooLate));
+  Check('too late: only a part of the time stamp is written', IntToStr(SuiteTestStopDecision(Nothing, '2026-10-06 21:3', True, False)), IntToStr(SuiteStopTooLate));
+  Check('stop: the last line without a line end is another line',
+    IntToStr(SuiteTestStopDecision(Nothing, Stamp + 'Online file downloaded, x', True, False)), IntToStr(SuiteStopGo));
+  Check('stop: the last line without a line end starts like the marker and goes another way',
+    IntToStr(SuiteTestStopDecision(Nothing, Stamp + 'Installing the file.', True, False)), IntToStr(SuiteStopGo));
+  Check('stop: only blanks after a line end', IntToStr(SuiteTestStopDecision(Nothing, '  ', True, False)), IntToStr(SuiteStopGo));
+  Check('stop: a complete line before the last one that is no marker',
+    IntToStr(SuiteTestStopDecision(['Downloading x of y'], Stamp + 'Online file', True, False)), IntToStr(SuiteStopGo));
+
+  // after the stop: the log cannot grow any more
+  Check('cancelled: nothing in the log after the stop', IntToStr(SuiteTestStopDecision(Nothing, '', True, True)), IntToStr(SuiteStopGo));
+  Check('cancelled: lines of the download phase after the stop',
+    IntToStr(SuiteTestStopDecision(['Online file downloaded, x'], Stamp + 'Online fi', True, True)), IntToStr(SuiteStopGo));
+  Check('cancelled: only the time stamp of a line is left (the log cannot grow any more)', IntToStr(SuiteTestStopDecision(Nothing, Stamp, True, True)), IntToStr(SuiteStopGo));
+  Check('incomplete: the marker appears after the stop (a missed line)', IntToStr(SuiteTestStopDecision([Marker], '', True, True)), IntToStr(SuiteStopIncomplete));
+  Check('incomplete: the marker and the first steps after the stop',
+    IntToStr(SuiteTestStopDecision([Marker, 'Install state of the previous run deleted (or there was none): x'], '', True, True)), IntToStr(SuiteStopIncomplete));
+  Check('incomplete: the marker line without its line end after the stop', IntToStr(SuiteTestStopDecision(Nothing, Stamp + Marker, True, True)), IntToStr(SuiteStopIncomplete));
+  Check('incomplete: the marker line cut after the stop', IntToStr(SuiteTestStopDecision(Nothing, Stamp + 'Install step: the', True, True)), IntToStr(SuiteStopIncomplete));
+  Check('incomplete: the line of Inno Setup after the stop', IntToStr(SuiteTestStopDecision(['Starting the installation process.'], '', True, True)), IntToStr(SuiteStopIncomplete));
+  Check('incomplete: the log could not be read after the stop', IntToStr(SuiteTestStopDecision(Nothing, '', False, True)), IntToStr(SuiteStopIncomplete));
+  Check('incomplete: the marker was known before the stop', IntToStr(SuiteStopDecision(P, True, True)), IntToStr(SuiteStopIncomplete));
+end;
+
+// SuiteTailLogToEnd reads the log to its end, also a long one, and tells a log that cannot be read from one that has nothing
+// new: the last look before the suite decides must not take a log it could not open for "no sign of the install step".
+procedure TestSuiteTailLogToEnd;
+var
+  Dir, LogFile, Text: String;
+  P: TSuiteProgress;
+  Handle: Cardinal;
+  I: Integer;
+begin
+  Dir := ExpandConstant('{tmp}\suite_tail_end');
+  ForceDirectories(Dir);
+  LogFile := Dir + '\EE-test.log';
+  DeleteFile(LogFile);
+  SuiteProgressInit(P, 'EE');
+  CheckBool('SuiteTailLogToEnd without a log: nothing written yet is certain', SuiteTailLogToEnd(LogFile, P), True);
+  Check('SuiteTailLogToEnd without a log: nothing read', IntToStr(P.TailOffset), '0');
+
+  // a long log, a line without a line end at its end: read in one call
+  Text := SuiteTestLine('Online files server https://x/localized: no answer') + #13#10;
+  for I := 1 to 6000 do
+    Text := Text + SuiteTestLine('Dest filename: C:\Program Files (x86)\Empire Earth\Data\f' + IntToStr(I) + '.ssa') + #13#10;
+  Text := Text + SuiteTestLine('Install step: the ga');
+  CheckBool('the long log is written', SaveStringToFile(LogFile, Text, False), True);
+  CheckBool('the long log is longer than one read', Length(Text) > SuiteTailChunkMax, True);
+  CheckBool('SuiteTailLogToEnd reads the long log', SuiteTailLogToEnd(LogFile, P), True);
+  Check('SuiteTailLogToEnd: the offset is the end of the log', IntToStr(P.TailOffset), IntToStr(Length(Text)));
+  CheckBool('SuiteTailLogToEnd: the last line without a line end is the carry', SuitePartialLineIsInstall(P.TailCarry, False), True);
+  Check('SuiteTailLogToEnd: the decision sees the cut marker', IntToStr(SuiteStopDecision(P, True, False)), IntToStr(SuiteStopTooLate));
+  CheckBool('SuiteTailLogToEnd without news', SuiteTailLogToEnd(LogFile, P), True);
+  DeleteFile(LogFile);
+
+  // a log that exists and cannot be opened (nobody may share it): not certain, SuiteTailLog says only "nothing new"
+  Handle := CreateFile(LogFile, SuiteTestGenericWrite, 0, 0, SuiteTestCreateAlways, 0, 0);
+  CheckBool('the exclusive test log is open', Handle <> INVALID_HANDLE_VALUE, True);
+  SuiteProgressInit(P, 'EE');
+  CheckBool('SuiteTailLog of a log that cannot be opened: nothing new', SuiteTailLog(LogFile, P), False);
+  CheckBool('SuiteTailLogToEnd of a log that cannot be opened: not certain', SuiteTailLogToEnd(LogFile, P), False);
+  Check('the decision for a log that could not be read: too late', IntToStr(SuiteStopDecision(P, False, False)), IntToStr(SuiteStopTooLate));
+  CloseHandle(Handle);
+  DeleteFile(LogFile);
+  RemoveDir(Dir);
+end;
+
 // The limits and the choices of the product runner (S2): what they do with the time, the exit code and the
 // Cancel button. Pure.
 procedure TestSuiteRunLimits;
@@ -1431,5 +1555,110 @@ begin
   Sleep(500);
   DeleteFile(Dir + '\started.txt');
   DeleteFile(Dir + '\survived.txt');
+  RemoveDir(Dir);
+end;
+
+// The freeze of the processes of a job (SuiteFreezeJob), the step before every stop of a product setup: programs that ended
+// or that cannot be frozen, and the setup of this test that writes a byte every 25 ms (/ProcTickDir, InitializeSetup of
+// unit_tests.iss), as a loader with a real setup like a product setup. Frozen, nothing is written; resumed, it goes on;
+// terminated while frozen, it ends with SuiteKillCode. Nothing here starts a setup of the suite.
+procedure TestSuiteFreeze;
+var
+  Dir, Why, Ticks: String;
+  Proc, Job: THandle;
+  Frozen: array of TSuiteFrozenProcess;
+  Err, Code, I, Stuck: Integer;
+  Size1, Size2, Size3: Int64;
+begin
+  Dir := ExpandConstant('{tmp}\suite_freeze');
+  ForceDirectories(Dir);
+  Ticks := Dir + '\ticks.txt';
+
+  // no job: nothing can be frozen, and the reason is told
+  Why := '';
+  CheckBool('SuiteFreezeJob without a job', SuiteFreezeJob(0, Frozen, Why), False);
+  CheckBool('SuiteFreezeJob without a job: a reason', Why <> '', True);
+  Check('SuiteFreezeJob without a job: nothing frozen', IntToStr(GetArrayLength(Frozen)), '0');
+
+  // a job whose program ended: nothing or only helpers left in it, no failure
+  CheckBool('SuiteStartProduct starts a program that ends', SuiteStartProduct(ExpandConstant('{sys}\cmd.exe'), '/c exit 0', Dir, Proc, Job, Err), True);
+  CheckBool('SuiteWaitEnd sees it end', SuiteWaitEnd(Proc, 30000), True);
+  if Job = 0 then
+    Skip('SuiteFreezeJob of a job whose program ended', 'the process could not be put in a job object')
+  else
+  begin
+    Why := 'x';
+    CheckBool('SuiteFreezeJob of a job whose program ended', SuiteFreezeJob(Job, Frozen, Why), True);
+    Check('SuiteFreezeJob of a job whose program ended: no reason', Why, '');
+    // what is still in the job (Wine keeps a console helper there for a moment) is frozen and runs again
+    Check('SuiteResumeFrozen of what was frozen', IntToStr(SuiteResumeFrozen(Frozen)), '0');
+    Check('SuiteResumeFrozen forgot them', IntToStr(GetArrayLength(Frozen)), '0');
+  end;
+  SuiteCloseHandle(Proc);
+  if Job <> 0 then
+    SuiteCloseHandle(Job);
+
+  // a loader with a real setup that writes every 25 ms
+  DeleteFile(Ticks);
+  CheckBool('SuiteStartProduct starts the ticking setup', SuiteStartProduct(ExpandConstant('{srcexe}'),
+    '/VERYSILENT /SUPPRESSMSGBOXES /ProcTickDir="' + Dir + '"', Dir, Proc, Job, Err), True);
+  if Job = 0 then
+    Skip('SuiteFreezeJob stops a setup that writes', 'the process could not be put in a job object')
+  else
+  begin
+    Size1 := 0;
+    I := 0;
+    while (I < 300) and not (FileExists(Ticks) and FileSize64(Ticks, Size1) and (Size1 > 4)) do
+    begin
+      SuiteWaitEnd(Proc, 100);
+      I := I + 1;
+    end;
+    CheckBool('the real setup it starts is writing', Size1 > 4, True);
+    Why := '';
+    CheckBool('SuiteFreezeJob freezes the loader and the real setup', SuiteFreezeJob(Job, Frozen, Why), True);
+    Check('SuiteFreezeJob: no reason', Why, '');
+    CheckBool('SuiteFreezeJob froze the processes of the job (the loader and the real setup)', GetArrayLength(Frozen) >= 2, True);
+    CheckBool('a frozen process is still there', SuiteWaitObject(Proc, 0) = SuiteWaitTimeout, True);
+    // the writes of a process that was running a moment ago stop at once: three looks at the size 300 ms apart are the same
+    Size1 := 0;
+    Size2 := 0;
+    Size3 := 0;
+    FileSize64(Ticks, Size1);
+    Sleep(300);
+    FileSize64(Ticks, Size2);
+    Sleep(300);
+    FileSize64(Ticks, Size3);
+    CheckBool('frozen: the real setup writes nothing', (Size1 = Size2) and (Size2 = Size3), True);
+    Stuck := SuiteResumeFrozen(Frozen);
+    Check('SuiteResumeFrozen resumed every process', IntToStr(Stuck), '0');
+    Check('SuiteResumeFrozen forgot the processes', IntToStr(GetArrayLength(Frozen)), '0');
+    I := 0;
+    Size3 := Size2;
+    while (I < 100) and (Size3 <= Size2) do
+    begin
+      Sleep(100);
+      FileSize64(Ticks, Size3);
+      I := I + 1;
+    end;
+    CheckBool('resumed: the real setup writes again', Size3 > Size2, True);
+    // frozen again, the whole job is terminated like the runner does after its decision
+    Why := '';
+    CheckBool('SuiteFreezeJob freezes again', SuiteFreezeJob(Job, Frozen, Why), True);
+    SuiteKillProduct(Proc, Job);
+    SuiteForgetFrozen(Frozen);
+    CheckBool('SuiteWaitEnd sees the terminated frozen program end', SuiteWaitEnd(Proc, SuiteKillWaitMs), True);
+    Code := -1;
+    CheckBool('SuiteProcessExitCode of the terminated frozen program', SuiteProcessExitCode(Proc, Code), True);
+    Check('the terminated frozen program got SuiteKillCode', IntToStr(Code), IntToStr(SuiteKillCode));
+    // the real setup would go on writing if the job had not ended it too
+    FileSize64(Ticks, Size1);
+    Sleep(500);
+    FileSize64(Ticks, Size2);
+    CheckBool('the real setup the loader started writes nothing after the terminate', Size1 = Size2, True);
+  end;
+  SuiteCloseHandle(Proc);
+  if Job <> 0 then
+    SuiteCloseHandle(Job);
+  DeleteFile(Ticks);
   RemoveDir(Dir);
 end;
