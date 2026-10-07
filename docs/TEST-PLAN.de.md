@@ -115,7 +115,7 @@ Nummer ihres Blocks. Ein neues Arbeitspaket mit eigenen Fällen bekommt den näc
 | TP-6x | Umgebung | S-WP8 | Hinweis unter 768 Pixeln Höhe und Bildschirm, DPI und Spielfenster im Log (TP-60), fremde und alte Installationen: Schlüssel in HKLM, fremde Uninstall-Einträge, CD-Ordner, Wortlaut zu den CD-Keys (TP-61), EE und NeoEE in einem Ordner (TP-62), Installation in den Ordner einer GOG- oder CD-Installation (TP-63) |
 | TP-7x | Allgemeine Abläufe und Forumfälle | S-WP2, S-WP9 | Grundablauf mit Update über 1.7.2 (TP-70), Standardnutzer und VirtualStore (TP-71), Version und Mehrspieler (TP-72), Reparatur (TP-73), AoC ohne EE-Start (TP-74), EE und NeoEE getrennt, eines deinstalliert (TP-75), Firewall beim Hosten (TP-76), CD-Keys (TP-77), Deutsch (TP-78), laufendes Spiel (TP-79) |
 | TP-8x | Links in den für alle beschreibbaren Ordnern | S-WP11 | Ein Standardbenutzer ersetzt `Data\Movies` durch eine Junction; das Update als Administrator hält auf der Seite „Vorbereitung der Installation“ an, ändert nichts und läuft nach dem Entfernen des Links durch; still Exit-Code 7; ein Link im Spielerordner unter `Users` und eine feste Verknüpfung (Hardlink) dort halten ebenfalls an (TP-80); eigene Mods unter `Data\dxm\mods` bleiben bei Reparatur, Update, Versionswechsel von dreXmod und Deinstallation (TP-81) |
-| TP-9x | Suite „Empire Earth Community“ | Suite-Plan (WP10) | Fälle zum Paket mit Launcher auf dem Laptop mit echten Daten: das ZIP ohne und mit „Zulassen“ (TP-90, TP-91), Start aus der ZIP-Ansicht (TP-92), beide Spiele mit den Standardwerten und Spielstart von den Symbolen (TP-93), Reparatur (TP-94), Deinstallation mit „Behalten“ und „Löschen“ (TP-95), Pfad „Erweitert“ (TP-96), Update über ein vorhandenes Einzel-Setup (TP-97), Fortschrittsanzeige im Fenster der Suite (TP-98), Abbrechen in der Suite vor der Installation eines Spiels und nicht mehr danach (TP-99); TP-93 und TP-95 sind das Freigabekriterium für Launcher 1.0.0 und Suite 1.0.0, siehe Block 9 |
+| TP-9x | Suite „Empire Earth Community“ | Suite-Plan (WP10) | Fälle zum Paket mit Launcher auf dem Laptop mit echten Daten: das ZIP ohne und mit „Zulassen“ (TP-90, TP-91), Start aus der ZIP-Ansicht (TP-92), beide Spiele mit den Standardwerten und Spielstart von den Symbolen (TP-93), Reparatur (TP-94), Deinstallation mit „Behalten“ und „Löschen“ (TP-95), Pfad „Erweitert“ (TP-96), Update über ein vorhandenes Einzel-Setup (TP-97), Fortschrittsanzeige im Fenster der Suite (TP-98), Abbrechen in der Suite vor der Installation eines Spiels und nicht mehr danach (TP-99); TP-93 und TP-95 sind das Freigabekriterium für Launcher 1.0.0 und Suite 1.0.0, für Suite 1.1.0 kommen TP-98 und TP-99 (mit der Variante e) und ein grüner Lauf des Jobs `suite-e2e` (S1 bis S13) auf windows-latest dazu, siehe Block 9 |
 
 ## 4. Vorlage je Fall
 
@@ -3186,6 +3186,14 @@ auf dem Desktop. Es gilt:
   von [Abschnitt 7](#7-kurzdurchlauf-p1-und-freigabe), der das Setup v2 betrifft und unverändert
   bleibt; ein ausgelassener Fall steht mit Grund im Protokoll. Jeder Befund wird als Issue
   festgehalten, mit dem Auszug aus dem Log.
+- **Freigabekriterium der Suite 1.1.0:** Die Suite wird als 1.1.0 erst getaggt, wenn **TP-93, TP-95, TP-98 und
+  TP-99** bestanden haben, TP-99 mit allen Varianten (a bis e, auch dem Abbruch einer Reparatur und dem
+  Abbruch des zweiten Spiels) und TP-98 mit der Darstellung bei 100 % und 150 % in Deutsch und Französisch,
+  **und** der Job `suite-e2e` für diesen Commit auf windows-latest grün war, mit S11, S12 und S13. Grund: Die
+  Prozess- und Abbruchlogik der Suite (`CreateProcessW`, Job-Objekt, eigene Nachrichtenschleife, die Records
+  für die API) lief bis dahin nur als Unit-Test und unter Wine, die Fenster-Layouts nur im Compiler; der erste
+  Lauf auf Windows ist dieser Job, danach der Laptop. Ein ausgelassener Teil steht mit Grund im Protokoll, aber
+  ein roter oder fehlender Lauf von S11 bis S13 verhindert den Tag.
 
 #### TP-90: Paket-ZIP ohne „Zulassen“: genau eine SmartScreen-Warnung
 
@@ -3606,7 +3614,7 @@ auf dem Desktop. Es gilt:
 #### TP-98: Fortschritt im Fenster der Suite: Statuszeile, Balken, Datei, Liste der erledigten Schritte, Zusammenfassung
 
 - **Status:** ausgearbeitet
-- **Priorität:** P2
+- **Priorität:** P2 (Freigabekriterium für Suite 1.1.0)
 - **Bezug:** ADR 0013 (Ergänzung: die Suite zeigt den Fortschritt der Spiel-Setups), Vertrag 1.7 Punkt 5 (die Zeilen
   des Protokolls, die die Suite liest), TP-93, TP-99; Suite-Szenario S1 (die Zeilen `Product EE phase: …` im Log
   der Suite, Platzhalter)
@@ -3689,7 +3697,7 @@ auf dem Desktop. Es gilt:
 #### TP-99: Abbrechen in der Suite: vor der Installation eines Spiels möglich, danach nicht mehr
 
 - **Status:** ausgearbeitet
-- **Priorität:** P2
+- **Priorität:** P2 (Freigabekriterium für Suite 1.1.0, mit allen Varianten)
 - **Bezug:** ADR 0013 (Ergänzung: die Setups der Spiele als Prozess mit Handle, Abbrechen, Zeitgrenzen), Vertrag 1.7
   Punkt 2 (Hinweis zum Abbrechen), TP-93; Suite-Szenario S11 (still, `/TestCancel`, Platzhalter)
 - **Ziel:** Abbrechen während des Downloads eines Spiels fragt nach und beendet auf „Ja“ sofort das Setup des

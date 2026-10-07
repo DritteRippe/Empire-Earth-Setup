@@ -578,3 +578,10 @@ the CHANGELOG); the points are added with the commit that fixes them.
    The stall question stays as it is for the download phase: at 10 percent a line comes at least every few minutes unless
    the line is slower than about 0.25 Mbit/s for the largest file, and then the question is asked once and "keep waiting"
    is the default.
+8. **Release criteria of suite 1.1.0.** The riskiest new code (the hand-made `CreateProcessW`, job object and `PeekMessage`
+   runner, the record layouts and the `SizeOf` of them, the hand-placed controls) had run only as unit tests and under Wine,
+   and TP-98 and TP-99 were P2 although the design requires TP-98 before tagging. The suite 1.1.0 is tagged only after TP-93,
+   TP-95, TP-98 and TP-99 pass (TP-99 with its repair and second-game variants, TP-98 with the display scaling check) and
+   the job `suite-e2e` was green on windows-latest for the commit, with S11, S12 and S13, the scenarios that cancel
+   (`docs/TEST-PLAN.de.md`, Block 9, "Freigabekriterium der Suite 1.1.0"). Their priority stays P2 like TP-93 and TP-95: the
+   short run of section 7 belongs to the product setups and stays at 170 minutes.

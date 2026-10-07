@@ -1043,7 +1043,11 @@ Root: HKCU; Subkey: "{#BaseRegCommunity}\GameDefaults\{#InstallType}"; ValueType
 ; images of the lobby, the four mod presets dxm, energycube, template and yukon, the cache dbcache). Folders
 ; players make below Data\dxm\mods (the comment of dreXmod.config invites them to) are never deleted, not on
 ; an update, a repair or a change of the dreXmod version, nor on uninstallation. A list entry that dreXmod
-; renames in a later version has to be added here with the data (README, "Notes for Modders").
+; renames in a later version has to be added here with the data (README, "Notes for Modders"). Checked against the
+; DLLs of the repository data (2026-10-07): dreXmod 3.4 names only data/dxm/dbcache below Data\dxm as a path it
+; writes (everything else there is shipped or the player's), dreXmod 2 no path below it, so nothing else has to
+; be listed; a file a later version creates there stays, and with it Data\dxm and the game folder after the
+; uninstallation (README, "Notes for Modders").
 Type: files; Name: "{app}\{#EEExe}"
 Type: files; Name: "{app}\{#EEDir}\D3D8.dll"
 Type: files; Name: "{app}\{#EEDir}\D3D9.dll"

@@ -874,9 +874,13 @@ setup version stays 1.7.2 until the release.
   of the four preset folders is still removed with it, and `dreXmod.config` is still set to the shipped default on
   every run (a choice of `<Mod>` there does not survive a setup run). The uninstaller of the suite lists the
   folder `Data\dxm\mods` of each removed game in its question with the profiles and saved games ("Behalten" is the
-  default, a silent uninstallation keeps it) and removes `Data\dxm` afterwards if it is empty. The real-data comparison of
-  `[InstallDelete]` with the official setup 1.7.2 shows this as a known difference. Tested by the scenarios
-  S8, S9 and D of the end-to-end tests (`ci/e2e`), test case TP-81.
+  default, a silent uninstallation keeps it) and removes `Data\dxm` afterwards if it is empty. This is an intended
+  difference to the official setup 1.7.2, whose `[InstallDelete]` and `[UninstallDelete]` removed the whole folder; no
+  file of the repository records it as an exception (the real-data comparison of the maintainers is not in the
+  repository, `docs/ARCHITECTURE.md`). The DLLs of the repository data show that nothing else needs listing: dreXmod 3.4
+  names only `data/dxm/dbcache` below `Data\dxm` as a path it writes, dreXmod 2 none; a file that a later version creates
+  there stays after an uninstallation, and with it `Data\dxm` and the game folder (README, "Notes for Modders"). Tested by
+  the scenarios S8, S9 and D of the end-to-end tests (`ci/e2e`), test case TP-81.
 - Suite installer: its own uninstall key (Publisher `Empire Earth Community`, the publisher of EE)
   no longer looks like an EE installation to the launcher: the suite marks it with
   `Empire Earth Community: Suite` at the end of every run (see Changed, revision 5; laptop test TP-93).
