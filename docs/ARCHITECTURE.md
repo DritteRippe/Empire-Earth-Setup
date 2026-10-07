@@ -409,10 +409,10 @@ pass and the job `suite-e2e` (S1 to S13) was green on windows-latest.
   one user only is skipped with a message.
 - **After each product:** success = exit code 0 and the uninstall key in HKLM64; the old shortcuts of
   standalone runs of that product are deleted (contract 1.7 point 7) before the suite creates its
-  shortcut `Empire Earth Community` (desktop; it starts the launcher without a product, the launcher opens with
-  the game chosen last) and the start menu folder `Empire Earth Community` (launcher, Mod Creator, diagnostic tools,
-  uninstaller); the game shortcuts `Empire Earth` and `Neo Empire Earth` of suite 1.0.0 are deleted again where they
-  start the launcher, and are only created on a computer without .NET Framework 4.8 (to the game programs). The shortcuts and
+  shortcut `Empire Earth Community` (desktop and start menu folder `Empire Earth Community`, next to the Mod Creator
+  and the uninstaller; it starts the launcher without a product, so the launcher opens with the game chosen last;
+  without .NET Framework 4.8 it starts the game program of NeoEE, else EE). Every run first deletes the seven
+  shortcuts of suite 1.0.0 (`SuiteRemoveOldSuiteShortcuts`, contract 1.7 point 8). The shortcuts and
   the record below are created in code at `ssPostInstall` and removed by the uninstaller (ADR 0013,
   Evidence: the `Check` functions of `[Icons]` and `[Registry]` did not reliably see the results of
   `ssInstall`). For NeoEE the suite
@@ -480,9 +480,9 @@ pass and the job `suite-e2e` (S1 to S13) was green on windows-latest.
   besides its files: the record and the marker of its uninstall key), `suite_uninstall.iss` (its uninstaller). Build values (AppIds, the pins and sizes of the embedded setups, the slice
   count and total size of a two-pass build) are `/D` defines, listed at the top of `suite.iss`.
 - **Checks:** `ci/check_contract.py` reads `suite/suite.iss` and its includes (`SetupMutex`,
-  `AppMutex`, the record's value names and types written in code, the game shortcuts to the
-  launcher, the marker of the uninstall key, no reference to the protected keys); `ci/check_suite.py`
-  also requires `MarkSuiteUninstallKey` after `WriteSuiteRecord` and `RegKeyExists` before its write; the
+  `AppMutex`, the record's value names and types written in code, the shortcut `Empire Earth Community` with the
+  products of its fallback, none with `--product=` or a name of suite 1.0.0, the marker of the uninstall key, no reference to the protected keys); `ci/check_suite.py`
+  checks that only the paths of suite 1.0.0 are deleted, before the new shortcut is created, and also requires `MarkSuiteUninstallKey` after `WriteSuiteRecord` and `RegKeyExists` before its write; the
   suite scenarios S1, S2, S3, S9 and S10 assert the marker; it also checks the product log lines the suite
   parses (see above); `ci/check_messages.py` checks `suite_messages.iss`
   and forbids `MsgBox` in the suite scripts (only `SuppressibleMsgBox`).

@@ -3152,9 +3152,8 @@ auf dem Desktop. Es gilt:
   und die Hinweise. Vor jedem Fall die Prüfsummen vergleichen
   (`Get-FileHash -Algorithm SHA256 <Datei>` gegen `SHA256SUMS.txt`). Das Paket wird für die Tests nicht
   weitergegeben (Regel 4); verteilt wird es nur über das private Repository.
-- **Namen:** Das Desktop-Symbol heißt `Empire Earth Community` (ab Suite 1.1.0 das einzige; bis 1.0.0 gab es
-  `Empire Earth` und `Neo Empire Earth`), der Startmenüordner `Empire Earth Community` enthält den Launcher, den
-  Mod Creator und die Deinstallation. Der Eintrag in „Apps“ („Installierte Apps“ bzw.
+- **Namen:** Die Verknüpfungen heißen `Empire Earth Community` (Desktop und Startmenü, Suite 1.1.0); Suite 1.0.0
+  legte `Empire Earth` und `Neo Empire Earth` an. Der Eintrag in „Apps“ („Installierte Apps“ bzw.
   „Apps & Features“) heißt `Empire Earth Community (Launcher, EE, NeoEE)`. Standardordner der
   Suite: `C:\Program Files\Empire Earth Community`; die Spiele liegen in den Standardordnern ihrer
   Setups (`C:\Program Files (x86)\Empire Earth`, `…\Neo Empire Earth`).
@@ -3316,19 +3315,17 @@ auf dem Desktop. Es gilt:
   und `started from the ZIP view or a temporary folder, slices missing or wrong:`, bei (b)
   `Precheck failed, exit code 11` und `slices missing or wrong:`.
 
-#### TP-93: Beide Spiele mit den Standardwerten installieren und vom Desktop-Symbol aus spielen
+#### TP-93: Beide Spiele mit den Standardwerten installieren und vom Desktop-Symbol „Empire Earth Community“ spielen
 
 - **Status:** ausgearbeitet
 - **Priorität:** P2 (Freigabekriterium für Launcher 1.0.0 und Suite 1.0.0)
-- **Bezug:** ADR 0013, Vertrag 0 (Launcher-Mutex), 1.4 (`--product=`), 1.6 und 1.7 (Punkt 8: ein Desktop-Symbol
-  `Empire Earth Community`, Suite 1.1.0), Entscheidung zu den Namen der Symbole (ohne „spielen“); Vertrag 1.3 und 1.4 Quelle 3
+- **Bezug:** ADR 0013, Vertrag 0 (Launcher-Mutex), 1.4 (`--product=`; Auswahl je Produkt, Revision 6), 1.6 und 1.7
+  (Punkt 8, Revision 6: ein Symbol), Entscheidung zu den Namen der Symbole (ohne „spielen“); Vertrag 1.3 und 1.4 Quelle 3
   (Revision 5: Markierung `Empire Earth Community: Suite` im Deinstallationsschlüssel der Suite); Launcher
-  WP10-01 bis WP10-04 und WP10-10 (Testplan des Launchers); Suite-Szenario S1 (still, Platzhalter)
+  WP10-01 bis WP10-04 und WP10-10 sowie WP13-01 bis WP13-06 (Testplan des Launchers); Suite-Szenario S1 (still, Platzhalter)
 - **Ziel:** Eine Installation mit den Standardwerten richtet EE mit AoC, NeoEE und den Launcher ein; die
-  NeoEE-CD-Keys sind registriert, es gibt **ein** Desktop-Symbol, der Launcher öffnet mit dem zuletzt gewählten
-  Spiel und listet auf der Seite „Spielen“ die vier Spiele, alle drei installierten Spiele starten, und ein
-  Aufruf mit `--product=` (alte Verknüpfung) bei offenem Launcher wechselt das Spiel, ohne einen zweiten Launcher
-  zu öffnen.
+  NeoEE-CD-Keys sind registriert, es gibt **ein** Desktop-Symbol, alle drei Spiele starten über die Liste auf der
+  Seite *Spielen*, und ein zweiter Doppelklick auf das Symbol bei offenem Launcher holt ihn nur nach vorn.
 - **Build-Art:** B (echter Suite-Build, echte Spieldaten, Weg B, nur Laptop mit Rückweg, Regel 1)
 - **Ausgangszustand:** kein EE, kein NeoEE, keine Suite, keine Reste unter `C:\Program Files (x86)\Empire
   Earth`, `…\Neo Empire Earth`, `C:\Program Files\Empire Earth Community`; .NET Framework 4.8 vorhanden
@@ -3353,31 +3350,22 @@ auf dem Desktop. Es gilt:
      Balken. Die Dauer notieren.
   4. Auf der letzten Seite den Text festhalten und „Launcher jetzt starten“ **nicht** anhaken, dann
      „Fertigstellen“.
-  5. Prüfen: auf dem Desktop **genau ein** Symbol, `Empire Earth Community` (kein `Empire Earth`, kein `Neo
-     Empire Earth`, keine Symbole mit „spielen“ im Namen), im Startmenü der Ordner `Empire Earth Community` mit
-     `Empire Earth Launcher`, `Mod Creator`, `Uninstall Empire Earth Community` (und den Diagnosewerkzeugen der
-     Spiele, falls vorhanden; sie bleiben dort, die Entscheidung dazu nennt nur Launcher und Mod Creator, bitte
-     bestätigen) und **ohne** Einträge `Empire Earth` oder `Neo Empire Earth`; in den Eigenschaften des
-     Desktop-Symbols zeigt „Ziel“ auf `Empire Earth Launcher.exe` ohne Parameter; „Apps“ zeigt den Eintrag
+  5. Prüfen: auf dem Desktop genau **ein** Symbol `Empire Earth Community` (kein `Empire Earth`, kein `Neo Empire
+     Earth`), im Startmenü der Ordner `Empire Earth Community` mit `Empire Earth Community`, `Mod Creator`,
+     `Uninstall Empire Earth Community` (keine Diagnose-Verknüpfungen); „Ziel“ des Symbols ist `Empire Earth
+     Launcher.exe` **ohne** Argument; „Apps“ zeigt den Eintrag
      `Empire Earth Community (Launcher, EE, NeoEE)` sowie die Einträge der beiden Spiele. Danach (Schritt 5a)
      in einer Eingabeaufforderung `reg query HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall /s /f
      "Empire Earth Community: Suite" /e` ausführen (ohne die AppId der Suite; nur die Treffer notieren).
-  6. Doppelklick auf das Symbol `Empire Earth Community`: Der Launcher öffnet sich auf der Seite „Spielen“ mit
-     einer Auswahlliste der vier Spiele in der Reihenfolge „Empire Earth“, „Empire Earth – The Art of Conquest“,
-     „Neo Empire Earth“, „Neo Empire Earth – The Art of Conquest“ (Bildschirmfoto; hier sind alle vier
-     auswählbar). Vor dem Spielstart im Launcher die Seite *Launcher* öffnen und die Liste der Installationen
-     festhalten (Bildschirmfoto). „Empire Earth“ wählen: die Auswahl gilt für alle Seiten, die Spielerliste von
-     NeoEE ist **nicht** zu sehen. Das Spiel über den Launcher starten, bis zum Hauptmenü, Version prüfen,
-     beenden. Im Launcher „Empire Earth – The Art of Conquest“ wählen und starten, bis zum Hauptmenü, beenden.
-     Launcher schließen.
-  7. Den Launcher wieder über das Symbol öffnen: Er öffnet mit dem zuletzt gewählten Spiel (AoC; gemerkt in
-     `settings.json`). „Neo Empire Earth“ wählen: die Spielerliste von NeoEE erscheint, alle Seiten zeigen
-     NeoEE; das Spiel starten, bis zum Hauptmenü, **ohne** die Meldung „CD key invalid“, beenden.
-  8. **Alte Verknüpfungen und Übergabe:** den Launcher schließen; in einer Eingabeaufforderung
-     `"C:\Program Files\Empire Earth Community\Empire Earth Launcher.exe" --product=EE` starten (so liefen die
-     Symbole der Suite 1.0.0): Der Launcher öffnet mit EE vorgewählt. Bei offenem Launcher denselben Aufruf mit
-     `--product=NeoEE` ausführen: kein zweiter Launcher, der offene wechselt auf NeoEE und kommt in den
-     Vordergrund.
+  6. Doppelklick auf `Empire Earth Community`: Der Launcher öffnet sich; auf *Spielen* stehen vier Einträge in
+     dieser Reihenfolge: „Empire Earth“, „Empire Earth – The Art of Conquest“, „Neo Empire Earth“, „Neo Empire Earth –
+     The Art of Conquest“, alle wählbar; gewählt ist „Neo Empire Earth“ (beim ersten Start die erste Installation der
+     Suche). Seite *Launcher*: Liste festhalten (Bildschirmfoto). „Empire Earth“ wählen, starten bis zum Hauptmenü,
+     Version prüfen, beenden; „Empire Earth – The Art of Conquest“ wählen, starten, beenden. Launcher schließen.
+  7. Wieder `Empire Earth Community`: gewählt ist „Empire Earth – The Art of Conquest“ (gemerkt). „Neo Empire
+     Earth“ wählen: die Spielerliste erscheint; starten bis zum Hauptmenü **ohne** „CD key invalid“, beenden.
+  8. **Zweiter Doppelklick bei offenem Launcher:** Launcher offen lassen (minimiert), noch einmal
+     `Empire Earth Community` doppelklicken.
   9. Das Spiel schließen, den Launcher schließen. Die Logs einsammeln (Liste oben); mit
      `reg query` nur prüfen, dass der Wert unter `HKLM\SOFTWARE\WOW6432Node\Sierra\CDKeys` noch da ist,
      ohne den Inhalt zu protokollieren.
@@ -3392,30 +3380,31 @@ auf dem Desktop. Es gilt:
     Community\Logs“ und „Klicke auf "Fertigstellen", um das Setup zu schließen.“ Die Überschrift „Nicht
     alles wurde installiert“ erscheint nicht.
   - Schritt 5: wie beschrieben, alle Verknüpfungen vorhanden, genau ein Symbol auf dem Desktop, kein altes Symbol
-    der Einzel-Setups.
+    der Einzel-Setups und keines der Suite 1.0.0.
   - Schritt 5a: genau ein Treffer, im Schlüssel `…\Uninstall\{<Suite-AppId>}_is1` der Suite, `REG_DWORD 0x1`; die
     Schlüssel der beiden Spiele haben den Wert nicht. „Apps“ zeigt beim Eintrag der Suite weiterhin den
     Herausgeber `Empire Earth Community`.
   - Schritt 6: Die Liste zeigt **genau zwei** Installationen: `C:\Program Files (x86)\Neo Empire Earth` (NeoEE)
     und `C:\Program Files (x86)\Empire Earth` (EE), beide ohne „beschädigt“; **kein** Eintrag
     `C:\Program Files\Empire Earth Community`.
-  - Schritt 6 und 7: Das Symbol öffnet den Launcher mit dem zuletzt gewählten Spiel; die Liste zeigt die vier
-    Spiele in der festen Reihenfolge; EE, AoC und NeoEE starten bis zum Hauptmenü, NeoEE ohne Meldung zum CD-Key;
-    die Spielerliste von NeoEE steht nur bei NeoEE.
-  - Schritt 8: `--product=EE` wählt EE vor; der zweite Aufruf bei offenem Launcher öffnet **keinen zweiten
-    Launcher**, der offene wechselt auf NeoEE und kommt in den Vordergrund. Im Task-Manager gibt es nur einen
-    Prozess `Empire Earth Launcher.exe` je Anmeldung.
+  - Schritt 6 und 7: Auf *Spielen* stehen die vier Einträge in der festen Reihenfolge, alle wählbar; beim ersten
+    Start ist „Neo Empire Earth“ gewählt, nach dem Schließen öffnet der Launcher mit dem zuletzt gewählten Eintrag
+    („Empire Earth – The Art of Conquest“, gemerkt in `settings.json`); die Spielerliste von NeoEE steht nur bei
+    „Neo Empire Earth“; EE, AoC und NeoEE starten bis zum Hauptmenü, NeoEE ohne Meldung zum CD-Key.
+  - Schritt 8: Kein zweiter Launcher und **keine** Meldung „läuft bereits“; der offene Launcher kommt nach vorn, die
+    Auswahl bleibt; im Task-Manager ein Prozess `Empire Earth Launcher.exe` je Anmeldung.
   - **bestanden**, wenn alle Punkte zutreffen. **Fehler**: ein Spiel startet nicht, „CD-Keys: nicht registriert“
     oder „Ergebnis unbekannt“, ein zweiter Launcher oder ein fehlendes Symbol, ein Eintrag `Empire Earth
-    Community` oder eine beschädigte Installation in der Liste des Launchers, ein zweites Desktop-Symbol oder ein
-    Eintrag `Empire Earth`/`Neo Empire Earth` im Startmenüordner. Ohne bestandenen TP-93 kein
+    Community` oder eine beschädigte Installation in der Liste des Launchers, ein altes Symbol
+    `Empire Earth`/`Neo Empire Earth` oder eine Meldung „läuft bereits“. Ohne bestandenen TP-93 kein
     Tag Launcher 1.0.0 und Suite 1.0.0.
 - **Log-Hinweis:** Suite-Log: `Pin check of the EE setup … matches`, `Product EE (step 1 of 2, …)`,
   `Product NeoEE (step 2 of 2, …)` (die Befehlszeile beginnt mit `/VERYSILENT`, nicht mit `/SILENT`), `NeoEE CD key result from its log: "0"`, `Products that succeeded in
-  this run: "…"` mit beiden Spielen, `Suite record written`, `Shortcut created:` für das
-  Desktop-Symbol, `Uninstall key of the suite marked ("Empire Earth Community: Suite" = 1)`.
-  `{app}\Logs\NeoEE-<Datum>.log`: Zeile `CD Keys generation result: 0`. Launcher-Log: die
-  gemerkte Auswahl, die Vorwahl durch `--product=` und der Wechsel bei der Übergabe, keine Fehlerzeilen; außerdem
+  this run: "…"` mit beiden Spielen, `Suite record written`, `Shortcut created:` für
+  `{autodesktop}\Empire Earth Community.lnk` und den Eintrag im Startmenü, kein `--product=` im Suite-Log,
+  `Uninstall key of the suite marked ("Empire Earth Community: Suite" = 1)`.
+  `{app}\Logs\NeoEE-<Datum>.log`: Zeile `CD Keys generation result: 0`. Launcher-Log:
+  `A second launcher asked the launcher to come to the front`, `Play: the player chose …`, keine Fehlerzeilen; außerdem
   `Discovery: the uninstall key HKLM64\Software\Microsoft\Windows\CurrentVersion\Uninstall\{…}_is1 is the one of
   the suite "Empire Earth Community" (Empire Earth Community: Suite); it is no installation and is ignored.`,
   `Discovery: 2 installation(s) found`, **keine** Zeile `Game defaults: nothing written at the start for … share
@@ -3427,7 +3416,7 @@ auf dem Desktop. Es gilt:
 - **Status:** ausgearbeitet
 - **Priorität:** P2
 - **Bezug:** ADR 0013, Vertrag 1.6 (`SourceDir`) und 4.4 (Hinweis des Launchers mit dem Ordner der Suite),
-  TP-50; Suite-Szenario S9 (Reparatur, still); Launcher WP10-05
+  TP-50; Suite-Szenario S9 (Reparatur, still; prüft auch das Löschen der Verknüpfungen der Suite 1.0.0); Launcher WP10-05, WP13-03
 - **Ziel:** Fehlt eine Spieldatei, nennt der Launcher den Weg „Empire Earth Community Setup erneut aus dem
   Paketordner starten“; die Suite repariert damit das Spiel (Zustand „Schon installiert“), ohne neu zu fragen,
   was schon beantwortet ist, und das Manifest stimmt danach wieder.
@@ -3436,12 +3425,13 @@ auf dem Desktop. Es gilt:
   seinem Ort (der Ordner steht in `HKLM\SOFTWARE\Empire Earth Community\Suite` als `SourceDir`); kein Spiel und
   kein Launcher laufen.
 - **Snapshot:** `Laptop` nach TP-93 (Zwischenstand) bzw. auf `S-Basis` mit dem Platzhalter-Paket des CI
-- **Varianten:** (a) eine Datei von EE; (b) eine Datei von NeoEE; Windows 10 22H2 und Windows 11 24H2.
+- **Varianten:** (a) eine Datei von EE; (b) eine Datei von NeoEE; (c) Update von Suite 1.0.0 (Schritt 6);
+  Windows 10 22H2 und Windows 11 24H2.
 - **Schritte:**
   1. (a) In `C:\Program Files (x86)\Empire Earth\_setupdata_EE\files.sha256` eine Datei unter `Empire Earth\Data`
      aussuchen (ein Pfad aus der Liste) und im Explorer löschen; ihren Pfad notieren.
-  2. Den Launcher mit dem Symbol `Empire Earth` starten und *Spielen* anklicken. Der Hinweis „beschädigt“ mit
-     den Schritten erscheint; den Text festhalten und die Schaltfläche, die den Paketordner öffnet, anklicken
+  2. Den Launcher mit dem Symbol `Empire Earth Community` starten, auf *Spielen* „Empire Earth“ wählen und *Spielen*
+     anklicken. Der Hinweis „beschädigt“ mit den Schritten erscheint; den Text festhalten und die Schaltfläche, die den Paketordner öffnet, anklicken
      (der Launcher öffnet nur den Ordner im Explorer, startet nichts). Launcher schließen.
   3. Im geöffneten Ordner `Empire Earth Community Setup.exe` starten (UAC bestätigen). Auf der Seite
      „Was möchtest du installieren?“ steht bei den Spielen „Schon installiert. Das Setup aktualisiert oder
@@ -3449,10 +3439,13 @@ auf dem Desktop. Es gilt:
      ein Spiel installiert, deshalb musst du diese Frage nicht noch einmal beantworten.“; „Weiter“ bis zum Ende
      (auch hier erscheint kein Fenster eines Spiel-Setups, nur das der Suite).
   4. Prüfen: die Datei liegt wieder da; mit dem Skript aus TP-50 Schritt 2 stimmen `files.sha256` und die
-     Dateien überein; die Verknüpfungen auf dem Desktop sind unverändert vorhanden; den Befehl aus TP-93
+     Dateien überein; das Symbol `Empire Earth Community` ist unverändert da; den Befehl aus TP-93
      Schritt 5a noch einmal ausführen.
   5. (b) Dasselbe mit einer Datei von NeoEE (`…\Neo Empire Earth\_setupdata_NeoEE\files.sha256`) und dem
-     Symbol `Neo Empire Earth`; auf der letzten Seite die Zeile zu den CD-Keys festhalten.
+     Eintrag „Neo Empire Earth“ auf *Spielen*; auf der letzten Seite die Zeile zu den CD-Keys festhalten.
+  6. (c) **Update von Suite 1.0.0:** Ausgangszustand Suite 1.0.0 (Paket `ee-paket-v1`) mit den Symbolen `Empire
+     Earth` und `Neo Empire Earth` auf dem Desktop und im Startmenüordner (auch `Empire Earth Launcher` und die
+     Diagnose-Einträge); Suite 1.1.0 aus dem neuen Paket starten, „Weiter“ bis zum Ende.
 - **Erwartetes Ergebnis:**
   - Schritt 2: Der Hinweis lautet „Schließen Sie das Spiel. Starten Sie „Empire Earth Community Setup“ erneut aus
     dem Ordner, in den Sie es entpackt haben (<Ordner>): Es repariert oder aktualisiert die Spiele, die es
@@ -3464,9 +3457,13 @@ auf dem Desktop. Es gilt:
     Überschrift „Nicht alles wurde installiert“ erscheint nicht.
   - Schritt 4: Nach dem Reparaturlauf trägt der Deinstallationsschlüssel der Suite den Wert `Empire Earth
     Community: Suite` weiterhin (Inno Setup schreibt den Schlüssel neu, die Suite die Markierung).
+  - Schritt 6 (c): Auf dem Desktop nur `Empire Earth Community`; im Startmenüordner nur `Empire Earth Community`, `Mod
+    Creator`, `Uninstall Empire Earth Community`; der Launcher öffnet sich mit der zuletzt in 1.0.0 gewählten
+    Installation (aus `GameDirectory`); Suite-Log `Shortcut of suite 1.0.0 removed:` je altem Symbol.
   - **bestanden**, wenn Hinweis, Reparatur und Manifest stimmen. **Fehler**: Die Datei fehlt weiter, das Setup
-    meldet eines der Spiele als „fehlgeschlagen“ oder ein Spiel ist danach unvollständig.
-- **Log-Hinweis:** Suite-Log: `Product EE (step 1 of 2, state 1): …` (Zustand 1: schon installiert; ohne `/TYPE` und ohne `/DIR`), `Pin check of the EE setup … matches`, `Shortcut created:`; `{app}\Logs\EE-<Datum>.log`;
+    meldet eines der Spiele als „fehlgeschlagen“, ein Spiel ist danach unvollständig oder bei (c) bleibt ein
+    altes Symbol.
+- **Log-Hinweis:** Suite-Log: `Product EE (step 1 of 2, state 1): …` (Zustand 1: schon installiert; ohne `/TYPE` und ohne `/DIR`), `Pin check of the EE setup … matches`, `Shortcut created:`, bei (c) `Shortcut of suite 1.0.0 removed:`; `{app}\Logs\EE-<Datum>.log`;
   Launcher-Log mit der Prüfung, die die Datei als fehlend nennt.
 
 #### TP-95: Deinstallation der Suite mit „Behalten“, Neuinstallation, Deinstallation mit „Löschen“
@@ -3500,7 +3497,7 @@ auf dem Desktop. Es gilt:
   4. Am Ende erscheint der Dialog „Spielstände, Profile, eigene Mods und Sicherungen auch löschen?“ mit den Ordnern; **„Behalten
      (empfohlen)“** wählen (die Vorgabe).
   5. Prüfen: Die Programmordner beider Spiele, `C:\Program Files\Empire Earth Community`, der Startmenüordner
-     `Empire Earth Community` und die Symbole auf dem Desktop sind weg; „Apps“ zeigt keinen der drei Einträge;
+     `Empire Earth Community` und das Symbol auf dem Desktop sind weg; „Apps“ zeigt keinen der drei Einträge;
      `HKLM\SOFTWARE\Empire Earth Community\Suite` ist weg; die markierten Ordner mit `tp95-marker.txt` und den
      Spielständen sind unverändert da; `%LOCALAPPDATA%\Empire Earth Launcher\settings.json` und `log.txt` sind
      weg. Der Wert unter `Software\Sierra\CDKeys` ist noch da. `Users\default` (mit den mitgelieferten
@@ -3585,10 +3582,10 @@ auf dem Desktop. Es gilt:
 - **Status:** ausgearbeitet
 - **Priorität:** P2
 - **Bezug:** ADR 0013, Vertrag 1.7 Punkt 7 und 8 (alte Verknüpfungen werden vor den Suite-Verknüpfungen
-  gelöscht), Entscheidung zu den Namen (die Suite-Verknüpfung `Empire Earth` trägt denselben Namen wie die des
-  Einzel-Setups), README „Standalone uninstall of EE“; Suite-Szenario S3 (still)
+  gelöscht; ab Revision 6 trägt keine Suite-Verknüpfung mehr den Namen der Verknüpfung eines Einzel-Setups);
+  Suite-Szenario S3 (still)
 - **Ziel:** Ist ein Spiel schon mit dem Einzel-Setup installiert, übernimmt die Suite es am Ort (gleicher Ordner,
-  kein Verlust), löscht dessen alte Verknüpfungen und legt ihre eigenen an.
+  kein Verlust), löscht dessen alte Verknüpfungen und legt ihr eines Symbol an.
 - **Build-Art:** B (VM mit Echtdaten oder Laptop mit Rückweg)
 - **Ausgangszustand:** EE (mit AoC) und NeoEE mit den Einzel-Setups als Administrator installiert, mit den Symbolen
   auf dem Desktop und dem Startmenüordner `Empire Earth` bzw. `Neo Empire Earth` (die Einzel-Setups legen sie an);
@@ -3611,16 +3608,16 @@ auf dem Desktop. Es gilt:
 - **Erwartetes Ergebnis:**
   - Die Spiele bleiben im alten Ordner (keine neue Ordnerfrage), die Datei des Spielers ist unverändert da.
   - Der alte Startmenüordner `Empire Earth` (bzw. `Neo Empire Earth`) ist weg, die alten Symbole zeigen nicht mehr
-    auf die Spielprogramme; auf dem Desktop gibt es **ein** Symbol, `Empire Earth Community`, dessen „Ziel“ der
-    Launcher ohne Parameter ist, und kein `Empire Earth` und kein `Neo Empire Earth`; im Startmenü der Ordner `Empire Earth Community`.
-  - Die Suite löscht die alten Symbole der Einzel-Setups, bevor sie ihres anlegt. Zusatz auf einem Computer, auf dem
-    die Suite 1.0.0 war (falls vorhanden; sonst S9 des automatischen Tests): ein Lauf der Suite 1.1.0 löscht auch ihre
-    vier Symbole `Empire Earth` und `Neo Empire Earth` (Desktop und Startmenüordner), deren Ziel der Launcher war.
+    auf die Spielprogramme; auf dem Desktop gibt es genau ein Symbol `Empire Earth Community`, dessen „Ziel“ der
+    Launcher ohne Parameter ist; die alten Symbole der Einzel-Setups sind weg; im Startmenü der Ordner `Empire
+    Earth Community`.
+  - Die Suite löscht die alten Symbole der Einzel-Setups, bevor sie ihres anlegt. (Die Verknüpfungen der Suite 1.0.0
+    löscht jeder Lauf der Suite 1.1.0 ebenfalls, siehe TP-94 (c) und S9 des automatischen Tests.)
   - Die übernommenen Spiele stehen im Suite-Eintrag und in der Liste der Deinstallation; nach der Deinstallation
     der Suite sind sie entfernt und die Symbole weg.
   - **bestanden**, wenn alle Punkte stimmen. **Fehler**: ein altes Symbol bleibt, das Symbol `Empire Earth Community` fehlt oder ein Spiel wurde in einen neuen Ordner
     installiert.
-- **Log-Hinweis:** Suite-Log: `Old shortcut of the EE setup removed: …`, `Shortcut created: … Empire Earth.lnk`,
+- **Log-Hinweis:** Suite-Log: `Old shortcut of the EE setup removed: …`, `Shortcut created: … Empire Earth Community.lnk`,
   `Product EE (step 1 of 2, state 1): …`; `{app}\Logs\EE-<Datum>.log`.
 
 #### TP-98: Fortschritt im Fenster der Suite: Statuszeile, Balken, Datei, Liste der erledigten Schritte, Zusammenfassung

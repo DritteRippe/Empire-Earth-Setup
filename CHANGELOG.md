@@ -793,21 +793,27 @@ setup version stays 1.7.2 until the release.
   `cdn.empireearth.eu` no longer resolves (a CNAME to a traffic manager that does not exist any more), so the button of
   the dialog led nowhere. The website's pages work and redirect the browser to the current setup. The setup asks the
   API only the version question (`&type=` ...; `ProductDownloadPage` in `utils.iss`, unit-tested).
-- Suite installer: one desktop icon instead of two. The suite creates the shortcut `Empire Earth Community` on the
-  desktop (the launcher without `--product=`: it opens with the game chosen last, and the player picks one of the four
-  games on its Play page) instead of the icons `Empire Earth` and `Neo Empire Earth` that started the launcher with one
-  game. The start menu folder `Empire Earth Community` holds the launcher, the Mod Creator, the diagnostic tools and the
-  uninstaller, and no game entry. An update or a repair of the suite deletes the four game shortcuts of suite 1.0.0
-  (desktop and start menu folder) where they start the launcher (`SuiteRemoveShortcut` reads the target; a shortcut of
-  the same name that starts a game program is left alone, a log line names each deleted one). Without .NET Framework 4.8
-  there is no launcher and the suite still creates the game shortcuts to the game programs. Contract 1.7 point 8 and its
-  tables (revision 6, compatible, `ContractVersion` stays 1; the launcher keeps `--product=EE|NeoEE` for old shortcuts and
-  the hand-off), `ci/check_contract.py` (the shortcut tables against `ApplySuiteShortcuts`), `ci/check_suite.py`, the
-  scenarios S1, S3, S9 and the uninstall check of the suite e2e, ADR 0013 (amendment), TP-93, TP-94, TP-95 and TP-97. The
-  launcher has to show the four games in one list on the Play page and to open with the remembered game without
-  `--product=` (launcher repository).
+- Suite installer: one shortcut instead of the game shortcuts. The suite creates the shortcut `Empire Earth Community` on
+  the desktop and in its start menu folder (the launcher without `--product=`: it opens with the game chosen last, and
+  the player picks one of the four games on its Play page) instead of the icons `Empire Earth` and `Neo Empire Earth`
+  that started the launcher with one game. The start menu folder `Empire Earth Community` holds that shortcut, the Mod
+  Creator and the uninstaller; the suite creates no Diagnostic shortcut any more (the program stays in `Tools\Diagnostic`
+  of the game folder). Every install, update, repair and the uninstaller delete the seven shortcuts of suite 1.0.0 that
+  exist (`SuiteRemoveOldSuiteShortcuts`, `SuiteOldSuiteShortcutPath`; a log line each): `Empire Earth` and `Neo Empire
+  Earth` on the desktop and in the start menu folder, their Diagnostic shortcuts and `Empire Earth Launcher`; the desktop
+  shortcut `Empire Earth` only if it starts the launcher, because the EE setup's own shortcut has that name. Without .NET
+  Framework 4.8 there is no launcher: the shortcut `Empire Earth Community` then starts the game program of NeoEE, else
+  of EE (`SuiteFirstInstalledProduct`), and the select page says how to get the launcher. Contract 1.7 point 8 and its
+  table, 1.4 and 4.3 (revision 6, compatible, `ContractVersion` stays 1; the launcher keeps `--product=EE|NeoEE` for old
+  shortcuts and the hand-off), `ci/check_contract.py` (the table against the calls of `ApplySuiteShortcuts`),
+  `ci/check_suite.py`, the scenarios S1, S3, S8 and S9 (`repair/OLD-SHORTCUTS`) of the suite e2e, ADR 0013 (amendment),
+  TP-93, TP-94 (c), TP-95 and TP-97. The launcher has to show the four games in one list on the Play page and to open
+  with the remembered game without `--product=` (launcher repository).
 
 ### Removed
+- The game shortcuts `Empire Earth` and `Neo Empire Earth` that suite 1.0.0 created with `--product=EE` and
+  `--product=NeoEE`, its Diagnostic shortcuts and its shortcut `Empire Earth Launcher` (replaced by `Empire Earth
+  Community`, see Changed; an update deletes them).
 - `IsAllowedUpdateUrl` (the allow-list for the download URL of the update API), `IsDomainOrSubdomain`, `SplitHttpsUrl`
   and the constants `DomainNeoEE`, `GitHubHost` and `GitHubProjectPath` of `utils.iss`: the setup no longer asks the
   update API for a download URL, so nothing calls them any more.

@@ -6,7 +6,7 @@
 - Requirements: briefing D1 (Inno Setup 6.2.2, every behaviour change intended), D4 (Windows 7 SP1
   to 11), D5 (shared contract), D6 (CD-key registration untouched, no game data in the repository),
   the maintainers' decisions of 2026-10-05 (both games selectable and preselected, the launcher
-  installed with them, unsigned, shortcut names "Empire Earth" and "Neo Empire Earth"; since suite 1.1.0 one icon, see the amendment "One desktop icon, one launcher");
+  installed with them, unsigned, shortcut names "Empire Earth" and "Neo Empire Earth"; since suite 1.1.0 one shortcut, see the amendment "One shortcut Empire Earth Community");
   [docs/CONTRACT.md](../CONTRACT.md) revision 4 (revision 5: see the amendment of 2026-10-06; revision 6 and `/VERYSILENT` for the product setups: see the amendment "The product setups run with /VERYSILENT"; the product logs as the data source of the progress display: see the amendment "The log lines of the product setups are an interface"; Cancel and time limits of the runner: see the amendment "The product setups run as processes with a handle"; the display of the progress in the suite window: see the amendment "The suite window shows what the product setup does")
 
 ## Context
@@ -174,12 +174,10 @@ fallback of decision 5 is the implemented behaviour; the alternative "Run the pr
 - Windows "Apps" shows three entries: the suite and the two products. Uninstalling the suite
   removes the products it lists (each through its own uninstaller), the launcher and the shortcuts;
   game saves stay unless the user asks otherwise.
-- Uninstalling EE alone through Windows "Apps" can delete the suite's desktop shortcut
+- Up to suite 1.0.0, uninstalling EE alone through Windows "Apps" could delete the suite's desktop shortcut
   `Empire Earth` if EE was once installed standalone with a desktop shortcut (the uninstall log of EE
-  still names `{autodesktop}\Empire Earth.lnk`); running the suite again restores it. Contract 1.7
-  point 8 says so; the README of the package (WP10) has to say it too. Since suite 1.1.0 this concerns only a computer
-  without .NET Framework 4.8: with the launcher the suite's one icon is `Empire Earth Community` (amendment "One desktop
-  icon, one launcher").
+  still names `{autodesktop}\Empire Earth.lnk`). Since suite 1.1.0 the suite's shortcut is `Empire Earth Community`,
+  a name no product setup uses, so this no longer applies (amendment "One shortcut Empire Earth Community").
 - The folder the package was unpacked to is the repair source: the launcher may point to it
   (`SourceDir`, contract 4.4); the official download stays the second option.
 - Inno Setup's own log of the suite plus one log per product run in `{app}\Logs` give a complete
@@ -588,31 +586,19 @@ the CHANGELOG); the points are added with the commit that fixes them.
    (`docs/TEST-PLAN.de.md`, Block 9, "Freigabekriterium der Suite 1.1.0"). Their priority stays P2 like TP-93 and TP-95: the
    short run of section 7 belongs to the product setups and stays at 170 minutes.
 
-## Amendment: one desktop icon, one launcher (2026-10-07, suite 1.1.0)
+## Amendment: one shortcut "Empire Earth Community" (2026-10-07, suite 1.1.0)
 
-**Context.** Suite 1.0.0 created the desktop icons `Empire Earth` and `Neo Empire Earth`, each starting the launcher with
-`--product=EE` or `--product=NeoEE`. For suite 1.1.0 the maintainers decided on one launcher: its Play page lists the
-four games (EE, EE - The Art of Conquest, NeoEE, NeoEE - The Art of Conquest; a game that is not installed is greyed out),
-the choice is remembered, and the choice switches the installation for every page.
+The maintainers decided on one launcher for the four games (launcher 1.1.0, contract 1.4 revision 6). The suite
+therefore creates one shortcut, `Empire Earth Community`, on the desktop and in its start menu folder; it starts the
+launcher without an argument, which opens with the game chosen last. The start menu folder keeps the Mod Creator and
+the uninstaller; the game shortcuts `Empire Earth` and `Neo Empire Earth` (with `--product=`), `Empire Earth Launcher`
+and the Diagnostic shortcuts of suite 1.0.0 are no longer created. Every run of the suite and its uninstaller delete
+them (`SuiteOldSuiteShortcutPath`, contract 1.7 point 8); `{autodesktop}\Empire Earth.lnk` only if it starts the
+launcher, because the EE setup's own desktop shortcut has that name. Decision 7's note that uninstalling EE alone can
+delete the suite's shortcut no longer applies: the names differ now. Without .NET Framework 4.8 the one shortcut starts
+the game program of NeoEE, else EE (the product the launcher would select first); the select page says how to get the
+launcher. The launcher keeps `--product=` for shortcuts that players made or that a failed update left.
 
-1. **One shortcut, no product in it.** `ApplySuiteShortcuts` creates `{autodesktop}\Empire Earth Community` (the launcher,
-   no parameters) and, in the start menu folder `Empire Earth Community`, the launcher, the Mod Creator, the diagnostic
-   tools and the uninstaller. The launcher opens with the remembered game; `--product=EE|NeoEE` stays supported for the
-   shortcuts that exist and for the hand-off to a running launcher (contract 1.4, unchanged). Contract 1.7 point 8 and its
-   tables are extended (revision 6, compatible; no MUST is relaxed, `ContractVersion` stays 1), and `ci/check_contract.py`
-   compares the table with the shortcut calls of `ApplySuiteShortcuts`.
-2. **An update or a repair removes the old game icons.** A computer that has suite 1.0.0 has `Empire Earth` and `Neo Empire
-   Earth` on the desktop and in the start menu folder, targeting the launcher with `--product=`. `SuiteRemoveShortcut` deletes
-   one of the four only if the link names the launcher as its target, so the shortcut of a product's own setup (target
-   the game program, the name of the EE shortcut is the same) and a file of the player with such a name are left alone;
-   a log line names each deleted link. `ci/check_suite.py` has the rule and mutants for the check of the target.
-3. **Without .NET Framework 4.8 the game shortcuts stay.** There is no launcher then and no `Empire Earth Community`
-   icon would start anything. The suite creates the game shortcuts to the game programs as 1.0.0 did, and the weakness of
-   that case (uninstalling EE alone through Windows "Apps" can delete a shortcut of the same name, Consequences) stays
-   confined to it.
-4. **The Diagnostic and Uninstall entries stay in the start menu folder.** The decision names "the launcher and the Mod
-   Creator (and what the uninstall needs)". Dropping the diagnostic shortcuts would leave those of suite 1.0.0 behind as
-   orphans and remove a feature without a decision, so they stay, as an interpretation to be confirmed on the laptop.
-5. **Evidence.** A Wine run of the placeholder suite: a fresh install leaves one icon on the desktop and the entries above
-   in the group; a repair with planted 1.0.0 icons deletes them (one log line each) and keeps a foreign `Decoy.lnk`.
-   The scenarios S1, S3, S9 and the uninstall check of the e2e read the links through `WScript.Shell` on windows-latest.
+Evidence: `ci/tests/suite_tests.iss` (`SuiteOldSuiteShortcutPath`, `SuiteOldSuiteShortcutRemovable`,
+`SuiteFirstInstalledProduct`), `ci/check_contract.py` and `ci/check_suite.py` with their self-tests, CI scenarios S1,
+S3, S8 and S9 (`repair/OLD-SHORTCUTS`), laptop TP-93, TP-94 (c), TP-97.
