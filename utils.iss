@@ -1554,12 +1554,15 @@ end;
 const
   // The default game window ([Registry] Game Window Width and Game Window Height,
   // GetScreenResolutionWidth/Height in setup_is6.iss) is the size of the primary screen within
-  // these limits, each dimension on its own (contract 3.3, whose table ci/check_contract.py checks
+  // these limits, each dimension on its own (contract 3.3, whose tables ci/check_contract.py checks
   // against these constants)
   MinGameWindowWidth = 1024;
   MaxGameWindowWidth = 1920;
   MinGameWindowHeight = 768;
-  MaxGameWindowHeight = 1080;
+  MaxGameWindowHeight = 1200;
+  // A screen wider than MaxGameWindowWidth keeps its shape: its game window is at most the larger of this height and
+  // the screen height scaled to MaxGameWindowWidth (contract 3.3, revision 6), so 16:9 screens of any size keep 1920 x 1080
+  WideScreenGameWindowHeight = 1080;
   // Pixels per inch (LOGPIXELSX) at a display scaling of 100 %
   DefaultScreenDpi = 96;
 
@@ -1581,12 +1584,24 @@ begin
   Result := ClampToRange(ScreenWidth, MinGameWindowWidth, MaxGameWindowWidth);
 end;
 
-// Game Window Height (contract 3.3) for a primary screen ScreenHeight pixels high
-// (GetSystemMetrics(SM_CYSCREEN)): the height, at least MinGameWindowHeight and at most
-// MaxGameWindowHeight. 0 (GetSystemMetrics failed) gives the minimum.
-function ClampGameWindowHeight(const ScreenHeight: Integer): Integer;
+// Game Window Height (contract 3.3) for a primary screen of ScreenWidth x ScreenHeight pixels
+// (GetSystemMetrics(SM_CXSCREEN/SM_CYSCREEN)): the height, at least MinGameWindowHeight and at most
+// MaxGameWindowHeight; on a screen wider than MaxGameWindowWidth also at most the larger of
+// WideScreenGameWindowHeight and the height scaled to MaxGameWindowWidth (2560 x 1600 gives 1200,
+// 2560 x 1440 gives 1080). 0 (GetSystemMetrics failed) gives the minimum.
+function GameWindowHeight(const ScreenWidth, ScreenHeight: Integer): Integer;
+var
+  Scaled: Integer;
 begin
   Result := ClampToRange(ScreenHeight, MinGameWindowHeight, MaxGameWindowHeight);
+  if ScreenWidth > MaxGameWindowWidth then
+  begin
+    Scaled := ScreenHeight * MaxGameWindowWidth div ScreenWidth;
+    if Scaled < WideScreenGameWindowHeight then
+      Scaled := WideScreenGameWindowHeight;
+    if Result > Scaled then
+      Result := Scaled;
+  end;
 end;
 
 // True if the primary screen is lower than the menus of the game need (MinGameWindowHeight, the
@@ -1609,7 +1624,7 @@ begin
     Result := Result + IntToStr(Dpi) + ' DPI (LOGPIXELSX, ' + IntToStr((Dpi * 100 + DefaultScreenDpi div 2) div DefaultScreenDpi) + ' % scaling)'
   else
     Result := Result + 'DPI unknown';
-  Result := Result + ', game window ' + IntToStr(ClampGameWindowWidth(ScreenWidth)) + ' x ' + IntToStr(ClampGameWindowHeight(ScreenHeight));
+  Result := Result + ', game window ' + IntToStr(ClampGameWindowWidth(ScreenWidth)) + ' x ' + IntToStr(GameWindowHeight(ScreenWidth, ScreenHeight));
 end;
 
 // A folder path as the environment checks compare it: spaces around it removed, '/' as '\', no

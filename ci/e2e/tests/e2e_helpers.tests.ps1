@@ -129,6 +129,14 @@ try {
   Check 'clamp low' (Get-E2EClamped 800 1024 1920) 1024
   Check 'clamp high' (Get-E2EClamped 2560 1024 1920) 1920
   Check 'clamp inside' (Get-E2EClamped 1280 1024 1920) 1280
+  # Game Window Height (contract 3.3, revision 6): the cases of TestGameWindow in ci/tests/unit_tests.iss
+  foreach ($case in @(
+      @(1024, 600, 768), @(1366, 768, 768), @(1920, 1080, 1080), @(1920, 1200, 1200), @(1600, 1200, 1200),
+      @(1920, 1440, 1200), @(2560, 1440, 1080), @(2560, 1600, 1200), @(3840, 2160, 1080), @(3840, 2400, 1200),
+      @(3440, 1440, 1080), @(2560, 1080, 1080), @(3000, 2000, 1200), @(1921, 1201, 1200), @(2000, 1200, 1152),
+      @(1919, 1199, 1199), @(1920, 1201, 1200), @(800, 600, 768), @(1280, 720, 768), @(0, 0, 768), @(-1, -1, 768), @(1, 1, 768))) {
+    Check "game window height $($case[0]) x $($case[1])" (Get-E2EGameWindowHeight $case[0] $case[1]) $case[2]
+  }
   $gpu = Get-E2EGpuChoice $logLines
   Check 'gpu unknown: dx9' $gpu.Wrapper 'additional\directx_wrapper\dx9'
   Check 'gpu unknown: log name' $gpu.LogName 'general'

@@ -171,7 +171,7 @@ function Test-E2EK5GameSettings([hashtable]$Ctx) {
     [void](Complete-E2ECheck $Ctx.Scenario (Get-E2ECheckId $Ctx 'K5') @('no Screen: line in the log'))
     return
   }
-  if ($screen.WindowWidth -ne (Get-E2EClamped $screen.Width 1024 1920) -or $screen.WindowHeight -ne (Get-E2EClamped $screen.Height 768 1080)) {
+  if ($screen.WindowWidth -ne (Get-E2EClamped $screen.Width 1024 1920) -or $screen.WindowHeight -ne (Get-E2EGameWindowHeight $screen.Width $screen.Height)) {
     $problems += "game window $($screen.WindowWidth) x $($screen.WindowHeight) is not the clamped screen $($screen.Width) x $($screen.Height)"
   }
   $wrapper = (@($Ctx.Components | Where-Object { $_ -like 'additional\directx_wrapper\*' }).Count -gt 0)

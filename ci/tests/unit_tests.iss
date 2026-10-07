@@ -1424,7 +1424,7 @@ begin
 end;
 
 // The clamp that GetScreenResolutionWidth/Height (setup_is6.iss) did inline before
-// ClampGameWindowWidth/Height replaced it, as the reference for "same results"
+// ClampGameWindowWidth and ClampGameWindowHeight (now GameWindowHeight) replaced it, as the reference for "same results"
 function InlineClamp(const Value, Lowest, Highest: Integer): Integer;
 var
   Tmp: Integer;
@@ -1442,48 +1442,86 @@ var
   Name: String;
 begin
   Name := IntToStr(Width) + ' x ' + IntToStr(Height);
-  Check('ClampGameWindowWidth/Height ' + Name, IntToStr(ClampGameWindowWidth(Width)) + ' x ' + IntToStr(ClampGameWindowHeight(Height)),
+  Check('ClampGameWindowWidth/GameWindowHeight ' + Name, IntToStr(ClampGameWindowWidth(Width)) + ' x ' + IntToStr(GameWindowHeight(Width, Height)),
     IntToStr(ExpectedWidth) + ' x ' + IntToStr(ExpectedHeight));
   CheckBool('IsScreenTooLow ' + Name, IsScreenTooLow(Height), TooLow);
 end;
 
-// Contract 3.3 (1024 to 1920 x 768 to 1080, each dimension on its own) and the warning below 768
-// pixels (ADR 0007 point 1); the same results as the inline clamp it replaced
+// Contract 3.3 (1024 to 1920 x 768 to 1200, each dimension on its own, and the wide-screen limit of
+// revision 6) and the warning below 768 pixels (ADR 0007 point 1); on a screen not wider than 1920 the
+// same results as the inline clamp it replaced
 procedure TestGameWindow;
 var
-  I, Differences: Integer;
+  I, J, Differences, Violations, Scaled, Lower, Height: Integer;
 begin
   Check('window limits (contract 3.3)', IntToStr(MinGameWindowWidth) + '-' + IntToStr(MaxGameWindowWidth) + ' x ' +
-    IntToStr(MinGameWindowHeight) + '-' + IntToStr(MaxGameWindowHeight), '1024-1920 x 768-1080');
+    IntToStr(MinGameWindowHeight) + '-' + IntToStr(MaxGameWindowHeight) + ', wide ' + IntToStr(WideScreenGameWindowHeight),
+    '1024-1920 x 768-1200, wide 1080');
   // Screens of the forum report (section 8, test case 6) and of the contract
   CheckScreen(1024, 600, 1024, 768, True);
   CheckScreen(1366, 768, 1366, 768, False);
   CheckScreen(1920, 1080, 1920, 1080, False);
+  CheckScreen(1920, 1200, 1920, 1200, False);
+  CheckScreen(1600, 1200, 1600, 1200, False);
+  CheckScreen(1920, 1440, 1920, 1200, False);
   CheckScreen(2560, 1440, 1920, 1080, False);
+  CheckScreen(2560, 1600, 1920, 1200, False);
   CheckScreen(800, 600, 1024, 768, True);
   CheckScreen(1280, 720, 1280, 768, True);
   CheckScreen(3840, 2160, 1920, 1080, False);
+  CheckScreen(3840, 2400, 1920, 1200, False);
+  CheckScreen(3440, 1440, 1920, 1080, False);
+  CheckScreen(2560, 1080, 1920, 1080, False);
+  CheckScreen(3000, 2000, 1920, 1200, False);
+  // The wide-screen limit with its rounding: 1201 * 1920 div 1921 = 1200, 1200 * 1920 div 2000 = 1152
+  CheckScreen(1921, 1201, 1920, 1200, False);
+  CheckScreen(2000, 1200, 1920, 1152, False);
   // The limits and their neighbours
   CheckScreen(1023, 767, 1024, 768, True);
   CheckScreen(1024, 768, 1024, 768, False);
   CheckScreen(1025, 769, 1025, 769, False);
   CheckScreen(1919, 1079, 1919, 1079, False);
+  CheckScreen(1919, 1199, 1919, 1199, False);
   CheckScreen(1920, 1080, 1920, 1080, False);
+  CheckScreen(1920, 1201, 1920, 1200, False);
   CheckScreen(1921, 1081, 1920, 1080, False);
   // GetSystemMetrics returns 0 if it fails: the minimum, and no warning for an unknown height
   CheckScreen(0, 0, 1024, 768, False);
   CheckScreen(-1, -1, 1024, 768, False);
   CheckScreen(1, 1, 1024, 768, True);
-  // Same results as the inline clamp for every size from -10 to 4000
+  // Same results as the inline clamp for every size from -10 to 4000 (the height on a screen 1920 wide)
   Differences := 0;
   for I := -10 to 4000 do
   begin
     if ClampGameWindowWidth(I) <> InlineClamp(I, 1024, 1920) then
       Differences := Differences + 1;
-    if ClampGameWindowHeight(I) <> InlineClamp(I, 768, 1080) then
+    if GameWindowHeight(1920, I) <> InlineClamp(I, 768, 1200) then
       Differences := Differences + 1;
   end;
-  Check('ClampGameWindowWidth/Height = inline clamp for -10 to 4000', IntToStr(Differences), '0');
+  Check('ClampGameWindowWidth/GameWindowHeight = inline clamp for -10 to 4000', IntToStr(Differences), '0');
+  // Screens wider than 1920: never above 1200, never below the smaller of the clamp and 1080, and not
+  // above the larger of 1080 and the height scaled to 1920 (the shape of the screen)
+  Violations := 0;
+  I := 1921;
+  while I <= 8000 do
+  begin
+    J := 0;
+    while J <= 4000 do
+    begin
+      Height := GameWindowHeight(I, J);
+      Scaled := J * 1920 div I;
+      if Scaled < 1080 then
+        Scaled := 1080;
+      Lower := InlineClamp(J, 768, 1200);
+      if Lower > 1080 then
+        Lower := 1080;
+      if (Height > 1200) or (Height < Lower) or (Height > Scaled) then
+        Violations := Violations + 1;
+      J := J + 13;
+    end;
+    I := I + 7;
+  end;
+  Check('GameWindowHeight on screens wider than 1920', IntToStr(Violations), '0');
 end;
 
 // The log line of the screen (ADR 0007 point 1, contract O4)
@@ -1495,6 +1533,10 @@ begin
     'Screen: 1024 x 600 pixels (primary screen, SM_CXSCREEN x SM_CYSCREEN), 144 DPI (LOGPIXELSX, 150 % scaling), game window 1024 x 768');
   Check('FormatScreenMetrics 2560 x 1440 at 125 %', FormatScreenMetrics(2560, 1440, 120),
     'Screen: 2560 x 1440 pixels (primary screen, SM_CXSCREEN x SM_CYSCREEN), 120 DPI (LOGPIXELSX, 125 % scaling), game window 1920 x 1080');
+  Check('FormatScreenMetrics 2560 x 1600 at 150 %', FormatScreenMetrics(2560, 1600, 144),
+    'Screen: 2560 x 1600 pixels (primary screen, SM_CXSCREEN x SM_CYSCREEN), 144 DPI (LOGPIXELSX, 150 % scaling), game window 1920 x 1200');
+  Check('FormatScreenMetrics 1920 x 1200 at 100 %', FormatScreenMetrics(1920, 1200, 96),
+    'Screen: 1920 x 1200 pixels (primary screen, SM_CXSCREEN x SM_CYSCREEN), 96 DPI (LOGPIXELSX, 100 % scaling), game window 1920 x 1200');
   Check('FormatScreenMetrics 3840 x 2160 at 175 %', FormatScreenMetrics(3840, 2160, 168),
     'Screen: 3840 x 2160 pixels (primary screen, SM_CXSCREEN x SM_CYSCREEN), 168 DPI (LOGPIXELSX, 175 % scaling), game window 1920 x 1080');
   Check('FormatScreenMetrics DPI unknown', FormatScreenMetrics(1366, 768, 0),

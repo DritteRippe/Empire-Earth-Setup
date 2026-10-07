@@ -974,8 +974,8 @@ Root: "HKCU"; Subkey: "{#GameRegKey}\Game Options"; ValueType: Dword; ValueName:
 Root: "HKCU"; Subkey: "{#GameRegKey}"; ValueType: Dword; ValueName: "Music Volume"; ValueData: "$2C"; Flags: createvalueifdoesntexist; Components: {#GameComp}
 Root: "HKCU"; Subkey: "{#GameRegKey}"; ValueType: Dword; ValueName: "Sound Volume"; ValueData: "$3C"; Flags: createvalueifdoesntexist; Components: {#GameComp}
 Root: "HKCU"; Subkey: "{#GameRegKey}"; ValueType: Dword; ValueName: "Take JPG Screenshots"; ValueData: "$1"; Flags: createvalueifdoesntexist; Components: {#GameComp}
-; Window size: the screen size, at least 1024x768 and at most 1920x1080; 32 bits. If Texture
-; Bit Depth differs from Game Bit Depth, the main menu is just white and unreadable.
+; Window size: the screen size, at least 1024x768 and at most 1920x1200 (contract 3.3, also the wide-screen
+; limit); 32 bits. If Texture Bit Depth differs from Game Bit Depth, the main menu is just white and unreadable.
 Root: "HKCU"; Subkey: "{#GameRegKey}"; ValueType: Dword; ValueName: "Game Window Height"; ValueData: "{code:GetScreenResolutionHeight}"; Flags: deletevalue; Components: {#GameComp}
 Root: "HKCU"; Subkey: "{#GameRegKey}"; ValueType: Dword; ValueName: "Game Window Width"; ValueData: "{code:GetScreenResolutionWidth}"; Flags: deletevalue; Components: {#GameComp}
 Root: "HKCU"; Subkey: "{#GameRegKey}"; ValueType: Dword; ValueName: "Game Bit Depth"; ValueData: "$20"; Flags: deletevalue; Components: {#GameComp}
@@ -1290,11 +1290,12 @@ begin
 end;
 
 // [Registry] Game Window Height and Game Window Width: the size of the primary screen
-// (GetSystemMetrics, environment.iss) within the limits of contract 3.3 (ClampGameWindowHeight/Width
-// and MinGameWindowWidth ... MaxGameWindowHeight in utils.iss)
+// (GetSystemMetrics, environment.iss) within the limits of contract 3.3 (GameWindowHeight/
+// ClampGameWindowWidth, MinGameWindowWidth ... MaxGameWindowHeight and WideScreenGameWindowHeight in
+// utils.iss)
 function GetScreenResolutionHeight(Param: String): String;
 begin
-  Result := IntToStr(ClampGameWindowHeight(GetSystemMetrics(SM_CYSCREEN)));
+  Result := IntToStr(GameWindowHeight(GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN)));
 end;
 
 function GetScreenResolutionWidth(Param: String): String;

@@ -38,7 +38,7 @@
 //
 // Nothing here writes to the registry or the file system, and no key below Software\Sierra is read
 // (the NeoEE CD keys are there).
-// Requires: utils.iss (ClampGameWindowWidth/Height, MinGameWindowHeight, IsScreenTooLow,
+// Requires: utils.iss (ClampGameWindowWidth, GameWindowHeight, MinGameWindowHeight, IsScreenTooLow,
 // FormatScreenMetrics, NormalizeFolderPath, IsSameOrInside, IsSameFolder, IsDriveRootOrEmpty,
 // InstalledFromFolder, FormatHklmKeyName, IsForeignUninstallEntry, UninstallKeysPath,
 // FormatFindingList, FindingsShownMax, GetOtherProductUninstallRegPath, GetTickCount, TicksSince,
@@ -106,7 +106,7 @@ begin
   if not IsScreenTooLow(Height) then
     Exit;
   Log('The screen is lower than ' + IntToStr(MinGameWindowHeight) + ' pixels (' + IntToStr(Width) + ' x ' + IntToStr(Height) +
-    '): the game window is set to ' + IntToStr(ClampGameWindowWidth(Width)) + ' x ' + IntToStr(ClampGameWindowHeight(Height)) +
+    '): the game window is set to ' + IntToStr(ClampGameWindowWidth(Width)) + ' x ' + IntToStr(GameWindowHeight(Width, Height)) +
     ', the menus may not fit (notice LowScreenResolution)');
   if SilentInstall or SuppressMsgBoxes then
   begin
@@ -114,7 +114,7 @@ begin
     Exit;
   end;
   MsgBox(FmtMessage(CustomMessage('LowScreenResolution'), [IntToStr(Width), IntToStr(Height),
-    IntToStr(ClampGameWindowWidth(Width)), IntToStr(ClampGameWindowHeight(Height))]), mbInformation, MB_OK);
+    IntToStr(ClampGameWindowWidth(Width)), IntToStr(GameWindowHeight(Width, Height))]), mbInformation, MB_OK);
 end;
 
 const

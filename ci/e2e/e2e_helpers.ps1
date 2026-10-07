@@ -293,6 +293,18 @@ function Get-E2EClamped([int]$Value, [int]$Lowest, [int]$Highest) {
   return $Value
 }
 
+# Game Window Height (GameWindowHeight, utils.iss; contract 3.3, revision 6): the screen height within 768 .. 1200, on a
+# screen wider than 1920 also at most the larger of 1080 and the height scaled to the width 1920 (rounded down)
+function Get-E2EGameWindowHeight([int]$Width, [int]$Height) {
+  $result = Get-E2EClamped $Height 768 1200
+  if ($Width -gt 1920) {
+    $scaled = [int][Math]::Floor([long]$Height * 1920 / $Width)
+    if ($scaled -lt 1080) { $scaled = 1080 }
+    if ($result -gt $scaled) { $result = $scaled }
+  }
+  return $result
+}
+
 # The GPU option of a first installation from the log (pages.iss, RegisterGpuOptions):
 # @{ Vendor; LogName; Wrapper; Problems }. The runner's vendor is not known in advance, so the
 # expected wrapper follows the detected vendor.

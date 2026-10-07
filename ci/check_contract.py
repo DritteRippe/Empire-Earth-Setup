@@ -32,6 +32,10 @@ is the setup script. This check reads only TABLES of the contract, never its pro
                                                setup_is6.iss or its #include files, today
                                                utils.iss), rows Game Window Width and Game Window
                                                Height
+  3.3, second table Value | Screen | Maximum   MaxGameWindowWidth and WideScreenGameWindowHeight
+                                               (one row Game Window Height: the screen width above
+                                               which it applies, the height up to which the screen
+                                               height scaled to that width counts at least)
   3.4, Value name | Component | Data |         the [Registry] entries below
        Windows versions | Task                 Software\\Microsoft\\DirectX\\UserGpuPreferences
                                                (HKCU, REG_SZ, uninsdeletevalue): value name with
@@ -765,22 +769,31 @@ def contract_section(lines, number):
     return result
 
 
-def first_table(numbered_lines, where):
-    """(header cells, [(line number, cells)]) of the first Markdown table of the lines."""
-    header, rows = None, []
+def all_tables(numbered_lines):
+    """[(header cells, [(line number, cells)])] of all Markdown tables of the lines, in order."""
+    tables, header, rows = [], None, []
     for no, text in numbered_lines:
         if not text.startswith("|"):
             if header is not None:
-                break
+                tables.append((header, rows))
+                header, rows = None, []
             continue
         cells = [cell.strip() for cell in text.strip().strip("|").split("|")]
         if header is None:
             header = cells
         elif not all(re.fullmatch(r":?-+:?", cell) for cell in cells):
             rows.append((no, dict(zip(header, cells))))
-    if header is None:
+    if header is not None:
+        tables.append((header, rows))
+    return tables
+
+
+def first_table(numbered_lines, where):
+    """(header cells, [(line number, cells)]) of the first Markdown table of the lines."""
+    tables = all_tables(numbered_lines)
+    if not tables:
         raise CheckError(f"{CONTRACT}: no table in {where}")
-    return header, rows
+    return tables[0]
 
 
 def plain(cell):
@@ -1467,15 +1480,18 @@ def check_compatibility(contract_lines, per_variant, errors):
 # ---------------------------------------------------------------------------------------------
 # Rule 3.3: window size limits
 
-# The rows of the table of 3.3 and the dimension of their constants (Min<...>/Max<...>)
+# The rows of the first table of 3.3 and the dimension of their constants (Min<...>/Max<...>)
 WINDOW_LIMITS = {"Game Window Width": "GameWindowWidth", "Game Window Height": "GameWindowHeight"}
+# The constant of the second table of 3.3 (the wide-screen limit of the height, revision 6)
+WIDE_SCREEN_LIMIT = "WideScreenGameWindowHeight"
 
 
 def script_window_limits(root):
-    """{constant: (value, "file:line")} of MinGameWindowWidth ... MaxGameWindowHeight, each defined
-    exactly once as '<name> = <number>;' in setup_is6.iss or a file of its #include lines (wherever
-    a refactoring moves them)."""
+    """{constant: (value, "file:line")} of MinGameWindowWidth ... MaxGameWindowHeight and
+    WideScreenGameWindowHeight, each defined exactly once as '<name> = <number>;' in setup_is6.iss or
+    a file of its #include lines (wherever a refactoring moves them)."""
     names = [bound + dimension for dimension in WINDOW_LIMITS.values() for bound in ("Min", "Max")]
+    names.append(WIDE_SCREEN_LIMIT)
     found = {name: [] for name in names}
     for rel in own_include_closure(root):
         for no, text in logical_lines(read_text(root / rel)):
@@ -1492,8 +1508,43 @@ def script_window_limits(root):
     return result
 
 
+def check_wide_screen_limit(script, tables, errors):
+    """The table Value | Screen | Maximum of 3.3: one row Game Window Height, the screen width above
+    which the limit applies (MaxGameWindowWidth) and the height that the scaled screen height is
+    at least raised to (WideScreenGameWindowHeight)."""
+    wide = [(header, rows) for header, rows in tables if header[:1] == ["Value"] and "Screen" in header]
+    if len(wide) != 1:
+        errors.append(f"{CONTRACT} (3.3): no table of the wide-screen limit (columns Value, Screen, Maximum)"
+                      if not wide else f"{CONTRACT} (3.3): more than one table of the wide-screen limit")
+        return
+    header, rows = wide[0]
+    require_columns(header, ["Value", "Screen", "Maximum"], "the wide-screen limit of 3.3")
+    if len(rows) != 1 or plain(rows[0][1]["Value"]) != "Game Window Height":
+        errors.append(f"{CONTRACT} (3.3): the table of the wide-screen limit must have exactly one row, "
+                      "Game Window Height")
+        return
+    no, row = rows[0]
+    where = f"{CONTRACT}:{no} (3.3) Game Window Height, wide screen"
+    width, width_place = script["MaxGameWindowWidth"]
+    limit, limit_place = script[WIDE_SCREEN_LIMIT]
+    screen = re.findall(r"`(\d+)`", row["Screen"])
+    if screen != [str(width)]:
+        errors.append(f"{where}: screen width {', '.join(screen) or row['Screen']} in the contract, {width} in "
+                      f"{width_place} (MaxGameWindowWidth)")
+    maximum = re.findall(r"`(\d+)`", row["Maximum"])
+    if maximum != [str(limit)]:
+        errors.append(f"{where}: wide-screen maximum {', '.join(maximum) or row['Maximum']} in the contract, "
+                      f"{limit} in {limit_place} ({WIDE_SCREEN_LIMIT})")
+    scaled = re.findall(r"`height x (\d+) / width`", row["Maximum"])
+    if scaled != [str(width)]:
+        errors.append(f"{where}: the maximum must name the height scaled to the width {width} "
+                      f"(`height x {width} / width`)")
+
+
 def check_window_limits(root, contract_lines, errors):
-    header, rows = first_table(contract_section(contract_lines, "3.3"), "3.3")
+    section = contract_section(contract_lines, "3.3")
+    tables = all_tables(section)
+    header, rows = first_table(section, "3.3")
     require_columns(header, ["Value", "Minimum", "Maximum"], "3.3")
     script = script_window_limits(root)
     seen = []
@@ -1519,6 +1570,7 @@ def check_window_limits(root, contract_lines, errors):
     for name in WINDOW_LIMITS:
         if name not in seen:
             errors.append(f"{CONTRACT} (3.3): no row {name} in the table of the window size limits")
+    check_wide_screen_limit(script, tables, errors)
     return len(seen)
 
 
@@ -2422,7 +2474,7 @@ def check(root):
     summary.append(f"3.2: {'/'.join(str(c) for c in sorted(game_counts if game_counts else {0}))} values "
                    f"of both games in {len(VARIANTS)} variants")
     count = rule("3.3", lambda: check_window_limits(root, contract_lines, errors))
-    summary.append(f"3.3: {count} window size limits")
+    summary.append(f"3.3: {count} window size limits and the wide-screen limit")
     if gpu_rows and len(gpu_rows) == len(VARIANTS):
         count = rule("3.4", lambda: check_gpu_preferences(contract_lines, gpu_rows, errors))
         summary.append(f"3.4: {count} GPU preference values")
@@ -2725,12 +2777,30 @@ end;
         ("MaxGameWindowWidth 1920 -> 2560 in utils.iss",
          replace(utils, "MaxGameWindowWidth = 1920;", "MaxGameWindowWidth = 2560;"),
          "Game Window Width: maximum 1920 in the contract, 2560 in utils.iss"),
+        ("MaxGameWindowHeight 1200 -> 1080 in utils.iss",
+         replace(utils, "MaxGameWindowHeight = 1200;", "MaxGameWindowHeight = 1080;"),
+         "Game Window Height: maximum 1200 in the contract, 1080 in utils.iss"),
         ("minimum height 768 -> 720 in the contract",
-         replace(contract, "| `768` | `1080` |", "| `720` | `1080` |"),
+         replace(contract, "| `768` | `1200` |", "| `720` | `1200` |"),
          "Game Window Height: minimum 720 in the contract, 768 in utils.iss"),
         ("row Game Window Height missing in the table of 3.3",
-         replace(contract, "| `Game Window Height` | height of the primary screen (`SM_CYSCREEN`) | `768` | `1080` |\n", ""),
+         replace(contract, "| `Game Window Height` | height of the primary screen (`SM_CYSCREEN`) | `768` | `1200` |\n", ""),
          "no row Game Window Height in the table of the window size limits"),
+        ("WideScreenGameWindowHeight 1080 -> 1000 in utils.iss",
+         replace(utils, "WideScreenGameWindowHeight = 1080;", "WideScreenGameWindowHeight = 1000;"),
+         "wide-screen maximum 1080 in the contract, 1000 in utils.iss"),
+        ("screen width of the wide-screen table 1920 -> 2560 in the contract",
+         replace(contract, "| `Game Window Height` | wider than `1920` |", "| `Game Window Height` | wider than `2560` |"),
+         "screen width 2560 in the contract, 1920 in utils.iss"),
+        ("scaled width of the wide-screen formula 1920 -> 2560 in the contract",
+         replace(contract, "`height x 1920 / width` |", "`height x 2560 / width` |"),
+         "the maximum must name the height scaled to the width 1920"),
+        ("the wide-screen table of 3.3 missing",
+         replace(contract, "| Value | Screen | Maximum |\n|---|---|---|\n| `Game Window Height` | wider than `1920` | the larger of `1080` and `height x 1920 / width` |\n\n", ""),
+         "no table of the wide-screen limit"),
+        ("WideScreenGameWindowHeight defined twice",
+         replace(main_script, "const\r\n  // Setup background:", "const\r\n  WideScreenGameWindowHeight = 1080;\r\n  // Setup background:"),
+         "the constant WideScreenGameWindowHeight must be defined exactly once"),
         ("MinGameWindowWidth defined a second time (in setup_is6.iss)",
          replace(main_script, "const\r\n  // Setup background:", "const\r\n  MinGameWindowWidth = 1024;\r\n  // Setup background:"),
          "the constant MinGameWindowWidth must be defined exactly once"),
