@@ -93,6 +93,7 @@ function Get-E2ESuiteDirtyState {
   $paths = @((Get-E2ESuiteRoot), (Get-E2ESuiteGroup), (Get-E2ELauncherDataDir))
   foreach ($desktop in @((Get-E2EKnownFolder 'CommonDesktopDirectory'), (Get-E2EKnownFolder 'DesktopDirectory'))) {
     $paths += Join-Path $desktop 'Neo Empire Earth.lnk'
+    $paths += Join-Path $desktop 'Empire Earth Community.lnk'
   }
   foreach ($path in $paths) {
     if (Test-Path -LiteralPath $path) { $found += "$path (suite)" }
@@ -118,6 +119,7 @@ function Reset-E2ESuiteMachine([string]$Scenario) {
   $paths = @((Get-E2ESuiteRoot), (Get-E2ESuiteGroup), (Get-E2ELauncherDataDir))
   foreach ($desktop in @((Get-E2EKnownFolder 'CommonDesktopDirectory'), (Get-E2EKnownFolder 'DesktopDirectory'))) {
     $paths += Join-Path $desktop 'Neo Empire Earth.lnk'
+    $paths += Join-Path $desktop 'Empire Earth Community.lnk'
   }
   foreach ($path in $paths) {
     try {
@@ -771,7 +773,7 @@ function Test-E2ESuiteRemoved {
   }
   if (Test-Path -LiteralPath (Get-E2ESuiteGroup)) { $problems += "$(Get-E2ESuiteGroup) is still there" }
   foreach ($desktop in @((Get-E2EKnownFolder 'CommonDesktopDirectory'), (Get-E2EKnownFolder 'DesktopDirectory'))) {
-    foreach ($name in @('Empire Earth.lnk', 'Neo Empire Earth.lnk')) {
+    foreach ($name in @('Empire Earth.lnk', 'Neo Empire Earth.lnk', 'Empire Earth Community.lnk')) {
       if (Test-Path -LiteralPath (Join-Path $desktop $name)) { $problems += "$desktop\$name is still there" }
     }
   }
@@ -872,8 +874,19 @@ function Invoke-E2EScenarioS9 {
     # damage: a game program is gone, two of the suite's shortcuts are gone
     $game = Join-Path (Join-Path $roots['EE'] $E2EGames['EE'].Folder) $E2EGames['EE'].Exe
     Remove-Item -LiteralPath $game -Force
-    $gone = @((Join-Path (Get-E2ESuiteDesktop) 'Neo Empire Earth.lnk'), (Join-Path (Get-E2ESuiteGroup) 'Empire Earth.lnk'))
+    $gone = @((Join-Path (Get-E2ESuiteDesktop) 'Empire Earth Community.lnk'), (Join-Path (Get-E2ESuiteGroup) 'Empire Earth Launcher.lnk'))
     foreach ($path in $gone) { Remove-Item -LiteralPath $path -Force }
+    # the four game shortcuts that suite 1.0.0 created (desktop and start menu folder, the launcher with --product=): an update or
+    # repair of suite 1.1.0 deletes them (the one icon starts every game)
+    $launcherExe = Join-E2EPath (Get-E2ESuiteRoot) $E2ESuiteConst.LauncherExe
+    $oldIcons = @()
+    foreach ($entry in $E2ESuiteGames) {
+      foreach ($folder in @((Get-E2ESuiteDesktop), (Get-E2ESuiteGroup))) {
+        $path = Join-Path $folder "$($entry.Name).lnk"
+        Set-E2EShortcut $path $launcherExe "--product=$($entry.Id)"
+        $oldIcons += $path
+      }
+    }
 
     # as a repair by the suite itself: no /TYPE, so the products keep their components
     $repair = Invoke-E2ESuiteRun -Scenario $s -Step 'repair' -Package $env:E2E_SUITE -Products 'EE,NeoEE' `
@@ -896,6 +909,14 @@ function Invoke-E2EScenarioS9 {
         if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { $problems += "$path was not restored" }
       }
       [void](Complete-E2ECheck $s 'repair/KEPT' $problems 'the same folders, components and tasks (no neoee_cdkeys), the missing game program and the two shortcuts restored')
+      $problems = @()
+      foreach ($path in $oldIcons) {
+        if (Test-Path -LiteralPath $path) { $problems += "$path (a game shortcut of suite 1.0.0) is still there after the repair" }
+      }
+      foreach ($path in @($oldIcons | Where-Object { $_ -like '*Neo Empire Earth.lnk' })) {
+        $problems += @(Test-E2ELogLines -Lines $repair.LogLines -Contains @("Old game shortcut of suite 1.0.0 removed (the launcher starts every game now): $path"))
+      }
+      [void](Complete-E2ECheck $s 'repair/OLDICONS' $problems 'the four game shortcuts of suite 1.0.0 (desktop and start menu folder, the launcher with --product=) were deleted by the repair')
       $problems = @()
       foreach ($id in $ids) {
         if (-not (Test-Path -LiteralPath $mods[$id] -PathType Leaf)) { $problems += "${id}: the self-made mod folder $($mods[$id]) is gone after the repair" }

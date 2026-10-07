@@ -159,6 +159,7 @@ try {
     New-Item -ItemType Directory -Force -Path (Split-Path -Parent $Path) | Out-Null
     [System.IO.File]::WriteAllText($Path, "$Target|$Arguments")
   }
+  function Set-E2EShortcut([string]$Path, [string]$Target, [string]$Arguments) { Set-FakeShortcut $Path $Target $Arguments }
 
   # The log of the fake: lines with a time stamp like the ones of Inno Setup
   function Add-FakeLog([string]$File, [string[]]$Lines) {
@@ -322,15 +323,25 @@ try {
     $launcher = Join-E2EPath $suiteRoot $E2ESuiteConst.LauncherExe
     $desktop = Get-E2ESuiteDesktop
     $group = Get-E2ESuiteGroup
+    # the one icon of the suite (the launcher without a product); a game shortcut of suite 1.0.0 (the launcher with
+    # --product=) is deleted, a shortcut of a game program stays (SuiteGameShortcut)
+    if ($script:Bug -ne 'noshortcuts') {
+      $arguments = ''
+      if ($script:Bug -eq 'wrongargs') { $arguments = '--product=EE' }
+      Set-FakeShortcut (Join-Path $desktop 'Empire Earth Community.lnk') $launcher $arguments
+      $lines += "Shortcut created: $(Join-Path $desktop 'Empire Earth Community.lnk') -> $launcher $arguments"
+    }
     foreach ($game in $E2ESuiteGames) {
-      $installed = Test-E2ERegKey 'HKLM64' (Get-E2EUninstallKeyPath (Get-E2EProduct $game.Id))
-      if (-not $installed -or ($script:Bug -eq 'noshortcuts' -and $game.Id -eq 'NeoEE')) { continue }
-      $arguments = "--product=$($game.Id)"
-      if ($script:Bug -eq 'wrongargs' -and $game.Id -eq 'NeoEE') { $arguments = '--product=EE' }
       foreach ($folder in @($desktop, $group)) {
-        Set-FakeShortcut (Join-Path $folder "$($game.Name).lnk") $launcher $arguments
-        $lines += "Shortcut created: $(Join-Path $folder "$($game.Name).lnk") -> $launcher $arguments"
+        $old = Join-Path $folder "$($game.Name).lnk"
+        $link = Get-E2EShortcut $old
+        if ($link -and $link.Target -ieq $launcher -and $script:Bug -ne 'oldiconkept') {
+          Remove-Item -LiteralPath $old -Force
+          $lines += "Old game shortcut of suite 1.0.0 removed (the launcher starts every game now): $old"
+        }
       }
+      $installed = Test-E2ERegKey 'HKLM64' (Get-E2EUninstallKeyPath (Get-E2EProduct $game.Id))
+      if (-not $installed) { continue }
       if (Test-Path -LiteralPath (Join-Path $roots[$game.Id] 'Tools\Diagnostic\EE-Diagnostic.exe')) {
         Set-FakeShortcut (Join-Path $group "$($game.Diagnostic).lnk") (Join-E2EPath $roots[$game.Id] 'Tools\Diagnostic\EE-Diagnostic.exe') ('{' + $E2ESuiteConst.ProductAppIds[$game.Id] + '}_is1')
       }
@@ -377,7 +388,7 @@ try {
       }
     }
     foreach ($folder in @((Get-E2ESuiteDesktop), (Get-E2ESuiteGroup))) {
-      foreach ($file in @('Empire Earth.lnk', 'Neo Empire Earth.lnk')) {
+      foreach ($file in @('Empire Earth.lnk', 'Neo Empire Earth.lnk', 'Empire Earth Community.lnk')) {
         if (Test-Path -LiteralPath (Join-Path $folder $file)) { Remove-Item -LiteralPath (Join-Path $folder $file) -Force }
       }
     }
@@ -439,6 +450,7 @@ try {
   $defects = @(
     @{ Bug = 'noshortcuts'; Scenario = 'S1'; Check = 'install/LNK' },
     @{ Bug = 'wrongargs'; Scenario = 'S1'; Check = 'install/LNK' },
+    @{ Bug = 'oldiconkept'; Scenario = 'S9'; Check = 'repair/OLDICONS' },
     @{ Bug = 'legacykept'; Scenario = 'S3'; Check = 'suite/LNK' },
     @{ Bug = 'keepproduct'; Scenario = 'S8'; Check = 'suite-uninstall/REMOVED' },
     @{ Bug = 'keepproduct'; Scenario = 'S7'; Check = 'suite-uninstall/SKIPPED' },

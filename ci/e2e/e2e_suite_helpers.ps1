@@ -74,7 +74,8 @@ $E2ESuiteTitles = @{
   S13 = 'Cancel of a repair: the installed product stays exactly as it was (exit code 3)'
 }
 
-# The shortcut names of the suite (contract 1.7 point 8) and the product they start
+# The game shortcut names (contract 1.7 point 8): since suite 1.1.0 the suite creates none with the launcher, and the
+# Diagnostic shortcut belongs to each of them
 $E2ESuiteGames = @(
   @{ Id = 'EE';    Name = 'Empire Earth';      Diagnostic = 'Empire Earth Diagnostic' },
   @{ Id = 'NeoEE'; Name = 'Neo Empire Earth';  Diagnostic = 'Neo Empire Earth Diagnostic' }
@@ -187,11 +188,13 @@ function Join-E2EPath([string]$Folder, [string]$Name) { return ($Folder.TrimEnd(
 
 # --- Shortcuts (contract 1.7 point 8) -----------------------------------------------------------------------------
 
-# The shortcuts a run leaves, as @{ Path; Target; Arguments; Present }: the two game shortcuts on the desktop
-# and in the suite's start menu folder (target the launcher, --product=<id>), for the products in Products
-# only; the shortcuts of the launcher, the Mod Creator and the uninstaller always; the Diagnostic shortcut of a
-# product only if the product has its program (DiagnosticFor). Roots: product id -> install root. AppIds: product
-# id -> AppId (the Diagnostic tool gets "{<AppId>}_is1").
+# The shortcuts a run leaves, as @{ Path; Target; Arguments; Present }: the one desktop shortcut "Empire Earth
+# Community" (the launcher without a product); NO game shortcut (the names Empire Earth and Neo Empire Earth on the
+# desktop and in the start menu folder, which suite 1.0.0 created with --product=<id> and suite 1.1.0 deletes where they
+# start the launcher; the standalone setups' own shortcuts of these names are deleted by the product runner), so they
+# are listed as absent; the shortcuts of the launcher, the Mod Creator and the uninstaller always; the Diagnostic
+# shortcut of a product only if it is in Products and has its program (DiagnosticFor). Roots: product id -> install
+# root. AppIds: product id -> AppId (the Diagnostic tool gets "{<AppId>}_is1").
 function Get-E2ESuiteExpectedShortcuts {
   param(
     [string[]]$Products,
@@ -204,10 +207,11 @@ function Get-E2ESuiteExpectedShortcuts {
   )
   $launcher = Join-E2EPath $SuiteRoot $E2ESuiteConst.LauncherExe
   $list = @()
+  $list += @{ Path = Join-E2EPath $Desktop 'Empire Earth Community.lnk'; Target = $launcher; Arguments = ''; Present = $true }
   foreach ($game in $E2ESuiteGames) {
     $present = ($Products -contains $game.Id)
-    $list += @{ Path = Join-E2EPath $Desktop "$($game.Name).lnk"; Target = $launcher; Arguments = "--product=$($game.Id)"; Present = $present }
-    $list += @{ Path = Join-E2EPath $Group "$($game.Name).lnk"; Target = $launcher; Arguments = "--product=$($game.Id)"; Present = $present }
+    $list += @{ Path = Join-E2EPath $Desktop "$($game.Name).lnk"; Target = ''; Arguments = ''; Present = $false }
+    $list += @{ Path = Join-E2EPath $Group "$($game.Name).lnk"; Target = ''; Arguments = ''; Present = $false }
     $diag = ($present -and ($DiagnosticFor -contains $game.Id))
     $target = ''
     $arguments = ''

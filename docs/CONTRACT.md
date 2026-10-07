@@ -454,13 +454,23 @@ run, the products the user selects and the launcher:
    `{autoprograms}\Empire Earth\<AppName>.lnk`, `{autoprograms}\Empire Earth\<AppName> - AoC.lnk` and
    `{autoprograms}\Empire Earth\<AppName> Diagnostic.lnk`, then the folder `{autoprograms}\Empire Earth`
    if it is empty.
-8. **Suite shortcuts** (table below): created after that cleanup, by every run of the suite, so a
-   repair restores them. The game shortcuts start the launcher with the product; without .NET
-   Framework 4.8 the suite creates shortcuts of the same names to the game program of the product
-   instead. The EE shortcut has the name of the EE setup's own desktop shortcut (`Empire Earth`, the
-   `AppName` of EE): if EE was once installed standalone with a desktop shortcut, the uninstall log of
-   EE still names `{autodesktop}\Empire Earth.lnk`, so uninstalling EE alone through Windows "Apps" can
-   delete the suite's shortcut; running the suite again (repair) restores it.
+8. **Suite shortcuts** (tables below): created after that cleanup, by every run of the suite, so a
+   repair restores them. Since revision 6 (suite 1.1.0) the suite creates **one** desktop shortcut,
+   `Empire Earth Community`, which starts the launcher without a product (no parameters): the launcher
+   opens with the game the player chose last, and the player picks one of the four games on its Play page
+   (Empire Earth, Empire Earth - The Art of Conquest, Neo Empire Earth, Neo Empire Earth - The Art of
+   Conquest; a game that is not installed is greyed out). The shortcuts `Empire Earth` and `Neo Empire Earth`
+   that suite 1.0.0 created (desktop and start menu folder, target the launcher with `--product=EE` or
+   `--product=NeoEE`) are not created any more, and every run of the suite on a computer with the launcher
+   deletes them where they start the launcher (the link names `Empire Earth Launcher.exe`): an update or a repair
+   leaves no game shortcut of the suite behind. A shortcut of these names that starts a game program is the
+   product's own and stays. The launcher still accepts `--product=EE` and `--product=NeoEE` for shortcuts that
+   exist (also of a user): the product is preselected, and the hand-off to a launcher that is running already
+   passes it on. Without .NET Framework 4.8 there is no launcher: the suite creates no
+   `Empire Earth Community` shortcut and, instead, the game shortcuts `Empire Earth` and `Neo Empire Earth` to the
+   game program of each installed product (second table), as suite 1.0.0 did. These have the names of the shortcuts
+   of the EE and NeoEE setups themselves, so uninstalling such a product alone through Windows "Apps" can delete the
+   suite's shortcut; running the suite again (repair) restores it.
 9. **Launcher outside the product roots** (former **O10**): the suite installs the launcher into the
    suite root. Its files are therefore in no manifest ([2.3](#23-which-files) unchanged), the suite
    closes it before it runs through its `AppMutex` ([Suite and launcher](#suite-and-launcher)), and the
@@ -468,14 +478,21 @@ run, the products the user selects and the launcher:
    [1.4](#14-discovery-by-the-launcher)) is neither an EE folder nor an install root, so it finds nothing
    and stays the source of the lowest preference.
 
-| Shortcut | Product | Places | Target | Parameters | Without .NET Framework 4.8 |
-|---|---|---|---|---|---|
-| `Empire Earth` | `EE` | `{autodesktop}`, `{autoprograms}\Empire Earth Community` | `{app}\Empire Earth Launcher.exe` | `--product=EE` | `<product root>\Empire Earth\Empire Earth.exe` |
-| `Neo Empire Earth` | `NeoEE` | `{autodesktop}`, `{autoprograms}\Empire Earth Community` | `{app}\Empire Earth Launcher.exe` | `--product=NeoEE` | `<product root>\Empire Earth\Empire Earth.exe` |
+| Shortcut | Places | Target | Parameters | Without .NET Framework 4.8 |
+|---|---|---|---|---|
+| `Empire Earth Community` | `{autodesktop}` | `{app}\Empire Earth Launcher.exe` | none | no shortcut (the launcher is not installed) |
+
+Game program shortcuts, only on a computer without .NET Framework 4.8 (no parameters):
+
+| Game shortcut | Product | Places | Target |
+|---|---|---|---|
+| `Empire Earth` | `EE` | `{autodesktop}`, `{autoprograms}\Empire Earth Community` | `<product root>\Empire Earth\Empire Earth.exe` |
+| `Neo Empire Earth` | `NeoEE` | `{autodesktop}`, `{autoprograms}\Empire Earth Community` | `<product root>\Empire Earth\Empire Earth.exe` |
 
 `{app}` is the suite root, `<product root>` the install root of the product. The suite's start menu
-folder also holds shortcuts to the launcher, the Mod Creator, the suite's uninstaller and Empire Earth
-Diagnostic of each product; they are no game shortcuts.
+folder also holds shortcuts to the launcher (`Empire Earth Launcher`), the Mod Creator, the suite's uninstaller and
+Empire Earth Diagnostic of each product; they are no game shortcuts. The suite creates no shortcut that passes
+`--product=`.
 
 ## 2. Integrity manifest
 

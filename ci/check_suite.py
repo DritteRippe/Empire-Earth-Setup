@@ -217,11 +217,19 @@ def check_frame_rules(main, files, errors):
     guard = re.search(r"if\s+not\s+IsAdminInstallMode\s+then\s+SuiteStop\(", init)
     if not guard or guard.start() > init.find("SuiteSilentArgumentsProblem("):
         errors.append("suite/suite.iss: InitializeSetup must stop first if not IsAdminInstallMode")
-    shortcut = function_bodies(code_lines(files.get("suite/suite_shortcuts.iss", ""))).get("SuiteShortcut", "")
-    if not re.search(r"if\s+SuiteShortcutsRemoving\s+then.*?\(Product\s*<>\s*''\)\s+and\s+\(SuiteProductRoot\(Product\)\s*<>\s*''\)"
-                     r"\s+and\s+not\s+SuiteLinkStartsLauncher\(Link\)\s+then.*?\bDeleteFile\(Link\)", shortcut, re.DOTALL):
-        errors.append("suite/suite_shortcuts.iss: when removing, SuiteShortcut must keep the shortcut of a product that stays "
+    shortcuts = function_bodies(code_lines(files.get("suite/suite_shortcuts.iss", "")))
+    if not re.search(r"\(Product\s*<>\s*''\)\s+and\s+\(SuiteProductRoot\(Product\)\s*<>\s*''\)"
+                     r"\s+and\s+not\s+SuiteLinkStartsLauncher\(Link\)\s+then.*?\bDeleteFile\(Link\)", shortcuts.get("SuiteRemoveShortcut", ""), re.DOTALL):
+        errors.append("suite/suite_shortcuts.iss: SuiteRemoveShortcut must keep the shortcut of a product that stays "
                       "installed unless it starts the launcher (SuiteLinkStartsLauncher), before DeleteFile(Link)")
+    for name in ("SuiteShortcut", "SuiteGameShortcut"):
+        if not re.search(r"if\s+SuiteShortcutsRemoving\s+then\s+begin\s+SuiteRemoveShortcut\(Link,\s*Product\);", shortcuts.get(name, "")):
+            errors.append(f"suite/suite_shortcuts.iss: when removing, {name} must delete through SuiteRemoveShortcut (the rule "
+                          "that keeps the shortcut of a product that stays installed)")
+    if not re.search(r"if\s+IsDotNet48\s+then\s+begin\s+if\s+FileExists\(Link\)\s+and\s+SuiteLinkStartsLauncher\(Link\)\s+then\s+begin\s+if\s+DeleteFile\(Link\)",
+                     shortcuts.get("SuiteGameShortcut", "")):
+        errors.append("suite/suite_shortcuts.iss: with the launcher SuiteGameShortcut may delete only a game shortcut that starts the "
+                      "launcher (the old ones of suite 1.0.0), never the shortcut of a game program")
     for rel, text in files.items():
         for no, line in code_lines(text):
             if re.search(r"\b(HKLM64|HKCU64|HKLM32|HKCU32)\b", line):
@@ -875,7 +883,13 @@ def self_test(source_root):
          replace("suite/suite_pages.iss", "RegValueExists(HKLM, Key,", "RegValueExists(HKLM64, Key,"), "HKLM64, HKCU64, HKLM32 and HKCU32 raise an error"),
         ("a shortcut of an installed product is deleted",
          replace("suite/suite_shortcuts.iss", "(SuiteProductRoot(Product) <> '') and not SuiteLinkStartsLauncher(Link)", "False"),
-         "SuiteShortcut must keep the shortcut of a product that stays installed"),
+         "SuiteRemoveShortcut must keep the shortcut of a product that stays installed"),
+        ("the game shortcut removes without the rule of the uninstaller",
+         replace("suite/suite_shortcuts.iss", "  if SuiteShortcutsRemoving then\n  begin\n    SuiteRemoveShortcut(Link, Product);\n    Exit;\n  end;\n  if IsDotNet48 then", "  if SuiteShortcutsRemoving then\n  begin\n    DeleteFile(Link);\n    Exit;\n  end;\n  if IsDotNet48 then"),
+         "SuiteGameShortcut must delete through SuiteRemoveShortcut"),
+        ("an old game shortcut deleted although it starts a game program",
+         replace("suite/suite_shortcuts.iss", "if FileExists(Link) and SuiteLinkStartsLauncher(Link) then\n    begin\n      if DeleteFile(Link) then\n        Log('Old game", "if FileExists(Link) then\n    begin\n      if DeleteFile(Link) then\n        Log('Old game"),
+         "SuiteGameShortcut may delete only a game shortcut that starts the launcher"),
         ("language dialog", replace(main, "ShowLanguageDialog=no", "ShowLanguageDialog=yes"),
          "ShowLanguageDialog=yes, expected no"),
         ("launcher files without Check: IsDotNet48",

@@ -794,6 +794,19 @@ setup version stays 1.7.2 until the release.
   for a download URL any more (`GetSetupDownloadUrl` in `utils.iss`, unit-tested; the version check of the API stays).
   `IsAllowedUpdateUrl` (the allow-list for that URL, with `IsDomainOrSubdomain` and its constants) is gone with the only
   caller; `SplitHttpsUrl` stays. Contract 4.3 (revision 6, which the launcher follows) describes the pages.
+- Suite installer: one desktop icon instead of two. The suite creates the shortcut `Empire Earth Community` on the
+  desktop (the launcher without `--product=`: it opens with the game chosen last, and the player picks one of the four
+  games on its Play page) instead of the icons `Empire Earth` and `Neo Empire Earth` that started the launcher with one
+  game. The start menu folder `Empire Earth Community` holds the launcher, the Mod Creator, the diagnostic tools and the
+  uninstaller, and no game entry. An update or a repair of the suite deletes the four game shortcuts of suite 1.0.0
+  (desktop and start menu folder) where they start the launcher (`SuiteRemoveShortcut` reads the target; a shortcut of
+  the same name that starts a game program is left alone, a log line names each deleted one). Without .NET Framework 4.8
+  there is no launcher and the suite still creates the game shortcuts to the game programs. Contract 1.7 point 8 and its
+  tables (revision 6, compatible, `ContractVersion` stays 1; the launcher keeps `--product=EE|NeoEE` for old shortcuts and
+  the hand-off), `ci/check_contract.py` (the shortcut tables against `ApplySuiteShortcuts`), `ci/check_suite.py`, the
+  scenarios S1, S3, S9 and the uninstall check of the suite e2e, ADR 0013 (amendment), TP-93, TP-94, TP-95 and TP-97. The
+  launcher has to show the four games in one list on the Play page and to open with the remembered game without
+  `--product=` (launcher repository).
 
 ### Removed
 - Entries for Windows XP and older: the WIN98 compatibility mode and the pre-Vista `netsh

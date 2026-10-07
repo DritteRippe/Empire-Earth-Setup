@@ -481,6 +481,16 @@ function Get-E2EShortcut([string]$Path) {
   return @{ Target = $link.TargetPath; Arguments = $link.Arguments }
 }
 
+# Creates a .lnk file (the shortcuts of suite 1.0.0 that suite 1.1.0 must delete: S9)
+function Set-E2EShortcut([string]$Path, [string]$Target, [string]$Arguments) {
+  New-Item -ItemType Directory -Force -Path (Split-Path -Parent $Path) | Out-Null
+  $shell = New-Object -ComObject WScript.Shell
+  $link = $shell.CreateShortcut($Path)
+  $link.TargetPath = $Target
+  $link.Arguments = $Arguments
+  $link.Save()
+}
+
 # The access rules of a file or folder: @{ Sid; Rights; Allow; Inherited }
 function Get-E2EAccessRules([string]$Path) {
   $acl = Get-Acl -LiteralPath $Path

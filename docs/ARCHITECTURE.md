@@ -408,8 +408,10 @@ pass and the job `suite-e2e` (S1 to S13) was green on windows-latest.
   one user only is skipped with a message.
 - **After each product:** success = exit code 0 and the uninstall key in HKLM64; the old shortcuts of
   standalone runs of that product are deleted (contract 1.7 point 7) before the suite creates its
-  shortcuts `Empire Earth` and `Neo Empire Earth` (desktop and start menu folder `Empire Earth
-  Community`), which start the launcher with `--product=EE` or `--product=NeoEE`. The shortcuts and
+  shortcut `Empire Earth Community` (desktop; it starts the launcher without a product, the launcher opens with
+  the game chosen last) and the start menu folder `Empire Earth Community` (launcher, Mod Creator, diagnostic tools,
+  uninstaller); the game shortcuts `Empire Earth` and `Neo Empire Earth` of suite 1.0.0 are deleted again where they
+  start the launcher, and are only created on a computer without .NET Framework 4.8 (to the game programs). The shortcuts and
   the record below are created in code at `ssPostInstall` and removed by the uninstaller (ADR 0013,
   Evidence: the `Check` functions of `[Icons]` and `[Registry]` did not reliably see the results of
   `ssInstall`). For NeoEE the suite
