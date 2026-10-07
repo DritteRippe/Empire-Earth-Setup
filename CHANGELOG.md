@@ -495,6 +495,12 @@ setup version stays 1.7.2 until the release.
   (step D5).
 
 ### Changed
+- One main line `main`: development happens on short-lived feature branches with a pull request into `main`, releases
+  are tags on `main` (this repository and the launcher repository; the work of the branch `v2` is merged into the base
+  branch, which is called `main` from now on, here after the rename of the fork's `master`). `build.yml` runs on a push to `main` only (pull requests and manual runs as before),
+  the real-data end-to-end test checks the launcher commit against the launcher's `main`, README and the test plan name
+  `main`. References to what happened at a past commit (CONTRACT.md "Based on", released changelog entries, ADR texts
+  about past decisions and runs) keep the branch names of that time.
 - The real-data end-to-end test (`.github/workflows/e2e-realdata.yml`) runs by hand only (`workflow_dispatch`, input
   `launcher_commit`), not for pull requests: `r2.empireearth.eu` answers GitHub runners with HTTP 403 (an external block),
   so the check failed on every run, and a check that is always red trains people to ignore red checks. The `pull_request`
