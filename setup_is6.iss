@@ -527,7 +527,10 @@ Name: "gameaoc"; Description: "{#MyAppName} : The Art of Conquest"; Types: full
 
 Name: "additional"; Description: "{cm:CompAdditional}"
 
-Name: "additional\movies"; Description: "{cm:CompMovies}"; Flags: disablenouninstallwarning;
+; Part of the types full and compact since setup 1.1.0: with the movies the game shows its intro, which the launcher's
+; activation signal (launcher ADR 0010) makes skippable. Existing custom installations get them once
+; (SelectNewDefaultComponents, record value ComponentDefaults)
+Name: "additional\movies"; Description: "{cm:CompMovies}"; Flags: disablenouninstallwarning; Types: full compact
 
 Name: "additional\hd"; Description: "{cm:CompHD}"; Flags: disablenouninstallwarning; Types: full
 Name: "additional\hd\terrain"; Description: "{cm:CompByAuthor,HD Terrain v1.0,Sleeper & Yukon}"; Types: full
@@ -1013,6 +1016,7 @@ Root: HKA; Subkey: "{#BaseRegCommunity}\Installations\{#InstallType}"; ValueType
 Root: HKA; Subkey: "{#BaseRegCommunity}\Installations\{#InstallType}"; ValueType: string; ValueName: "AppId"; ValueData: "{#AppID}"
 Root: HKA; Subkey: "{#BaseRegCommunity}\Installations\{#InstallType}"; ValueType: string; ValueName: "GameVersion"; ValueData: "{#MyAppVersion}"
 Root: HKA; Subkey: "{#BaseRegCommunity}\Installations\{#InstallType}"; ValueType: string; ValueName: "SetupVersion"; ValueData: "{#MySetupVersion}"
+Root: HKA; Subkey: "{#BaseRegCommunity}\Installations\{#InstallType}"; ValueType: dword; ValueName: "ComponentDefaults"; ValueData: "{code:GetComponentDefaultsRevision}"
   #if SetupBuild != ""
 Root: HKA; Subkey: "{#BaseRegCommunity}\Installations\{#InstallType}"; ValueType: string; ValueName: "SetupBuild"; ValueData: "{#SetupBuild}"
   #endif
@@ -2066,6 +2070,32 @@ begin
 end;
 
 #if InstallMode == "Regular"
+// Components that became defaults after the installation was made by an older setup (contract 1.1 ComponentDefaults):
+// selected once on the first update of a custom installation; the types full and compact select them themselves, raw
+// never, an explicit /TYPE or /COMPONENTS is kept. Since 1.1.0: the intro movies. Called at the end of InitializeWizard,
+// after Inno Setup has applied the selection of the previous installation (it does that before InitializeWizard).
+procedure SelectNewDefaultComponents;
+var
+  Value: Cardinal;
+  Recorded: Integer;
+  Reason: String;
+begin
+  Recorded := 0;
+  if RegQueryDWordValue(HKA, '{#BaseRegCommunity}\Installations\{#InstallType}', 'ComponentDefaults', Value) then
+    Recorded := Value;
+  Reason := NewDefaultComponentSkipReason(IsGameInstalled(),
+    (ExpandConstant('{param:TYPE|}') <> '') or (ExpandConstant('{param:COMPONENTS|}') <> ''),
+    WizardSetupType(False), Recorded, WizardIsComponentSelected('additional\movies'));
+  if Reason <> '' then
+    Log('Component defaults: nothing selected: ' + Reason + '.')
+  else
+  begin
+    WizardSelectComponents('additional\movies');
+    Log('Component defaults: additional\movies selected once (an installation of an older setup, setup type custom; ' +
+        'ComponentDefaults ' + IntToStr(Recorded) + ' -> ' + IntToStr(ComponentDefaultsRevision) + ').');
+  end;
+end;
+
 // The recommended settings select the components by code, so the uninstall key records the
 // setup type 'custom' instead of the type Inno Setup derived. Not in portable setups: they have
 // no uninstall key (CreateUninstallRegKey=no), writing the value would create one that is never
@@ -2187,6 +2217,9 @@ begin
   CreateOnlineFilesDownloadPage();
   // The progress page of the integrity manifest (shown by WriteInstallState)
   CreateManifestProgressPage();
+#if InstallMode == "Regular"
+  SelectNewDefaultComponents();
+#endif
 end;
 
 procedure DeinitializeSetup;

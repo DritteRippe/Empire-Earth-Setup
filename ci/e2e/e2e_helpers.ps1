@@ -11,6 +11,8 @@
 $E2EConst = @{
   SetupVersion       = '1.7.2'
   ContractVersion    = 1
+  # ComponentDefaults of the install record (docs/CONTRACT.md 1.1, revision 6; ComponentDefaultsRevision in utils.iss)
+  ComponentDefaults  = 1
   CommunityKey       = 'Software\Empire Earth Community'
   UninstallKey       = 'Software\Microsoft\Windows\CurrentVersion\Uninstall'
   LayersKey          = 'Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers'

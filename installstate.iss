@@ -93,6 +93,13 @@ begin
   Result := InstallModeName(IsPortableVariant, IsAdminInstallMode);
 end;
 
+// [Registry] ComponentDefaults of the install record (contract 1.1, revision 6): the revision of the default
+// components this setup applies (ComponentDefaultsRevision, utils.iss)
+function GetComponentDefaultsRevision(Param: String): String;
+begin
+  Result := IntToStr(ComponentDefaultsRevision);
+end;
+
 // ssInstall, before [Files]: deletes install.ini, files.sha256 and their .tmp files of the previous
 // run
 procedure DeleteInstallState;

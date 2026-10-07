@@ -147,6 +147,35 @@ begin
 end;
 
 const
+  // Revision of the default components (install record value ComponentDefaults, contract 1.1, revision 6): 1 = the intro
+  // movies (additional\movies) belong to the types full and compact (setup 1.1.0). Raise it with the next component that
+  // becomes a default for existing installations, and select that one in SelectNewDefaultComponents (setup_is6.iss).
+  ComponentDefaultsRevision = 1;
+
+// Why an update selects no new default component; '' = it selects them (SelectNewDefaultComponents). HasPrevious: the
+// uninstall key of a previous installation exists; Explicit: /TYPE= or /COMPONENTS= is on the command line; SetupType: the
+// type Inno Setup took over from the previous installation (WizardSetupType(False)); Recorded: ComponentDefaults of the
+// install record (0 if missing: setups before 1.1.0 and 1.7.2); Selected: the component is selected already.
+function NewDefaultComponentSkipReason(const HasPrevious, Explicit: Boolean; const SetupType: String;
+  const Recorded: Integer; const Selected: Boolean): String;
+begin
+  if not HasPrevious then
+    Result := 'no previous installation (the setup type decides)'
+  else if Explicit then
+    Result := '/TYPE or /COMPONENTS on the command line'
+  else if Recorded >= ComponentDefaultsRevision then
+    Result := 'already done by an earlier run (ComponentDefaults ' + IntToStr(Recorded) + ')'
+  else if CompareText(SetupType, 'raw') = 0 then
+    Result := 'the setup type raw installs no additional content'
+  else if CompareText(SetupType, 'custom') <> 0 then
+    Result := 'the setup type ' + SetupType + ' selects them itself'
+  else if Selected then
+    Result := 'already selected'
+  else
+    Result := '';
+end;
+
+const
   // WinHTTP timeouts in milliseconds (WinHttpRequest.SetTimeouts): name resolution of
   // GetHttpStatus and of DownloadString, then connect, send and receive of both
   RequestResolveTimeoutMs = 6000;

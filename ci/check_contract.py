@@ -16,6 +16,11 @@ is the setup script. This check reads only TABLES of the contract, never its pro
                                                of utils.iss (the environment checks leave out the
                                                uninstall entries of both community products by
                                                them, ADR 0007)
+  1.1, Value | Type                            the [Registry] values of the record key
+                                               {#BaseRegCommunity}\\Installations\\{#InstallType} of
+                                               EE and NeoEE (Regular variants): exactly the names of
+                                               the table, REG_DWORD = dword, REG_SZ = string; the
+                                               optional SetupBuild only with the switch SetupBuild
   2.4, row "code" (column "Extensions")        CodeFileExtensions (utils.iss)
   3.2, Value | Type | Data | Class             the [Registry] values of the game settings keys
                                                (BaseRegEE, BaseRegAoC and their "Game Options"
@@ -1478,6 +1483,61 @@ def check_compatibility(contract_lines, per_variant, errors):
 
 
 # ---------------------------------------------------------------------------------------------
+# Rule 1.1: the values of the install record
+
+RECORD_KEY = "software\\empire earth community\\installations\\"
+RECORD_TYPES = {"REG_DWORD": "dword", "REG_SZ": "string"}
+
+
+def script_record_values(root, install_type, switches=None):
+    """{value name: Inno type} of the [Registry] values below the install record key of one product in the
+    Regular variant (the record is not written in the portable ones)."""
+    entries, _ = registry_entries(root, install_type, "Regular", switches)
+    result = {}
+    for no, params in entries:
+        if params.get("subkey", "").lower() != RECORD_KEY + install_type.lower() or not params.get("valuename"):
+            continue
+        unreadable(no, params, "contract 1.1")
+        result[params["valuename"]] = params.get("valuetype", "").lower()
+    return result
+
+
+def check_record_values(root, contract_lines, errors):
+    section_lines = contract_section(contract_lines, "1.1")
+    tables = [(header, rows) for header, rows in all_tables(section_lines) if header[:2] == ["Value", "Type"]]
+    if len(tables) != 1:
+        raise CheckError(f"{CONTRACT}: expected one table Value | Type in 1.1, found {len(tables)}")
+    header, rows = tables[0]
+    table = {}
+    for no, row in rows:
+        name = plain(row["Value"])
+        where = f"{CONTRACT}:{no} (1.1) {name}"
+        if name in table:
+            errors.append(f"{where}: listed twice")
+        elif plain(row["Type"]) not in RECORD_TYPES:
+            errors.append(f"{where}: type '{plain(row['Type'])}' is none of {', '.join(RECORD_TYPES)}")
+        else:
+            table[name] = (RECORD_TYPES[plain(row["Type"])], plain(row["Type"]), no)
+    for install_type in ("EE", "NeoEE"):
+        # SetupBuild exists only with the build switch: compare without it and with it
+        for switches in (None, {SETUP_BUILD: "test"}):
+            script = script_record_values(root, install_type, switches)
+            where = f"{MAIN_SCRIPT} ({install_type}" + (", with SetupBuild)" if switches else ")")
+            for name, (kind, contract_type, no) in table.items():
+                if name == SETUP_BUILD and not switches:
+                    if name in script:
+                        errors.append(f"{where}: {name} is written without the build switch {SETUP_BUILD}")
+                elif name not in script:
+                    errors.append(f"{CONTRACT}:{no} (1.1): {name} is in the table of 1.1 but not written by {where}")
+                elif script[name] != kind:
+                    errors.append(f"{CONTRACT}:{no} (1.1) {name}: type {contract_type} in the contract, {script[name]} in the script ({where})")
+            for name in script:
+                if name not in table:
+                    errors.append(f"{where}: {name} is written into the record but not in the table of 1.1")
+    return len(table)
+
+
+# ---------------------------------------------------------------------------------------------
 # Rule 3.3: window size limits
 
 # The rows of the first table of 3.3 and the dimension of their constants (Min<...>/Max<...>)
@@ -2433,6 +2493,8 @@ def check(root):
     summary.append(f"contract version {version}")
     count = rule("0", lambda: check_publishers(root, contract_lines, errors))
     summary.append(f"0: {count} publishers")
+    count = rule("1.1", lambda: check_record_values(root, contract_lines, errors))
+    summary.append(f"1.1: {count} record values in the Regular variants of EE and NeoEE")
     count = rule("1.3", lambda: check_products_without_suite_marker(root, contract_lines, errors))
     summary.append(f"1.3: no product script of {count} names the suite uninstall key marker")
     count = rule("2.4", lambda: check_code_extensions(root, contract_lines, errors))
@@ -2730,6 +2792,26 @@ end;
         ("CommunityPublisherNeoEE missing in utils.iss",
          replace(utils, "  CommunityPublisherNeoEE = 'Empire Earth Community & NeoEE';\r\n", ""),
          "expected exactly one constant 'CommunityPublisherNeoEE"),
+        # 1.1
+        ("ComponentDefaults missing in [Registry]",
+         replace(main_script, 'Root: HKA; Subkey: "{#BaseRegCommunity}\\Installations\\{#InstallType}"; ValueType: dword; '
+                 'ValueName: "ComponentDefaults"; ValueData: "{code:GetComponentDefaultsRevision}"\r\n', ""),
+         "ComponentDefaults is in the table of 1.1 but not written"),
+        ("ComponentDefaults as a string",
+         replace(main_script, 'ValueType: dword; ValueName: "ComponentDefaults"', 'ValueType: string; ValueName: "ComponentDefaults"'),
+         "type REG_DWORD in the contract, string in the script"),
+        ("a value Foo written into the record",
+         replace(main_script, 'Root: HKA; Subkey: "{#BaseRegCommunity}\\Installations\\{#InstallType}"; ValueType: dword; '
+                 'ValueName: "ComponentDefaults"; ValueData: "{code:GetComponentDefaultsRevision}"\r\n',
+                 'Root: HKA; Subkey: "{#BaseRegCommunity}\\Installations\\{#InstallType}"; ValueType: dword; '
+                 'ValueName: "ComponentDefaults"; ValueData: "{code:GetComponentDefaultsRevision}"\r\n'
+                 'Root: HKA; Subkey: "{#BaseRegCommunity}\\Installations\\{#InstallType}"; ValueType: string; '
+                 'ValueName: "Foo"; ValueData: "x"\r\n'),
+         "Foo is written into the record but not in the table of 1.1"),
+        ("SetupBuild written without the build switch",
+         replace(main_script, '  #if SetupBuild != ""\r\nRoot: HKA; Subkey: "{#BaseRegCommunity}\\Installations\\{#InstallType}"; ValueType: string; ValueName: "SetupBuild"',
+                 '  #if 1\r\nRoot: HKA; Subkey: "{#BaseRegCommunity}\\Installations\\{#InstallType}"; ValueType: string; ValueName: "SetupBuild"'),
+         "SetupBuild is written without the build switch"),
         # 2.4
         ("extension m3d missing in CodeFileExtensions", replace(utils, "|flt|m3d|", "|flt|"),
          "lists m3d, which CodeFileExtensions"),
@@ -3020,7 +3102,7 @@ end;
         ("product: a product script writes the suite uninstall key marker",
          replace("installstate.iss", "  else if RegWriteDWordValue(HKA, Key, ContractVersionValueName, {#ContractVersion}) then",
                  "  else if RegWriteDWordValue(HKA, Key, 'Empire Earth Community: Suite', 1) then"),
-         "installstate.iss:152: the product script names Empire Earth Community: Suite"),
+         "installstate.iss:159: the product script names Empire Earth Community: Suite"),
         ("suite: row of the uninstall key marker missing in the contract",
          replace(contract, "| Suite uninstall key marker | `Empire Earth Community: Suite`, REG_DWORD `1` ([1.3](#13-uninstall-key-informative)) |\n", ""),
          "has no row 'Suite uninstall key marker'"),

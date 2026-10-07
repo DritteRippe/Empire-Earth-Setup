@@ -1543,6 +1543,32 @@ begin
     'Screen: 1366 x 768 pixels (primary screen, SM_CXSCREEN x SM_CYSCREEN), DPI unknown, game window 1366 x 768');
 end;
 
+procedure CheckSkipReason(const Name: String; const HasPrevious, Explicit: Boolean; const SetupType: String; const Recorded: Integer;
+  const Selected: Boolean; const Expected: String);
+begin
+  Check('NewDefaultComponentSkipReason ' + Name, NewDefaultComponentSkipReason(HasPrevious, Explicit, SetupType, Recorded, Selected), Expected);
+end;
+
+// The components that became defaults (ComponentDefaults, contract 1.1 revision 6): the update of a custom installation
+// selects them once, nothing else does
+procedure TestNewDefaultComponents;
+begin
+  Check('ComponentDefaultsRevision', IntToStr(ComponentDefaultsRevision), '1');
+  CheckSkipReason('no previous installation', False, False, 'full', 0, True, 'no previous installation (the setup type decides)');
+  CheckSkipReason('no previous installation, custom', False, False, 'custom', 0, False, 'no previous installation (the setup type decides)');
+  CheckSkipReason('command line', True, True, 'custom', 0, False, '/TYPE or /COMPONENTS on the command line');
+  CheckSkipReason('command line wins over the record', True, True, 'custom', 1, False, '/TYPE or /COMPONENTS on the command line');
+  CheckSkipReason('done by revision 1', True, False, 'custom', 1, False, 'already done by an earlier run (ComponentDefaults 1)');
+  CheckSkipReason('done by revision 2', True, False, 'custom', 2, False, 'already done by an earlier run (ComponentDefaults 2)');
+  CheckSkipReason('type full', True, False, 'full', 0, True, 'the setup type full selects them itself');
+  CheckSkipReason('type compact', True, False, 'compact', 0, True, 'the setup type compact selects them itself');
+  CheckSkipReason('type raw', True, False, 'raw', 0, False, 'the setup type raw installs no additional content');
+  CheckSkipReason('type raw, done', True, False, 'raw', 1, False, 'already done by an earlier run (ComponentDefaults 1)');
+  CheckSkipReason('selected already', True, False, 'custom', 0, True, 'already selected');
+  CheckSkipReason('first update of a custom installation', True, False, 'custom', 0, False, '');
+  CheckSkipReason('type name in other case', True, False, 'Custom', 0, False, '');
+end;
+
 procedure TestNormalizeFolderPath;
 begin
   Check('NormalizeFolderPath plain', NormalizeFolderPath('C:\Sierra\Empire Earth'), 'C:\Sierra\Empire Earth');
@@ -1955,6 +1981,7 @@ begin
     TestFormatManifestSummary;
     TestManifestFiles;
     TestGameWindow;
+    TestNewDefaultComponents;
     TestFormatScreenMetrics;
     TestNormalizeFolderPath;
     TestIsSameOrInside;

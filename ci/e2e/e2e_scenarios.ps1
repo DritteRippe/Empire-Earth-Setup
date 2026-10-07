@@ -4,9 +4,14 @@
 # docs/TEST-PLAN.de.md describe what each scenario does and checks. Uses $Repo and $AssetMap of the
 # calling script. Windows PowerShell 5.1 compatible, ASCII only. Dot-source after e2e_checks.ps1.
 
+# The intro movies belong to the types full and compact since setup 1.1.0
 $AllAddOns = @('additional\hd\terrain', 'additional\hd\music', 'additional\hd\buildings', 'additional\hd\tech', 'additional\hd\effects',
-               'additional\drexmod\v3', 'additional\discord', 'additional\tools\diagnostic', 'additional\civs\ec', 'additional\civs\ec_full')
-$CompactAddOns = @('additional\drexmod\v3', 'additional\discord', 'additional\tools\diagnostic', 'additional\civs\ec')
+               'additional\drexmod\v3', 'additional\discord', 'additional\tools\diagnostic', 'additional\civs\ec', 'additional\civs\ec_full',
+               'additional\movies')
+$CompactAddOns = @('additional\drexmod\v3', 'additional\discord', 'additional\tools\diagnostic', 'additional\civs\ec', 'additional\movies')
+# The add-ons of the updates D3 to D5, which name their components with /COMPONENTS (no movies, nothing selected by default)
+$ExplicitAddOns = @($CompactAddOns | Where-Object { $_ -ne 'additional\movies' })
+$CommandLineDefaults = 'Component defaults: nothing selected: /TYPE or /COMPONENTS on the command line.'
 $ExactTasksAdmin = 'compatibility,compatibility_windows,firewallexception,desktopicon'
 $ExactTasksUser = 'compatibility,compatibility_windows,desktopicon'
 $ConsistencyAllowed = @('ScreenTooLow', 'WindowLargerThanScreen', 'WindowFitsOnlyWithHighDpiAware')
@@ -356,7 +361,7 @@ function Invoke-E2EScenarioA {
   $ctx = New-E2EContext $s 'install' 'EE' 'admin' (Join-Path ${env:ProgramFiles(x86)} 'Empire Earth') @('EE', 'AoC') 'de'
   $ctx.Tasks = $ExactTasksAdmin
   $ctx.RequiredComponents = @('game', 'gameaoc', 'language\update') + $AllAddOns
-  $ctx.ForbiddenComponents = @('additional\telemetry', 'additional\movies', 'additional\rms\omega', 'additional\rms\neoextra', 'additional\drexmod\v2')
+  $ctx.ForbiddenComponents = @('additional\telemetry', 'additional\rms\omega', 'additional\rms\neoextra', 'additional\drexmod\v2')
   # TP-00: the mirror is the only host unblocked, and only while this setup runs
   $unblocked = @($E2EConst.MirrorHost)
   $mirrorOk = $false
@@ -391,7 +396,7 @@ function Invoke-E2EScenarioB {
   $ctx = New-E2EContext $s 'install' 'NeoEE' 'user' (Join-Path $env:LOCALAPPDATA 'Programs\Neo Empire Earth') @('EE', 'AoC') 'en'
   $ctx.Tasks = $ExactTasksUser
   $ctx.RequiredComponents = @('game', 'gameaoc', 'language\update') + $AllAddOns
-  $ctx.ForbiddenComponents = @('additional\telemetry', 'additional\movies', 'additional\drexmod\v2')
+  $ctx.ForbiddenComponents = @('additional\telemetry', 'additional\drexmod\v2')
   $switches = @('/CURRENTUSER', '/LANG=en', '/TYPE=full', "/TASKS=`"$($ctx.Tasks)`"")
   if (Invoke-E2ESetupStep $ctx $switches) {
     Invoke-E2EInstalledChecks $ctx
@@ -463,7 +468,7 @@ function Invoke-E2EScenarioE {
   $ctx = New-E2EContext $s 'install' 'EE' 'admin' $root @('EE') 'en'
   $ctx.Tasks = $ExactTasksAdmin
   $ctx.RequiredComponents = @('game', 'language\update') + $CompactAddOns
-  $ctx.ForbiddenComponents = @('additional\telemetry', 'gameaoc', 'additional\movies', 'additional\civs\ec_full', 'additional\hd\terrain', 'additional\rms\omega')
+  $ctx.ForbiddenComponents = @('additional\telemetry', 'gameaoc', 'additional\civs\ec_full', 'additional\hd\terrain', 'additional\rms\omega')
   $ran = $false
   try {
     $ran = Invoke-E2ESetupStep $ctx @('/ALLUSERS', '/LANG=en', "/DIR=`"$root`"", '/TYPE=compact', "/TASKS=`"$($ctx.Tasks)`"")
@@ -587,12 +592,14 @@ function Invoke-E2EScenarioD {
     $d3 = Copy-E2EContext $base 'update'
     $d3.ManifestAllowed = @('^Empire Earth/Data/dxm/mods/ci-mod/')
     $d3.Tasks = $ExactTasksAdmin
-    $d3.RequiredComponents = @('game', 'language\update') + $CompactAddOns
-    $d3.ForbiddenComponents = @('additional\telemetry', 'gameaoc')
+    $d3.RequiredComponents = @('game', 'language\update') + $ExplicitAddOns
+    $d3.ForbiddenComponents = @('additional\telemetry', 'gameaoc', 'additional\movies')
     $d3.Wrapper = ''
     $components = 'game,additional\drexmod\v3,additional\discord,additional\tools\diagnostic,additional\civs\ec,language\en,language\update'
     if (Invoke-E2ESetupStep $d3 @('/ALLUSERS', '/LANG=en', "/COMPONENTS=`"$components`"", $UpdateMergeTasks)) {
       Invoke-E2EInstalledChecks $d3
+      # /COMPONENTS is an explicit choice: the intro movies of the new default are not selected on top of it
+      [void](Complete-E2ECheck $s 'update/DEFAULTS' @(Test-E2ELogLines -Lines $d3.LogLines -Contains @($CommandLineDefaults)) 'no component selected by default on top of /COMPONENTS')
       $problems = @()
       if (-not (Test-Path -LiteralPath $modFile -PathType Leaf)) { $problems += "$modFile (a self-made mod) is gone" }
       elseif ([System.IO.File]::ReadAllText($modFile) -cne 'ci mod') { $problems += "$modFile changed" }
@@ -607,10 +614,11 @@ function Invoke-E2EScenarioD {
       # D4 (M1): dreXmod 3 to 2 removes the folders the setup installed for dreXmod 3 and nothing else
       $d4 = Copy-E2EContext $d3 'drexmod-v2'
       $d4.RequiredComponents = @('game', 'language\update', 'additional\drexmod\v2', 'additional\discord', 'additional\tools\diagnostic', 'additional\civs\ec')
-      $d4.ForbiddenComponents = @('additional\telemetry', 'gameaoc', 'additional\drexmod\v3')
+      $d4.ForbiddenComponents = @('additional\telemetry', 'gameaoc', 'additional\drexmod\v3', 'additional\movies')
       $componentsV2 = 'game,additional\drexmod\v2,additional\discord,additional\tools\diagnostic,additional\civs\ec,language\en,language\update'
       if (Invoke-E2ESetupStep $d4 @('/ALLUSERS', '/LANG=en', "/COMPONENTS=`"$componentsV2`"", $UpdateMergeTasks)) {
         Invoke-E2EInstalledChecks $d4
+        [void](Complete-E2ECheck $s 'drexmod-v2/DEFAULTS' @(Test-E2ELogLines -Lines $d4.LogLines -Contains @($CommandLineDefaults)) 'no component selected by default on top of /COMPONENTS')
         $problems = @()
         foreach ($preset in $modPresets) {
           if (Test-Path -LiteralPath (Join-Path $root "Empire Earth\Data\dxm\$preset")) { $problems += "Data\dxm\$preset still exists after the change to dreXmod 2" }
@@ -625,14 +633,14 @@ function Invoke-E2EScenarioD {
         # D5: a dgVoodoo level over the installation (ADR 0011 amendment): K10 compares the three pinned files and the
         # configuration of config\dgVoodoo with the installed ones, K5 expects the rasterizer Direct3D
         $d5 = Copy-E2EContext $d4 'dgvoodoo'
-        $d5.RequiredComponents = @('game', 'language\update') + @($CompactAddOns | Where-Object { $_ -ne 'additional\movies' }) +
-          @('additional\directx_wrapper', 'additional\directx_wrapper\dx11_lvl11')
-        $d5.ForbiddenComponents = @('additional\telemetry', 'gameaoc', 'additional\drexmod\v2')
+        $d5.RequiredComponents = @('game', 'language\update') + $ExplicitAddOns + @('additional\directx_wrapper', 'additional\directx_wrapper\dx11_lvl11')
+        $d5.ForbiddenComponents = @('additional\telemetry', 'gameaoc', 'additional\drexmod\v2', 'additional\movies')
         $d5.Wrapper = 'additional\directx_wrapper\dx11_lvl11'
         $componentsDx = 'game,additional\drexmod\v3,additional\discord,additional\tools\diagnostic,additional\civs\ec,additional\directx_wrapper,' +
           'additional\directx_wrapper\dx11_lvl11,language\en,language\update'
         if (Invoke-E2ESetupStep $d5 @('/ALLUSERS', '/LANG=en', "/COMPONENTS=`"$componentsDx`"", $UpdateMergeTasks)) {
           Invoke-E2EInstalledChecks $d5
+          [void](Complete-E2ECheck $s 'dgvoodoo/DEFAULTS' @(Test-E2ELogLines -Lines $d5.LogLines -Contains @($CommandLineDefaults)) 'no component selected by default on top of /COMPONENTS')
         }
       }
     }
@@ -644,6 +652,16 @@ function Invoke-E2EScenarioD {
   Invoke-E2EUninstallChecks $u @('^Empire Earth\\Data\\dxm\\mods\\ci-mod\\CREDITS$')
   Invoke-E2ELauncherUninstalled $u
   Remove-Item -LiteralPath $TestFolder -Recurse -Force -ErrorAction SilentlyContinue
+}
+
+# A run after the first update of scenario C: the components defaults were applied by an earlier run (log line), the movies
+# are still selected although the official 1.7.2 ran in between (C3), and the components are those of C2
+function Test-E2EComponentDefaultsDone([hashtable]$Ctx, [hashtable]$First) {
+  $problems = @(Test-E2ELogLines -Lines $Ctx.LogLines -Contains @('Component defaults: nothing selected: already done by an earlier run (ComponentDefaults 1).'))
+  $diff = Compare-E2ESets @($First.Components) @($Ctx.Components)
+  if ($Ctx.Components.Count -eq 0) { $problems += 'the components of this run are not known (install.ini)' }
+  elseif ($diff.Missing.Count -gt 0 -or $diff.Extra.Count -gt 0) { $problems += "components differ from those of the first update: missing $($diff.Missing -join ', '); new $($diff.Extra -join ', ')" }
+  [void](Complete-E2ECheck $Ctx.Scenario (Get-E2ECheckId $Ctx 'DEFAULTS') $problems 'no component selected again, the components of the first update kept')
 }
 
 # --- Scenario C: the official 1.7.2, v2 over it, and back -----------------------------------------------
@@ -696,6 +714,7 @@ function Invoke-E2EScenarioC {
   [void](Complete-E2ECheck $s 'official/LEGACY' $problems 'state of 1.7.2 as CONTRACT.md 1.5 describes it, no telemetry, no certificate')
   $uninstall = Get-E2ERegValues 'HKLM64' (Get-E2EUninstallKeyPath $p)
   $before = @{
+    SetupType = Get-E2ERegString $uninstall 'Inno Setup: Setup Type'
     Components = Get-E2ERegString $uninstall 'Inno Setup: Selected Components'
     Tasks = Get-E2ERegString $uninstall 'Inno Setup: Selected Tasks'
     RmsEE = @(Get-E2ERmsFiles $root 'EE')
@@ -703,7 +722,7 @@ function Invoke-E2EScenarioC {
   }
   $hkcuLayers = Get-E2ERegValues 'HKCU' $E2EConst.LayersKey
   $runAsAdmin = $hkcuLayers -and $hkcuLayers.ContainsKey((Get-E2EGameProgram $c1 'EE')) -and [string]$hkcuLayers[(Get-E2EGameProgram $c1 'EE')].Value -eq '~ RUNASADMIN'
-  Add-E2EResult $s 'official/state' 'INFO' @("components $($before.Components)", "tasks $($before.Tasks)",
+  Add-E2EResult $s 'official/state' 'INFO' @("setup type $($before.SetupType)", "components $($before.Components)", "tasks $($before.Tasks)",
     "random maps: $($before.RmsEE.Count) (EE), $($before.RmsAoC.Count) (AoC); per-user RUNASADMIN of 1.7.2: $runAsAdmin")
   $legacy = Get-E2ELauncherInstallation $c1 @{
     kind = 'CommunityLegacy'; contractVersion = 0; sources = @('UninstallKey', 'InstalledFrom')
@@ -726,17 +745,19 @@ function Invoke-E2EScenarioC {
   $c2.FirstInstall = $false
   $c2.ManifestExact = $false
   $c2.Tasks = $before.Tasks
-  $c2.RequiredComponents = Split-E2EList $before.Components
+  # 1.7.2 installed the intro movies only on request; the first update by setup 1.1.0 selects them once (ComponentDefaults)
+  $c2.RequiredComponents = @(Split-E2EList $before.Components) + 'additional\movies'
   $c2.Wrapper = [string](@(Split-E2EList $before.Components | Where-Object { $_ -like 'additional\directx_wrapper\*' }) | Select-Object -First 1)
   $c2.Settings = 'keep'
   $c2.SettingsKeep = @{ EE = @{ 'Music Volume' = (New-E2ERegValue 'DWord' 10); 'CI Player Value' = (New-E2ERegValue 'String' 'keep') } }
   $v2Switches = @('/ALLUSERS', '/LANG=en', $UpdateMergeTasks)
   if (Invoke-E2ESetupStep $c2 $v2Switches) {
     Invoke-E2EInstalledChecks $c2
-    $diff = Compare-E2ESets (Split-E2EList $before.Components) $c2.Components
+    $diff = Compare-E2ESets (@(Split-E2EList $before.Components) + 'additional\movies') $c2.Components
     $problems = @()
-    if ($diff.Missing.Count -gt 0 -or $diff.Extra.Count -gt 0) { $problems += "components changed: missing $($diff.Missing -join ', '); new $($diff.Extra -join ', ')" }
-    [void](Complete-E2ECheck $s 'v2-update/COMP' $problems 'the components of 1.7.2 kept')
+    if ($diff.Missing.Count -gt 0 -or $diff.Extra.Count -gt 0) { $problems += "components changed: missing $($diff.Missing -join ', '); new $($diff.Extra -join ', ') (expected the components of 1.7.2 and additional\movies)" }
+    $problems += @(Test-E2ELogLines -Lines $c2.LogLines -Contains @('Component defaults: additional\movies selected once (an installation of an older setup, setup type custom; ComponentDefaults 0 -> 1).'))
+    [void](Complete-E2ECheck $s 'v2-update/COMP' $problems 'the components of 1.7.2 kept, the intro movies added once')
     $removed = @()
     if ($runAsAdmin) {
       foreach ($game in @('EE', 'AoC')) { $removed += "Removed the old per-user RUNASADMIN flag of $(Get-E2EGameProgram $c2 $game)" }
@@ -780,6 +801,7 @@ function Invoke-E2EScenarioC {
     Test-E2EK3UninstallKey $c4
     Test-E2EK4Manifest $c4
     Test-E2EK9CdKeys $s 'v2-again'
+    Test-E2EComponentDefaultsDone $c4 $c2
     $installation = Get-E2ELauncherInstallation $c4 @{ consistency = $null; defaultsStatus = $null }
     Invoke-E2ELauncherCheck $s 'v2-again' (New-E2ELauncherExpectation -Scenario $s -Step 'v2-again' -Installations @($installation) -SelectedRoot $root)
 
@@ -812,6 +834,8 @@ function Invoke-E2EScenarioC {
     if (Invoke-E2ESetupStep $c6 $v2Switches) {
       Test-E2EK4Manifest $c6
       Test-E2EK9CdKeys $s 'repair'
+      Test-E2EK2InstallIni $c6
+      Test-E2EComponentDefaultsDone $c6 $c2
       $installation = Get-E2ELauncherInstallation $c6 @{ consistency = $null; defaultsStatus = $null }
       Invoke-E2ELauncherCheck $s 'repair' (New-E2ELauncherExpectation -Scenario $s -Step 'repair' -Installations @($installation) -SelectedRoot $root)
     }

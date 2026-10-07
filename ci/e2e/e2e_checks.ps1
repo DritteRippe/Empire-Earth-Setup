@@ -45,6 +45,7 @@ function Test-E2EK1InstallRecord([hashtable]$Ctx) {
     GameVersion     = New-E2ERegValue 'String' $p.GameVersion
     SetupVersion    = New-E2ERegValue 'String' $E2EConst.SetupVersion
   }
+  $expected['ComponentDefaults'] = New-E2ERegValue 'DWord' $E2EConst.ComponentDefaults
   if ($Ctx.SetupBuild) { $expected['SetupBuild'] = New-E2ERegValue 'String' $Ctx.SetupBuild }
   $problems = @(Compare-E2ERegValues -Actual (Get-E2ERegValues $hive $key) -Expected $expected -Where "$hive\$key" -Exact)
   if ($Ctx.Mode -eq 'admin') {
@@ -284,6 +285,19 @@ function Test-E2EK10Files([hashtable]$Ctx) {
     } elseif (@($Ctx.Components | Where-Object { $_ -like 'additional\directx_wrapper\*' }).Count -eq 0 -and (Test-Path -LiteralPath $ddraw)) {
       $problems += "$folderName\DDraw.dll exists without a wrapper"
     }
+    # The intro movies (since setup 1.1.0 part of the types full and compact): the files of the movies component; the
+    # localized Empire Earth.bik of the language update may replace the English one, so it only has to exist
+    if ($Ctx.Components -contains 'additional\movies') {
+      $movies = @{ EE = @('Sierra.bik', 'SSSI.bik', 'Empire Earth.bik'); AoC = @('Sierra.bik', 'MadDocSoftware.bik') }
+      foreach ($name in $movies[$game]) {
+        $file = Join-Path $folder "Data\Movies\$name"
+        $mapped = Get-E2EMapSha1 $map "data\Add-on\Movies\$game\$name"
+        if (-not (Test-Path -LiteralPath $file)) { $problems += "$folderName\Data\Movies\$name missing (additional\movies)" }
+        elseif ($name -ne 'Empire Earth.bik' -and (Get-E2EFileSha1 $file) -cne $mapped) { $problems += "$folderName\Data\Movies\$name is not the movie of the setup" }
+      }
+    } elseif (@(Get-ChildItem -LiteralPath (Join-Path $folder 'Data\Movies') -Filter '*.bik' -File -ErrorAction SilentlyContinue).Count -gt 0) {
+      $problems += "$folderName\Data\Movies holds movies without the component additional\movies"
+    }
     # A dgVoodoo level (pins\dgvoodoo.txt, config\dgVoodoo): the three files of the pinned dgVoodoo (the control panel
     # only on 64-bit Windows) and the configuration of the level, byte for byte as in the repository
     $level = @($Ctx.Components | Where-Object { (Get-E2EDgVoodooConfName $_) -ne '' })
@@ -514,19 +528,19 @@ function Test-E2EDownloads([hashtable]$Ctx, [bool]$MirrorOk) {
   $problems = $common
   $problems += @(Test-E2ELogLines -Lines $lines -Contains @(
       'Main online files server unreachable or without a valid certificate (see the HTTP GET line above), downloading from the mirror first',
-      'Downloading 17 online files, one at a time',
-      'All 20 online files accepted'))
+      'Downloading 18 online files, one at a time',
+      'All 21 online files accepted'))
   # Every online file is pinned (pins\online-files.txt, ADR 0012): no file without pin, so no check
   # of redirects either
   $registeredPinned = @(Select-E2ELogLines $lines '^Online file registered, SHA-256 pinned: ').Count
   $registeredOpen = @(Select-E2ELogLines $lines '^Online file registered, TLS-verified, not pinned: ').Count
-  if ($registeredPinned -ne 20 -or $registeredOpen -ne 0) { $problems += "registered $registeredPinned pinned and $registeredOpen unpinned online files, expected 20 and 0" }
+  if ($registeredPinned -ne 21 -or $registeredOpen -ne 0) { $problems += "registered $registeredPinned pinned and $registeredOpen unpinned online files, expected 21 and 0" }
   $redirects = @(Select-E2ELogLines $lines '^Online file redirect check: ').Count
   if ($redirects -ne 0) { $problems += "$redirects redirect checks, expected none (every file is pinned)" }
   $records = @(Get-E2EDownloadRecords $lines)
   $pinned = @($records | Where-Object { $_.Pinned })
-  if ($pinned.Count -ne 17 -or ($records.Count - $pinned.Count) -ne 0) {
-    $problems += "$($pinned.Count) pinned and $($records.Count - $pinned.Count) unpinned downloads verified, expected 17 and 0"
+  if ($pinned.Count -ne 18 -or ($records.Count - $pinned.Count) -ne 0) {
+    $problems += "$($pinned.Count) pinned and $($records.Count - $pinned.Count) unpinned downloads verified, expected 18 and 0"
   }
   # The pins the setup used: the hash list of the build (by its path in data\localized-text, the
   # server path for German) and pins\online-files.txt (by server path)
