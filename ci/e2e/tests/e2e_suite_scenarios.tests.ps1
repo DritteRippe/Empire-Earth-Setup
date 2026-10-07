@@ -277,6 +277,12 @@ try {
         if ($script:Bug -eq 'cancelexit0') { return 0 }
         return 3
       }
+      # what the suite read from the product log (SuiteLookAtLog, S4): the phases of a placeholder setup in the order of its log
+      $phases = @('install (200 of 1000)', 'post install (840 of 1000)', 'manifest (900 of 1000)', 'done (1000 of 1000)')
+      if ($script:Bug -eq 'phaseback') { $phases = @('post install (840 of 1000)', 'install (200 of 1000)', 'manifest (900 of 1000)', 'done (1000 of 1000)') }
+      if ($script:Bug -eq 'phasenoend') { $phases = @('install (200 of 1000)', 'post install (840 of 1000)', 'manifest (900 of 1000)') }
+      foreach ($phase in $phases) { $lines += "Product $id phase: $phase" }
+      if ($script:Bug -ne 'phasenoend') { $lines += "Product $id log read: last phase done, language files 0 of 0 (0 missing), 3 file entries installed (estimate 3), CD key result `"`"" }
       Install-FakeProduct $id $false $tasks (Join-Path (Join-Path $suiteRoot 'Logs') "$id-20261005-1204.log") (-not $first)
       $lines += "Product ${id}: the setup ended with exit code 0 (kind 0), uninstall entry 1"
       $ok += $id
@@ -430,7 +436,9 @@ try {
     @{ Bug = 'nomarker'; Scenario = 'S9'; Check = 'repair/REC' },
     @{ Bug = 'cancelinstalled'; Scenario = 'S11'; Check = 'cancel/NOTHING' },
     @{ Bug = 'cancelnext'; Scenario = 'S11'; Check = 'cancel/STOP' },
-    @{ Bug = 'cancelexit0'; Scenario = 'S11'; Check = 'cancel/RUN' }
+    @{ Bug = 'cancelexit0'; Scenario = 'S11'; Check = 'cancel/RUN' },
+    @{ Bug = 'phaseback'; Scenario = 'S1'; Check = 'install/LOG' },
+    @{ Bug = 'phasenoend'; Scenario = 'S1'; Check = 'install/LOG' }
   )
   foreach ($defect in $defects) {
     $script:Bug = $defect.Bug

@@ -392,7 +392,7 @@ Decided in [ADR 0013](adr/0013-suite-installer.md), specified for the launcher i
 ([CONTRACT.md](CONTRACT.md): 0 "Suite and launcher", 1.6, 1.7, 4.2, 4.4). Implemented (done): the suite is a
 separate, small Inno Setup 6.2.2 script in `suite/`; the four variants of sections 2 and 3 do not change for
 it. The CI scenarios S1 to S11 (job `suite-e2e`, placeholder data, silent, no download) are done too. The
-Windows tests with real data are the cases TP-90 to TP-97 and TP-99 of the test plan (Block 9); the suite and launcher
+Windows tests with real data are the cases TP-90 to TP-99 of the test plan (Block 9); the suite and launcher
 1.0.0 are tagged only after TP-93 and TP-95 pass.
 
 - **Package:** `Empire Earth Community Setup.exe` plus `.bin` slices of at most 50,000,000 bytes
@@ -440,6 +440,17 @@ Windows tests with real data are the cases TP-90 to TP-97 and TP-99 of the test 
   The pure parts are `SuiteTimeoutCheck`, `SuiteCancelMode`, `SuiteChildKind`, `SuiteTicksBetween`; the process
   mechanics are tested on real programs in `ci/tests/suite_tests.iss`; `ci/check_suite.py` (part [Process]) fixes who
   may start and stop a program. The CI parameter `/TestCancel` and the scenario S11 cancel a silent run.
+- **The progress in the window (suite 1.1.0, ADR 0013, amendment):** every look at the product log ends in
+  `SuiteShowProgress` (`suite_run.iss`), which sets the status line (`SuiteStatusText`, one of seven texts by
+  `SuiteStatusKind`), the file line (`SuiteFileText`, sizes by `SuiteBytesTexts`), the bar (1000 steps for the
+  whole run, `SuiteOverallPermille` of `SuiteRunningPermille`, at most 990 per mille of a share while the product
+  setup runs; the end of the share only in `SuiteEndProductDisplay` once the exit code is known) and the list of
+  the finished steps (a `TNewCheckListBox` made in `suite_pages.iss`, `SuiteShowStages`, each step once by
+  `SuiteStageReached`), each only when its text changed. The cancel reason has its own line below the bar. The last
+  page adds the language line of each installed product (`SuiteLangLine`). The display only reads: a failure is a
+  log line (`SuiteProgressBroken`), success stays `SuiteRunSucceeded`. The formatting and the arithmetic are pure
+  functions in `suite_common.iss` with unit tests; `ci/check_suite.py` part [Display] fixes the rules; the layout is
+  checked by TP-98 only.
 - **Record and mutexes:** the suite record `HKLM64\Software\Empire Earth Community\Suite` (contract
   1.6) lists the products that succeeded and the folder the package was started from (`SourceDir`), for
   the launcher's repair advice. `SetupMutex=EmpireEarthCommunity_Suite`; `AppMutex` holds the game

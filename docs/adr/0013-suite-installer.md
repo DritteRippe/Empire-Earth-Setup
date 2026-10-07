@@ -7,7 +7,7 @@
   to 11), D5 (shared contract), D6 (CD-key registration untouched, no game data in the repository),
   the maintainers' decisions of 2026-10-05 (both games selectable and preselected, the launcher
   installed with them, unsigned, shortcut names "Empire Earth" and "Neo Empire Earth");
-  [docs/CONTRACT.md](../CONTRACT.md) revision 4 (revision 5: see the amendment of 2026-10-06; revision 6 and `/VERYSILENT` for the product setups: see the amendment "The product setups run with /VERYSILENT"; the product logs as the data source of the progress display: see the amendment "The log lines of the product setups are an interface"; Cancel and time limits of the runner: see the amendment "The product setups run as processes with a handle")
+  [docs/CONTRACT.md](../CONTRACT.md) revision 4 (revision 5: see the amendment of 2026-10-06; revision 6 and `/VERYSILENT` for the product setups: see the amendment "The product setups run with /VERYSILENT"; the product logs as the data source of the progress display: see the amendment "The log lines of the product setups are an interface"; Cancel and time limits of the runner: see the amendment "The product setups run as processes with a handle"; the display of the progress in the suite window: see the amendment "The suite window shows what the product setup does")
 
 ## Context
 
@@ -350,8 +350,8 @@ the clamp, the byte order mark, a line split across two reads and continuation l
 - The text of about twenty lines of `downloads.iss`, `setup_is6.iss`, `installstate.iss` and `utils.iss` is
   now an interface; rewording one needs the contract and `suite_common.iss` in the same commit. The marker
   comments say so where the lines are.
-- Nothing in the suite window uses the reader yet; the progress display and the product runner with a process
-  handle follow in the next work packages. Until the windows-latest run of the end-to-end scenarios, the
+- At the time of this amendment nothing in the suite window used the reader yet; the product runner with a process
+  handle and the progress display followed (the next two amendments). Until the windows-latest run of the end-to-end scenarios, the
   `ReadFile` path is verified by the unit test under Wine only.
 - The progress is an estimate: the files of the download weigh the same although their sizes differ widely
   (their sizes are not in the log before they start), and the install block depends on a constant per
@@ -396,7 +396,7 @@ started to install files; a first product that is finished stays installed; afte
    `Abort` in the installation step ends Setup with exit code 3 and no message of its own (checked under Wine:
    "CurStepChanged raised an exception (fatal)"); the suite writes its files, record and shortcuts after this
    step, so nothing of it exists. From the point of no return, in the advanced mode (the product setup shows its
-   own wizard with its own Cancel button) and without a job the button is off and the line below the status text says
+   own wizard with its own Cancel button) and without a job the button is off and the line below the bar says
    why.
 4. **Time limits.** No new line in the product log for 10 minutes: the user is asked once whether to keep
    waiting ("No" stops the product setup; the text warns that a game that started to install may be half
@@ -433,3 +433,68 @@ with its child. They run under Wine and in the workflow on Windows; scenario S11
 - The consequence of the previous amendment that Cancel is only honored after the products ran is gone.
 - The message pump, the job and the click on Cancel are verified under Wine and by the unit tests; the first run
   on Windows is the workflow (unit tests and S11), then TP-99 on the laptop.
+
+## Amendment: the suite window shows what the product setup does (2026-10-07, suite 1.1.0)
+
+**Context.** With the product setups hidden (`/VERYSILENT`) the suite window was the only window, but it showed a
+marquee bar and one line, "installing <game> ...", for five minutes or more. The maintainers asked for
+transparency and decided on 2026-10-06 that the window shows a status line, a bar and the current file, plus a list of the
+finished steps and a summary at the end. The log reader and the parser of the previous amendments are the data source,
+the runner with a process handle the place to show it from.
+
+**Decision.**
+
+1. **One look, one display.** Every look at the product log (the wait loop looks every 500 ms, and once more when the
+   process has ended) ends in `SuiteShowProgress` (`suite/suite_run.iss`). It sets a control only when its text or
+   position changed, so nothing flickers.
+2. **Status line, file line, bar.** The status line of Setup names the step and the game and what the log says it
+   does: it looks for the online files, downloads language file n of N, checks them, installs the game files,
+   registers the CD keys (NeoEE), finishes (`SuiteStatusKind` maps the phase to one of seven texts; the first
+   line before the log has said anything is the old "installing <game> ..."). The line under it (the file name label of Setup)
+   names the online file with the part that has arrived, "name - 16.4 of 163.7 MB" (one decimal from 1 MB,
+   else KB; a decimal comma in German and French, "Mo" in French), or the game file being written. The bar of the
+   installation page is a real bar now (1000 steps) for the whole run: a product is a share of 1000 divided by the
+   number of products, filled by `SuiteProgressPermille` (the weighting of the previous amendment). While a
+   product setup runs the bar stays at 990 per mille of its share at most (`SuiteRunningPermille`): the log ends
+   before the process does and ends the same way when the product setup failed, so only the exit code lets the bar
+   reach the end of the share (`SuiteEndProductDisplay`, called after the product runner returned). The bar never
+   goes back because the phases and the counters only move forward. Setup's own values (style, maximum, position) are put back
+   after the products.
+3. **Cancel line.** The line that says why Cancel is off (previous amendment) moved from the file line to a line
+   of its own below the bar, because the file line now has a use of its own.
+4. **List of the finished steps.** A `TNewCheckListBox` on the installation page lists per product a heading with the
+   game and the steps that are done, ticked, in the order of the log: language files downloaded n of N (or "No
+   language files needed"), game files installed, CD keys registered (NeoEE; with its result number and not ticked if
+   the registration failed), the list of the installed files written, finished; a failed product ends with "Not
+   installed (the log tells why)". A step is added when its result is known (`SuiteStageReached`), each once. The
+   list only shows: a click puts a box back.
+5. **Summary.** The last page names per installed product how many language files arrived of how many there are
+   and, if some are missing, that the game uses the files of the setup for them and how to get the others (until
+   now this was in the product log only). A product setup that was not read to its end (the advanced mode) gets no line.
+6. **The advanced mode** shows the wizard of each product, reads no log and keeps the running bar and the status
+   line "the setup of <game> is open"; the list holds the names of the games and the result.
+7. **The display never decides.** Success is still the exit code and the uninstall entry. If the display raises an
+   exception it writes one line to the log of the suite and stays as it is (`SuiteProgressBroken`); the installation
+   goes on. The suite log gets `Product EE phase: download, 17 files (… of 1000)` at each phase change and, after
+   the product setup ended, one line `Product EE log read: …` with the counters, to compare the estimate with
+   the real number of entries (`ci/e2e/e2e_suite_scenarios.ps1` expects, for the placeholder products, the phase lines that were logged in the order of the log and the end `done`; a placeholder setup is so fast that a look may skip the phases in between).
+
+**Evidence.** The pure parts (status kind, file index, sizes with the rounding and the decimal separator by language,
+the bar of the whole run, the counts of the online files, the stages) are unit tests on both the English
+and the other languages and run under Wine and in the workflow. `ci/check_suite_texts.py` checks that every message of
+the suite has its English, German and French text with the same placeholders. `ci/check_suite.py` (part
+[Display]) fixes the rules of this amendment (no 100 percent while a product runs, the end of the share only in
+`SuiteEndProductDisplay`, the try/except, the bar put back, the list that only shows). The layout of the page and
+the behaviour of `TNewCheckListBox` are verified by the compile only: TP-98 on the laptop.
+
+**Consequences.**
+
+- The status line depends on the wording of the product log (the interface of the previous amendment): a reworded line
+  gives a coarser display (the text of an earlier phase stays), never a wrong success.
+- The install share of the bar is an estimate from a constant per product (`SuiteInstallEstimate*`); components and
+  repair runs change the real count. The suite log line `log read` shows both numbers for the next adjustment. The
+  constants could be passed from the build later.
+- The files of the download weigh the same in the bar although their sizes differ widely; the file line shows the
+  real bytes of the current file.
+- The window is only as fresh as the log: the reader looks every 500 ms and a product setup writes the progress of
+  a download about every 10 percent of a file, so the counter of bytes moves in jumps.

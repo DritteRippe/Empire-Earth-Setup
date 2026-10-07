@@ -748,6 +748,22 @@ setup version stays 1.7.2 until the release.
   unit tests on real programs (exit code, 259, a loader with a real setup stopped together), the part [Process] and
   22 mutants of `ci/check_suite.py`, scenario S11, ADR 0013 (amendment), contract 1.7 point 2 (revision 6,
   informative) and the test case TP-99. A stopped game setup leaves its `%TEMP%\is-*.tmp` folder.
+- Suite installer: the window shows what the game setup does. The status line names the step and the game and what the
+  game setup is doing ("Step 1 of 2: Empire Earth - downloading language file 4 of 17 ...", then checking the
+  files, installing the game files, registering the CD keys of NeoEE, finishing), the line under it the file with
+  the part that has arrived ("name - 16.4 of 163.7 MB", decimal comma in German and French) or the game file
+  being written, the bar is a real bar for the whole run (one share per game; it never goes back and is not at
+  100 percent before the exit code of the game setup is known), and a list shows per game the steps that are
+  done (language files downloaded n of N, game files installed, CD keys registered, list of the installed files
+  written, finished; a failed game ends with "Not installed"). The line that says why Cancel is off moved below the bar.
+  The last page says per game how many language files arrived (and what a missing one means), which until now was only
+  in the log of the game setup. The advanced mode keeps its wizards and the line "the setup is open". The display only
+  reads the log; success stays the exit code and the uninstall entry, and a failing display only writes a line to the
+  log of the suite, which also gets one line per phase change and one `log read` line per game. New texts in English,
+  German and French (`ci/check_suite_texts.py` now checks that all texts of the suite exist in the three languages with
+  the same placeholders), unit tests of the formatting and of the bar, the part [Display] of `ci/check_suite.py`, the
+  phase lines in the checks of the scenarios that install (S1, S2, S3, S9, S10; and two more defects of the fake), ADR 0013 (amendment) and the
+  test case TP-98.
 
 ### Removed
 - Entries for Windows XP and older: the WIN98 compatibility mode and the pre-Vista `netsh

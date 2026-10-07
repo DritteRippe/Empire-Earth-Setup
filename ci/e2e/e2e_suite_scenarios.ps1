@@ -372,6 +372,34 @@ function Test-E2EProductLogs([string]$Scenario, [string]$Step, $Run, [string[]]$
   }
 }
 
+# The phase lines of the suite log ("Product EE phase: install (200 of 1000)") of each product: every phase once and in
+# the order of the product log (a phase never goes back), the bar permille never going down. Problems as strings.
+function Test-E2ESuitePhaseOrder([string[]]$Lines, [string[]]$Products) {
+  $problems = @()
+  $order = @('start', 'online files servers', 'download', 'verify', 'install', 'post install', 'CD keys', 'manifest', 'done')
+  foreach ($id in $Products) {
+    $last = -1
+    $lastPermille = -1
+    $seen = @{}
+    foreach ($line in $Lines) {
+      if ($line -cmatch ('^Product ' + $id + ' phase: (.+?)(, \d+ files)? \((\d+) of 1000\)$')) {
+        $phase = $Matches[1]
+        $permille = [int]$Matches[3]
+        $index = [array]::IndexOf($order, $phase)
+        if ($index -lt 0) { $problems += "unknown phase of $id in the suite log: $phase"; continue }
+        if ($seen.ContainsKey($phase)) { $problems += "phase of $id logged twice: $phase" }
+        $seen[$phase] = $true
+        if ($index -le $last) { $problems += "phase of $id out of order: $phase after $($order[$last])" }
+        if ($permille -lt $lastPermille) { $problems += "the progress of $id went back at the phase $phase ($permille of 1000 after $lastPermille)" }
+        $last = [Math]::Max($last, $index)
+        $lastPermille = [Math]::Max($lastPermille, $permille)
+      }
+    }
+    if ($lastPermille -ge 0 -and $lastPermille -ne 1000) { $problems += "the last progress of $id is $lastPermille of 1000, not 1000 (the log was read to its end)" }
+  }
+  return $problems
+}
+
 # The suite's own log: the prechecks, the pin checks, the products that succeeded, the record, the shortcuts
 function Test-E2ESuiteLog([string]$Scenario, [string]$Step, $Run, [string[]]$Products, [string]$Recorded) {
   $contains = @("Products that succeeded in this run: `"$($Products -join ',')`"",
@@ -382,10 +410,17 @@ function Test-E2ESuiteLog([string]$Scenario, [string]$Step, $Run, [string[]]$Pro
     $setup = 'EE_Setup.exe'
     if ($id -eq 'NeoEE') { $setup = 'NeoEE_Setup.exe' }
     $patterns += '^Pin check of the ' + $id + ' setup: ' + [regex]::Escape($setup) + ' matches \(size, SHA-256\)$'
+    # the progress read from the product log (S4): a placeholder setup is finished within a second, so the first look may
+    # see its whole log and skip the phases in between; the last look after the exit always sees "Log closed." (phase
+    # "done"). The phases that were logged must be in the order of the log (Test-E2ESuitePhaseOrder).
+    $patterns += '^Product ' + $id + ' phase: done \(1000 of 1000\)$'
+    $patterns += '^Product ' + $id + ' log read: last phase done, '
   }
+  $phaseProblems = @(Test-E2ESuitePhaseOrder -Lines $Run.LogLines -Products $Products)
   $problems = @(Test-E2ELogLines -Lines $Run.LogLines -Contains $contains -Matches $patterns `
     -NotContains @('Precheck failed', 'Exception', 'could not be removed', 'does not match its pin') `
     -NotMatches @('^Shortcut .+ not created: ', '^Product \S+ failed', '^Product \S+ not run'))
+  $problems += $phaseProblems
   [void](Complete-E2ECheck $Scenario "$Step/LOG" $problems "$(@($Run.LogLines).Count) log lines")
 }
 
