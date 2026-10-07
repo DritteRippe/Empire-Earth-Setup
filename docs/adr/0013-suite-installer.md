@@ -129,8 +129,10 @@ Facts the decision relies on, from the code at 332d877:
     shortcuts and the record (they are not in the uninstall log), the launcher's `settings.json` and
     `log.txt` of the account that uninstalls, and, only after the answer "Delete" (second button of one
     task dialog, "Keep" is the default, never asked and never done in a silent run), the exact folders
-    `Users` and `Data\Saved Games` below the root of each removed game, and `Backups` and `Mod Creator`
-    of the launcher's data folder. The folders that are empty then are removed from the inside out; a
+    `Users`, `Data\Saved Games` and `Data\dxm\mods` below the root of each removed game (the last holds
+    the mods players made; the product setups delete only the presets they install there, `[UninstallDelete]`),
+    and `Backups` and `Mod Creator` of the launcher's data folder. The folders that are empty then
+    (`Data\dxm`, `Data`, the game folders, the root) are removed from the inside out; a
     root with anything else in it stays. `{app}\Logs` is a folder of the suite and goes with
     `[UninstallDelete]`. The suite never writes or deletes below `Software\Sierra`; the product
     uninstallers keep their own cleanup. `ci/check_suite.py` enforces the places where `DelTree` and the

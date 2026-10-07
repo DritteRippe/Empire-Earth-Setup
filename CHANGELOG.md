@@ -630,7 +630,7 @@ setup version stays 1.7.2 until the release.
   Afterwards the shortcuts, the record, the `settings.json` and `log.txt` of the launcher of the account that
   uninstalls and (`[UninstallDelete]`) `{app}\Logs` are removed. The profiles and saved games of both games
   (`Users`, `Data\Saved Games` below the install root of each product) and the launcher's `Backups` and
-  `Mod Creator` folders are deleted only after the second button "Löschen" of one task dialog; "Behalten
+  `Mod Creator` folders (and the folder `Data\dxm\mods` of each game, see Fixed) are deleted only after the second button "Löschen" of one task dialog; "Behalten
   (empfohlen)" is the default, a silent uninstallation keeps all of it. Folders that are empty afterwards are
   removed from the inside out; the empty folder of the suite is removed again at the end if Inno Setup could not
   (a virus scanner still holding the deleted `unins000.exe`). Nothing in the suite writes or deletes below
@@ -844,6 +844,18 @@ setup version stays 1.7.2 until the release.
   (which has no such list) moves the old folder aside once, keeps there only the files this setup
   does not install again (own maps, maps of older versions) and says where they are. If that
   installation is cancelled or fails, the old folder is moved back.
+- Mods players made: every setup run (first installation, update, repair, other components) and the
+  uninstallation deleted the whole `Data\dxm` folder of both games, with the folders players make below
+  `Data\dxm\mods` (the comment of `dreXmod.config` invites them to). The setups now delete exactly what they install
+  or dreXmod creates there: `drexmod.com`, `images`, the presets `dxm`, `energycube`, `template` and `yukon` below
+  `mods`, and the cache `dbcache` (`[InstallDelete]`, `[UninstallDelete]`). A folder of your own below
+  `Data\dxm\mods` stays on update, repair, a change from dreXmod 3 to 2 and on uninstallation; a file you put into one
+  of the four preset folders is still removed with it, and `dreXmod.config` is still set to the shipped default on
+  every run (a choice of `<Mod>` there does not survive a setup run). The uninstaller of the suite lists the
+  folder `Data\dxm\mods` of each removed game in its question with the profiles and saved games ("Behalten" is the
+  default, a silent uninstallation keeps it) and removes `Data\dxm` afterwards if it is empty. The real-data comparison of
+  `[InstallDelete]` with the official setup 1.7.2 shows this as a known difference. Tested by the scenarios
+  S8, S9 and D of the end-to-end tests (`ci/e2e`), test case TP-81.
 - Suite installer: its own uninstall key (Publisher `Empire Earth Community`, the publisher of EE)
   no longer looks like an EE installation to the launcher: the suite marks it with
   `Empire Earth Community: Suite` at the end of every run (see Changed, revision 5; laptop test TP-93).

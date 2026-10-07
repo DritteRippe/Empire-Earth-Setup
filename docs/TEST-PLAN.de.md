@@ -114,7 +114,7 @@ Nummer ihres Blocks. Ein neues Arbeitspaket mit eigenen Fällen bekommt den näc
 | TP-5x | Integritätsmanifest | S-WP7 | `files.sha256` je Variante (Inhalt geprüft mit `Get-FileHash` bzw. `sha256sum -c`), von einem Virenscanner gelöschte Dateien mit Hinweis und `[MissingAfterInstall]`, eine gesperrte Datei, Dauer des Prüfens auf dem Laptop und auf HDD bzw. unter Windows 7 (TP-50) |
 | TP-6x | Umgebung | S-WP8 | Hinweis unter 768 Pixeln Höhe und Bildschirm, DPI und Spielfenster im Log (TP-60), fremde und alte Installationen: Schlüssel in HKLM, fremde Uninstall-Einträge, CD-Ordner, Wortlaut zu den CD-Keys (TP-61), EE und NeoEE in einem Ordner (TP-62), Installation in den Ordner einer GOG- oder CD-Installation (TP-63) |
 | TP-7x | Allgemeine Abläufe und Forumfälle | S-WP2, S-WP9 | Grundablauf mit Update über 1.7.2 (TP-70), Standardnutzer und VirtualStore (TP-71), Version und Mehrspieler (TP-72), Reparatur (TP-73), AoC ohne EE-Start (TP-74), EE und NeoEE getrennt, eines deinstalliert (TP-75), Firewall beim Hosten (TP-76), CD-Keys (TP-77), Deutsch (TP-78), laufendes Spiel (TP-79) |
-| TP-8x | Links in den für alle beschreibbaren Ordnern | S-WP11 | Ein Standardbenutzer ersetzt `Data\Movies` durch eine Junction; das Update als Administrator hält auf der Seite „Vorbereitung der Installation“ an, ändert nichts und läuft nach dem Entfernen des Links durch; still Exit-Code 7; ein Link im Spielerordner unter `Users` und eine feste Verknüpfung (Hardlink) dort halten ebenfalls an (TP-80) |
+| TP-8x | Links in den für alle beschreibbaren Ordnern | S-WP11 | Ein Standardbenutzer ersetzt `Data\Movies` durch eine Junction; das Update als Administrator hält auf der Seite „Vorbereitung der Installation“ an, ändert nichts und läuft nach dem Entfernen des Links durch; still Exit-Code 7; ein Link im Spielerordner unter `Users` und eine feste Verknüpfung (Hardlink) dort halten ebenfalls an (TP-80); eigene Mods unter `Data\dxm\mods` bleiben bei Reparatur, Update, Versionswechsel von dreXmod und Deinstallation (TP-81) |
 | TP-9x | Suite „Empire Earth Community“ | Suite-Plan (WP10) | Fälle zum Paket mit Launcher auf dem Laptop mit echten Daten: das ZIP ohne und mit „Zulassen“ (TP-90, TP-91), Start aus der ZIP-Ansicht (TP-92), beide Spiele mit den Standardwerten und Spielstart von den Symbolen (TP-93), Reparatur (TP-94), Deinstallation mit „Behalten“ und „Löschen“ (TP-95), Pfad „Erweitert“ (TP-96), Update über ein vorhandenes Einzel-Setup (TP-97), Fortschrittsanzeige im Fenster der Suite (TP-98), Abbrechen in der Suite vor der Installation eines Spiels und nicht mehr danach (TP-99); TP-93 und TP-95 sind das Freigabekriterium für Launcher 1.0.0 und Suite 1.0.0, siehe Block 9 |
 
 ## 4. Vorlage je Fall
@@ -2907,6 +2907,10 @@ Wine-Probe der Analyse (ADR 0009, „Implementation“).
 Junctions legt auch ein Standardbenutzer ohne Administratorrechte an (`mklink /J`). Eine Junction
 nur mit `rmdir <Link>` entfernen (ohne `/s`): Das löscht den Link, nicht den Ordner, auf den er zeigt.
 
+Ebenfalls unter `Data`, im selben Block, weil es dieselben für Spieler beschreibbaren Ordner betrifft: Was das Setup
+dort löscht. `[InstallDelete]` und `[UninstallDelete]` nennen unter `Data\dxm` nur noch die Ordner, die das Setup
+selbst installiert (TP-81); Ordner eigener Mods unter `Data\dxm\mods` bleiben.
+
 #### TP-80: Junction in Data als Standardbenutzer, Update als Administrator (nur VM)
 
 - **Status:** ausgearbeitet
@@ -3009,6 +3013,53 @@ nur mit `rmdir <Link>` entfernen (ohne `/s`): Das löscht den Link, nicht den Or
   `…\Users\Spieler`; (e) `Link check skipped: not the administrative install mode`; (f) `Link check:
   …\Users\Spieler\tp80f.ini is a hard link (the file has 2 names)`, in `TP-80f2` keine solche Zeile.
 
+#### TP-81: Eigene Mods unter Data\dxm\mods bleiben bei Reparatur, Update und Deinstallation
+
+- **Status:** ausgearbeitet
+- **Priorität:** P2
+- **Bezug:** CHANGELOG („Mods players made“), README („Notes for Modders“), ADR 0013 (Deinstallation der Suite), TP-73,
+  TP-94, TP-95; Szenarien S8, S9 (still, Platzhalter) und D (echte Daten) des automatischen Tests (Abschnitt 12)
+- **Ziel:** Ein Ordner, den ein Spieler unter `Data\dxm\mods` anlegt, übersteht Reparatur, Update, den Wechsel der
+  dreXmod-Version und die Deinstallation; das Setup ersetzt nur die Ordner, die es selbst installiert, und setzt
+  `dreXmod.config` auf den Standard zurück (das alte Setup löschte `Data\dxm` ganz).
+- **Build-Art:** B (echter Build: nur mit den echten dreXmod-Dateien gibt es die Preset-Ordner; Laptop mit Rückweg, Regel 1)
+- **Ausgangszustand:** Empire Earth (mit The Art of Conquest) mit der Suite oder dem Setup des Spiels installiert, dreXmod 3
+  (Standard), `dreXmod.config` unverändert, kein Spiel läuft. Unter `Empire Earth\Data\dxm\mods` stehen `dxm`,
+  `energycube`, `template` und `yukon` (ebenso im Ordner von The Art of Conquest).
+- **Snapshot:** `Laptop` (Wiederherstellungspunkt)
+- **Varianten:** EE-admin über die Suite (Teile a bis e) und NeoEE-admin (nur a); EE-user (nur a, Setup des Spiels)
+- **Schritte:**
+  1. Ausgangslage herstellen: In beiden Spielordnern `Data\dxm\mods\mytest\CREDITS` anlegen (beliebiger Text),
+     in `Empire Earth\Data\dxm\mods\yukon` eine Datei `eigene-datei.txt` anlegen, in `Empire Earth\dreXmod.config`
+     bei `<Mod>` `<Enabled>1</Enabled>` und `<Name>yukon</Name>` setzen (vorher eine Kopie der Datei sichern).
+     `Get-FileHash` der Kopie notieren.
+  2. (a) Reparatur: die Suite noch einmal starten wie in TP-94 (bzw. das Setup des Spiels mit denselben Komponenten);
+     bis zum Ende warten, das Setup-Log sichern.
+  3. (b) Wechsel der Version: das Setup des Spiels über „Komponenten ändern“ (oder `/COMPONENTS` mit
+     `additional\drexmod\v2` statt `v3`) erneut ausführen; danach die Ordner unter `Data\dxm` ansehen.
+  4. (c) Zurück zu dreXmod 3 (wie b).
+  5. (d) Die Suite deinstallieren wie in TP-95 (a): Der Dialog am Ende nennt unter den Ordnern auch
+     `…\Data\dxm\mods` beider Spiele; „Behalten (empfohlen)“ wählen. Danach das Paket neu installieren (wie TP-95 (b)).
+  6. (e) Wieder deinstallieren, im Dialog **„Löschen“** wählen.
+- **Erwartetes Ergebnis:**
+  - (a) `mytest\CREDITS` ist in beiden Spielordnern unverändert da; `yukon\eigene-datei.txt` ist weg (der Preset-Ordner
+    ist neu installiert), `dxm`, `energycube`, `template`, `yukon`, `drexmod.com` und `images` sind da;
+    `dreXmod.config` ist wieder die ausgelieferte Datei (der Hash der Kopie aus Schritt 1 ist ein anderer, `<Mod>` ist
+    zurückgesetzt). Das Setup-Log nennt `mytest` nirgends.
+  - (b) `Data\dxm\drexmod.com`, `images` und die vier Preset-Ordner sind weg (dreXmod 2 bringt sie nicht mit),
+    `mytest\CREDITS` ist da. (c) Die Preset-Ordner sind wieder da, `mytest` ebenfalls.
+  - (d) Der Dialog nennt `…\Empire Earth\Data\dxm\mods` und `…\Empire Earth - The Art of Conquest\Data\dxm\mods`; nach
+    „Behalten“ liegt dort nur noch `mytest` (die vier Preset-Ordner sind mit dem Spiel entfernt), nach der
+    Neuinstallation ist `mytest` weiter da.
+  - (e) Nach „Löschen“ sind `Data\dxm\mods` und, wenn leer, `Data\dxm` beider Spiele weg; die Programmordner der
+    Spiele sind (bis auf andere Spielerdaten, TP-95) entfernt. Bei einer stillen Deinstallation
+    (`/VERYSILENT`) bleibt `mytest` immer.
+  - **bestanden**, wenn alle Punkte stimmen. **Fehler**: `mytest` fehlt nach (a), (b), (c) oder (d), ein Preset-Ordner
+    fehlt nach (a), `eigene-datei.txt` ist nach (a) noch da, `Data\dxm\mods` fehlt im Dialog von (d) oder bleibt nach (e).
+- **Log-Hinweis:** Setup-Log von (a) bis (c): kein Eintrag mit `mytest` in einer Lösch- oder Kopierzeile (`findstr /i
+  mytest <Log>` ohne Treffer), `Installation process succeeded.`; Suite-Deinstallation: `The user data stays:` mit
+  den beiden Pfaden (d) bzw. `User data folder deleted: …\Data\dxm\mods` (e).
+
 ### Block 9: Suite „Empire Earth Community“
 
 Die Fälle der Suite (Paket mit Launcher, ADR 0013) stehen unten (TP-90 bis TP-99); hier steht zuerst, was
@@ -3019,8 +3070,8 @@ jede Prüfung der Deinstallation der Suite beachten muss, weil es sich nur auf e
   `unins000.exe` nicht mehr existiert (höchstens 10 Minuten). Zu prüfen: Das Fenster der Suite reagiert
   dabei (kein „Keine Rückmeldung“), die Statuszeile nennt das Spiel, und nach dem Ende sind beide Schlüssel
   weg. Ein Spiel, das vorher über „Apps“ entfernt wurde, wird still übersprungen.
-- **Behalten und Löschen:** Im Dialog am Ende ist „Behalten (empfohlen)“ die Vorgabe; die Ordner `Users`
-  und `Data\Saved Games` beider Spiele und `Backups` und `Mod Creator` im
+- **Behalten und Löschen:** Im Dialog am Ende ist „Behalten (empfohlen)“ die Vorgabe; die Ordner `Users`,
+  `Data\Saved Games` und `Data\dxm\mods` (eigene Mods, TP-81) beider Spiele und `Backups` und `Mod Creator` im
   `%LOCALAPPDATA%\Empire Earth Launcher` bleiben bei „Behalten“ und bei jeder stillen Deinstallation
   (`/VERYSILENT`) unverändert; nur „Löschen“ entfernt genau diese Ordner. `settings.json` und `log.txt`
   des Launchers sind in beiden Fällen weg. Ein Wert unter `HKLM` und `HKCU` in
@@ -3383,7 +3434,7 @@ auf dem Desktop. Es gilt:
      Spiele mit Ordner, „Die Verknüpfungen und Einträge von Empire Earth Community“); mit „Ja“ fortfahren. Danach fragt Inno Setup „Sind Sie sicher, dass Sie Empire Earth Community und alle zugehörigen Komponenten entfernen möchten?“ (vorgewählt „Nein“): „Ja“ klicken.
   3. Die Statuszeile während der Spiele beobachten („Schritt <n> von <m>: … wird entfernt ... (das kann mehrere
      Minuten dauern)“); das Fenster darf nicht „Keine Rückmeldung“ zeigen.
-  4. Am Ende erscheint der Dialog „Spielstände, Profile und Sicherungen auch löschen?“ mit den Ordnern; **„Behalten
+  4. Am Ende erscheint der Dialog „Spielstände, Profile, eigene Mods und Sicherungen auch löschen?“ mit den Ordnern; **„Behalten
      (empfohlen)“** wählen (die Vorgabe).
   5. Prüfen: Die Programmordner beider Spiele, `C:\Program Files\Empire Earth Community`, der Startmenüordner
      `Empire Earth Community` und die Symbole auf dem Desktop sind weg; „Apps“ zeigt keinen der drei Einträge;
@@ -3393,7 +3444,7 @@ auf dem Desktop. Es gilt:
   6. (b) Das Paket noch einmal wie in TP-93 mit den Standardwerten installieren (frisch, kein Reparaturlauf).
      Prüfen, dass der Spielstand und das Profil im Spiel noch da sind (EE und NeoEE, Hauptmenü).
   7. (c) Die Suite noch einmal deinstallieren wie (a), diesmal im Dialog **„Löschen“** wählen. Danach prüfen:
-     genau die angebotenen Ordner (`Users` und `Data\Saved Games` der beiden Spiele, `Backups` und `Mod Creator`
+     genau die angebotenen Ordner (`Users`, `Data\Saved Games` und `Data\dxm\mods` der beiden Spiele, `Backups` und `Mod Creator`
      im `%LOCALAPPDATA%\Empire Earth Launcher`) sind weg, sonst nichts außerhalb der Programmordner (die
      `Eigene Dateien`/`Dokumente` bleiben unberührt); wieder Wert unter `Software\Sierra\CDKeys` vorhanden.
   8. Die Dialoge zählen: Wie oft und in welcher Reihenfolge erscheint eine Frage (Block 9 „Zwei
@@ -3763,6 +3814,7 @@ einzigen Administratorkonto und ohne Bildschirm für den Assistenten.
 | TP-78 | teilweise | A: die deutschen Dateien für EE und AoC heruntergeladen, geprüft und im Manifest | NeoEE-admin, Spielstart |
 | TP-79 | nein | | Setup bei laufendem Spiel |
 | TP-80 | teilweise | D: Junction in `Data` (wie Teil c) und feste Verknüpfung in `Users` (wie Teil f) stoppen das stille Update mit Exitcode 7, nichts geändert, Ziel unberührt; danach läuft das Update durch (wie f2); B: Junction bei einer user-Installation, keine Prüfung (Teil e). Die Links legt das Administratorkonto an, nicht ein Standardbenutzer | a, b und d, die Seite „Vorbereitung der Installation“ |
+| TP-81 | teilweise | D: ein eigener Mod-Ordner unter `Data\dxm\mods` übersteht das Update, eine fremde Datei in einem Preset-Ordner und eine geänderte `dreXmod.config` werden zurückgesetzt, der Wechsel von dreXmod 3 auf 2 entfernt nur die Preset-Ordner, die Deinstallation lässt den Mod-Ordner stehen; S8 und S9 (Platzhalter, still): Reparatur und stille Deinstallation der Suite | der Dialog der Suite mit „Behalten“ und „Löschen“ (d, e), dreXmod beim Spielstart, EE-user |
 
 Was der Test über die Fälle hinaus prüft: den Platzhalter unter `Software\Sierra\CDKeys` nach
 jedem Schritt, dass kein Setup das Root-Zertifikat des offiziellen Setups einträgt, und mit dem
