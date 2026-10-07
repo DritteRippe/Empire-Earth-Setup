@@ -524,7 +524,12 @@ the CHANGELOG); the points are added with the commit that fixes them.
    setup that logs none; `ci/check_suite.py` checks the text, the mark and that it is the first statement of
    the step (`check_install_marker`, three mutants), and the unit tests feed the order of a real log. The log is
    read again after every "Yes" (the existing re-read), so a click that arrives after the line is refused with the
-   "not now" message. The bar and the stage list lose the short phase "checking
+   "not now" message. A small window remains and is accepted: the last read of the log can come just before the product
+   setup writes the line, the product then goes straight on to `DeleteInstallState`, and `TerminateJobObject` lands after
+   that. The window is milliseconds long (it was seconds with Inno Setup's line); it is not closed because that would
+   need the processes of the job to be suspended before the last read (`NtSuspendProcess` or a thread walk), then
+   killed or resumed, for a click that must hit that interval. A "Yes" that loses the race leaves a game without install
+   state, which the launcher shows as Unknown and the next run of the suite repairs. The bar and the stage list lose the short phase "checking
    the language files": the checking is part of the install step now, which is what it is for the game folder (the
    status line says "installing the game files" for those seconds).
 2. **The cap never kills an installation.** The cap of 90 minutes (decision 4 of the amendment of the runner) stopped the
@@ -554,21 +559,6 @@ the CHANGELOG); the points are added with the commit that fixes them.
    (`SuiteProductsOk = ''`); otherwise the run goes on to `ssPostInstall` and writes the launcher, the shortcuts and the
    record for the products that succeeded. The cancelled product counts like a failed one, but the last page says
    "cancelled by you" (`SuiteResultCancelled`). The question of the second step says so.
-7. **The line for Cancel wraps.** `SuiteCancelLabel` was one line high without `WordWrap`, so the German and the French texts
-   were cut off at 100 percent display scaling (the WinForms and Wine runs cannot show that). It wraps now, has room for
-   three lines (`SuiteCancelLines`, scaled with `ScaleY`) while it has a text and none otherwise, and the list of the steps
-   starts below its real height (`SuiteLayoutProgressControls`, called when the text changes). TP-98 and TP-99 check it at
-   100 and 150 percent with German and French.
-9. **`/TestCancel` and the scenarios.** The CI parameter requests the cancel only if the log that was just read is still before
-   the install step; otherwise it writes `/TestCancel not requested` and the scenario fails on that line, which is better
-   than a cancel that came too late and passed or failed for another reason. A product setup that reaches its install step
-   before its log is first read cannot be cancelled at all, so the check does not make S11 deterministic by itself, but
-   the failure now names its cause. The switch stays in
-   shipped builds: it only cancels, it is of the same kind as `/EEArgs`, and a build without it would not be the one
-   the scenarios test. `/TestCancelNeoEE` cancels the second product (scenario S12), and S13 cancels a repair.
-10. **Keyboard and `WM_QUIT`.** The hand-made message pump bypasses the key handling of the forms: Esc (Cancel) and Tab do not
-   work while a product setup runs, mouse and the focused button do. TP-99 and the README say so. `SuiteWaitEnd` leaves
-   its wait when `SuitePumpMessages` reports a `WM_QUIT` (it spun for up to 5 seconds), unit-tested with a real program.
 6. **The file line works with both transports.** The file name and the bytes came only from the WinHTTP transport (`Downloading
    pinned online file ...`, `<X> of <Y> bytes done.`). Inno Setup's download page logs only `Downloading temporary file
    from <URL>: <target>` and no progress, so with a valid certificate the line stayed empty and a large file could trigger
@@ -578,13 +568,39 @@ the CHANGELOG); the points are added with the commit that fixes them.
    The stall question stays as it is for the download phase: at 10 percent a line comes at least every few minutes unless
    the line is slower than about 0.25 Mbit/s for the largest file, and then the question is asked once and "keep waiting"
    is the default.
+7. **The line for Cancel wraps.** `SuiteCancelLabel` was one line high without `WordWrap`, so the German and the French texts
+   were cut off at 100 percent display scaling (the WinForms and Wine runs cannot show that). It wraps now and takes the
+   height its text needs at the width and font of the window (`AdjustHeight`, at least one line, none without a text; a
+   fixed room for three lines was clipped again by a longer translation or a bigger font), and the list of the steps
+   starts below its real height (`SuiteLayoutProgressControls`, called when the text changes). TP-98 and TP-99 check it at
+   100 and 150 percent with German and French.
 8. **Release criteria of suite 1.1.0.** The riskiest new code (the hand-made `CreateProcessW`, job object and `PeekMessage`
    runner, the record layouts and the `SizeOf` of them, the hand-placed controls) had run only as unit tests and under Wine,
    and TP-98 and TP-99 were P2 although the design requires TP-98 before tagging. The suite 1.1.0 is tagged only after TP-93,
-   TP-95, TP-98 and TP-99 pass (TP-99 with its repair and second-game variants, TP-98 with the display scaling check) and
-   the job `suite-e2e` was green on windows-latest for the commit, with S11, S12 and S13, the scenarios that cancel
-   (`docs/TEST-PLAN.de.md`, Block 9, "Freigabekriterium der Suite 1.1.0"). Their priority stays P2 like TP-93 and TP-95: the
+   TP-94 (c), TP-95, TP-97, TP-98 and TP-99 pass (TP-99 with its repair and second-game variants, TP-98 with the display
+   scaling check) and the job `suite-e2e` was green on windows-latest for the commit, with S8 and S9 (the shortcuts of
+   suite 1.0.0 deleted by a repair and by the uninstaller) and S11, S12 and S13, the scenarios that cancel
+   (`docs/TEST-PLAN.de.md`, Block 9, "Freigabekriterium der Suite 1.1.0"). TP-94 (c) and TP-97 are the update path that
+   the decision for 1.1.0 requires ("an update or repair of the suite removes the two old icons"): the CI scenarios plant
+   the seven shortcuts of suite 1.0.0, they do not come from an update of that suite. Their priority stays P2 like TP-93 and TP-95: the
    short run of section 7 belongs to the product setups and stays at 170 minutes.
+9. **`/TestCancel` and the scenarios.** The CI parameter requests the cancel only if the log that was just read is still before
+   the install step; otherwise it writes `/TestCancel not requested` and the scenario fails on that line, which is better
+   than a cancel that came too late and passed or failed for another reason. A product setup that reaches its install step
+   before its log is first read cannot be cancelled at all, so the check does not make S11 deterministic by itself, but
+   the failure now names its cause. The switch stays in
+   shipped builds: it only cancels, it is of the same kind as `/EEArgs`, and a build without it would not be the one
+   the scenarios test. `/TestCancelNeoEE` cancels the second product (scenario S12), and S13 cancels a repair during its downloads.
+   `/TestCancel` fires as soon as the real setup has opened its log, long before `CurStepChanged(ssInstall)`, so S13
+   does not prove the boundary of point 1 (it would pass with Inno Setup's old line as the marker); the unit tests of the log
+   parsing, `check_install_marker` and TP-99 (e) do, and the choice of the text of the cancel question
+   (`SuiteCancelQuestionMessage`) and the "cancelled" line of the last page (`SuiteCancelledResult`) are unit-tested in
+   `suite_common.iss`. A placeholder hook that sleeps in `CurStepChanged(ssInstall)` with a `/TestCancelAtInstall` switch
+   would test the boundary in CI; it was not built. `/TestCancel` cancels the first product setup that runs (EE, in a
+   run without EE NeoEE).
+10. **Keyboard and `WM_QUIT`.** The hand-made message pump bypasses the key handling of the forms: Esc (Cancel) and Tab do not
+   work while a product setup runs, mouse and the focused button do. TP-99 and the README say so. `SuiteWaitEnd` leaves
+   its wait when `SuitePumpMessages` reports a `WM_QUIT` (it spun for up to 5 seconds), unit-tested with a real program.
 
 ## Amendment: one shortcut "Empire Earth Community" (2026-10-07, suite 1.1.0)
 
@@ -599,9 +615,21 @@ delete the suite's shortcut no longer applies: the names differ now. Without .NE
 the game program of NeoEE, else EE (the product the launcher would select first); the select page says how to get the
 launcher. The launcher keeps `--product=` for shortcuts that players made or that a failed update left.
 
+Two consequences are accepted. `{autodesktop}\Neo Empire Earth.lnk` is deleted whatever it starts: a shortcut of that
+name that a player made on the desktop of all users, pointing to the game program, goes too (suite 1.0.0's uninstaller
+kept such a shortcut while the game stayed installed). The NeoEE setup's own shortcut is named `NeoEE`, so no setup
+shortcut is hit, and a condition "starts the launcher" would keep the shortcut that suite 1.0.0 made without .NET
+Framework 4.8 (it starts the game program), so there would be two icons after the update, which the decision rules out.
+Separately, a desktop `Empire Earth.lnk` that suite 1.0.0 made without .NET Framework 4.8 survives an update in which EE
+is deselected: the EE setup's own cleanup deletes it only when the EE setup runs, and the suite deletes that name only if it
+starts the launcher (contract 1.7 point 8).
+
 Evidence: `ci/tests/suite_tests.iss` (`SuiteOldSuiteShortcutPath`, `SuiteOldSuiteShortcutRemovable`,
 `SuiteFirstInstalledProduct`), `ci/check_contract.py` and `ci/check_suite.py` with their self-tests, CI scenarios S1,
-S3, S8 and S9 (`repair/OLD-SHORTCUTS`), laptop TP-93, TP-94 (c), TP-97. A Wine run of the placeholder suite (copied
+S3, S8 (`suite-uninstall/OLD-SHORTCUTS`: the uninstaller deletes the seven planted shortcuts) and S9 (`repair/OLD-SHORTCUTS`, then
+two repairs of NeoEE alone: `repair-neo/OLD-SHORTCUTS` deletes the desktop `Empire Earth` that starts the launcher by the
+suite's own code, because no EE setup runs, `repair-neo-kept/GAME-SHORTCUT` keeps the one that starts a game program),
+laptop TP-93, TP-94 (c), TP-97. A Wine run of the placeholder suite (copied
 prefix, no network, no .NET Framework 4.8) with the seven shortcuts of suite 1.0.0 planted: the run deleted six of them
 and the desktop `Empire Earth` only when its link named the launcher (a log line each, the one that named a game program
 stayed), left a foreign `Decoy.lnk`, created `Empire Earth Community` to the game program of the installed product on the

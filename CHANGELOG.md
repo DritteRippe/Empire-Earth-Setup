@@ -760,15 +760,18 @@ setup version stays 1.7.2 until the release.
   `Install step: the game folder is changed from here on` (the first statement of the installation step of the game
   setup, see Fixed) a click on Cancel asks and, on "Yes", stops the game setup and
   everything it started (the job object holds the setup program and the real setup it starts, a kill of the
-  program alone would leave the game installing), starts no further game and ends the suite with exit code 3;
-  a first game that was finished stays installed and the next run adopts it. From the start of the file
-  installation step on, in the advanced mode and where no job can be used the Cancel button is off and a line
-  says why; before, a click was only honored after both games. A game setup whose log does not grow for 10
-  minutes asks once whether to keep waiting (a silent run keeps waiting), one that runs for 90 minutes is
-  stopped and counts as failed, and the suite goes on with the next game. New texts in English, German and French,
-  unit tests on real programs (exit code, 259, a loader with a real setup stopped together), the part [Process] and
-  22 mutants of `ci/check_suite.py`, scenario S11, ADR 0013 (amendment), contract 1.7 point 2 (revision 6,
-  informative) and the test case TP-99. A stopped game setup leaves its `%TEMP%\is-*.tmp` folder.
+  program alone would leave the game installing) and starts no further game. If a game was finished before in
+  this run, the suite finishes its own part for it (launcher, shortcuts, record; exit code 0) and the last page says
+  that the other game was cancelled by you; with no finished game it ends with exit code 3 and writes nothing.
+  From the start of the file installation step on (the line `Install step: ...`), in the advanced mode and where
+  no job can be used the Cancel button is off and a line says why; before, a click was only honored after both
+  games. A game setup whose log does not grow for 10 minutes asks once whether to keep waiting (a silent run keeps
+  waiting); one that runs for 90 minutes and has not reached its install step is stopped and counts as failed
+  (the suite goes on with the next game), one that installs is never stopped for its time, only by the user
+  through the question. New texts in English, German and French, unit tests on real programs (exit code, 259,
+  a loader with a real setup stopped together), the part [Process] and mutants of `ci/check_suite.py`, scenarios
+  S11 to S13, ADR 0013 (amendments), contract 1.7 point 2 (revision 6, informative) and the test case TP-99.
+  A stopped game setup leaves its `%TEMP%\is-*.tmp` folder.
 - Suite installer: the window shows what the game setup does. The status line names the step and the game and what the
   game setup is doing ("Step 1 of 2: Empire Earth - downloading language file 4 of 17 ...", then checking the
   files, installing the game files, registering the CD keys of NeoEE, finishing), the line under it the file with
@@ -801,7 +804,10 @@ setup version stays 1.7.2 until the release.
   of the game folder). Every install, update, repair and the uninstaller delete the seven shortcuts of suite 1.0.0 that
   exist (`SuiteRemoveOldSuiteShortcuts`, `SuiteOldSuiteShortcutPath`; a log line each): `Empire Earth` and `Neo Empire
   Earth` on the desktop and in the start menu folder, their Diagnostic shortcuts and `Empire Earth Launcher`; the desktop
-  shortcut `Empire Earth` only if it starts the launcher, because the EE setup's own shortcut has that name. Without .NET
+  shortcut `Empire Earth` only if it starts the launcher, because the EE setup's own shortcut has that name (the desktop
+  `Neo Empire Earth` is deleted whatever it starts: a shortcut of that name that a player made on the desktop of all
+  users goes too, and a desktop `Empire Earth` that suite 1.0.0 made without .NET Framework 4.8 stays when the EE setup
+  does not run). Without .NET
   Framework 4.8 there is no launcher: the shortcut `Empire Earth Community` then starts the game program of NeoEE, else
   of EE (`SuiteFirstInstalledProduct`), and the select page says how to get the launcher. Contract 1.7 point 8 and its
   table, 1.4 and 4.3 (revision 6, compatible, `ContractVersion` stays 1; the launcher keeps `--product=EE|NeoEE` for old
@@ -941,7 +947,8 @@ setup version stays 1.7.2 until the release.
   leaves the installed game as it was: there are four texts now (first installation or already installed, with or
   without a game that this run finished before), each naming the temporary folder. The line under the bar that says why
   Cancel is off wraps (it was one line high, so the German and the French texts were cut off at 100 percent display
-  scaling; it takes three lines while it has a text and the list of the steps starts below it) and is shorter.
+  scaling; it takes the height its text needs at the width and font of the window and the list of the steps starts below it)
+  and is shorter.
 - Suite installer: cancelling the second game no longer ends the suite with the first game installed and nothing else.
   The old shortcuts of the first game were deleted already (`/NOICONS`), so the user was left with the game, no
   shortcut, no launcher and no record. The suite now finishes its own part (launcher, shortcuts, record) for the games
