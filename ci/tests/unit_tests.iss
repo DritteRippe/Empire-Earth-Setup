@@ -269,47 +269,20 @@ begin
   Check('UrlEncode empty', UrlEncode(''), '');
 end;
 
-procedure CheckSplit(const Url: String; const ExpectedOk: Boolean; const ExpectedHost, ExpectedPath: String);
-var
-  Host, Path: String;
-  Ok: Boolean;
+// The download pages of the website (contract 4.3, finding U1: the update API no longer gives the download URL)
+procedure TestProductDownloadPage;
 begin
-  Ok := SplitHttpsUrl(Url, Host, Path);
-  CheckBool('SplitHttpsUrl ' + Url, Ok, ExpectedOk);
-  if Ok and ExpectedOk then
-    Check('SplitHttpsUrl parts ' + Url, Host + ' ' + Path, ExpectedHost + ' ' + ExpectedPath);
-end;
-
-procedure TestSplitHttpsUrl;
-begin
-  CheckSplit('https://empireearth.eu/download', True, 'empireearth.eu', '/download');
-  CheckSplit('HTTPS://Files.EmpireEarth.EU', True, 'files.empireearth.eu', '/');
-  CheckSplit('https://empireearth.eu?x=1', True, 'empireearth.eu', '?x=1');
-  CheckSplit('https://empireearth.eu#top', True, 'empireearth.eu', '#top');
-  CheckSplit('http://empireearth.eu/', False, '', '');
-  CheckSplit('https://', False, '', '');
-  CheckSplit('https://user@empireearth.eu/', False, '', '');
-  CheckSplit('https://empireearth.eu:8443/', False, '', '');
-  CheckSplit('https://empireearth.eu\@evil.example/', False, '', '');
-  CheckSplit('https://empire earth.eu/', False, '', '');
-  CheckSplit('https://empireearth.eu/a' + #9 + 'b', False, '', '');
-  CheckSplit('https://empireearth.eu/' + #$E9, False, '', '');
-end;
-
-// The download pages of the website (finding U1: the update API no longer gives the download URL)
-procedure TestGetSetupDownloadUrl;
-begin
-  Check('GetSetupDownloadUrl EE', GetSetupDownloadUrl('EE'), 'https://empireearth.eu/download/ee/');
-  Check('GetSetupDownloadUrl NeoEE', GetSetupDownloadUrl('NeoEE'), 'https://empireearth.eu/download/neo/');
-  Check('GetSetupDownloadUrl neoee lower case', GetSetupDownloadUrl('neoee'), 'https://empireearth.eu/download/neo/');
-  Check('GetSetupDownloadUrl ee lower case', GetSetupDownloadUrl('ee'), 'https://empireearth.eu/download/ee/');
-  Check('GetSetupDownloadUrl unknown product', GetSetupDownloadUrl('AoC'), 'https://empireearth.eu/download/');
-  Check('GetSetupDownloadUrl foreign installation', GetSetupDownloadUrl('foreign'), 'https://empireearth.eu/download/');
-  Check('GetSetupDownloadUrl empty', GetSetupDownloadUrl(''), 'https://empireearth.eu/download/');
-  Check('GetSetupDownloadUrl the general page is SetupURL', SetupURL, 'https://empireearth.eu/download/');
-  CheckBool('GetSetupDownloadUrl EE is https', IsHttpsUrl(GetSetupDownloadUrl('EE')), True);
-  CheckBool('GetSetupDownloadUrl NeoEE is https', IsHttpsUrl(GetSetupDownloadUrl('NeoEE')), True);
-  CheckBool('GetSetupDownloadUrl no CDN host', Pos('cdn.', GetSetupDownloadUrl('EE') + GetSetupDownloadUrl('NeoEE') + SetupURL) = 0, True);
+  Check('ProductDownloadPage EE', ProductDownloadPage('EE'), 'https://empireearth.eu/download/ee/');
+  Check('ProductDownloadPage NeoEE', ProductDownloadPage('NeoEE'), 'https://empireearth.eu/download/neo/');
+  Check('ProductDownloadPage neoee lower case', ProductDownloadPage('neoee'), 'https://empireearth.eu/download/neo/');
+  Check('ProductDownloadPage ee lower case', ProductDownloadPage('ee'), 'https://empireearth.eu/download/ee/');
+  Check('ProductDownloadPage empty', ProductDownloadPage(''), 'https://empireearth.eu/download/');
+  Check('ProductDownloadPage AoC', ProductDownloadPage('AoC'), 'https://empireearth.eu/download/');
+  Check('ProductDownloadPage foreign installation', ProductDownloadPage('foreign'), 'https://empireearth.eu/download/');
+  Check('SetupURL is the page of both setups', SetupURL, 'https://empireearth.eu/download/');
+  CheckBool('ProductDownloadPage EE is https', IsHttpsUrl(ProductDownloadPage('EE')), True);
+  CheckBool('ProductDownloadPage NeoEE is https', IsHttpsUrl(ProductDownloadPage('NeoEE')), True);
+  CheckBool('ProductDownloadPage no CDN host', Pos('cdn.', ProductDownloadPage('EE') + ProductDownloadPage('NeoEE') + SetupURL) = 0, True);
 end;
 
 procedure TestFileNameExtension;
@@ -434,11 +407,11 @@ end;
 // The servers of the online files must be https: data files without SHA-256 are only accepted
 // from https URLs
 procedure TestOnlineFilesServers;
-var
-  Host, Path: String;
 begin
-  CheckBool('OnlineFilesURL is https', IsHttpsUrl(OnlineFilesURL) and SplitHttpsUrl(OnlineFilesURL, Host, Path), True);
-  CheckBool('OnlineFilesMirrorURL is https', IsHttpsUrl(OnlineFilesMirrorURL) and SplitHttpsUrl(OnlineFilesMirrorURL, Host, Path), True);
+  CheckBool('OnlineFilesURL is https', IsHttpsUrl(OnlineFilesURL), True);
+  CheckBool('OnlineFilesMirrorURL is https', IsHttpsUrl(OnlineFilesMirrorURL), True);
+  Check('OnlineFilesURL', OnlineFilesURL, 'https://files.empireearth.eu/localized');
+  Check('OnlineFilesMirrorURL', OnlineFilesMirrorURL, 'https://storage.ee.zocker-160.de/localized');
 end;
 
 procedure TestOnlineFileCheck;
@@ -1903,8 +1876,7 @@ begin
     TestShouldRemoveLegacyVistaCompatValue;
     TestUninstallKeys;
     TestUrlEncode;
-    TestSplitHttpsUrl;
-    TestGetSetupDownloadUrl;
+    TestProductDownloadPage;
     TestFileNameExtension;
     TestIsCodeFileName;
     TestIsHttpsUrl;

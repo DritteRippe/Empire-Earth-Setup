@@ -1305,7 +1305,7 @@ end;
 // Update API of the community website, answers with HTTP 200 and
 //   &type=<game|setup>&version=<v>  'false' if <v> is outdated
 //   &type=<game|setup>               the latest version
-// (without parameters it answers a download URL, which the setup no longer uses: OpenUpdateDownloadPage)
+// (contract 4.5; the download page needs no request, contract 4.3)
 // True only for HTTP 200; Response is the trimmed answer ('' otherwise)
 function QueryUpdateApi(const Params: String; var Response: String): Boolean;
 begin
@@ -1338,15 +1338,14 @@ begin
     end;
 end;
 
-// Opens the download page of this product on the website (GetSetupDownloadUrl: EE or NeoEE). The update API is not asked
-// for the download URL: its answer names a CDN host that no longer resolves, while the buttons of these pages work. The
-// browser runs as the original user, not with the setup's admin rights.
+// Opens the download page of this setup's product (contract 4.3). The browser runs as the original user, not with the
+// setup's admin rights.
 procedure OpenUpdateDownloadPage;
 var
   Url: String;
   ErrorCode: Integer;
 begin
-  Url := GetSetupDownloadUrl('{#InstallType}');
+  Url := ProductDownloadPage('{#InstallType}');
   Log('Opening ' + Url);
   if not ShellExecAsOriginalUser('open', Url, '', '', SW_SHOWNORMAL, ewNoWait, ErrorCode) then
     Log('Unable to open ' + Url + ': ' + SysErrorMessage(ErrorCode));

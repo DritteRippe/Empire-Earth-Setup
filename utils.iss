@@ -19,11 +19,11 @@ const
   DomainMain = 'empireearth.eu';
   DomainMirror = 'ee.zocker-160.de';
   // One base URL per endpoint; the code only appends paths and parameters
-  SetupURL = 'https://' + DomainMain + '/download/';                     // download page of the website, both games
-  SetupURLEE = SetupURL + 'ee/';                                         // download page of Empire Earth
-  SetupURLNeoEE = SetupURL + 'neo/';                                     // download page of NeoEE
+  SetupURL = 'https://' + DomainMain + '/download/';                     // download page of both setups (contract 4.3)
+  SetupURLEE = SetupURL + 'ee/';                                         // download page of the EE setup
+  SetupURLNeoEE = SetupURL + 'neo/';                                     // download page of the NeoEE setup
   ApiURL = 'https://api.' + DomainMain;                                  // web API of the website
-  UpdateApiURL = ApiURL + '/setup/?product={#AppID}';                    // update check (QueryUpdateApi)
+  UpdateApiURL = ApiURL + '/setup/?product={#AppID}';                    // update check, &type= only (QueryUpdateApi)
   TelemetryApiURL = ApiURL + '/eestats/setup/';                          // setup statistics (SendSetupTelemetry)
   OnlineFilesURL = 'https://files.' + DomainMain + '/localized';         // localized files (downloads.iss)
   OnlineFilesMirrorURL = 'https://storage.' + DomainMirror + '/localized';
@@ -332,46 +332,13 @@ begin
   end;
 end;
 
-// Splits an absolute https URL into its host (lowercase) and the rest ('/' if empty). False for
-// anything else and for URLs a check of the host could be fooled with: user info ('@'), ports,
-// backslashes, spaces, control and non-ASCII characters.
-function SplitHttpsUrl(const Url: String; var Host, Path: String): Boolean;
-var
-  I, P: Integer;
+// The download page of the setup of InstallType (contract 4.3): EE and NeoEE their own page, anything else the page of
+// both. No request: the website redirects the browser to the current setup.
+function ProductDownloadPage(const InstallType: String): String;
 begin
-  Result := False;
-  Host := '';
-  Path := '';
-  if CompareText(Copy(Url, 1, 8), 'https://') <> 0 then
-    Exit;
-  for I := 1 to Length(Url) do
-    if (Ord(Url[I]) <= 32) or (Ord(Url[I]) >= 127) or (Url[I] = '\') then
-      Exit;
-
-  Host := Copy(Url, 9, Length(Url));
-  P := 0;
-  for I := Length(Host) downto 1 do
-    if (Host[I] = '/') or (Host[I] = '?') or (Host[I] = '#') then
-      P := I;
-  if P > 0 then
-  begin
-    Path := Copy(Host, P, Length(Host));
-    Host := Copy(Host, 1, P - 1);
-  end else
-    Path := '/';
-  Host := LowerCase(Host);
-  Result := (Host <> '') and (Pos('@', Host) = 0) and (Pos(':', Host) = 0);
-end;
-
-// The page of the website where the user gets the setup of a product (the product id is InstallType of the setup: EE or
-// NeoEE; anything else, e.g. a foreign installation, gets the general page with both games). The pages are constants:
-// the update API used to answer a download URL of cdn.empireearth.eu, which no longer resolves (the website's buttons go
-// to r2.empireearth.eu through these pages), so the setup does not ask the API for it any more.
-function GetSetupDownloadUrl(const Product: String): String;
-begin
-  if CompareText(Product, 'EE') = 0 then
+  if CompareText(InstallType, 'EE') = 0 then
     Result := SetupURLEE
-  else if CompareText(Product, 'NeoEE') = 0 then
+  else if CompareText(InstallType, 'NeoEE') = 0 then
     Result := SetupURLNeoEE
   else
     Result := SetupURL;

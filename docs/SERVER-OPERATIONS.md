@@ -12,7 +12,7 @@ an invalid certificate); the setup side is described in the README, "Online loca
 
 | Host | Used for | Code |
 |---|---|---|
-| `api.empireearth.eu` | update check (`/setup/?product=<AppId>`), setup statistics with consent (`/eestats/setup/`) | `HttpGet` (`utils.iss`), WinHTTP |
+| `api.empireearth.eu` | update check (`/setup/?product=<AppId>&type=…`), setup statistics with consent (`/eestats/setup/`) | `HttpGet` (`utils.iss`), WinHTTP |
 | `files.empireearth.eu` | localized files below `/localized/` (main server) | `downloads.iss`: Inno Setup's built-in downloads; from a server with an invalid certificate WinHTTP, pinned files only |
 | `storage.ee.zocker-160.de` | the same files below `/localized/` (mirror) | as above |
 
@@ -22,6 +22,12 @@ one exception: a file whose SHA-256 and size are compiled into the setup ("pinne
 server whose certificate is invalid, because the setup only installs it if it is exactly the pinned
 file ([ADR 0012](adr/0012-pinned-downloads-despite-invalid-certificates.md)). Nothing else ignores a
 certificate error: not the update check, not the statistics, not a file without pin.
+
+Since setup v2 with contract revision 6 (and launcher 1.1.0) the answer to `/setup/?product=<AppId>` without `&type=`
+is no longer used: the setups and the launcher open `https://empireearth.eu/download/ee/` or `/neo/` (contract 4.3).
+Setups up to 1.7.2 and launcher 1.0.0 still ask it and open what it names. In October 2026 it named
+`https://cdn.empireearth.eu/setup/game/EE_Setup.exe` (NeoEE `.../neo/NeoEE_Setup.exe`), whose host does not resolve;
+the operators should answer `https://empireearth.eu/download/ee/` resp. `/neo/` instead.
 
 How the setup uses the two file servers:
 
