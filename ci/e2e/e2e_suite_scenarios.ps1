@@ -1,4 +1,4 @@
-# Scenarios S1 to S11 of the suite installer (suite/suite.iss, ADR 0013) on a GitHub-hosted Windows runner with
+# Scenarios S1 to S13 of the suite installer (suite/suite.iss, ADR 0013) on a GitHub-hosted Windows runner with
 # the PLACEHOLDER builds of ci/build.ps1 and suite/build_suite.ps1 (dummy AppIds, stub launcher, no game data;
 # job suite-e2e of .github/workflows/build.yml, started by ci/e2e/run_e2e_suite.ps1). They reuse the rules and the
 # Windows glue of the real-data end-to-end test (e2e_helpers.ps1, e2e_windows.ps1, e2e_scenarios.ps1): the dirty
@@ -990,6 +990,103 @@ function Invoke-E2EScenarioS11 {
   }
 }
 
+# --- S12: cancel while the second product setup runs ----------------------------------------------------------------------
+
+# The suite is started with /TestCancelNeoEE (suite_run.iss): EE is installed, then the cancel is requested for the NeoEE
+# setup as soon as its real setup has opened its log. EE has lost its old shortcuts by then (/NOICONS), so the suite must not
+# end here (finding 5 of the review of 2026-10-07): it starts no further product, stops the NeoEE setup with everything it
+# started, and finishes its own part for EE: the launcher, the shortcuts of EE, the record with Products = EE, exit code 0.
+function Invoke-E2EScenarioS12 {
+  $s = 'S12'
+  if (-not (Initialize-E2ESuiteScenario $s)) { return }
+  try {
+    $run = Invoke-E2ESuiteRun -Scenario $s -Step 'cancel' -Package $env:E2E_SUITE -Products 'EE,NeoEE' -ExtraSwitches @('/TestCancelNeoEE')
+    if (-not $run.Ok) { return }
+    $problems = @(Test-E2ELogLines -Lines $run.LogLines -Matches @(
+        '^Product EE \(step 1 of 2, state 0\): ',
+        '^Product NeoEE \(step 2 of 2, state 0\): ',
+        '^Product NeoEE: /TestCancel, the cancel is requested as if the user had answered the question with Yes$',
+        '^Product NeoEE: cancelled by the user before it installed anything, stopping its setup and everything it started$',
+        '^Product NeoEE: its setup is gone$',
+        '^Product NeoEE was cancelled by the user before it installed anything$',
+        '^Products that succeeded in this run: "EE"$',
+        '^The installation of NeoEE was cancelled by the user: no further product setup is started, the suite finishes its own part for "EE"$',
+        '^Suite record written: EE$') `
+      -NotMatches @('^Product NeoEE failed', '^Product NeoEE: the cancel came too late', '^Product NeoEE: its setup did not end',
+        '^Product NeoEE phase: (install|post install|CD keys|manifest|done)',
+        '^The installation was cancelled by the user: no further product setup is started, Setup ends$'))
+    [void](Complete-E2ECheck $s 'cancel/STOP' $problems 'the NeoEE setup was stopped before it installed anything and the suite finished its part for EE')
+    # what the suite part of a run with EE alone leaves, as in S2: the checks of an installation by the suite
+    Invoke-E2ESuiteInstalledChecks -Scenario $s -Step 'cancel' -Run $run -Products @('EE') -Package $env:E2E_SUITE
+    $neo = Get-E2EProduct 'NeoEE'
+    $roots = Get-E2ESuiteProductRoots
+    $problems = @()
+    foreach ($hive in @('HKLM64', 'HKLM32', 'HKCU')) {
+      if (Test-E2ERegKey $hive (Get-E2EUninstallKeyPath $neo)) { $problems += "$hive uninstall key of NeoEE exists" }
+    }
+    if (Test-Path -LiteralPath $roots['NeoEE']) { $problems += "$($roots['NeoEE']) exists" }
+    if (Test-E2ERegKey 'HKLM64' "$($E2EConst.CommunityKey)\Installations\NeoEE") { $problems += 'the install record of NeoEE exists' }
+    [void](Complete-E2ECheck $s 'cancel/NO-NEOEE' $problems 'NeoEE is neither installed nor recorded, EE and the launcher are')
+  } finally {
+    Invoke-E2ESuiteCleanup $s
+  }
+}
+
+# --- S13: cancel of a repair leaves the installed product as it was -------------------------------------------------------
+
+# EE is installed by the suite, then the suite runs again as a repair with /TestCancel: the cancel stops the EE setup before
+# it changes the game folder (the first statement of its install step, finding 1 of the review). Nothing of EE may differ
+# afterwards: every file with its size and time, the uninstall key values, and the record of the suite stay as they were.
+function Invoke-E2EScenarioS13 {
+  $s = 'S13'
+  if (-not (Initialize-E2ESuiteScenario $s)) { return }
+  try {
+    $run = Invoke-E2ESuiteInstall $s 'install' $env:E2E_SUITE 'EE' $false
+    if (-not $run.Ok) { return }
+    $roots = Get-E2ESuiteProductRoots
+    $before = @(Get-E2EFileTreeLines $roots['EE'])
+    $stateBefore = Get-E2ESuiteState @('EE')
+    $recordBefore = Get-E2ERegValues 'HKLM64' $E2ESuiteConst.RecordKey
+    $problems = @()
+    if (-not $stateBefore['EE'].Root) { $problems += 'EE has no uninstall key after the first run' }
+    if ($before.Count -eq 0) { $problems += "no file below $($roots['EE'])" }
+    if ($null -eq $recordBefore) { $problems += 'no suite record after the first run' }
+    if (-not (Complete-E2ECheck $s 'install/STATE' $problems "EE installed, $($before.Count) entries below its root")) { return }
+
+    $cancel = Invoke-E2ESuiteRun -Scenario $s -Step 'repair-cancel' -Package $env:E2E_SUITE -Products 'EE' -ExpectExit $E2ESuiteConst.ExitCancelled `
+      -EEArgs $E2ESuiteConst.RepairEEArgs -ExtraSwitches @('/TestCancel')
+    if (-not $cancel.Ok) { return }
+    $problems = @(Test-E2ELogLines -Lines $cancel.LogLines -Matches @(
+        '^Product EE \(step 1 of 1, state 1\): ',
+        '^Product EE: /TestCancel, the cancel is requested as if the user had answered the question with Yes$',
+        '^Product EE: cancelled by the user before it installed anything, stopping its setup and everything it started$',
+        '^Product EE: its setup is gone$',
+        '^Product EE was cancelled by the user before it installed anything$',
+        '^Products that succeeded in this run: ""$',
+        '^The installation was cancelled by the user: no further product setup is started, Setup ends$') `
+      -NotMatches @('^Suite record written', '^Shortcut created: ', '^Product EE failed', '^Product EE: the cancel came too late',
+        '^Product EE: its setup did not end', '^Product EE phase: (install|post install|CD keys|manifest|done)'))
+    [void](Complete-E2ECheck $s 'repair-cancel/STOP' $problems 'the repair of EE was stopped before it changed anything, exit code 3')
+
+    $after = @(Get-E2EFileTreeLines $roots['EE'])
+    $problems = @(Compare-E2ESnapshot $before $after 'a file or folder of EE')
+    $stateAfter = Get-E2ESuiteState @('EE')
+    if ($stateAfter['EE'].Root -ine $stateBefore['EE'].Root) { $problems += "the folder of EE changed from $($stateBefore['EE'].Root) to $($stateAfter['EE'].Root)" }
+    if ($stateAfter['EE'].Tasks -cne $stateBefore['EE'].Tasks) { $problems += 'the tasks of EE changed' }
+    if ($stateAfter['EE'].Components -cne $stateBefore['EE'].Components) { $problems += 'the components of EE changed' }
+    $recordAfter = Get-E2ERegValues 'HKLM64' $E2ESuiteConst.RecordKey
+    if ($null -eq $recordAfter) { $problems += 'the suite record is gone' }
+    elseif ($null -ne $recordBefore -and (Get-E2ERegString $recordAfter 'Written') -cne (Get-E2ERegString $recordBefore 'Written')) { $problems += 'the suite record was written again' }
+    foreach ($name in @('install.ini', 'files.sha256')) {
+      if (-not (Test-Path -LiteralPath (Join-Path (Join-Path $roots['EE'] (Get-E2EProduct 'EE').SetupDataDir) $name) -PathType Leaf)) { $problems += "$name of EE is gone (the install state a cancel must not delete)" }
+    }
+    [void](Complete-E2ECheck $s 'repair-cancel/UNCHANGED' $problems 'every file of EE with its size and time, the uninstall key values, install.ini, files.sha256 and the suite record are as before the cancelled repair')
+    Test-E2EMachineSnapshot $s 'repair-cancel'
+  } finally {
+    Invoke-E2ESuiteCleanup $s
+  }
+}
+
 # --- Phase Prepare -------------------------------------------------------------------------------------------------------
 
 # The Release value of .NET Framework 4 (HKLM64), 0 if there is none
@@ -1075,6 +1172,8 @@ function Invoke-E2ESuiteScenario([string]$Id) {
     'S9' { Invoke-E2EScenarioS9 }
     'S10' { Invoke-E2EScenarioS10 }
     'S11' { Invoke-E2EScenarioS11 }
+    'S12' { Invoke-E2EScenarioS12 }
+    'S13' { Invoke-E2EScenarioS13 }
     default { throw "Unknown scenario $Id" }
   }
 }

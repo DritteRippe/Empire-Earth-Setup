@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  Smoke test of the suite scenarios S1 to S11 (ci\e2e\e2e_suite_scenarios.ps1) against a FAKE Windows: no installer runs.
+  Smoke test of the suite scenarios S1 to S13 (ci\e2e\e2e_suite_scenarios.ps1) against a FAKE Windows: no installer runs.
 
 .DESCRIPTION
   The scenarios read and write the registry, shortcuts, files and processes of a Windows runner. Here the glue
@@ -250,6 +250,7 @@ try {
     foreach ($id in $ordered) { $lines += "Pin check of the $id setup: $id`_Setup.exe matches (size, SHA-256)" }
     $step = 0
     $ok = @()
+    $cancelled = ''
     foreach ($id in $ordered) {
       $step++
       $p = Get-E2EProduct $id
@@ -263,21 +264,28 @@ try {
       if ($first -and (Get-E2ESwitchValue $rest 'TYPE') -ne 'compact') { $arguments += ' /TYPE=full' }
       $arguments += ' ' + ($rest -join ' ')
       $lines += "Product $id (step $step of $($ordered.Count), state $($state[$id])): C:\Users\x\AppData\Local\Temp\is-1.tmp\$id`_Setup.exe $arguments"
-      # /TestCancel (suite_run.iss): the first product setup is stopped before it installs anything, Setup ends with Abort
-      if ($tokens -contains '/TestCancel' -and $step -eq 1) {
+      # /TestCancel (suite_run.iss): the first product setup is stopped before it installs anything, Setup ends with Abort;
+      # /TestCancelNeoEE: the same for the second one, but a product that finished before makes the suite finish its own part
+      if ((($tokens -contains '/TestCancel') -and $step -eq 1) -or (($tokens -contains '/TestCancelNeoEE') -and $id -eq 'NeoEE')) {
         $lines += "Product ${id}: /TestCancel, the cancel is requested as if the user had answered the question with Yes"
         $lines += "Product ${id}: cancelled by the user before it installed anything, stopping its setup and everything it started"
         $lines += "Product ${id}: its setup is gone"
         $lines += "Product $id was cancelled by the user before it installed anything"
-        $lines += 'Products that succeeded in this run: ""'
-        $lines += 'The installation was cancelled by the user: no further product setup is started, Setup ends'
         New-Item -ItemType Directory -Force -Path "$suiteRoot\Logs" | Out-Null
         Add-FakeLog "$suiteRoot\Logs\$id-20261005-1204.log" @('Log opened.')
-        if ($script:Bug -eq 'cancelinstalled') { Install-FakeProduct $id $false $tasks $null $false }
-        if ($script:Bug -eq 'cancelnext') { $lines += 'Product NeoEE (step 2 of 2, state 0): x\NeoEE_Setup.exe /VERYSILENT' }
-        Add-FakeLog $log $lines
-        if ($script:Bug -eq 'cancelexit0') { return 0 }
-        return 3
+        if ($ok.Count -eq 0 -or $script:Bug -eq 'cancel2abort') {
+          $lines += "Products that succeeded in this run: `"$($ok -join ',')`""
+          $lines += 'The installation was cancelled by the user: no further product setup is started, Setup ends'
+          if ($script:Bug -eq 'cancelinstalled') { Install-FakeProduct $id $false $tasks $null $false }
+          if ($script:Bug -eq 'cancelnext') { $lines += 'Product NeoEE (step 2 of 2, state 0): x\NeoEE_Setup.exe /VERYSILENT' }
+          # the defect of a cancel after the install step began: the install state of a repair is gone
+          if ($script:Bug -eq 'repairkilled') { Remove-Item -LiteralPath (Join-Path (Join-Path (Get-E2ESuiteProductRoots)[$id] $p.SetupDataDir) 'install.ini') -Force }
+          Add-FakeLog $log $lines
+          if ($script:Bug -eq 'cancelexit0') { return 0 }
+          return 3
+        }
+        $cancelled = $id
+        break
       }
       # what the suite read from the product log (SuiteLookAtLog, S4): the phases of a placeholder setup in the order of its log
       $phases = @('install (200 of 1000)', 'post install (840 of 1000)', 'manifest (900 of 1000)', 'done (1000 of 1000)')
@@ -302,6 +310,7 @@ try {
       }
     }
     $lines += "Products that succeeded in this run: `"$($ok -join ',')`""
+    if ($cancelled) { $lines += "The installation of $cancelled was cancelled by the user: no further product setup is started, the suite finishes its own part for `"$($ok -join ',')`"" }
     # the files of the suite
     foreach ($name in @($E2ESuiteConst.LauncherExe, ($E2ESuiteConst.LauncherExe + '.config'), $E2ESuiteConst.ModCreatorExe, 'Lizenzen\LICENSE', 'unins000.exe', 'unins000.dat')) {
       $file = Join-Path $suiteRoot $name
@@ -424,7 +433,7 @@ try {
   Check 'the summary of a good run' (ConvertTo-E2ESuiteSummary -JsonLines @(Get-Content -LiteralPath (Join-Path $env:E2E_REPORT 'results.jsonl') | ForEach-Object { $_ } | Where-Object { $_ -notlike '*"Prepare"*' } | ForEach-Object { $_ }) -Scenarios @() -Titles $E2ESuiteTitles).Failed $false
   $all = @(Get-Content -LiteralPath (Join-Path $env:E2E_REPORT 'results.jsonl') | Where-Object { $_ })
   $withDone = @($all) + @($E2ESuiteConst.Scenarios | ForEach-Object { '{"scenario":"' + $_ + '","check":"DONE","status":"INFO","details":[]}' })
-  Check 'the summary: eleven scenarios PASS' ((ConvertTo-E2ESuiteSummary -JsonLines $withDone -Scenarios $E2ESuiteConst.Scenarios -Titles $E2ESuiteTitles).Lines | Where-Object { $_ -like 'PASS *' }).Count 11
+  Check 'the summary: thirteen scenarios PASS' ((ConvertTo-E2ESuiteSummary -JsonLines $withDone -Scenarios $E2ESuiteConst.Scenarios -Titles $E2ESuiteTitles).Lines | Where-Object { $_ -like 'PASS *' }).Count 13
 
   # --- The checks bite: a defect of the fake must fail the check that is meant to catch it ------------------------------------
   $defects = @(
@@ -440,6 +449,8 @@ try {
     @{ Bug = 'cancelinstalled'; Scenario = 'S11'; Check = 'cancel/NOTHING' },
     @{ Bug = 'cancelnext'; Scenario = 'S11'; Check = 'cancel/STOP' },
     @{ Bug = 'cancelexit0'; Scenario = 'S11'; Check = 'cancel/RUN' },
+    @{ Bug = 'cancel2abort'; Scenario = 'S12'; Check = 'cancel/RUN' },
+    @{ Bug = 'repairkilled'; Scenario = 'S13'; Check = 'repair-cancel/UNCHANGED' },
     @{ Bug = 'phaseback'; Scenario = 'S1'; Check = 'install/LOG' },
     @{ Bug = 'phasenoend'; Scenario = 'S1'; Check = 'install/LOG' }
   )

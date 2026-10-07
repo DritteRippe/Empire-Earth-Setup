@@ -1,4 +1,4 @@
-# Pure helpers of the end-to-end scenarios S1 to S11 of the suite installer (suite/suite.iss, ADR 0013), run by
+# Pure helpers of the end-to-end scenarios S1 to S13 of the suite installer (suite/suite.iss, ADR 0013), run by
 # ci/e2e/run_e2e_suite.ps1 in the job suite-e2e of .github/workflows/build.yml with the PLACEHOLDER builds (dummy
 # AppIds, stub launcher, no game data, no official download). Like e2e_helpers.ps1 nothing here touches the
 # registry, the network or a process: constants, the command lines of the suite and of its child setups and the
@@ -54,7 +54,7 @@ $E2ESuiteConst = @{
   # components (a /TYPE would replace them by the components of that type, without the choice of the GPU page)
   RepairEEArgs    = '/TASKS=compatibility,compatibility_windows'
   RepairNeoEEArgs = '/TASKS=compatibility,compatibility_windows /MERGETASKS=!neoee_cdkeys,!certinclude,!directplay,!dxwebsetup'
-  Scenarios = @('S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8', 'S9', 'S10', 'S11')
+  Scenarios = @('S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8', 'S9', 'S10', 'S11', 'S12', 'S13')
 }
 
 $E2ESuiteTitles = @{
@@ -70,6 +70,8 @@ $E2ESuiteTitles = @{
   S9  = 'Second run as a repair: roots and tasks kept, no CD key task, shortcuts restored'
   S10 = 'Zone.Identifier on the package files does not change the chain'
   S11 = 'Cancel while the first product setup runs: it is stopped before it installs anything (exit code 3)'
+  S12 = 'Cancel while the second product setup runs: the suite finishes its part for the first one (exit code 0)'
+  S13 = 'Cancel of a repair: the installed product stays exactly as it was (exit code 3)'
 }
 
 # The shortcut names of the suite (contract 1.7 point 8) and the product they start
@@ -91,7 +93,8 @@ function Split-E2ECommandLine([string]$Text) {
 
 # The switches of a silent run of the suite. The value of /EEArgs= and /NeoEEArgs= is quoted as a whole: Setup
 # removes the quotes ({param:EEArgs|}), so the product setups get the arguments with their blanks. ExtraSwitches go
-# last (S11: /TestCancel, which cancels the first product setup as soon as its real setup has opened its log).
+# last (S11, S13: /TestCancel, which cancels the first product setup as soon as its real setup has opened its log; S12:
+# /TestCancelNeoEE, which does the same for the second).
 function New-E2ESuiteArguments {
   param(
     [Parameter(Mandatory = $true)][string]$LogFile,

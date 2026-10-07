@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  Tests of ci\e2e\e2e_suite_helpers.ps1, the rules of the suite end-to-end scenarios S1 to S11, with fake data.
+  Tests of ci\e2e\e2e_suite_helpers.ps1, the rules of the suite end-to-end scenarios S1 to S13, with fake data.
 
 .DESCRIPTION
   The command lines of the suite and of the product setups it runs (valid ones must pass, each kind of defect must be
@@ -68,6 +68,10 @@ $cancel = @(New-E2ESuiteArguments -LogFile $log -Products 'EE,NeoEE' -EEArgs $ee
 Check 'suite arguments: /TestCancel is the last switch' $cancel[-1] '/TestCancel'
 Check 'suite arguments: /TestCancel changes nothing else' (($cancel | Select-Object -First ($cancel.Count - 1)) -join ' ') ($switches -join ' ')
 CheckProblems 'suite arguments: /TestCancel passes the rules' (Get-E2ESuiteArgumentProblems $cancel) ''
+# S12: /TestCancelNeoEE cancels the second product setup
+$cancelSecond = @(New-E2ESuiteArguments -LogFile $log -Products 'EE,NeoEE' -EEArgs $ee -NeoEEArgs $neo -ExtraSwitches @('/TestCancelNeoEE'))
+Check 'suite arguments: /TestCancelNeoEE is the last switch' $cancelSecond[-1] '/TestCancelNeoEE'
+CheckProblems 'suite arguments: /TestCancelNeoEE passes the rules' (Get-E2ESuiteArgumentProblems $cancelSecond) ''
 Check 'the code of a cancel' $E2ESuiteConst.ExitCancelled 3
 Check 'the default NeoEE arguments decide against the CD key task' (@(Split-E2EList (Get-E2ESwitchValue (Split-E2ECommandLine $neo) 'MERGETASKS')) -contains '!neoee_cdkeys') $true
 
@@ -248,7 +252,7 @@ $result = ConvertTo-E2ESuiteSummary -JsonLines @((Json 'S1' 'DONE' 'INFO')) -Sce
 Check 'summary: no check passed' $result.Failed $true
 
 # --- The scenarios and their titles ---------------------------------------------------------------------------------------------------
-Check 'scenarios: eleven' $E2ESuiteConst.Scenarios.Count 11
+Check 'scenarios: thirteen' $E2ESuiteConst.Scenarios.Count 13
 foreach ($id in $E2ESuiteConst.Scenarios) { Check "title of $id" ($E2ESuiteTitles.ContainsKey($id) -and $E2ESuiteTitles[$id].Length -gt 10) $true }
 Check 'the AppIds are the dummies of ci/build.ps1' ($E2ESuiteConst.ProductAppIds['EE'] + '|' + $E2ESuiteConst.ProductAppIds['NeoEE'] + '|' + $E2ESuiteConst.SuiteAppId) `
   '00000000-0000-0000-0000-0000000000EE|00000000-0000-0000-0000-000000000AEE|00000000-0000-0000-0000-0000000005EE'

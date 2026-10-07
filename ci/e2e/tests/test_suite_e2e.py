@@ -15,7 +15,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 E2E = os.path.dirname(HERE)
 REPO = os.path.dirname(os.path.dirname(E2E))
 WORKFLOW = os.path.join(REPO, ".github", "workflows", "build.yml")
-SCENARIO_IDS = ["S%d" % n for n in range(1, 12)]
+SCENARIO_IDS = ["S%d" % n for n in range(1, 14)]
 
 
 def read(*parts):
@@ -63,7 +63,7 @@ def workflow_problems(workflow):
         problems.append("the step Upload the logs must always run")
     # the time limits: budget < step < job
     budget = re.search(r"-BudgetMinutes (\d+)", job)
-    step = step_timeout(job, "Scenarios S1 to S11")
+    step = step_timeout(job, "Scenarios S1 to S13")
     total = re.search(r"^    timeout-minutes: (\d+)$", job, re.M)
     if not budget or step is None or not total:
         problems.append("suite-e2e needs -BudgetMinutes, a timeout of the scenario step and a timeout of the job")
@@ -85,7 +85,7 @@ def workflow_problems(workflow):
     build = compile_job.find("- name: Build\n")
     if stub < 0 or build < 0 or stub > build:
         problems.append("compile must build the stand-in of EEStatsSetup.dll (build_eestats_stub.ps1) before the step Build")
-    # S1 to S11 check the game program of each product (S9 deletes it and expects the repair to bring it back)
+    # S1 to S13 check the game program of each product (S9 deletes it and expects the repair to bring it back)
     for folder in ("data/Empire Earth Base/Empire Earth", "data/NeoEE Base/Empire Earth"):
         seeded = compile_job.find("'%s'" % folder)
         if seeded < 0 or build < 0 or seeded > build or "'Empire Earth.exe'" not in compile_job:
@@ -97,11 +97,11 @@ def workflow_problems(workflow):
 
 
 def script_problems(helpers, runner, scenarios, titles_source):
-    """The scripts: the eleven scenarios everywhere, the default arguments of the product setups."""
+    """The scripts: the thirteen scenarios everywhere, the default arguments of the product setups."""
     problems = []
     listed = re.search(r"Scenarios = @\(([^)]*)\)", helpers)
     if not listed or re.findall(r"'(S\d+)'", listed.group(1)) != SCENARIO_IDS:
-        problems.append("e2e_suite_helpers.ps1: Scenarios must list S1 to S11 in order")
+        problems.append("e2e_suite_helpers.ps1: Scenarios must list S1 to S13 in order")
     for sid in SCENARIO_IDS:
         if not re.search(r"^  %s\s+= '" % sid, helpers, re.M):
             problems.append("e2e_suite_helpers.ps1: no title for %s" % sid)
