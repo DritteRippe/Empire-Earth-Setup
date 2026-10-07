@@ -790,11 +790,12 @@ function Invoke-E2EScenarioS8 {
     $run = Invoke-E2ESuiteInstall $s 'install' $env:E2E_SUITE 'EE,NeoEE' $false
     if (-not $run.Ok) { return }
     $roots = Get-E2ESuiteProductRoots
-    # what a player has: saved games in both products, the settings, the log and a backup of the launcher
+    # what a player has: saved games and a self-made mod (Data\dxm\mods, M1) in both products, the settings, the log and a backup of the launcher
+    $userData = @('Empire Earth\Data\Saved Games\ci-save.sav', 'Empire Earth\Data\dxm\mods\ci-mod\CREDITS')
     $keep = @{}
-    foreach ($id in @('EE', 'NeoEE')) { $keep[$id] = Join-Path $roots[$id] 'Empire Earth\Data\Saved Games\ci-save.sav' }
+    foreach ($id in @('EE', 'NeoEE')) { $keep[$id] = @($userData | ForEach-Object { Join-Path $roots[$id] $_ }) }
     $data = Get-E2ELauncherDataDir
-    $files = @($keep['EE'], $keep['NeoEE'], (Join-Path $data 'Backups\ci-backup.reg'), (Join-Path $data 'settings.json'), (Join-Path $data 'log.txt'))
+    $files = @($keep['EE']) + @($keep['NeoEE']) + @((Join-Path $data 'Backups\ci-backup.reg'), (Join-Path $data 'settings.json'), (Join-Path $data 'log.txt'))
     foreach ($file in $files) {
       New-Item -ItemType Directory -Force -Path (Split-Path -Parent $file) | Out-Null
       [System.IO.File]::WriteAllText($file, "ci data $file", (New-Object System.Text.UTF8Encoding($false)))
@@ -808,16 +809,18 @@ function Invoke-E2EScenarioS8 {
 
     $un = Invoke-E2ESuiteUninstall $s 'suite-uninstall'
     $problems = @($un.Problems)
+    $patterns = @($userData | ForEach-Object { '^' + [regex]::Escape($_) + '$' })
     foreach ($id in @('EE', 'NeoEE')) {
-      $pattern = '^' + [regex]::Escape('Empire Earth\Data\Saved Games\ci-save.sav') + '$'
-      $problems += @(Test-E2EProductRemoved $id $roots[$id] @($pattern))
-      if (-not (Test-Path -LiteralPath $keep[$id] -PathType Leaf)) { $problems += "the saved game of $id is gone" }
-      elseif ([System.IO.File]::ReadAllText($keep[$id]) -cne "ci data $($keep[$id])") { $problems += "the saved game of $id changed" }
+      $problems += @(Test-E2EProductRemoved $id $roots[$id] $patterns)
+      foreach ($path in $keep[$id]) {
+        if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { $problems += "${id}: $path (user data) is gone" }
+        elseif ([System.IO.File]::ReadAllText($path) -cne "ci data $path") { $problems += "${id}: $path (user data) changed" }
+      }
     }
     $problems += @(Test-E2ESuiteRemoved)
     if (-not (Test-Path -LiteralPath (Join-Path $data 'Backups\ci-backup.reg') -PathType Leaf)) { $problems += 'the backup of the launcher is gone (a silent uninstallation keeps the user data)' }
     $problems += @(Test-E2ELogLines -Lines $un.LogLines -Contains @('Silent uninstallation: the user data stays:') -NotContains @('User data folder deleted'))
-    [void](Complete-E2ECheck $s 'suite-uninstall/REMOVED' $problems 'both products, the launcher, the shortcuts, the record and the defaults in HKCU are gone; saved games and backups stay')
+    [void](Complete-E2ECheck $s 'suite-uninstall/REMOVED' $problems 'both products, the launcher, the shortcuts, the record and the defaults in HKCU are gone; saved games, self-made mods and backups stay')
     Test-E2EMachineSnapshot $s 'suite-uninstall'
   } finally {
     Invoke-E2ESuiteCleanup $s
@@ -858,6 +861,14 @@ function Invoke-E2EScenarioS9 {
     }
     if (-not (Complete-E2ECheck $s 'install/STATE' $problems 'both products installed, no neoee_cdkeys in the tasks')) { return }
 
+    # a self-made mod folder below Data\dxm\mods in both products: the repair must leave it as it is (M1)
+    $mods = @{}
+    foreach ($id in $ids) {
+      $mods[$id] = Join-Path $roots[$id] 'Empire Earth\Data\dxm\mods\ci-mod\CREDITS'
+      New-Item -ItemType Directory -Force -Path (Split-Path -Parent $mods[$id]) | Out-Null
+      [System.IO.File]::WriteAllText($mods[$id], "ci mod $id", (New-Object System.Text.UTF8Encoding($false)))
+    }
+
     # damage: a game program is gone, two of the suite's shortcuts are gone
     $game = Join-Path (Join-Path $roots['EE'] $E2EGames['EE'].Folder) $E2EGames['EE'].Exe
     Remove-Item -LiteralPath $game -Force
@@ -885,6 +896,12 @@ function Invoke-E2EScenarioS9 {
         if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { $problems += "$path was not restored" }
       }
       [void](Complete-E2ECheck $s 'repair/KEPT' $problems 'the same folders, components and tasks (no neoee_cdkeys), the missing game program and the two shortcuts restored')
+      $problems = @()
+      foreach ($id in $ids) {
+        if (-not (Test-Path -LiteralPath $mods[$id] -PathType Leaf)) { $problems += "${id}: the self-made mod folder $($mods[$id]) is gone after the repair" }
+        elseif ([System.IO.File]::ReadAllText($mods[$id]) -cne "ci mod $id") { $problems += "${id}: the file of the self-made mod changed" }
+      }
+      [void](Complete-E2ECheck $s 'repair/MODS' $problems 'a folder below Data\dxm\mods that the player made is still there, unchanged (the setups delete only the presets they install)')
     }
   } finally {
     Invoke-E2ESuiteCleanup $s

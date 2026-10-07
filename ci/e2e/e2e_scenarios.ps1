@@ -27,7 +27,7 @@ function New-E2EContext([string]$Scenario, [string]$Step, [string]$ProductId, [s
   return @{
     Scenario = $Scenario; Step = $Step; Product = (Get-E2EProduct $ProductId); Mode = $Mode; Root = $Root
     Games = $Games; Language = $Language; Tasks = $null; RequiredComponents = @(); ForbiddenComponents = @('additional\telemetry')
-    Wrapper = ''; Components = @(); FirstInstall = $true; ManifestExact = $true; Settings = 'fresh'; SettingsKeep = @{}
+    Wrapper = ''; Components = @(); FirstInstall = $true; ManifestExact = $true; ManifestAllowed = @(); Settings = 'fresh'; SettingsKeep = @{}
     LogFile = (Join-Path $env:E2E_REPORT "logs\$Scenario-$Step.log"); LogLines = @()
     SetupBuild = $env:E2E_SETUP_BUILD; PinCount = [int]$env:E2E_PIN_COUNT; AssetMap = $script:AssetMap; Repo = $script:Repo; Manifest = @{}
   }
@@ -574,8 +574,18 @@ function Invoke-E2EScenarioD {
       [void](Complete-E2ECheck $s 'hardlink/LINK' $problems 'exit code 7, nothing changed, the linked file untouched')
     } finally { Remove-Item -LiteralPath $hardlink -Force -ErrorAction SilentlyContinue }
 
-    # D3: update without links and without the DirectX wrapper
+    # D3: update without links and without the DirectX wrapper. M1: a self-made mod folder below Data\dxm\mods must
+    # survive it, a file a player put into a preset folder goes with the folder, dreXmod.config is reset (K10)
+    $modFile = Join-Path $root 'Empire Earth\Data\dxm\mods\ci-mod\CREDITS'
+    $presetFile = Join-Path $root 'Empire Earth\Data\dxm\mods\yukon\ci-extra.txt'
+    $modPresets = @('drexmod.com', 'images', 'mods\dxm', 'mods\energycube', 'mods\template', 'mods\yukon')
+    foreach ($file in @($modFile, $presetFile)) {
+      New-Item -ItemType Directory -Force -Path (Split-Path -Parent $file) | Out-Null
+      [System.IO.File]::WriteAllText($file, 'ci mod', [System.Text.Encoding]::ASCII)
+    }
+    Add-Content -LiteralPath (Join-Path $root 'Empire Earth\dreXmod.config') -Value '<!-- ci -->' -Encoding Ascii
     $d3 = Copy-E2EContext $base 'update'
+    $d3.ManifestAllowed = @('^Empire Earth/Data/dxm/mods/ci-mod/')
     $d3.Tasks = $ExactTasksAdmin
     $d3.RequiredComponents = @('game', 'language\update') + $CompactAddOns
     $d3.ForbiddenComponents = @('additional\telemetry', 'gameaoc')
@@ -583,14 +593,42 @@ function Invoke-E2EScenarioD {
     $components = 'game,additional\drexmod\v3,additional\discord,additional\tools\diagnostic,additional\civs\ec,language\en,language\update'
     if (Invoke-E2ESetupStep $d3 @('/ALLUSERS', '/LANG=en', "/COMPONENTS=`"$components`"", $UpdateMergeTasks)) {
       Invoke-E2EInstalledChecks $d3
+      $problems = @()
+      if (-not (Test-Path -LiteralPath $modFile -PathType Leaf)) { $problems += "$modFile (a self-made mod) is gone" }
+      elseif ([System.IO.File]::ReadAllText($modFile) -cne 'ci mod') { $problems += "$modFile changed" }
+      if (Test-Path -LiteralPath $presetFile) { $problems += "$presetFile still exists: the preset folder was not reset" }
+      foreach ($preset in $modPresets) {
+        if (-not (Test-Path -LiteralPath (Join-Path $root "Empire Earth\Data\dxm\$preset") -PathType Container)) { $problems += "Data\dxm\$preset is missing after the update" }
+      }
+      [void](Complete-E2ECheck $s 'update/MODS' $problems 'the self-made mod kept, the preset folders installed again without the foreign file, dreXmod.config reset (K10)')
       $installation = Get-E2ELauncherInstallation $d3
       Invoke-E2ELauncherCheck $s 'update' (New-E2ELauncherExpectation -Scenario $s -Step 'update' -Installations @($installation) -SelectedRoot $root)
+
+      # D4 (M1): dreXmod 3 to 2 removes the folders the setup installed for dreXmod 3 and nothing else
+      $d4 = Copy-E2EContext $d3 'drexmod-v2'
+      $d4.RequiredComponents = @('game', 'language\update', 'additional\drexmod\v2', 'additional\discord', 'additional\tools\diagnostic', 'additional\civs\ec')
+      $d4.ForbiddenComponents = @('additional\telemetry', 'gameaoc', 'additional\drexmod\v3')
+      $componentsV2 = 'game,additional\drexmod\v2,additional\discord,additional\tools\diagnostic,additional\civs\ec,language\en,language\update'
+      if (Invoke-E2ESetupStep $d4 @('/ALLUSERS', '/LANG=en', "/COMPONENTS=`"$componentsV2`"", $UpdateMergeTasks)) {
+        Invoke-E2EInstalledChecks $d4
+        $problems = @()
+        foreach ($preset in $modPresets) {
+          if (Test-Path -LiteralPath (Join-Path $root "Empire Earth\Data\dxm\$preset")) { $problems += "Data\dxm\$preset still exists after the change to dreXmod 2" }
+        }
+        if (-not (Test-Path -LiteralPath $modFile -PathType Leaf)) { $problems += "$modFile (a self-made mod) is gone" }
+        elseif ([System.IO.File]::ReadAllText($modFile) -cne 'ci mod') { $problems += "$modFile changed" }
+        $dll = Join-Path $root 'Empire Earth\dreXmod.dll'
+        if (-not (Test-Path -LiteralPath $dll)) { $problems += 'dreXmod.dll is missing' }
+        elseif ((Get-E2EFileSha1 $dll) -cne (Get-E2EMapSha1 $d4.AssetMap 'data\Add-on\DLLs\dreXmod\2_privacy\dreXmod.dll')) { $problems += 'dreXmod.dll is not the privacy build of dreXmod 2' }
+        [void](Complete-E2ECheck $s 'drexmod-v2/MODS' $problems 'the preset folders of dreXmod 3 removed, the self-made mod kept, dreXmod 2 installed')
+      }
     }
   } finally {
     Remove-Item -LiteralPath $LinkFolder -Recurse -Force -ErrorAction SilentlyContinue
   }
   $u = Copy-E2EContext $base 'uninstall'
-  Invoke-E2EUninstallChecks $u
+  # the self-made mod of D3 stays (the product uninstaller leaves what a player made below Data\dxm\mods)
+  Invoke-E2EUninstallChecks $u @('^Empire Earth\\Data\\dxm\\mods\\ci-mod\\CREDITS$')
   Invoke-E2ELauncherUninstalled $u
   Remove-Item -LiteralPath $TestFolder -Recurse -Force -ErrorAction SilentlyContinue
 }

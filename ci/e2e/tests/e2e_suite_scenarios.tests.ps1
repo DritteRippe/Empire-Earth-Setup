@@ -195,6 +195,8 @@ try {
       Set-FakeShortcut (Join-Path $group "$($p.AppName) Diagnostic.lnk") (Join-Path $root 'Tools\Diagnostic\EE-Diagnostic.exe') ('{' + $p.AppId + '}_is1')
     }
     if ($LogFile -and (Test-Path -LiteralPath $LogFile)) { Remove-Item -LiteralPath $LogFile -Force }
+    # the defect of setups up to M1: the whole Data\dxm folder is deleted on every run
+    if ($Repair -and $script:Bug -eq 'delmods' -and (Test-Path -LiteralPath (Join-Path $root 'Empire Earth\Data\dxm'))) { Remove-Item -LiteralPath (Join-Path $root 'Empire Earth\Data\dxm') -Recurse -Force }
     $lines = @('Installation process succeeded.', 'English language selected, no need to download online files.')
     if ($Repair) { $lines += "Will append to existing uninstall log: $root\unins000.dat" } else { $lines += "Creating new uninstall log: $root\unins000.dat" }
     Add-FakeLog $LogFile $lines
@@ -207,7 +209,7 @@ try {
     Remove-E2ERegTree 'HKCU' "$($E2EConst.CommunityKey)\GameDefaults\$Id"
     Remove-E2ERegTree 'HKCU' $p.SettingsKeys['EE']
     if (Test-Path -LiteralPath $root) {
-      $keep = [regex]::Escape((Join-Path $root 'Empire Earth\Data\Saved Games'))
+      $keep = [regex]::Escape((Join-Path $root 'Empire Earth\Data')) + '[\\/](Saved Games|dxm[\\/]mods)[\\/]'
       foreach ($file in @(Get-ChildItem -LiteralPath $root -Recurse -File | Where-Object { $_.FullName -notmatch ('^' + $keep) })) { Remove-Item -LiteralPath $file.FullName -Force }
       foreach ($dir in @(Get-ChildItem -LiteralPath $root -Recurse -Directory | Sort-Object { $_.FullName.Length } -Descending)) {
         if (@(Get-ChildItem -LiteralPath $dir.FullName -Force).Count -eq 0) { Remove-Item -LiteralPath $dir.FullName -Force }
@@ -434,6 +436,7 @@ try {
     @{ Bug = 'cdkeys'; Scenario = 'S1'; Check = 'install/K9' },
     @{ Bug = 'nomarker'; Scenario = 'S1'; Check = 'install/REC' },
     @{ Bug = 'nomarker'; Scenario = 'S9'; Check = 'repair/REC' },
+    @{ Bug = 'delmods'; Scenario = 'S9'; Check = 'repair/MODS' },
     @{ Bug = 'cancelinstalled'; Scenario = 'S11'; Check = 'cancel/NOTHING' },
     @{ Bug = 'cancelnext'; Scenario = 'S11'; Check = 'cancel/STOP' },
     @{ Bug = 'cancelexit0'; Scenario = 'S11'; Check = 'cancel/RUN' },

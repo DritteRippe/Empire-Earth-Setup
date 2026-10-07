@@ -13,6 +13,8 @@
 #   Required/ForbiddenComponents, Wrapper (component or ''), Components (set by K2)
 #   FirstInstall       a first installation (else an update or repair)
 #   ManifestExact      every file below the root is in the manifest (else: manifest within the tree)
+#   ManifestAllowed    patterns of the files below the root (relative, '/') that need not be in the manifest
+#                      although ManifestExact is set: user data a scenario created (a self-made mod)
 #   Settings           fresh | keep (game settings of a first installation, or an update over values
 #                      the player changed: SettingsKeep lists the names whose value must stay)
 #   LogLines           the setup log without time stamps
@@ -143,8 +145,9 @@ function Test-E2EK4Manifest([hashtable]$Ctx) {
     Where-Object { $_ -notlike "$($p.SetupDataDir)/*" -and $_ -ne 'unins000.exe' -and $_ -ne 'unins000.dat' })
   $diff = Compare-E2ESets @($parsed.Entries | ForEach-Object { $_.Path }) $tree
   if ($diff.Missing.Count -gt 0) { $problems += "in the manifest but not below the root: $(($diff.Missing | Select-Object -First 5) -join ', ')" }
-  if ($Ctx.ManifestExact -and $diff.Extra.Count -gt 0) {
-    $problems += "$($diff.Extra.Count) file(s) below the root not in the manifest: $(($diff.Extra | Select-Object -First 5) -join ', ')"
+  $unlisted = @($diff.Extra | Where-Object { $rel = $_; @($Ctx.ManifestAllowed | Where-Object { $_ -and $rel -match $_ }).Count -eq 0 })
+  if ($Ctx.ManifestExact -and $unlisted.Count -gt 0) {
+    $problems += "$($unlisted.Count) file(s) below the root not in the manifest: $(($unlisted | Select-Object -First 5) -join ', ')"
   }
   $wrote = @(Select-E2ELogLines $Ctx.LogLines ('^Wrote ' + [regex]::Escape($file) + ' \((\d+) files, 0 missing\)$'))
   if ($wrote.Count -ne 1) { $problems += "log line 'Wrote $file (<n> files, 0 missing)' missing" }
