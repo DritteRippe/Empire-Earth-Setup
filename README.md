@@ -327,11 +327,11 @@ fork (`LAUNCHER_REPOSITORY`), moved on purpose by a commit here; the job refuses
 hex digits, and any commit that is not on `LAUNCHER_BRANCH` of the fork. No branch, tag or pull request ref is checked
 out: the launcher code runs as administrator next to the game data, and a run must be reproducible.
 
-**Caches.** The two caches (official setups, innoextract) belong to the branch or pull request that created them. A
+**Caches.** The three caches (official setups, dgVoodoo archive, innoextract) belong to the branch or pull request that created them. A
 pull request run finds those of the pull request itself, of its base branch and of the default branch, not those of
 another branch: a dispatch on `v2` does not help a pull request from `v2` into `master`. Before the workflow is merged,
 the first run of each pull request therefore downloads both official setups again from `r2.empireearth.eu` (about
-1.25 GB) and builds innoextract; its later runs use the caches of the pull request. After the merge, start the workflow
+1.25 GB) and the dgVoodoo archive (about 9 MB) and builds innoextract; its later runs use the caches of the pull request. After the merge, start the workflow
 once by hand on the default branch, then every pull request finds the caches. GitHub deletes a cache that was not used
 for 7 days; the next run downloads again.
 
@@ -341,8 +341,13 @@ What the job does, in this order:
    `r2.empireearth.eu`, public downloads), checks their SHA-256 in every run and keeps them unchanged in the Actions cache.
 2. **innoextract 1.10-dev** (1.9 cannot read Inno Setup 6.2.2 setups; there is no Windows binary of 1.10-dev): built from
    a pinned commit with MSYS2/MinGW as a static `innoextract.exe` (only system DLLs, checked with `objdump`) and cached.
+   **dgVoodoo archive**: the third public download, the official `dgVoodoo2_87_5.zip`. Its URL, SHA-256 and size are those
+   of `pins/dgvoodoo.txt` (nothing of it is repeated in the workflow), it is cached by its SHA-256, verified in every run and
+   extracted below `E2E_ROOT`; the three dgVoodoo files in the map have the origin `download:dgvoodoo-<version>`. The five
+   configurations are not assets: they are in `config/dgVoodoo` and compared with the installed ones by check K10.
 3. **Assets**: extracts both setups, decompresses their setup headers (`ci/e2e/inno_headers.py`, the wizard bitmaps are
-   stored there) and puts every file the v2 build reads at its source path (`ci/e2e/place_assets.py`). Which file goes
+   stored there) and puts every file the v2 build reads at its source path (`ci/e2e/place_assets.py`, with `--download` for
+   the dgVoodoo archive). Which file goes
    where comes from the committed, data-free map `ci/e2e/assets-map.tsv`: one row per file (path, size, SHA-1, last write
    time, product, origin) and per empty folder, no content. Every placed file is checked again (size, SHA-1, time), and the
    asset folders may hold nothing else.
@@ -370,7 +375,7 @@ What the job does, in this order:
    | A | EE for all users, German, type full: the only run with downloads (the mirror is unblocked only while this setup runs; the main server stays blocked, so the way "main server unusable, mirror" is tested); checks, launcher checks (installing account, then a fresh account), uninstallation |
    | B | NeoEE for the current user, English, without the CD key task; a repair with a junction in `Data` (no link check in the user mode); uninstallation |
    | E | EE for all users into `C:\EE CI\Custom Root` next to traces of a foreign installation (an HKLM key of an old NeoEE installer, `C:\Sierra\Empire Earth`, a GOG uninstall entry pointing into the chosen folder, two entries that must not count) |
-   | D | On E: a junction in `Data` and a hard link in `Users` stop the update with exit code 7 and change nothing; then an update without the DirectX wrapper (a self-made mod folder below `Data\dxm\mods` stays, a foreign file in a preset folder and the changed `dreXmod.config` are reset), a change from dreXmod 3 to 2 (only the preset folders go); uninstallation (the self-made mod stays) |
+   | D | On E: a junction in `Data` and a hard link in `Users` stop the update with exit code 7 and change nothing; then an update without the DirectX wrapper (a self-made mod folder below `Data\dxm\mods` stays, a foreign file in a preset folder and the changed `dreXmod.config` are reset), a change from dreXmod 3 to 2 (only the preset folders go), an update to dreXmod 3 with the dgVoodoo level "DirectX 11 API-Level 11" (D5: the three pinned dgVoodoo files and `config/dgVoodoo/dgVoodoo_DX11_LVL11.conf` byte for byte); uninstallation (the self-made mod stays) |
    | C | The official EE setup 1.7.2, v2 over it (components, tasks, the player's game settings by class, the old per-user `RUNASADMIN`, the random map folders), 1.7.2 again (the uninstall key loses the contract version), v2 again, damage as the launcher sees it (a modified data file, a missing code file, a missing program), repair, uninstallation |
 
    After every run the checks of the contract: K1 install record (1.1), K2 `install.ini`, components and tasks (1.2),
@@ -396,8 +401,8 @@ the mirror); the official setups only from the cache or `r2.empireearth.eu` befo
 **Legal note: no game data leaves the runner.** The extracted files, the placed asset folders, the built installers and
 the installations exist only in the job workspace and the temporary folder of the runner and are deleted at the end of the
 job (GitHub discards the runner anyway). They are never committed, cached, uploaded or printed: innoextract runs with `-q`,
-the scripts print counts, paths and check results only, and every hash in the report is replaced by `<hash>`. Only two
-caches exist, the unchanged official setups (public downloads) and `innoextract.exe`, each saved explicitly by path. The
+the scripts print counts, paths and check results only, and every hash in the report is replaced by `<hash>`. Only three
+caches exist, the unchanged official setups and the unchanged dgVoodoo archive (public downloads) and `innoextract.exe`, each saved explicitly by path. The
 only upload is the report folder (`e2e-realdata-report`: setup logs, launcher results, the expectation files, the report);
 `ci/e2e/guard_upload.py` refuses it unless it is a separate folder holding at most 400 text files of at most 8 MB each and
 64 MB together, none a link, none with the signature of a binary file and none with the SHA-1 of a file of the map. The map
@@ -423,7 +428,9 @@ complete asset folders of a real-data build (e.g. `ci/e2e/place_assets.py` with 
 `ci\build.ps1 -DownloadHashesOnly` there and preprocess `EE/Regular` and `NeoEE/Regular` (`ci\build.ps1 ... -KeepPreprocessed pp`),
 then `python ci/e2e/gen_map.py --assets <folder> --pp EE=pp\EE_Regular.iss --pp NeoEE=pp\NeoEE_Regular.iss --extract
 EE=x\EE NeoEE=x\NeoEE --headers EE=hd\EE NeoEE=hd\NeoEE --out ci/e2e/assets-map.tsv`. It fails if a file the build reads is
-not in one of the official setups (then the job cannot place it). Commit only the map, never the folders.
+not in one of the official setups or in a folder given with `--download <name>=<folder>` (the extracted dgVoodoo archive; then
+the job cannot place it). Set the times of the files of such a download to those of the archive first. Commit only the map,
+never the folders.
 
 ### End-to-end test of the suite installer
 The job `suite-e2e` of `.github/workflows/build.yml` runs after the job `compile` and installs, repairs and uninstalls the **suite installer** ([ADR 0013](docs/adr/0013-suite-installer.md)) with the placeholder builds on a GitHub-hosted Windows runner (thrown away after the job). It needs **no download** at all (the official setups of the real-data test and `r2.empireearth.eu`, which blocks GitHub runners, are not involved) and no game data: `compile` builds the placeholder product setups, the placeholder suite (`suite\build_suite.ps1 -Placeholders`), the same suite with a wrong pin of the EE setup (`-TestWrongEEPin`) and uploads them as the artifact `suite-e2e-inputs` (one day). `ci\e2e\run_e2e_suite.ps1 -Scenario All` (Windows PowerShell 5.1, ~1 hour; `-Scenario S3` runs one scenario after `Prepare`) reuses the rules and the Windows glue of the real-data test (`e2e_helpers.ps1`, `e2e_windows.ps1`: dirty state and cleanup between scenarios, process runner with time limits, shortcut reader, uninstaller runner); the suite scenarios are in `e2e_suite_scenarios.ps1`, their pure rules in `e2e_suite_helpers.ps1`.

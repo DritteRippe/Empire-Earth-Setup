@@ -6,11 +6,13 @@ Input:
     reads, with its path, size, SHA-1 and last write time, but no content;
   - the innoextract output of the official setups (innoextract -e --collisions=rename-all -d DIR);
   - their decompressed setup headers (ci/e2e/inno_headers.py, headers0.bin): the wizard images
-    are stored there, not as [Files] entries.
+    are stored there, not as [Files] entries;
+  - the extracted public downloads other than the official setups (--download NAME=DIR, origin
+    download:NAME in the map): today the dgVoodoo archive of pins/dgvoodoo.txt.
 
 Every file of the map is looked up by size and SHA-1 among the extracted files (names do not
-matter, so the collision renaming of innoextract is irrelevant) or among the bitmaps of the setup
-headers, copied to ROOT\\<path> and given the map's last write time (UTC, ISCC stores it in the
+matter, so the collision renaming of innoextract is irrelevant), among the files of its download
+folder or among the bitmaps of the setup headers, copied to ROOT\\<path> and given the map's last write time (UTC, ISCC stores it in the
 setup). Empty folders (kind dir, createallsubdirs) are created. Then everything is checked again:
 size, SHA-1 and time of every file, every empty folder, and no other file in the asset folders.
 Nothing is downloaded and no content is printed: the output only names counts and, on failure,
@@ -21,7 +23,7 @@ it). README.md, section "End-to-end test on Windows", describes the whole flow.
 
 Usage:
   place_assets.py --map assets-map.tsv --root REPO --extract EE=DIR NeoEE=DIR
-                  --headers EE=DIR NeoEE=DIR [--products EE NeoEE]
+                  --headers EE=DIR NeoEE=DIR [--download NAME=DIR ...] [--products EE NeoEE]
   place_assets.py --map assets-map.tsv --root REPO --verify-only [--products ...]
 Exit code 0: every selected file is in place with the expected size, SHA-1 and time, and the asset
 folders hold nothing else; 1: a problem (listed by map path); 2: wrong arguments.
@@ -30,6 +32,7 @@ import argparse
 import calendar
 import hashlib
 import os
+import re
 import shutil
 import struct
 import sys
@@ -111,8 +114,34 @@ def parse_pairs(items, what):
     return out
 
 
-def place(rows, root, extract, headers):
-    """Copies every file row from the extracted setups or the header bitmaps; returns problems."""
+def parse_downloads(items):
+    """{name: folder} of --download NAME=DIR (NAME: letters, digits, '.', '_' and '-', as in origin download:NAME)."""
+    out = {}
+    for item in items or []:
+        key, sep, value = item.partition("=")
+        if not sep or not value or not re.fullmatch(r"[A-Za-z0-9._-]+", key):
+            raise SystemExit(f"--download: expected NAME=<folder>, got {item!r}")
+        out[key] = value
+    return out
+
+
+def index_folder(folder, sizes, wanted, store, problems):
+    """Adds the files below folder whose size and SHA-1 are wanted to store; a missing folder is a problem."""
+    if not os.path.isdir(folder):
+        problems.append(f"extraction folder missing: {folder}")
+        return
+    for dirpath, _, names in os.walk(folder):
+        for name in names:
+            path = os.path.join(dirpath, name)
+            size = os.path.getsize(path)
+            if size in sizes:   # hash only what can match
+                key = (sha1_file(path), size)
+                if key in wanted:
+                    store.setdefault(key, path)
+
+
+def place(rows, root, extract, headers, downloads=None):
+    """Copies every file row from the extracted setups, the downloads or the header bitmaps; returns problems."""
     files = [r for r in rows if r["kind"] == "file"]
     dirs = [r for r in rows if r["kind"] == "dir"]
     problems = []
@@ -120,17 +149,11 @@ def place(rows, root, extract, headers):
     sizes = {size for _, size in wanted}
     store = {}
     for folder in extract.values():
-        if not os.path.isdir(folder):
-            problems.append(f"extraction folder missing: {folder}")
-            continue
-        for dirpath, _, names in os.walk(folder):
-            for name in names:
-                path = os.path.join(dirpath, name)
-                size = os.path.getsize(path)
-                if size in sizes:   # hash only what can match
-                    key = (sha1_file(path), size)
-                    if key in wanted:
-                        store.setdefault(key, path)
+        index_folder(folder, sizes, wanted, store, problems)
+    download_stores = {}
+    for name, folder in (downloads or {}).items():
+        download_stores[name] = {}
+        index_folder(folder, sizes, wanted, download_stores[name], problems)
     blobs = {}
     for folder in headers.values():
         headers0 = os.path.join(folder, "headers0.bin")
@@ -138,7 +161,7 @@ def place(rows, root, extract, headers):
             problems.append(f"setup header missing: {headers0}")
             continue
         blobs.update(header_bitmaps(headers0))
-    copied = from_header = 0
+    copied = from_header = from_download = 0
     for r in files:
         key = (r["sha1"], int(r["size"]))
         dst = local_path(root, r["path"])
@@ -146,6 +169,9 @@ def place(rows, root, extract, headers):
         if r["origin"].startswith("setup:") and key in store:
             shutil.copyfile(store[key], dst)
             copied += 1
+        elif r["origin"].startswith("download:") and key in download_stores.get(r["origin"][len("download:"):], {}):
+            shutil.copyfile(download_stores[r["origin"][len("download:"):]][key], dst)
+            from_download += 1
         elif r["origin"].startswith("header:") and key in blobs:
             with open(dst, "wb") as fh:
                 fh.write(blobs[key])
@@ -159,7 +185,7 @@ def place(rows, root, extract, headers):
     for r in dirs:
         os.makedirs(local_path(root, r["path"]), exist_ok=True)
     print(f"placed {copied} files from the setups, {from_header} from the setup headers, "
-          f"{len(dirs)} empty folders")
+          f"{from_download} from downloads, {len(dirs)} empty folders")
     return problems
 
 
@@ -201,6 +227,7 @@ def main(argv=None):
     ap.add_argument("--root", required=True, help="repository root (the asset folders are below it)")
     ap.add_argument("--extract", nargs="+", default=[], help="EE=<folder> NeoEE=<folder> (innoextract output)")
     ap.add_argument("--headers", nargs="+", default=[], help="EE=<folder> NeoEE=<folder> (with headers0.bin)")
+    ap.add_argument("--download", nargs="+", default=[], help="NAME=<folder> of an extracted download (origin download:NAME)")
     ap.add_argument("--products", nargs="+", default=["EE", "NeoEE"], choices=["EE", "NeoEE"])
     ap.add_argument("--verify-only", action="store_true", help="only check what is in place")
     a = ap.parse_args(argv)
@@ -214,7 +241,7 @@ def main(argv=None):
         headers = parse_pairs(a.headers, "headers")
         if not extract or not headers:
             ap.error("--extract and --headers are required unless --verify-only is given")
-        problems += place(rows, a.root, extract, headers)
+        problems += place(rows, a.root, extract, headers, parse_downloads(a.download))
     # Extra files only count when both products are selected: a single product reads a subset
     problems += verify(rows, all_rows, a.root, set(a.products) == {"EE", "NeoEE"})
     print(f"{'+'.join(a.products)}: {len(problems)} problem(s) in {time.time() - start:.0f} s")

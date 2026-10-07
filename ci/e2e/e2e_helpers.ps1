@@ -305,6 +305,13 @@ function Get-E2EGameWindowHeight([int]$Width, [int]$Height) {
   return $result
 }
 
+# The file name of the configuration in config\dgVoodoo for a dgVoodoo level component
+# (additional\directx_wrapper\dx11_lvl10_1 gives dgVoodoo_DX11_LVL10_1.conf), '' for any other component
+function Get-E2EDgVoodooConfName([string]$Component) {
+  if ($Component -cnotmatch '^additional\\directx_wrapper\\(dx(?:11|12)_lvl[0-9]+(?:_[0-9]+)?)$') { return '' }
+  return 'dgVoodoo_' + $Matches[1].ToUpperInvariant() + '.conf'
+}
+
 # The GPU option of a first installation from the log (pages.iss, RegisterGpuOptions):
 # @{ Vendor; LogName; Wrapper; Problems }. The runner's vendor is not known in advance, so the
 # expected wrapper follows the detected vendor.

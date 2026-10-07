@@ -284,6 +284,25 @@ function Test-E2EK10Files([hashtable]$Ctx) {
     } elseif (@($Ctx.Components | Where-Object { $_ -like 'additional\directx_wrapper\*' }).Count -eq 0 -and (Test-Path -LiteralPath $ddraw)) {
       $problems += "$folderName\DDraw.dll exists without a wrapper"
     }
+    # A dgVoodoo level (pins\dgvoodoo.txt, config\dgVoodoo): the three files of the pinned dgVoodoo (the control panel
+    # only on 64-bit Windows) and the configuration of the level, byte for byte as in the repository
+    $level = @($Ctx.Components | Where-Object { (Get-E2EDgVoodooConfName $_) -ne '' })
+    if ($level.Count -gt 0) {
+      $dgFiles = @('DDraw.dll', 'D3DImm.dll')
+      if ([Environment]::Is64BitOperatingSystem) { $dgFiles += 'dgVoodooCpl.exe' }
+      foreach ($name in $dgFiles) {
+        $file = Join-Path $folder $name
+        $want = Get-E2EMapSha1 $map "data\Add-on\DirectX_Wrapper\dgVoodoo_bin\$name"
+        if (-not (Test-Path -LiteralPath $file)) { $problems += "$folderName\$name missing (dgVoodoo)" }
+        elseif ((Get-E2EFileSha1 $file) -cne $want) { $problems += "$folderName\$name is not the pinned dgVoodoo file" }
+      }
+      $confName = Get-E2EDgVoodooConfName $level[0]
+      $confWant = Join-Path $Ctx.Repo "config\dgVoodoo\$confName"
+      $conf = Join-Path $folder 'dgVoodoo.conf'
+      if (-not (Test-Path -LiteralPath $confWant)) { $problems += "config\dgVoodoo\$confName missing in the repository" }
+      elseif (-not (Test-Path -LiteralPath $conf)) { $problems += "$folderName\dgVoodoo.conf missing" }
+      elseif ((Get-E2EFileSha1 $conf) -cne (Get-E2EFileSha1 $confWant)) { $problems += "$folderName\dgVoodoo.conf is not config\dgVoodoo\$confName" }
+    }
     if ($p.Id -eq 'NeoEE') {
       if (-not (Test-Path -LiteralPath (Join-Path $folder 'neoee.dll'))) { $problems += "$folderName\neoee.dll missing" }
       if (Test-Path -LiteralPath (Join-Path $folder '_wonkver.pub')) { $problems += "$folderName\_wonkver.pub exists (deleteafterinstall)" }

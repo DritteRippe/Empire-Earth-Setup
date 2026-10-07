@@ -1,7 +1,8 @@
 # Real-data end-to-end test of the v2 setups on a GitHub-hosted Windows runner (README.md, "End-to-end
 # test on Windows"; docs/TEST-PLAN.de.md, section 12).
 #
-# The job downloads the two OFFICIAL setups 1.7.2 (public downloads, cached unchanged), extracts them
+# The job downloads the two OFFICIAL setups 1.7.2 and the pinned dgVoodoo archive (public downloads,
+# cached unchanged; the URL, SHA-256 and size of the archive are those of pins/dgvoodoo.txt), extracts them
 # with innoextract 1.10-dev (built here with MSYS2, the binary is cached), puts their files where the
 # build reads them (ci/e2e/assets-map.tsv: paths, sizes, SHA-1 values, times; no content), builds the
 # real-data installers with Inno Setup 6.2.2, blocks every server of the setups in the hosts file and
@@ -10,8 +11,8 @@
 # each installation. The job is red if any check fails.
 #
 # Game data never leaves the runner: the extracted files, the placed asset folders and the built
-# installers are never committed, cached, uploaded or printed. Only two caches exist (the unchanged
-# official setups and innoextract.exe), each saved explicitly by path; the only upload is the report
+# installers are never committed, cached, uploaded or printed. Only three caches exist (the unchanged
+# official setups, the unchanged dgVoodoo archive and innoextract.exe), each saved explicitly by path; the only upload is the report
 # folder (logs, NUnit results, report), and ci/e2e/guard_upload.py refuses it unless it holds small
 # text files only, none of them a file of the map.
 #
@@ -40,6 +41,7 @@ on:
       - 'ci/build.ps1'
       - 'ci/build_helpers.ps1'
       - 'ci/e2e/**'
+      - 'config/**'
       - 'pins/**'
       - '.github/workflows/e2e-realdata.yml'
 
@@ -80,7 +82,7 @@ jobs:
     # "labeled" only when that label was added); the same condition is in concurrency.group
     if: github.event_name == 'workflow_dispatch' || (github.event.pull_request.head.repo.full_name == github.repository && contains(github.event.pull_request.labels.*.name, 'e2e') && (github.event.action != 'labeled' || github.event.label.name == 'e2e'))
     runs-on: windows-latest
-    # The scenario steps have their own limits (sum 270 minutes) and the scripts stop their programs
+    # The scenario steps have their own limits (sum 275 minutes) and the scripts stop their programs
     # before those (run_e2e.ps1 -BudgetMinutes); at least 45 minutes remain for the preparation and the
     # report (ci/e2e/tests/test_e2e_tools.py)
     timeout-minutes: 330
@@ -223,6 +225,68 @@ jobs:
           if ($version -notmatch '^innoextract 1\.10-dev') { throw "innoextract 1.10-dev expected, found $version" }
           "E2E_INNOEXTRACT=$version" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
+      # --- dgVoodoo: the third public download (ADR 0011, amendment 2026-10-07). The URL, the SHA-256 and the size
+      # come from pins/dgvoodoo.txt, never from this file; the archive is cached by its SHA-256, verified every
+      # time and extracted below E2E_ROOT. Its three files are in the asset map (origin download:<name>).
+      - name: Read the dgVoodoo pin
+        id: dgvoodoo
+        shell: pwsh
+        run: |
+          . ./ci/build_helpers.ps1
+          $pins = Read-DgVoodooPins 'pins/dgvoodoo.txt'
+          "url=$($pins.Archive.Url)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "sha256=$($pins.Archive.Sha256)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "size=$($pins.Archive.Size)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "name=dgvoodoo-$($pins.Version)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "dgVoodoo $($pins.Version): $($pins.Archive.Url)"
+
+      - name: Restore the dgVoodoo archive
+        id: dgvoodoo-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}\ee-e2e\dgvoodoo-zip
+          key: dgvoodoo-${{ steps.dgvoodoo.outputs.sha256 }}
+
+      - name: Download the dgVoodoo archive (cache miss)
+        if: steps.dgvoodoo-cache.outputs.cache-hit != 'true'
+        shell: pwsh
+        env:
+          DGVOODOO_URL: ${{ steps.dgvoodoo.outputs.url }}
+        run: |
+          $folder = Join-Path $env:E2E_ROOT 'dgvoodoo-zip'
+          New-Item -ItemType Directory -Force -Path $folder | Out-Null
+          curl.exe -fsSL --proto '=https' --proto-redir '=https' --retry 3 --retry-delay 10 -o (Join-Path $folder 'dgvoodoo.zip') $env:DGVOODOO_URL
+          if ($LASTEXITCODE) { throw "Download of $env:DGVOODOO_URL failed (curl exit code $LASTEXITCODE)" }
+
+      - name: Verify the dgVoodoo archive (SHA-256 and size of pins/dgvoodoo.txt)
+        shell: pwsh
+        env:
+          DGVOODOO_SHA256: ${{ steps.dgvoodoo.outputs.sha256 }}
+          DGVOODOO_SIZE: ${{ steps.dgvoodoo.outputs.size }}
+        run: |
+          $folder = Join-Path $env:E2E_ROOT 'dgvoodoo-zip'
+          $file = Join-Path $folder 'dgvoodoo.zip'
+          if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { throw "$file is missing" }
+          $size = (Get-Item -LiteralPath $file).Length
+          if ("$size" -ne $env:DGVOODOO_SIZE) { throw "The dgVoodoo archive has $size bytes, pins/dgvoodoo.txt pins $env:DGVOODOO_SIZE" }
+          $hash = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($hash -ne $env:DGVOODOO_SHA256) { throw "The dgVoodoo archive has the SHA-256 $hash, pins/dgvoodoo.txt pins $env:DGVOODOO_SHA256" }
+          "dgvoodoo.zip: SHA-256 and size as pinned"
+          $other = @(Get-ChildItem -LiteralPath $folder -Force | Where-Object { $_.Name -ne 'dgvoodoo.zip' })
+          if ($other.Count) { throw "Unexpected files next to the dgVoodoo archive: $($other.Name -join ', ')" }
+
+      - name: Save the dgVoodoo archive (cache miss)
+        if: steps.dgvoodoo-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}\ee-e2e\dgvoodoo-zip
+          key: dgvoodoo-${{ steps.dgvoodoo.outputs.sha256 }}
+
+      - name: Extract the dgVoodoo archive
+        shell: pwsh
+        run: |
+          Expand-Archive -LiteralPath (Join-Path $env:E2E_ROOT 'dgvoodoo-zip\dgvoodoo.zip') -DestinationPath (Join-Path $env:E2E_ROOT 'dgvoodoo') -Force
+
       # --- The launcher's checks against a real installation (Empire-Earth-Launcher.RealMachineTests),
       # built before the game data exists so that a failure shows early. Only a full commit (the pin
       # LAUNCHER_COMMIT, or one given by hand): no branch, tag or pull request ref
@@ -291,6 +355,8 @@ jobs:
       # --- Game data: only in the job workspace (gitignored asset folders) and below E2E_ROOT
       - name: Extract the official setups and place their files
         shell: pwsh
+        env:
+          DGVOODOO_NAME: ${{ steps.dgvoodoo.outputs.name }}
         run: |
           $ix = Join-Path $env:E2E_IX 'innoextract.exe'
           foreach ($product in 'EE', 'NeoEE') {
@@ -302,7 +368,8 @@ jobs:
             if ($LASTEXITCODE) { throw "inno_headers.py failed for $product" }
           }
           python ci/e2e/place_assets.py --map ci/e2e/assets-map.tsv --root . `
-            --extract "EE=$env:E2E_ROOT\x\EE" "NeoEE=$env:E2E_ROOT\x\NeoEE" --headers "EE=$env:E2E_ROOT\hd\EE" "NeoEE=$env:E2E_ROOT\hd\NeoEE"
+            --extract "EE=$env:E2E_ROOT\x\EE" "NeoEE=$env:E2E_ROOT\x\NeoEE" --headers "EE=$env:E2E_ROOT\hd\EE" "NeoEE=$env:E2E_ROOT\hd\NeoEE" `
+            --download "$env:DGVOODOO_NAME=$env:E2E_ROOT\dgvoodoo"
           $code = $LASTEXITCODE
           Remove-Item -LiteralPath (Join-Path $env:E2E_ROOT 'x'), (Join-Path $env:E2E_ROOT 'hd') -Recurse -Force
           if ($code) { throw 'The official files could not be placed (PROBLEM lines above)' }
@@ -374,12 +441,12 @@ jobs:
           powershell -NoProfile -ExecutionPolicy Bypass -File ci/e2e/run_e2e.ps1 -Phase E -BudgetMinutes 30
           exit $LASTEXITCODE
 
-      - name: 'Scenario D: link guard and update without the wrapper'
+      - name: 'Scenario D: link guard, update without the wrapper, then with dgVoodoo'
         if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
-        timeout-minutes: 45
+        timeout-minutes: 50
         shell: pwsh
         run: |
-          powershell -NoProfile -ExecutionPolicy Bypass -File ci/e2e/run_e2e.ps1 -Phase D -BudgetMinutes 40
+          powershell -NoProfile -ExecutionPolicy Bypass -File ci/e2e/run_e2e.ps1 -Phase D -BudgetMinutes 45
           exit $LASTEXITCODE
 
       - name: 'Scenario C: official 1.7.2, v2 over it, damage and repair'
@@ -396,7 +463,7 @@ jobs:
         shell: pwsh
         run: |
           $paths = @('data', 'internal\media', 'internal\misc', 'internal\runtime', $env:E2E_BUILD, $env:E2E_WORK)
-          if ($env:E2E_ROOT) { $paths += @('x', 'hd', 'pp' | ForEach-Object { Join-Path $env:E2E_ROOT $_ }) }
+          if ($env:E2E_ROOT) { $paths += @('x', 'hd', 'pp', 'dgvoodoo' | ForEach-Object { Join-Path $env:E2E_ROOT $_ }) }
           foreach ($path in $paths) {
             if ($path -and (Test-Path -LiteralPath $path)) { Remove-Item -LiteralPath $path -Recurse -Force -ErrorAction Continue }
           }

@@ -129,6 +129,11 @@ try {
   Check 'clamp low' (Get-E2EClamped 800 1024 1920) 1024
   Check 'clamp high' (Get-E2EClamped 2560 1024 1920) 1920
   Check 'clamp inside' (Get-E2EClamped 1280 1024 1920) 1280
+  Check 'dgVoodoo conf name dx11_lvl10_1' (Get-E2EDgVoodooConfName 'additional\directx_wrapper\dx11_lvl10_1') 'dgVoodoo_DX11_LVL10_1.conf'
+  Check 'dgVoodoo conf name dx12_lvl12' (Get-E2EDgVoodooConfName 'additional\directx_wrapper\dx12_lvl12') 'dgVoodoo_DX12_LVL12.conf'
+  Check 'dgVoodoo conf name dx11_lvl11' (Get-E2EDgVoodooConfName 'additional\directx_wrapper\dx11_lvl11') 'dgVoodoo_DX11_LVL11.conf'
+  Check 'dgVoodoo conf name dx9' (Get-E2EDgVoodooConfName 'additional\directx_wrapper\dx9') ''
+  Check 'dgVoodoo conf name of the parent component' (Get-E2EDgVoodooConfName 'additional\directx_wrapper') ''
   # Game Window Height (contract 3.3, revision 6): the cases of TestGameWindow in ci/tests/unit_tests.iss
   foreach ($case in @(
       @(1024, 600, 768), @(1366, 768, 768), @(1920, 1080, 1080), @(1920, 1200, 1200), @(1600, 1200, 1200),

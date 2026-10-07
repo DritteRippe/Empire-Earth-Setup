@@ -1,4 +1,4 @@
-# Data-free asset map of the v2 real-data build: names, sizes, SHA-1 values and times of the files of the official 1.7.2 setups, no content (ci/e2e/gen_map.py).
+# Data-free asset map of the v2 real-data build: names, sizes, SHA-1 values and times of the files of the official 1.7.2 setups, no content (ci/e2e/gen_map.py), and of the dgVoodoo archive of pins/dgvoodoo.txt.
 kind	path	size	sha1	mtime_utc	products	origin
 file	data\Add-on\Civs\eC\0__GRENWAR.civ	59	ab03afd506d3a148dffa71dc4ddb0d985d39300e	2015-06-16T14:23:30Z	EE+NeoEE	setup:EE+NeoEE
 file	data\Add-on\Civs\eC\1y_P2N Club NoBCR.civ	71	c1506d01abbe3bf1d3c9c523b497d0f5d8c0b56d	2015-06-16T14:26:30Z	EE+NeoEE	setup:EE+NeoEE
@@ -72,14 +72,9 @@ file	data\Add-on\Civs\eC_full\7wMidDM Sw+Treb.civ	83	92f860f98c6d92102248180702b
 file	data\Add-on\Civs\eC_full\7xRenDM.civ	67	8e5312c0f2d7bad26c40397840390d2fdb8236cb	2014-06-06T10:20:38Z	EE+NeoEE	setup:EE+NeoEE
 file	data\Add-on\Civs\eC_full\7yIndyDM.civ	79	a23f51a3f0b79c67d607f3dd9a5bb6e6ddc598ec	2014-06-06T10:30:24Z	EE+NeoEE	setup:EE+NeoEE
 file	data\Add-on\DirectX_Wrapper\DDrawCompat\DDraw.dll	2777088	05c749d5cae58485e52d9269374a4eb36941bf97	2023-11-27T05:50:06Z	EE+NeoEE	setup:EE+NeoEE
-file	data\Add-on\DirectX_Wrapper\dgVoodoo_bin\D3DImm.dll	205824	9146e746813d1e11ee7fcf40094aac5d56acb61e	2023-11-29T08:22:16Z	EE+NeoEE	setup:EE+NeoEE
-file	data\Add-on\DirectX_Wrapper\dgVoodoo_bin\DDraw.dll	249344	d56b8d2f4da4b83712427229da32a494de36d464	2023-11-29T08:22:16Z	EE+NeoEE	setup:EE+NeoEE
-file	data\Add-on\DirectX_Wrapper\dgVoodoo_bin\dgVoodooCpl.exe	399872	70a1146766fade40012918a2a2315a656bdff204	2023-11-29T08:22:02Z	EE+NeoEE	setup:EE+NeoEE
-file	data\Add-on\DirectX_Wrapper\dgVoodoo_conf\dgVoodoo_DX11_LVL10.conf	860	d1c4b1f0e8aa52cc2d024e1af209b416fd65750b	2023-11-28T22:15:32Z	EE+NeoEE	setup:EE+NeoEE
-file	data\Add-on\DirectX_Wrapper\dgVoodoo_conf\dgVoodoo_DX11_LVL10_1.conf	860	a32833fc91c8634e9bacf50a7cdca907b66a78d6	2023-11-28T22:15:36Z	EE+NeoEE	setup:EE+NeoEE
-file	data\Add-on\DirectX_Wrapper\dgVoodoo_conf\dgVoodoo_DX11_LVL11.conf	860	4930a7245c8db802657ecd59a9cc9919a20e51d5	2023-11-28T22:15:42Z	EE+NeoEE	setup:EE+NeoEE
-file	data\Add-on\DirectX_Wrapper\dgVoodoo_conf\dgVoodoo_DX12_LVL11.conf	860	d807be846950faf6773668902a3cf5c61671d169	2023-11-28T22:15:46Z	EE+NeoEE	setup:EE+NeoEE
-file	data\Add-on\DirectX_Wrapper\dgVoodoo_conf\dgVoodoo_DX12_LVL12.conf	860	fa39cf222c312acc6aaa3b39a2a5ce5404ec6cb0	2023-11-28T22:15:54Z	EE+NeoEE	setup:EE+NeoEE
+file	data\Add-on\DirectX_Wrapper\dgVoodoo_bin\D3DImm.dll	208384	073155862007b67f9ef45dbcf7c839820140933f	2026-09-14T22:35:54Z	EE+NeoEE	download:dgvoodoo-v2.87.5
+file	data\Add-on\DirectX_Wrapper\dgVoodoo_bin\DDraw.dll	255488	8aa03fba71e677c445f73403a586f7451c993811	2026-09-14T22:35:54Z	EE+NeoEE	download:dgvoodoo-v2.87.5
+file	data\Add-on\DirectX_Wrapper\dgVoodoo_bin\dgVoodooCpl.exe	451072	4f2d8f3511ea8ac7172e8e861f7a6ad5e8f053e3	2026-09-14T22:17:46Z	EE+NeoEE	download:dgvoodoo-v2.87.5
 file	data\Add-on\DirectX_Wrapper\GOG\DDraw.dll	1314816	023f2ee4039007036528d93f6534e97779dcfa07	2021-02-17T11:48:44Z	EE+NeoEE	setup:EE+NeoEE
 file	data\Add-on\DLLs\Discord\discord_game_sdk.dll	3154744	62cd6f527be6c82e1c1669fde807a4b34774691b	2021-02-18T17:05:46Z	EE+NeoEE	setup:EE+NeoEE
 file	data\Add-on\DLLs\Discord\EEDiscord.dll	261944	0184fe1fe0f2cb72307bd423d7e51ec651693506	2022-12-26T20:13:22Z	EE+NeoEE	setup:EE+NeoEE

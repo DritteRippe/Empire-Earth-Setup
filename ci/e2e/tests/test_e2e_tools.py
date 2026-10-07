@@ -254,6 +254,104 @@ class AssetToolsTests(unittest.TestCase):
         self.assertIn("source missing: data\\Add-on\\Missing\\z.dll", out)
 
 
+class DownloadOriginTests(unittest.TestCase):
+    """The origin download:<name>: a file of another public download (the dgVoodoo archive), found by
+    SHA-1 and size in the extracted folder of --download <name>=<dir>."""
+
+    DDRAW = "data\\Add-on\\DirectX_Wrapper\\dgVoodoo_bin\\DDraw.dll"
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        t = self.tmp.name
+        self.assets = os.path.join(t, "assets")
+        self.content = os.urandom(2000)
+        write(place_assets.local_path(self.assets, self.DDRAW), self.content, 1789425354)   # 2026-09-14 22:35:54 UTC
+        write(place_assets.local_path(self.assets, "data\\Empire Earth Base\\game.exe"), b"game", 1500000000)
+        write(place_assets.local_path(self.assets, "data\\localized-text.sha256"), b"0" * 64 + b"  Game/de/EE/Language.dll\n")
+        for product in ("EE", "NeoEE"):
+            write(os.path.join(t, "x", product, "app", "g.exe"), b"game")
+            write(os.path.join(t, "hd", product, "headers0.bin"), os.urandom(50))
+        # the 'extracted archive': another name, in a subfolder, next to files nobody reads
+        self.download = os.path.join(t, "dgvoodoo")
+        write(os.path.join(self.download, "MS", "x86", "DDraw.dll"), self.content)
+        write(os.path.join(self.download, "readme.txt"), b"other")
+        self.pp = os.path.join(t, "EE_Regular.iss")
+        with open(self.pp, "w", encoding="utf-8-sig", newline="") as fh:
+            fh.write("\r\n".join([
+                "[Files]",
+                'Source: "data\\Empire Earth Base\\game.exe"; DestDir: "{app}"; Flags: ignoreversion',
+                'Source: "data\\Add-on\\DirectX_Wrapper\\dgVoodoo_bin\\DDraw.dll"; DestDir: "{app}"; Flags: ignoreversion',
+                'Source: "config\\dgVoodoo\\dgVoodoo_DX11_LVL11.conf"; DestDir: "{app}"; DestName: "dgVoodoo.conf"; Flags: ignoreversion',
+                ""]))
+        self.map = os.path.join(t, "map.tsv")
+        self.extract = [f"EE={os.path.join(t, 'x', 'EE')}", f"NeoEE={os.path.join(t, 'x', 'NeoEE')}"]
+        self.headers = [f"EE={os.path.join(t, 'hd', 'EE')}", f"NeoEE={os.path.join(t, 'hd', 'NeoEE')}"]
+        self.args = ["--assets", self.assets, "--pp", f"EE={self.pp}", "--pp", f"NeoEE={self.pp}", "--extract"] + self.extract \
+            + ["--headers"] + self.headers + ["--out", self.map]
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def make_map(self):
+        code, out = quiet(gen_map.main, self.args + ["--download", f"dgvoodoo-v2.87.5={self.download}"])
+        self.assertEqual(code, 0, out)
+
+    def test_gen_map_names_the_download_and_the_time_of_the_file(self):
+        self.make_map()
+        rows = {r["path"]: r for r in place_assets.read_map(self.map)}
+        row = rows[self.DDRAW]
+        self.assertEqual(row["origin"], "download:dgvoodoo-v2.87.5")
+        self.assertEqual(row["mtime_utc"], "2026-09-14T22:35:54Z")
+        self.assertEqual(rows["data\\Empire Earth Base\\game.exe"]["origin"], "setup:EE+NeoEE")
+        self.assertFalse([p for p in rows if p.startswith("config")])   # config\\ is not an asset folder
+
+    def test_a_file_in_no_setup_and_no_download_has_no_origin(self):
+        code, out = quiet(gen_map.main, self.args)
+        self.assertEqual(code, 1)
+        self.assertIn("no origin for " + self.DDRAW, out)
+
+    def test_placing_from_the_download(self):
+        self.make_map()
+        root = os.path.join(self.tmp.name, "root")
+        place = ["--map", self.map, "--root", root, "--extract"] + self.extract + ["--headers"] + self.headers
+        code, out = quiet(place_assets.main, place + ["--download", f"dgvoodoo-v2.87.5={self.download}"])
+        self.assertEqual(code, 0, out)
+        self.assertIn("1 from downloads", out)
+        p = place_assets.local_path(root, self.DDRAW)
+        with open(p, "rb") as fh:
+            self.assertEqual(fh.read(), self.content)
+        self.assertEqual(int(os.stat(p).st_mtime), 1789425354)
+        self.assertNotIn("other", out)
+        code, out = quiet(readset.main, ["--root", root, "--pp", f"EE={self.pp}", "--check-map", self.map])
+        self.assertEqual(code, 0, out)
+
+    def test_no_download_or_a_missing_folder_is_no_source(self):
+        self.make_map()
+        root = os.path.join(self.tmp.name, "root")
+        place = ["--map", self.map, "--root", root, "--extract"] + self.extract + ["--headers"] + self.headers
+        code, out = quiet(place_assets.main, place)
+        self.assertEqual(code, 1)
+        self.assertIn(f"no source for {self.DDRAW} (download:dgvoodoo-v2.87.5)", out)
+        code, out = quiet(place_assets.main, place + ["--download", f"dgvoodoo-v2.87.5={os.path.join(self.tmp.name, 'nowhere')}"])
+        self.assertEqual(code, 1)
+        self.assertIn("extraction folder missing", out)
+        self.assertIn("no source for " + self.DDRAW, out)
+
+    def test_a_download_with_other_content_is_no_source(self):
+        self.make_map()
+        write(os.path.join(self.download, "MS", "x86", "DDraw.dll"), self.content + b"!")
+        root = os.path.join(self.tmp.name, "root")
+        code, out = quiet(place_assets.main, ["--map", self.map, "--root", root, "--extract"] + self.extract + ["--headers"] + self.headers
+                          + ["--download", f"dgvoodoo-v2.87.5={self.download}"])
+        self.assertEqual(code, 1)
+        self.assertIn("no source for " + self.DDRAW, out)
+
+    def test_a_bad_download_argument_is_refused(self):
+        for bad in ("dgvoodoo", "=folder", "bad name=folder"):
+            with self.assertRaises(SystemExit):
+                place_assets.parse_downloads([bad])
+
+
 class CommittedMapTests(unittest.TestCase):
     def test_well_formed_and_data_free(self):
         rows = place_assets.read_map(MAP)
@@ -264,9 +362,16 @@ class CommittedMapTests(unittest.TestCase):
             if r["kind"] == "file":
                 self.assertRegex(r["sha1"], "^[0-9a-f]{40}$")
                 self.assertTrue(r["size"].isdigit())
-                self.assertTrue(r["origin"].startswith(("setup:", "header:")), r["path"])
+                self.assertTrue(r["origin"].startswith(("setup:", "header:", "download:")), r["path"])
                 self.assertTrue(r["mtime_utc"] == "-" or r["mtime_utc"].endswith("Z"))
-        self.assertEqual(kinds, {"file": 1799, "dir": 16, "generated": 1})
+        self.assertEqual(kinds, {"file": 1794, "dir": 16, "generated": 1})
+        # the only download is the dgVoodoo archive of pins/dgvoodoo.txt, whose three files it holds
+        downloads = {r["path"]: r["origin"] for r in rows if r["origin"].startswith("download:")}
+        self.assertEqual(sorted(downloads), [
+            "data\\Add-on\\DirectX_Wrapper\\dgVoodoo_bin\\D3DImm.dll", "data\\Add-on\\DirectX_Wrapper\\dgVoodoo_bin\\DDraw.dll",
+            "data\\Add-on\\DirectX_Wrapper\\dgVoodoo_bin\\dgVoodooCpl.exe"])
+        self.assertEqual(set(downloads.values()), {"download:dgvoodoo-v2.87.5"})
+        self.assertFalse([r for r in rows if "dgVoodoo_conf" in r["path"]])
         self.assertEqual(len({r["path"].lower() for r in rows}), len(rows))
         self.assertLess(os.path.getsize(MAP), 1 << 20)
 
@@ -423,6 +528,29 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn("ref: ${{ steps.launcher.outputs.commit }}", self.text)
         self.assertIn("-cnotmatch '^[0-9a-f]{40}$'", self.text)
         self.assertIn('git merge-base --is-ancestor HEAD "refs/remotes/origin/$env:LAUNCHER_BRANCH"', self.text)
+
+    def test_the_dgvoodoo_archive_is_read_from_its_pin_and_cached_by_its_hash(self):
+        pins = os.path.join(os.path.dirname(os.path.dirname(E2E)), "pins", "dgvoodoo.txt")
+        with open(pins, encoding="utf-8") as f:
+            pin_text = f.read()
+        archive = re.search(r"(?m)^Archive ([0-9a-f]{64}) (\d+) (https://\S+)$", pin_text)
+        self.assertIsNotNone(archive)
+        # neither the hash, nor the size, nor the URL of the archive is repeated in the workflow
+        for value in archive.groups():
+            self.assertNotIn(value, self.text)
+        self.assertIn("Read-DgVoodooPins 'pins/dgvoodoo.txt'", self.text)
+        self.assertIn("key: dgvoodoo-${{ steps.dgvoodoo.outputs.sha256 }}", self.text)
+        self.assertEqual(self.text.count("key: dgvoodoo-${{ steps.dgvoodoo.outputs.sha256 }}"), 2)   # restore and save
+        self.assertIn("DGVOODOO_SHA256: ${{ steps.dgvoodoo.outputs.sha256 }}", self.text)
+        self.assertIn("DGVOODOO_SIZE: ${{ steps.dgvoodoo.outputs.size }}", self.text)
+        self.assertIn("--proto '=https' --proto-redir '=https'", self.text.split("Download the dgVoodoo archive (cache miss)", 1)[1].split("- name:", 1)[0])
+        self.assertIn('--download "$env:DGVOODOO_NAME=$env:E2E_ROOT\\dgvoodoo"', self.text)
+        self.assertIn("      - 'config/**'", self.text)
+        # the origin of the three files in the map is the name the workflow passes
+        version = re.search(r"(?m)^Version (\S+)$", pin_text).group(1)
+        origins = {r["origin"] for r in place_assets.read_map(MAP) if r["path"].startswith("data\\Add-on\\DirectX_Wrapper\\dgVoodoo_bin\\")}
+        self.assertEqual(origins, {"download:dgvoodoo-" + version})
+        self.assertIn('"name=dgvoodoo-$($pins.Version)"', self.text)
 
     def test_every_action_is_pinned_to_a_commit(self):
         uses = re.findall(r"(?m)^\s+(?:- )?uses: (\S+)", self.text)

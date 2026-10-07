@@ -621,6 +621,19 @@ function Invoke-E2EScenarioD {
         if (-not (Test-Path -LiteralPath $dll)) { $problems += 'dreXmod.dll is missing' }
         elseif ((Get-E2EFileSha1 $dll) -cne (Get-E2EMapSha1 $d4.AssetMap 'data\Add-on\DLLs\dreXmod\2_privacy\dreXmod.dll')) { $problems += 'dreXmod.dll is not the privacy build of dreXmod 2' }
         [void](Complete-E2ECheck $s 'drexmod-v2/MODS' $problems 'the preset folders of dreXmod 3 removed, the self-made mod kept, dreXmod 2 installed')
+
+        # D5: a dgVoodoo level over the installation (ADR 0011 amendment): K10 compares the three pinned files and the
+        # configuration of config\dgVoodoo with the installed ones, K5 expects the rasterizer Direct3D
+        $d5 = Copy-E2EContext $d4 'dgvoodoo'
+        $d5.RequiredComponents = @('game', 'language\update') + @($CompactAddOns | Where-Object { $_ -ne 'additional\movies' }) +
+          @('additional\directx_wrapper', 'additional\directx_wrapper\dx11_lvl11')
+        $d5.ForbiddenComponents = @('additional\telemetry', 'gameaoc', 'additional\drexmod\v2')
+        $d5.Wrapper = 'additional\directx_wrapper\dx11_lvl11'
+        $componentsDx = 'game,additional\drexmod\v3,additional\discord,additional\tools\diagnostic,additional\civs\ec,additional\directx_wrapper,' +
+          'additional\directx_wrapper\dx11_lvl11,language\en,language\update'
+        if (Invoke-E2ESetupStep $d5 @('/ALLUSERS', '/LANG=en', "/COMPONENTS=`"$componentsDx`"", $UpdateMergeTasks)) {
+          Invoke-E2EInstalledChecks $d5
+        }
       }
     }
   } finally {

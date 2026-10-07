@@ -21,12 +21,15 @@ Columns (TSV, UTF-8, LF; a comment line, then the header line):
             wizard bitmaps (ISCC does not store their time) and the generated file
   products  EE, NeoEE or EE+NeoEE (which build reads it)
   origin    setup:<EE|NeoEE|EE+NeoEE> (a file of that official setup, found by SHA-1 and size),
-            header:<...> (a bitmap of the decompressed setup header), createallsubdirs, or the
-            generator of a generated file
+            download:<name> (a file of another public download, given with --download <name>=<dir>,
+            found by SHA-1 and size; the time is that of the file, set it to the time of the
+            download's archive first), header:<...> (a bitmap of the decompressed setup header),
+            createallsubdirs, or the generator of a generated file
 
 Usage:
   gen_map.py --assets ROOT --pp EE=EE_Regular.iss --pp NeoEE=NeoEE_Regular.iss
-             --extract EE=DIR NeoEE=DIR --headers EE=DIR NeoEE=DIR --out ci/e2e/assets-map.tsv
+             --extract EE=DIR NeoEE=DIR --headers EE=DIR NeoEE=DIR [--download NAME=DIR ...]
+             --out ci/e2e/assets-map.tsv
 Exit code 0: map written, every file has an origin; 1: a problem (listed, the map is still written
 for inspection).
 """
@@ -63,6 +66,7 @@ def main(argv=None):
     ap.add_argument("--pp", action="append", required=True)
     ap.add_argument("--extract", nargs="+", required=True)
     ap.add_argument("--headers", nargs="+", required=True)
+    ap.add_argument("--download", nargs="+", default=[])
     ap.add_argument("--out", required=True)
     a = ap.parse_args(argv)
     scripts = dict(item.split("=", 1) for item in a.pp)
@@ -84,6 +88,7 @@ def main(argv=None):
     stores = {product: index(extract[product]) for product in products}
     bitmaps = {product: set(place_assets.header_bitmaps(os.path.join(headers[product], "headers0.bin")))
                for product in products}
+    downloads = {name: index(folder) for name, folder in place_assets.parse_downloads(a.download).items()}
 
     rows = []
     for p in sorted(files, key=str.lower):
@@ -92,17 +97,20 @@ def main(argv=None):
         key = (place_assets.sha1_file(local), st.st_size)
         in_setup = [v for v in products if key in stores[v]]
         in_header = [v for v in products if key in bitmaps[v]]
+        in_download = [name for name in sorted(downloads) if key in downloads[name]]
         if in_setup:
             origin = "setup:" + "+".join(in_setup)
+        elif in_download:
+            origin = "download:" + in_download[0]
         elif in_header:
             origin = "header:" + "+".join(in_header)
         else:
             origin = "?"
             problems.append(f"no origin for {p}")
-        if origin.startswith("setup:") and st.st_mtime_ns % 10**9:
+        if origin.startswith(("setup:", "download:")) and st.st_mtime_ns % 10**9:
             problems.append(f"sub-second time of {p}")
         mtime = "-"
-        if origin.startswith("setup:"):
+        if origin.startswith(("setup:", "download:")):
             stamp = datetime.datetime.fromtimestamp(st.st_mtime_ns // 10**9, datetime.timezone.utc)
             mtime = stamp.strftime("%Y-%m-%dT%H:%M:%SZ")
         rows.append(("file", p, str(st.st_size), key[0], mtime, "+".join(files[p]), origin))
