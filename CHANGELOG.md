@@ -893,6 +893,30 @@ setup version stays 1.7.2 until the release.
   statement, and unit tests feed the order of a real log. The status "checking the language files" is therefore only
   seen for a moment: the checking of the downloaded files belongs to the install step. Contract 1.7 points 2 and 5,
   ADR 0013 (amendment) and the test case TP-99 (variant e: a repair that is cancelled) follow.
+- Suite installer: the time limits of a game setup no longer stop an installation. The cap of 90 minutes killed the
+  game setup even when it had started to change its game folder, silently in a `/VERYSILENT` run; the downloads count
+  toward it, so a slow line (about 0.3 Mbit/s for 171 MB) could push the installation past the cap and leave a half
+  installed game, the very case the Cancel rule avoids. The cap now stops a game setup only before the install step
+  (`SuiteTimeoutCheck` gets `Installing`); afterwards it only writes a line. The stall question (no new line for 10
+  minutes) looks again after the answer: if the game setup ended while the box was open (it was reported as stopped
+  by the suite although it had succeeded) nothing is stopped, and if it started to install meanwhile the user is asked
+  again with the text for an installing setup ("No" used to kill it under the text "No game files have been installed
+  yet").
+- Suite installer: the question of Cancel no longer says that nothing of the game stays on the computer. A stopped game
+  setup leaves its `%TEMP%\is-*.tmp` folder with what it had downloaded (up to about 170 MB), and a repair or an update
+  leaves the installed game as it was: there are four texts now (first installation or already installed, with or
+  without a game that this run finished before), each naming the temporary folder. The line under the bar that says why
+  Cancel is off wraps (it was one line high, so the German and the French texts were cut off at 100 percent display
+  scaling; it takes three lines while it has a text and the list of the steps starts below it) and is shorter.
+- Suite installer: cancelling the second game no longer ends the suite with the first game installed and nothing else.
+  The old shortcuts of the first game were deleted already (`/NOICONS`), so the user was left with the game, no
+  shortcut, no launcher and no record. The suite now finishes its own part (launcher, shortcuts, record) for the games
+  that succeeded and the last page says "cancelled by you" for the other one; a cancel with no finished game still ends
+  with exit code 3 and writes nothing.
+- Suite installer: `/TestCancel` requests the cancel only if the log that was just read is still before the install step
+  (it logs `/TestCancel not requested` otherwise, so the scenario S11 fails with a clear line instead of testing a cancel
+  that came too late), and `/TestCancelNeoEE` cancels the second game (scenario S12). `SuiteWaitEnd` leaves its wait as
+  soon as Setup is closing (it spun for the rest of the 5 seconds after a `WM_QUIT`); unit test with a real program.
 
 ### Security
 - Online localized files: downloads use HTTPS only, from both servers, and TLS certificates are

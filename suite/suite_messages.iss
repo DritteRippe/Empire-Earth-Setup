@@ -116,6 +116,9 @@ fr.SuiteStatusFailed=échec (le journal en donne la raison)
 SuiteStatusSkippedUser=skipped (installed for one user only)
 de.SuiteStatusSkippedUser=übersprungen (nur für einen Benutzer installiert)
 fr.SuiteStatusSkippedUser=ignoré (installé pour un seul utilisateur)
+SuiteStatusCancelled=cancelled by you, nothing of it was changed (start this setup again to install or repair it)
+de.SuiteStatusCancelled=von dir abgebrochen, nichts daran wurde geändert (starte dieses Setup erneut, um es zu installieren oder zu reparieren)
+fr.SuiteStatusCancelled=annulé par vous, rien n'a été modifié (relancez ce programme d'installation pour l'installer ou le réparer)
 SuiteStatusNotSelected=not selected
 de.SuiteStatusNotSelected=nicht ausgewählt
 fr.SuiteStatusNotSelected=non sélectionné
@@ -259,16 +262,25 @@ SuiteReasonNotStarted=the setup program could not be extracted or started: %1
 de.SuiteReasonNotStarted=das Setup-Programm konnte nicht entpackt oder gestartet werden: %1
 fr.SuiteReasonNotStarted=le programme d'installation n'a pas pu être extrait ou lancé : %1
 ; Cancel while the setup of a game runs (the game setup shows no window of its own): the question and what Cancel
-; says when it is off. %1 = the game, %2 = the game that is installed already
-SuiteCancelQuestion=Do you want to stop the installation of %1?%n%nNo game files have been installed yet, so nothing of it stays on this computer.
-de.SuiteCancelQuestion=Möchtest du die Installation von %1 abbrechen?%n%nEs wurden noch keine Spieldateien installiert, deshalb bleibt nichts davon auf diesem Computer.
-fr.SuiteCancelQuestion=Voulez-vous arrêter l'installation de %1 ?%n%nAucun fichier du jeu n'a encore été installé, il ne reste donc rien de lui sur cet ordinateur.
-SuiteCancelQuestionKept=Do you want to stop the installation of %1?%n%nNo game files of it have been installed yet. %2 is already installed and stays installed.
-de.SuiteCancelQuestionKept=Möchtest du die Installation von %1 abbrechen?%n%nVon diesem Spiel wurden noch keine Dateien installiert. %2 ist schon installiert und bleibt installiert.
-fr.SuiteCancelQuestionKept=Voulez-vous arrêter l'installation de %1 ?%n%nAucun fichier de ce jeu n'a encore été installé. %2 est déjà installé et le reste.
-SuiteCancelNotNow=Cancel is no longer possible: the game files are being installed.
-de.SuiteCancelNotNow=Abbrechen ist nicht mehr möglich: Die Spieldateien werden gerade installiert.
-fr.SuiteCancelNotNow=L'annulation n'est plus possible : les fichiers du jeu sont en cours d'installation.
+; says when it is off. %1 = the game, %2 = the game that is installed already. The text depends on what stays: a game
+; installed for the first time (nothing is installed yet), a game that is already installed and repaired or updated
+; (it stays exactly as it is), and the game this run finished before (it stays installed, the setup then finishes with the
+; launcher and the shortcuts for it). The temporary folder is the one the game setup leaves with what it had downloaded.
+SuiteCancelQuestion=Do you want to stop the installation of %1?%n%nNo game files have been installed yet. What the setup has downloaded so far stays in a temporary folder of Windows (a folder named is-*.tmp, up to about 170 MB) until Windows or you delete it.
+de.SuiteCancelQuestion=Möchtest du die Installation von %1 abbrechen?%n%nEs wurden noch keine Spieldateien installiert. Was das Setup bis jetzt heruntergeladen hat, bleibt in einem temporären Ordner von Windows (ein Ordner is-*.tmp, bis zu etwa 170 MB), bis Windows oder du ihn löschst.
+fr.SuiteCancelQuestion=Voulez-vous arrêter l'installation de %1 ?%n%nAucun fichier du jeu n'a encore été installé. Ce que le programme a déjà téléchargé reste dans un dossier temporaire de Windows (un dossier is-*.tmp, jusqu'à environ 170 Mo) jusqu'à ce que Windows ou vous le supprimiez.
+SuiteCancelQuestionKept=Do you want to stop the installation of %1?%n%nNo game files of it have been installed yet. %2 is already installed and stays installed. The setup then finishes with the launcher and the shortcuts, without %1.%n%nWhat the setup has downloaded so far stays in a temporary folder of Windows (a folder named is-*.tmp, up to about 170 MB) until Windows or you delete it.
+de.SuiteCancelQuestionKept=Möchtest du die Installation von %1 abbrechen?%n%nVon diesem Spiel wurden noch keine Dateien installiert. %2 ist schon installiert und bleibt installiert. Das Setup schließt dann mit dem Launcher und den Verknüpfungen ab, ohne %1.%n%nWas das Setup bis jetzt heruntergeladen hat, bleibt in einem temporären Ordner von Windows (ein Ordner is-*.tmp, bis zu etwa 170 MB), bis Windows oder du ihn löschst.
+fr.SuiteCancelQuestionKept=Voulez-vous arrêter l'installation de %1 ?%n%nAucun fichier de ce jeu n'a encore été installé. %2 est déjà installé et le reste. Le programme se termine alors avec le lanceur et les raccourcis, sans %1.%n%nCe que le programme a déjà téléchargé reste dans un dossier temporaire de Windows (un dossier is-*.tmp, jusqu'à environ 170 Mo) jusqu'à ce que Windows ou vous le supprimiez.
+SuiteCancelQuestionInstalled=Do you want to stop the repair or update of %1?%n%n%1 is already installed and stays exactly as it is: the setup has not changed anything of it yet.%n%nWhat the setup has downloaded so far stays in a temporary folder of Windows (a folder named is-*.tmp, up to about 170 MB) until Windows or you delete it.
+de.SuiteCancelQuestionInstalled=Möchtest du die Reparatur oder das Update von %1 abbrechen?%n%n%1 ist schon installiert und bleibt genau so, wie es ist: Das Setup hat noch nichts daran geändert.%n%nWas das Setup bis jetzt heruntergeladen hat, bleibt in einem temporären Ordner von Windows (ein Ordner is-*.tmp, bis zu etwa 170 MB), bis Windows oder du ihn löschst.
+fr.SuiteCancelQuestionInstalled=Voulez-vous arrêter la réparation ou la mise à jour de %1 ?%n%n%1 est déjà installé et reste exactement tel qu'il est : le programme n'y a encore rien modifié.%n%nCe que le programme a déjà téléchargé reste dans un dossier temporaire de Windows (un dossier is-*.tmp, jusqu'à environ 170 Mo) jusqu'à ce que Windows ou vous le supprimiez.
+SuiteCancelQuestionInstalledKept=Do you want to stop the repair or update of %1?%n%n%1 is already installed and stays exactly as it is: the setup has not changed anything of it yet. %2 is already finished and stays installed. The setup then finishes with the launcher and the shortcuts.%n%nWhat the setup has downloaded so far stays in a temporary folder of Windows (a folder named is-*.tmp, up to about 170 MB) until Windows or you delete it.
+de.SuiteCancelQuestionInstalledKept=Möchtest du die Reparatur oder das Update von %1 abbrechen?%n%n%1 ist schon installiert und bleibt genau so, wie es ist: Das Setup hat noch nichts daran geändert. %2 ist schon fertig und bleibt installiert. Das Setup schließt dann mit dem Launcher und den Verknüpfungen ab.%n%nWas das Setup bis jetzt heruntergeladen hat, bleibt in einem temporären Ordner von Windows (ein Ordner is-*.tmp, bis zu etwa 170 MB), bis Windows oder du ihn löschst.
+fr.SuiteCancelQuestionInstalledKept=Voulez-vous arrêter la réparation ou la mise à jour de %1 ?%n%n%1 est déjà installé et reste exactement tel qu'il est : le programme n'y a encore rien modifié. %2 est déjà terminé et reste installé. Le programme se termine alors avec le lanceur et les raccourcis.%n%nCe que le programme a déjà téléchargé reste dans un dossier temporaire de Windows (un dossier is-*.tmp, jusqu'à environ 170 Mo) jusqu'à ce que Windows ou vous le supprimiez.
+SuiteCancelNotNow=Cancel is no longer possible: the game is being installed.
+de.SuiteCancelNotNow=Abbrechen ist nicht mehr möglich: Das Spiel wird gerade installiert.
+fr.SuiteCancelNotNow=L'annulation n'est plus possible : le jeu est en cours d'installation.
 SuiteCancelOwnSetup=To cancel, use the Cancel button in the setup window of the game.
 de.SuiteCancelOwnSetup=Zum Abbrechen verwende den Button "Abbrechen" im Setup-Fenster des Spiels.
 fr.SuiteCancelOwnSetup=Pour annuler, utilisez le bouton « Annuler » dans la fenêtre du programme d'installation du jeu.
@@ -276,16 +288,16 @@ SuiteCancelUnavailable=Cancel is not available here: the setup of the game canno
 de.SuiteCancelUnavailable=Abbrechen ist hier nicht möglich: Das Setup des Spiels lässt sich nicht sicher beenden.
 fr.SuiteCancelUnavailable=L'annulation n'est pas possible ici : le programme d'installation du jeu ne peut pas être arrêté en toute sécurité.
 ; The setup of a game shows no progress for a long time: %1 = the game, %2 = the minutes
-SuiteStallQuestion=The setup of %1 has shown no progress for %2 minutes. It may be stuck, or the internet connection is very slow. No game files have been installed yet.%n%nDo you want to keep waiting? If you answer "No", the setup of this game is stopped.
-de.SuiteStallQuestion=Das Setup von %1 hat seit %2 Minuten keinen Fortschritt gezeigt. Es hängt möglicherweise, oder die Internetverbindung ist sehr langsam. Es wurden noch keine Spieldateien installiert.%n%nMöchtest du weiter warten? Bei "Nein" wird das Setup dieses Spiels beendet.
-fr.SuiteStallQuestion=Le programme d'installation de %1 n'a montré aucune progression depuis %2 minutes. Il est peut-être bloqué, ou la connexion Internet est très lente. Aucun fichier du jeu n'a encore été installé.%n%nVoulez-vous continuer à attendre ? Si vous répondez « Non », l'installation de ce jeu est arrêtée.
+SuiteStallQuestion=The setup of %1 has shown no progress for %2 minutes. It may be stuck, or the internet connection is very slow. No game files have been installed or changed yet.%n%nDo you want to keep waiting? If you answer "No", the setup of this game is stopped.
+de.SuiteStallQuestion=Das Setup von %1 hat seit %2 Minuten keinen Fortschritt gezeigt. Es hängt möglicherweise, oder die Internetverbindung ist sehr langsam. Es wurden noch keine Spieldateien installiert oder geändert.%n%nMöchtest du weiter warten? Bei "Nein" wird das Setup dieses Spiels beendet.
+fr.SuiteStallQuestion=Le programme d'installation de %1 n'a montré aucune progression depuis %2 minutes. Il est peut-être bloqué, ou la connexion Internet est très lente. Aucun fichier du jeu n'a encore été installé ni modifié.%n%nVoulez-vous continuer à attendre ? Si vous répondez « Non », l'installation de ce jeu est arrêtée.
 SuiteStallQuestionInstalling=The setup of %1 has shown no progress for %2 minutes. It may be stuck.%n%nDo you want to keep waiting? If you answer "No", the setup of this game is stopped and the game may be only partly installed. Start this setup again to repair it.
 de.SuiteStallQuestionInstalling=Das Setup von %1 hat seit %2 Minuten keinen Fortschritt gezeigt. Es hängt möglicherweise.%n%nMöchtest du weiter warten? Bei "Nein" wird das Setup dieses Spiels beendet, und das Spiel ist dann möglicherweise nur teilweise installiert. Starte dieses Setup danach erneut, um es zu reparieren.
 fr.SuiteStallQuestionInstalling=Le programme d'installation de %1 n'a montré aucune progression depuis %2 minutes. Il est peut-être bloqué.%n%nVoulez-vous continuer à attendre ? Si vous répondez « Non », l'installation de ce jeu est arrêtée et le jeu ne sera peut-être installé qu'en partie. Relancez ensuite ce programme d'installation pour le réparer.
 ; The reason after the suite stopped a game setup (it fits "%1 was not installed (%2)")
-SuiteReasonTimeout=the setup took too long and was stopped; no game files were installed
-de.SuiteReasonTimeout=das Setup hat zu lange gebraucht und wurde beendet; es wurden keine Spieldateien installiert
-fr.SuiteReasonTimeout=le programme d'installation a pris trop de temps et a été arrêté ; aucun fichier du jeu n'a été installé
+SuiteReasonTimeout=the setup took too long and was stopped; no game files were installed or changed
+de.SuiteReasonTimeout=das Setup hat zu lange gebraucht und wurde beendet; es wurden keine Spieldateien installiert oder geändert
+fr.SuiteReasonTimeout=le programme d'installation a pris trop de temps et a été arrêté ; aucun fichier du jeu n'a été installé ni modifié
 SuiteReasonTimeoutInstalling=the setup took too long and was stopped while it installed the files; the game may be only partly installed, start this setup again to repair it
 de.SuiteReasonTimeoutInstalling=das Setup hat zu lange gebraucht und wurde beendet, während es die Dateien installierte; das Spiel ist möglicherweise nur teilweise installiert, starte dieses Setup erneut, um es zu reparieren
 fr.SuiteReasonTimeoutInstalling=le programme d'installation a pris trop de temps et a été arrêté pendant l'installation des fichiers ; le jeu n'est peut-être installé qu'en partie, relancez ce programme d'installation pour le réparer

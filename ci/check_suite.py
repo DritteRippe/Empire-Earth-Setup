@@ -478,13 +478,26 @@ def check_process(files, errors):
     wait = bodies.get("SuiteWaitForProduct", "")
     cancel = re.search(r"SuiteCancelRequested then.*?SuiteProgressInstalling\(SuiteChildProgress\) then.*?\bend\s+else\s+begin\s+"
                        r"SuiteStopProduct\(", wait, re.DOTALL)
-    stall = re.search(r"SuiteTimeoutStall:.*?SuiteAskStop\(Product\).*?SuiteStopProduct\(", wait, re.DOTALL)
-    cap = re.search(r"SuiteTimeoutCap:.*?if\s+SuiteChildJob\s*<>\s*0\s+then\s+begin\s+SuiteStopProduct\(", wait, re.DOTALL)
+    stall = re.search(r"SuiteTimeoutStall:.*?SuiteStallStopWanted\(.*?SuiteStopProduct\(", wait, re.DOTALL)
+    cap = re.search(r"SuiteTimeoutCap:.*?SuiteProgressInstalling\(SuiteChildProgress\)\s+then\s+Log\(.*?"
+                    r"SuiteChildJob\s*<>\s*0\s+then\s+begin\s+SuiteStopProduct\(", wait, re.DOTALL)
     if not (cancel and stall and cap):
         errors.append("suite/suite_run.iss: SuiteWaitForProduct may stop the product setup only (1) after the user confirmed "
                       "the cancel and the log shows that it has not started to install (SuiteCancelRequested, "
-                      "SuiteProgressInstalling), (2) after the user answered the stall question (SuiteAskStop) and (3) at "
-                      "the cap, with a job (SuiteChildJob <> 0)")
+                      "SuiteProgressInstalling), (2) after the user answered the stall question (SuiteStallStopWanted) and "
+                      "(3) at the cap, only before it started to install (SuiteProgressInstalling is looked at first) and "
+                      "with a job (SuiteChildJob <> 0)")
+    if "SuiteTimeoutCapInstalling:" not in wait or not re.search(r"SuiteTimeoutCheck\([^;]*SuiteProgressInstalling\(SuiteChildProgress\)", wait):
+        errors.append("suite/suite_run.iss: SuiteWaitForProduct must give SuiteTimeoutCheck whether the product setup is installing "
+                      "and only log the cap then (SuiteTimeoutCapInstalling): a product setup that installs is never stopped "
+                      "for its time")
+    ask = bodies.get("SuiteStallStopWanted", "")
+    if "SuiteAskStop(" not in ask or "SuiteProductRuns" not in ask or "SuiteLookAtLog(" not in ask:
+        errors.append("suite/suite_run.iss: SuiteStallStopWanted must look at the product setup again after the user answered "
+                      "the stall question (SuiteProductRuns, SuiteLookAtLog): it may have ended or started to install while "
+                      "the question was open")
+    if not re.search(r"\bSuiteProgressInstalling\(SuiteChildProgress\)\s+then\s+Log\(.*?/TestCancel not requested", wait, re.DOTALL):
+        errors.append("suite/suite_run.iss: /TestCancel must not request a cancel of a product setup that is installing already")
     for needed in ("SuitePumpMessages", "SuiteTimeoutCheck(", "SuiteLookAtLog(", "Terminated"):
         if needed not in wait:
             errors.append(f"suite/suite_run.iss: SuiteWaitForProduct must keep the window alive and watch the limits ({needed})")
@@ -505,10 +518,15 @@ def check_process(files, errors):
         if needed not in button:
             errors.append(f"suite/suite_run.iss: CancelButtonClick must answer the click while a product setup runs ({needed})")
     products = bodies.get("SuiteRunProducts", "")
-    if not re.search(r"and\s+not\s+SuiteRunStopped\s+and\s+not\s+SuiteRunCancelled\s+then", products) or not re.search(r"if\s+SuiteRunCancelled\s+then\s+begin.*?\bAbort;", products, re.DOTALL) \
+    if not re.search(r"and\s+not\s+SuiteRunStopped\s+and\s+not\s+SuiteRunCancelled\s+then", products) \
+            or not re.search(r"if\s+SuiteRunCancelled\s+then\s+begin\s+if\s+SuiteProductsOk\s*=\s*''\s+then\s+begin.*?\bAbort;", products, re.DOTALL) \
             or products.find("Abort;") < products.find("finally"):
         errors.append("suite/suite_run.iss: after a cancel SuiteRunProducts must start no further product setup and end Setup "
-                      "with Abort, after the progress bar was restored")
+                      "with Abort only if no product succeeded in this run (SuiteProductsOk = ''), after the progress bar was "
+                      "restored: a product that finished before the cancel has lost its old shortcuts already, so the run "
+                      "goes on to the launcher, the shortcuts and the record for it")
+    if "SuiteCancelledProduct" not in bodies.get("SuiteProductResult", ""):
+        errors.append("suite/suite_pages.iss: the last page must name the product the user cancelled (SuiteProductResult)")
     if "SuiteChildTimeout" not in bodies.get("SuiteReasonText", ""):
         errors.append("suite/suite_run.iss: SuiteReasonText must name the reason of a product setup the suite stopped")
     return 12
@@ -940,10 +958,10 @@ def self_test(source_root):
          replace(run, "      if SuiteProgressInstalling(SuiteChildProgress) then\n      begin\n        Log('Product ' + Product + ': the cancel came too late, its setup has started",
                  "      if False then\n      begin\n        Log('Product ' + Product + ': the cancel came too late, its setup has started"),
          "SuiteWaitForProduct may stop the product setup only"),
-        ("a stall stopped without the question", replace(run, "            if SuiteAskStop(Product) then\n", "            if True then\n"),
+        ("a stall stopped without the question", replace(run, "            if SuiteStallStopWanted(Product, LogFile, Phase) then\n", "            if True then\n"),
          "SuiteWaitForProduct may stop the product setup only"),
-        ("the cap stops without a job", replace(run, "          if SuiteChildJob <> 0 then\n          begin\n            SuiteStopProduct(Product, 'runs for more than '",
-                                               "          if True then\n          begin\n            SuiteStopProduct(Product, 'runs for more than '"),
+        ("the cap stops without a job", replace(run, "          else if SuiteChildJob <> 0 then\n          begin\n            SuiteStopProduct(Product, 'runs for more than '",
+                                               "          else if True then\n          begin\n            SuiteStopProduct(Product, 'runs for more than '"),
          "SuiteWaitForProduct may stop the product setup only"),
         ("an unbounded wait", replace(run, "SuiteWaitObject(SuiteChildProc, SuiteWaitSliceMs)", "SuiteWaitObject(SuiteChildProc, $FFFFFFFF)"),
          "every wait for a process must be bounded"),
@@ -953,7 +971,7 @@ def self_test(source_root):
          "(SuiteTimeoutCheck()"),
         ("the process is resumed before it is in the job", replace(common, "  if Job <> 0 then\n    if not SuiteAssignJob(Job, Proc) then", "  SuiteResumeThread(Created.hThread);\n  if Job <> 0 then\n    if not SuiteAssignJob(Job, Proc) then"),
          "SuiteStartProduct must start the process suspended"),
-        ("/TestCancel read twice", replace(run, "  SuiteRunCancelled := False;\n  SuiteRunStep := 0;", "  SuiteRunCancelled := SuiteHasParam('/TestCancel') and False;\n  SuiteRunStep := 0;"),
+        ("/TestCancel read twice", replace(run, "  SuiteRunCancelled := False;\n  SuiteCancelledProduct := '';\n  SuiteRunStep := 0;", "  SuiteRunCancelled := SuiteHasParam('/TestCancel') and False;\n  SuiteCancelledProduct := '';\n  SuiteRunStep := 0;"),
          "/TestCancel (CI scenario S11) must be read once"),
         ("the click on Cancel is Setup's", replace(run, "  Cancel := False;\n  Confirm := False;\n", ""),
          "CancelButtonClick must answer the click"),
@@ -1063,6 +1081,25 @@ def self_test(source_root):
         ("the install marker missing",
          replace("setup_is6.iss", "    // The suite parses this line (contract 1.7 point 5): change it only together with suite/suite_common.iss\n    Log('Install step: the game folder is changed from here on');\n", ""),
          "no line contains 'Install step: the game folder is changed from here on'"),
+        ("the cap is not told whether the product setup installs",
+         replace(run, "SuiteProgressInstalling(SuiteChildProgress), StallDone, CapDone) of", "False, StallDone, CapDone) of"),
+         "must give SuiteTimeoutCheck whether the product setup is installing"),
+        ("the cap stops a product setup without looking whether it installs",
+         replace(run, "          if SuiteProgressInstalling(SuiteChildProgress) then\n            Log('Product ' + Product + ': runs for more than ' + IntToStr(SuiteProductCapMs div 60000) +\n              ' minutes and has started to install, it is not stopped for its time, waiting on')\n          else if SuiteChildJob <> 0 then",
+                 "          if SuiteChildJob <> 0 then"),
+         "SuiteWaitForProduct may stop the product setup only"),
+        ("the stall question is not looked at again after the answer",
+         replace(run, "  SuiteLookAtLog(Product, LogFile, Phase);\n  if not WasInstalling and", "  if not WasInstalling and"),
+         "SuiteStallStopWanted must look at the product setup again"),
+        ("/TestCancel on a product setup that installs already",
+         replace(run, "        if SuiteProgressInstalling(SuiteChildProgress) then\n          Log('Product ' + Product + ': /TestCancel not requested", "        if False then\n          Log('Product ' + Product + ': /TestCancel not requested"),
+         "/TestCancel must not request a cancel"),
+        ("Abort after a cancel although a product succeeded",
+         replace(run, "    if SuiteProductsOk = '' then\n    begin\n      // nothing of this run is installed", "    begin\n      // nothing of this run is installed"),
+         "only if no product succeeded in this run"),
+        ("the last page does not name the cancelled product",
+         replace("suite/suite_pages.iss", "CompareText(SuiteCancelledProduct, Product) = 0", "False"),
+         "the last page must name the product the user cancelled"),
         ("a parsed product log line of the manifest reworded",
          replace("utils.iss", "Result := 'Manifest: ' + IntToStr(FileCount)", "Result := 'Manifest written: ' + IntToStr(FileCount)"),
          "no line contains 'Manifest: '"),

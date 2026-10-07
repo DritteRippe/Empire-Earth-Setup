@@ -344,6 +344,9 @@ var
   // What the log of a product setup told about its language files (the online files), as a line of the last page: set by
   // the product runner when the product succeeded, '' if it told nothing (the advanced mode shows its own wizard)
   SuiteLangLineEE, SuiteLangLineNeoEE: String;
+  // The product whose setup the user cancelled in this run ('' if none): the last page names it. A product that finished
+  // before stays installed and the suite finishes its own part; a cancel with nothing finished ends the run (suite_run.iss).
+  SuiteCancelledProduct: String;
 
 procedure ExitProcess(ExitCode: Cardinal);
   external 'ExitProcess@kernel32.dll stdcall';

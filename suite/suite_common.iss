@@ -319,6 +319,7 @@ const
   SuiteResultOk = 1;
   SuiteResultFailed = 2;
   SuiteResultSkippedUser = 3;
+  SuiteResultCancelled = 4;        // the user cancelled the setup of this game while the suite ran (the last page says so)
 
   // The answer of the NeoEE CD key registration (SuiteCdKeyKind), from "CD Keys generation result: <n>"
   SuiteCdKeyRegistered = 0;
@@ -1229,6 +1230,11 @@ const
   SuiteStageCdKeys = 3;
   SuiteStageManifest = 4;
 
+  // The line on the installation page that says why Cancel is off wraps: the lines it gets room for and the height of one
+  // line at 100 percent display scaling (ScaleY makes it the real one)
+  SuiteCancelLines = 3;
+  SuiteCancelLineHeight = 16;
+
   // The most the bar shows while a product setup runs, in thousandths: 100 percent only when the exit code is known
   SuiteRunningPermilleMax = 990;
 
@@ -1372,7 +1378,8 @@ const
   // What SuiteTimeoutCheck finds
   SuiteTimeoutNone = 0;
   SuiteTimeoutStall = 1;           // no new line in the log of the product setup for SuiteStallMs
-  SuiteTimeoutCap = 2;             // it runs longer than SuiteProductCapMs
+  SuiteTimeoutCap = 2;             // it runs longer than SuiteProductCapMs and has not started to install: it is stopped
+  SuiteTimeoutCapInstalling = 3;   // the same, but it has started to install: only logged, it is never stopped for this
 
   // What the Cancel button of the installation page does while a product setup runs (SuiteCancelMode)
   SuiteCancelAsk = 0;              // the product setup has installed nothing yet: Cancel asks and may stop it
@@ -1383,7 +1390,10 @@ const
   // The limits of the wait, in milliseconds. The loop looks at the window every SuiteWaitSliceMs and at the log
   // every SuiteTailEveryMs. A product setup whose log does not grow for SuiteStallMs may be stuck (the longest
   // silent step of the laptop logs is a 15 s manifest hash, a tenth of the biggest file at 0.5 Mbit/s about 5
-  // minutes); one that runs longer than SuiteProductCapMs is stopped (the laptop runs took 5 to 6 minutes).
+  // minutes); one that runs longer than SuiteProductCapMs is stopped, but only while it has changed nothing in the
+  // game folder (the laptop runs took 5 to 6 minutes; the downloads count, a slow line may need an hour). One that
+  // installs is never stopped for its time: a killed install leaves a half installed game, and only the user decides
+  // about that (the stall question).
   SuiteWaitSliceMs = 50;
   SuiteTailEveryMs = 500;
   SuiteStallMs = 600000;           // 10 minutes
@@ -1604,14 +1614,20 @@ begin
   Result := True;
 end;
 
-// Waits for the process up to Ms milliseconds and keeps the window of Setup alive meanwhile; True if it ended
+// Waits for the process up to Ms milliseconds and keeps the window of Setup alive meanwhile; True if it ended. A WM_QUIT
+// (Setup is closing) ends the wait at once: SuitePumpMessages puts it back for Setup, and pumping again would only find it
+// again and spin for the rest of Ms.
 function SuiteWaitEnd(Proc: THandle; Ms: Integer): Boolean;
 var
   Started: DWORD;
 begin
   Started := SuiteTickCount;
   repeat
-    SuitePumpMessages;
+    if not SuitePumpMessages then
+    begin
+      Result := SuiteWaitObject(Proc, 0) = SuiteWaitObject0;
+      Exit;
+    end;
     Result := SuiteWaitObject(Proc, SuiteWaitSliceMs) = SuiteWaitObject0;
   until Result or (SuiteTicksBetween(Started, SuiteTickCount) >= Ms);
 end;
@@ -1637,16 +1653,24 @@ begin
 end;
 
 // What the wait does about the time a product setup takes. ElapsedMs is the time since it started, IdleMs the
-// time since its log last grew; StallDone and CapDone say that the case was handled once (the stall is asked once,
-// the cap kills). The cap comes first. The advanced mode has no limits: the user goes through the wizard of the
-// product setup at his own pace and the log does not grow while a page waits.
-function SuiteTimeoutCheck(ElapsedMs, IdleMs: Int64; Advanced, StallDone, CapDone: Boolean): Integer;
+// time since its log last grew; Installing says that it has started to change the game folder (SuiteProgressInstalling);
+// StallDone and CapDone say that the case was handled once (the stall is asked once, the cap is handled once). The cap
+// comes first: before the install step it stops the product setup (nothing is changed yet), during it only gets
+// logged (SuiteTimeoutCapInstalling): a kill then would leave a half installed game, which Cancel refuses for the same
+// reason. The advanced mode has no limits: the user goes through the wizard of the product setup at his own pace and the
+// log does not grow while a page waits.
+function SuiteTimeoutCheck(ElapsedMs, IdleMs: Int64; Advanced, Installing, StallDone, CapDone: Boolean): Integer;
 begin
   Result := SuiteTimeoutNone;
   if Advanced then
     Exit;
   if (ElapsedMs >= SuiteProductCapMs) and not CapDone then
-    Result := SuiteTimeoutCap
+  begin
+    if Installing then
+      Result := SuiteTimeoutCapInstalling
+    else
+      Result := SuiteTimeoutCap;
+  end
   else if (IdleMs >= SuiteStallMs) and not StallDone then
     Result := SuiteTimeoutStall;
 end;

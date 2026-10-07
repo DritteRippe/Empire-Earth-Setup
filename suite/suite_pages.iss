@@ -149,6 +149,7 @@ begin
     SuiteResultOk: Result := CustomMessage('SuiteStatusOk');
     SuiteResultFailed: Result := CustomMessage('SuiteStatusFailed');
     SuiteResultSkippedUser: Result := CustomMessage('SuiteStatusSkippedUser');
+    SuiteResultCancelled: Result := CustomMessage('SuiteStatusCancelled');
   else
     Result := CustomMessage('SuiteStatusNotSelected');
   end;
@@ -274,7 +275,10 @@ end;
 
 // The place of the line for Cancel and of the list on the installation page of Setup. The page of Setup has the status
 // line on top, the file line below it and then the bar; the line for Cancel goes below the bar and the list takes the rest of
-// the page. Called again when the list is shown: the bar has its final size only then.
+// the page. The line wraps: its German and French texts are wider than the page of the modern wizard at 100 percent, and
+// the text of a long status line may be as well, so it gets room for SuiteCancelLines lines while it has a text (none
+// otherwise) and the list starts below its real height. Called again when the text changes and when the list is shown: the
+// bar has its final size only then.
 procedure SuiteLayoutProgressControls;
 var
   Page: TWinControl;
@@ -283,7 +287,11 @@ begin
   SuiteCancelLabel.Left := WizardForm.ProgressGauge.Left;
   SuiteCancelLabel.Top := WizardForm.ProgressGauge.Top + WizardForm.ProgressGauge.Height + ScaleY(6);
   SuiteCancelLabel.Width := WizardForm.ProgressGauge.Width;
-  SuiteCancelLabel.Height := ScaleY(16);
+  if SuiteCancelLabel.Caption = '' then
+    SuiteCancelLabel.Height := 0
+  else
+    SuiteCancelLabel.Height := ScaleY(SuiteCancelLineHeight) * SuiteCancelLines;
+  SuiteCancelLabel.Visible := SuiteCancelLabel.Caption <> '';
   SuiteStageList.Left := WizardForm.ProgressGauge.Left;
   SuiteStageList.Top := SuiteCancelLabel.Top + SuiteCancelLabel.Height + ScaleY(8);
   SuiteStageList.Width := WizardForm.ProgressGauge.Width;
@@ -297,6 +305,7 @@ begin
   SuiteCancelLabel := TNewStaticText.Create(WizardForm);
   SuiteCancelLabel.Parent := WizardForm.ProgressGauge.Parent;
   SuiteCancelLabel.AutoSize := False;
+  SuiteCancelLabel.WordWrap := True;
   SuiteCancelLabel.Caption := '';
   SuiteStageList := TNewCheckListBox.Create(WizardForm);
   SuiteStageList.Parent := WizardForm.ProgressGauge.Parent;
@@ -410,6 +419,15 @@ begin
   end;
 end;
 
+// What became of a game in this run for its line on the last page: SuiteItemResult, but "cancelled" instead of "failed"
+// for the game whose setup the user cancelled
+function SuiteProductResult(const Product: String; Selected: Boolean; State: Integer): Integer;
+begin
+  Result := SuiteItemResult(SuiteProductSucceeded(Product), Selected, State);
+  if (Result = SuiteResultFailed) and (CompareText(SuiteCancelledProduct, Product) = 0) then
+    Result := SuiteResultCancelled;
+end;
+
 // The text of the last page: what became of the games and the launcher, the CD key line of NeoEE, the logs
 procedure SuiteShowFinish;
 var
@@ -417,8 +435,8 @@ var
   ResultEE, ResultNeoEE, Delta: Integer;
 begin
   NL := #13#10;
-  ResultEE := SuiteItemResult(SuiteProductSucceeded(SuiteProductEE), SuiteWantEE, SuiteStateEE);
-  ResultNeoEE := SuiteItemResult(SuiteProductSucceeded(SuiteProductNeoEE), SuiteWantNeoEE, SuiteStateNeoEE);
+  ResultEE := SuiteProductResult(SuiteProductEE, SuiteWantEE, SuiteStateEE);
+  ResultNeoEE := SuiteProductResult(SuiteProductNeoEE, SuiteWantNeoEE, SuiteStateNeoEE);
   Text := CustomMessage('SuiteFinishIntro') + NL + NL + SuiteItemLine(CustomMessage('SuiteProductEE'), ResultEE) + NL;
   // what the run found out about the language files of a game that was installed (the runner sets the line)
   if (ResultEE = SuiteResultOk) and (SuiteLangLineEE <> '') then
@@ -446,7 +464,8 @@ begin
   end;
   Text := Text + NL + FmtMessage(CustomMessage('SuiteFinishLogs'), [ExpandConstant('{app}\Logs')]) + NL + NL +
     FmtMessage(CustomMessage('SuiteFinishClose'), [SuiteButtonName(SetupMessage(msgButtonFinish))]);
-  if (ResultEE = SuiteResultFailed) or (ResultNeoEE = SuiteResultFailed) then
+  if (ResultEE = SuiteResultFailed) or (ResultNeoEE = SuiteResultFailed) or (ResultEE = SuiteResultCancelled) or
+    (ResultNeoEE = SuiteResultCancelled) then
     WizardForm.FinishedHeadingLabel.Caption := CustomMessage('SuiteFinishHeadingProblems');
   Delta := WizardForm.FinishedLabel.Height;
   WizardForm.FinishedLabel.Caption := Text;

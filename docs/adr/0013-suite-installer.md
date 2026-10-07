@@ -505,8 +505,9 @@ the behaviour of `TNewCheckListBox` are verified by the compile only: TP-98 on t
 ## Amendment: review of the runner (2026-10-07, suite 1.1.0)
 
 **Context.** An adversarial review of the runner, the progress display and the Cancel handling (branch `v2` at
-b352efe) found one blocker and several defects. This amendment records the decisions of the fixes, one numbered
-point each; the points are added with the commit that fixes them.
+b352efe) found one blocker and several defects. This amendment records the decisions of the fixes, one point each,
+numbered like the findings of the review (findings 6, 8, 11, 12 and 13 need no decision of their own and are in
+the CHANGELOG); the points are added with the commit that fixes them.
 
 1. **The point of no return is a line of the product script, not Inno Setup's.** The suite took `Starting the
    installation process.` as the moment from which Cancel is off. The procedure `CurStepChanged(ssInstall)` of
@@ -526,3 +527,45 @@ point each; the points are added with the commit that fixes them.
    "not now" message. The bar and the stage list lose the short phase "checking
    the language files": the checking is part of the install step now, which is what it is for the game folder (the
    status line says "installing the game files" for those seconds).
+2. **The cap never kills an installation.** The cap of 90 minutes (decision 4 of the amendment of the runner) stopped the
+   job even when the product setup had started to change its game folder, silently in a `/VERYSILENT` run, and the
+   downloads count toward it: at about 0.3 Mbit/s the 171 MB take 76 minutes, so the install step could be cut at the
+   cap and leave a half installed game, which is what the Cancel rule and the decision "no kill on close" avoid.
+   `SuiteTimeoutCheck` now gets `Installing`: before the install step the cap stops the product setup (after one more
+   look at the log, because the line it stands at may be 500 ms old), during it the cap only logs once
+   (`SuiteTimeoutCapInstalling`). Only the user stops an installing product setup, through the stall question, whose
+   text says that the game may be half installed. The cap is not measured from the start of the install step: a
+   download that is slow but alive for more than 90 minutes is still stopped, and the next run starts again.
+3. **The stall question is looked at again after the answer.** The question is modal inside the wait loop and "No" used
+   to stop the job at once, without looking at the process or the log. `SuiteStallStopWanted` checks after "No": a
+   product setup that ended while the box was open is not stopped (its exit code is taken, it was reported as
+   `SuiteChildTimeout` before although it had succeeded), and one that logged the install step meanwhile gives the
+   question again with the text for an installing setup (the first text said "no game files have been installed yet").
+4. **The question of Cancel says what stays.** A killed product setup leaves its `%TEMP%\is-*.tmp` folder with what it
+   had downloaded (up to about 170 MB), and a repair or an update leaves the game as it was, so "nothing of it stays
+   on this computer" was wrong twice. The suite does not delete the folder: its name is only in a line of the product
+   log (`Created temporary directory:`), deleting a folder by a name read from a log is the kind of deletion the runner
+   avoids (`ci/check_suite.py` allows no `DelTree` there), and Windows removes it with the temporary files. The four
+   texts of `SuiteCancelQuestionText` (first installation or already installed, with or without a product that this run
+   finished) name the folder and what stays.
+5. **Cancelling the second product finishes the suite part.** `Abort` after a cancel of the second product left the first
+   one installed without shortcut (`SuiteRemoveLegacyShortcuts` had deleted the old ones, `/NOICONS`), launcher and record.
+   Now `Abort` (exit code 3, nothing written) only follows a cancel with no product succeeded in the run
+   (`SuiteProductsOk = ''`); otherwise the run goes on to `ssPostInstall` and writes the launcher, the shortcuts and the
+   record for the products that succeeded. The cancelled product counts like a failed one, but the last page says
+   "cancelled by you" (`SuiteResultCancelled`). The question of the second step says so.
+7. **The line for Cancel wraps.** `SuiteCancelLabel` was one line high without `WordWrap`, so the German and the French texts
+   were cut off at 100 percent display scaling (the WinForms and Wine runs cannot show that). It wraps now, has room for
+   three lines (`SuiteCancelLines`, scaled with `ScaleY`) while it has a text and none otherwise, and the list of the steps
+   starts below its real height (`SuiteLayoutProgressControls`, called when the text changes). TP-98 and TP-99 check it at
+   100 and 150 percent with German and French.
+9. **`/TestCancel` and the scenarios.** The CI parameter requests the cancel only if the log that was just read is still before
+   the install step; otherwise it writes `/TestCancel not requested` and the scenario fails on that line, which is better
+   than a cancel that came too late and passed or failed for another reason. A product setup that reaches its install step
+   before its log is first read cannot be cancelled at all, so the check does not make S11 deterministic by itself, but
+   the failure now names its cause. The switch stays in
+   shipped builds: it only cancels, it is of the same kind as `/EEArgs`, and a build without it would not be the one
+   the scenarios test. `/TestCancelNeoEE` cancels the second product (scenario S12), and S13 cancels a repair.
+10. **Keyboard and `WM_QUIT`.** The hand-made message pump bypasses the key handling of the forms: Esc (Cancel) and Tab do not
+   work while a product setup runs, mouse and the focused button do. TP-99 and the README say so. `SuiteWaitEnd` leaves
+   its wait when `SuitePumpMessages` reports a `WM_QUIT` (it spun for up to 5 seconds), unit-tested with a real program.

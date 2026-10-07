@@ -368,15 +368,24 @@ run, the products the user selects and the launcher:
    process handle and keeps its window alive while it waits (informative): until the product setup has logged
    the line `Install step: the game folder is changed from here on` (point 5) the user can cancel; the suite
    then stops the product setup and everything it started (the setup program is only the loader of the real
-   setup), starts no further product setup and ends with exit code 3. A product that finished before stays
-   installed, and the next run adopts it ([4.1](#41-principle)). From that line on the suite does not offer to
+   setup) and starts no further product setup. A product that finished before stays installed: the suite then
+   finishes its own part for it (the launcher, the shortcuts and the record of point 8 and
+   [1.6](#16-suite-record-optional), written for the products that succeeded) and the last page says that the
+   user cancelled the other one; only if no product succeeded in the run, nothing of the run is installed, and
+   the suite ends with exit code 3 without writing anything of its own. A cancelled repair or update leaves the
+   product exactly as it was (the next run adopts or repairs it, [4.1](#41-principle)); what the stopped product
+   setup had downloaded stays in its own `%TEMP%\is-*.tmp` folder. From that line on the suite does not offer to
    cancel, because a stopped product setup would leave a game without install state or half installed: the
    product setup logs that line as the first statement of its installation step, before it deletes
    `install.ini` and `files.sha256`, moves the downloads and replaces the shipped random maps, so until then a
-   repair or an update has changed nothing in the game folder (it only downloaded into its own `%TEMP%`). A product setup whose log does not grow for 10 minutes is
-   reported to the user once (a silent run keeps waiting), one that runs for more than 90 minutes is stopped
-   and counts as failed like any other failure, so the suite goes on with the next product. The advanced mode
-   (point 3) has no limits and no cancel of the suite: the user cancels in the product setup.
+   repair or an update has changed nothing in the game folder (it only downloaded into its own `%TEMP%`). A
+   product setup whose log does not grow for 10 minutes is reported to the user once (a silent run keeps
+   waiting; "stop" is checked against the log again, and a product setup that has ended or has meanwhile logged
+   the line above is not stopped for the first question). One that runs for more than 90 minutes (the downloads
+   count) before it has logged the line above is stopped and counts as failed like any other failure, so the
+   suite goes on with the next product; after that line the 90 minutes are only logged, because a killed
+   installation would leave a half installed game. The advanced mode (point 3) has no limits and no cancel of
+   the suite: the user cancels in the product setup.
 3. **Parameters**, default: `/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /ALLUSERS /LANG=<suite language>
    /NOICONS /MERGETASKS="!desktopicon" /LOG="<suite root>\Logs\<Product>-<yyyyMMdd-HHmm>.log"`, plus
    `/TYPE=full` for the first installation of a product. Since revision 6 the suite passes `/VERYSILENT`
@@ -1148,9 +1157,10 @@ setups changes):
   with the comment "suite parses this line", and `ci/check_suite.py` checks that they are still written;
 - the suite waits for a product setup with a process handle: Cancel of the suite works until the product setup
   has logged `Install step: the game folder is changed from here on` (the first statement of its installation
-  step, `setup_is6.iss`) and stops the product setup with everything it started
-  (exit code 3 of the suite, a finished first product stays installed), a stall of 10 minutes is reported
-  once, 90 minutes stop the product setup as a failure ([1.7](#17-how-the-suite-runs-a-product-setup-informative) point 2);
+  step, `setup_is6.iss`) and stops the product setup with everything it started (exit code 3 of the suite if
+  no product succeeded in the run; a product that finished before stays installed and the suite finishes its
+  launcher, shortcuts and record for it), a stall of 10 minutes is reported once, 90 minutes stop the product
+  setup as a failure, but only before that line ([1.7](#17-how-the-suite-runs-a-product-setup-informative) point 2);
 - `ci/check_suite.py`, the unit tests of `SuiteProductArguments` and the suite scenarios of CI expect
   `/VERYSILENT` and no `/SILENT`.
 

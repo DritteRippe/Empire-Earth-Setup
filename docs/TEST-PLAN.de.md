@@ -3141,7 +3141,7 @@ jede Prüfung der Deinstallation der Suite beachten muss, weil es sich nur auf e
 #### Gemeinsame Angaben der Fälle TP-90 bis TP-99
 
 Diese Fälle prüfen das **Suite-Setup auf dem Laptop mit den echten Daten** (Build-Art B). Sie ergänzen
-die automatischen Szenarien S1 bis S11 des Jobs `suite-e2e` ([README](../README.md), „End-to-end
+die automatischen Szenarien S1 bis S13 des Jobs `suite-e2e` ([README](../README.md), „End-to-end
 test of the suite installer“), die mit Platzhalter-Setups, still und ohne Netz laufen und nichts
 von dem sehen, was hier geprüft wird: SmartScreen, den Assistenten, das Spiel, die Verknüpfungen
 auf dem Desktop. Es gilt:
@@ -3620,8 +3620,9 @@ auf dem Desktop. Es gilt:
   vorhanden (sonst gibt es keinen Download zu sehen); Wiederherstellungspunkt angelegt.
 - **Snapshot:** `Laptop` (Wiederherstellungspunkt)
 - **Varianten:** (a) beide Spiele mit den Standardwerten, Sprache Deutsch (Dezimalkomma); (b) Sprache Englisch (kein
-  Download von Sprachdateien); (c) „Erweitert“ angehakt (das Setup jedes Spiels zeigt sich selbst); Windows 10 22H2
-  und Windows 11 24H2.
+  Download von Sprachdateien); (c) „Erweitert“ angehakt (das Setup jedes Spiels zeigt sich selbst); (d) Darstellung:
+  Sprache Deutsch und Französisch, Anzeigeskalierung 100 % und 150 % (Einstellungen, System, Anzeige), dazu die lange
+  Statuszeile und die Zeile unter dem Balken; Windows 10 22H2 und Windows 11 24H2.
 - **Schritte:**
   1. Die Suite wie in TP-93 starten und die Seiten durchgehen; ab „Installieren“ das Fenster der Suite in Ruhe
      ansehen und in jeder Phase ein Bildschirmfoto machen: beim Start (Schritt 1), beim Download (der Zähler
@@ -3637,6 +3638,10 @@ auf dem Desktop. Es gilt:
      geöffnet. Bitte gehe es dort durch.“, der Balken läuft ohne Stand, die Liste zeigt nur die Namen der Spiele und
      „Fertig“ (das Protokoll des Spiels wird nicht gelesen).
   6. Das Log der Suite (`C:\Program Files\Empire Earth Community\Logs`) und das Log je Spiel durchsehen.
+  7. (d) Neu, Sprache Deutsch und dann Französisch, jeweils bei 100 % und bei 150 % Skalierung (nach dem Ändern der
+     Skalierung abmelden und neu anmelden): die lange Statuszeile „Schritt 1 von 2: Empire Earth (mit The Art of
+     Conquest) wird installiert ...“ und, sobald die Installation der Spieldateien beginnt, die Zeile unter dem Balken
+     („Abbrechen ist nicht mehr möglich ...“) ansehen, je ein Bildschirmfoto.
 - **Erwartetes Ergebnis:**
   - Die Statuszeile folgt dem Setup des Spiels: „Schritt 1 von 2: Empire Earth - sucht die Sprachdateien im
     Internet ...“, „... lädt Sprachdatei 4 von 17 herunter ...“, „... prüft die Sprachdateien ...“ (nur für einen Moment oder gar nicht: das Prüfen der Downloads gehört
@@ -3661,6 +3666,9 @@ auf dem Desktop. Es gilt:
     ist, bei Englisch „Sprachdateien: keine nötig.“); in der erweiterten Variante (c) keine solche Zeile.
   - Es gibt nur das Fenster der Suite; das Fenster reagiert die ganze Zeit; die Zeile unter dem Balken sagt nur etwas,
     wenn Abbrechen aus ist (TP-99).
+  - (d) Die lange Statuszeile und die Zeile unter dem Balken sind in Deutsch und Französisch bei 100 % und 150 % Skalierung
+    vollständig zu lesen (die Zeile unter dem Balken bricht um, bis zu drei Zeilen), nichts ist abgeschnitten, und die Liste
+    der erledigten Schritte beginnt unterhalb der Zeile und überlappt sie nicht.
   - **bestanden**, wenn alle Punkte zutreffen. **Fehler**: ein zweites Fenster oder ein Taskleistenknopf eines Spiels,
     ein Balken auf 100 % vor dem Ende des Setups oder einer, der zurückgeht, ein Text, der zur Phase nicht passt (zum
     Beispiel „installiert“ während des Downloads), eine Zeile in einer anderen Sprache als der des Setups, eine
@@ -3679,9 +3687,12 @@ auf dem Desktop. Es gilt:
 - **Bezug:** ADR 0013 (Ergänzung: die Setups der Spiele als Prozess mit Handle, Abbrechen, Zeitgrenzen), Vertrag 1.7
   Punkt 2 (Hinweis zum Abbrechen), TP-93; Suite-Szenario S11 (still, `/TestCancel`, Platzhalter)
 - **Ziel:** Abbrechen während des Downloads eines Spiels fragt nach und beendet auf „Ja“ sofort das Setup des
-  Spiels und alles, was es gestartet hat; vom Spiel bleibt nichts auf dem Computer, die Suite endet sauber. Ein
-  fertig installiertes erstes Spiel bleibt installiert. Ab „Dateien werden installiert“ ist Abbrechen grau und
-  sagt warum. Das Fenster der Suite reagiert die ganze Zeit.
+  Spiels und alles, was es gestartet hat; vom Spiel wird nichts installiert und an einem schon installierten Spiel
+  nichts geändert, die Suite endet sauber (was das Setup bis dahin heruntergeladen hat, bleibt im temporären
+  Ordner `is-*.tmp`; die Frage sagt es). Ein fertig installiertes erstes Spiel bleibt installiert, und die Suite
+  schließt Launcher, Verknüpfungen und Eintrag für es ab. Ab dem ersten Schritt der Installation (Zeile `Install step:
+  …` im Protokoll des Spiels, vor dem Löschen des Installationszustands) ist Abbrechen grau und sagt warum. Das
+  Fenster der Suite reagiert die ganze Zeit (die Maus; Esc und Tab wirken dort nicht, siehe Schritt 7).
 - **Build-Art:** B (echter Suite-Build, echte Spieldaten, nur Laptop mit Rückweg, Regel 1)
 - **Ausgangszustand:** wie TP-93: kein EE, kein NeoEE, keine Suite, keine Reste unter `C:\Program Files (x86)\Empire
   Earth`, `…\Neo Empire Earth`, `C:\Program Files\Empire Earth Community`; das Paket nach TP-91 entpackt; Internet
@@ -3698,8 +3709,9 @@ auf dem Desktop. Es gilt:
      Setup des Spiels besteht aus zwei Prozessen, `EE_Setup.exe` und `EE_Setup.tmp`).
   2. (a) Sobald die Statuszeile „Schritt 1 von 2: Empire Earth - lädt Sprachdatei … herunter ...“ nennt und der Balken
      läuft (die Downloads dauern Minuten), auf „Abbrechen“ klicken. Die Frage „Möchtest du die Installation von Empire Earth (mit The Art
-     of Conquest) abbrechen? Es wurden noch keine Spieldateien installiert, deshalb bleibt nichts davon auf diesem
-     Computer.“ erscheint; das Fenster dahinter reagiert weiter (verschieben, Größe, Balken). „Ja“ klicken. Danach
+     of Conquest) abbrechen? Es wurden noch keine Spieldateien installiert. Was das Setup bis jetzt heruntergeladen hat, bleibt in
+     einem temporären Ordner von Windows (ein Ordner is-*.tmp, bis zu etwa 170 MB), bis Windows oder du ihn löschst.“
+     erscheint (sie sagt nicht mehr „nichts davon bleibt auf diesem Computer“); das Fenster dahinter reagiert weiter (verschieben, Größe, Balken). „Ja“ klicken. Danach
      den Task-Manager ansehen, `C:\Program Files (x86)\Empire Earth` und `C:\Program Files\Empire Earth Community`
      ansehen, in „Apps“ nach Einträgen suchen und das Verzeichnis `%TEMP%` auf `is-*.tmp` mit den heruntergeladenen
      Dateien ansehen (Größe notieren).
@@ -3710,8 +3722,11 @@ auf dem Desktop. Es gilt:
      `Product EE phase: install`): Der Knopf „Abbrechen“ ist grau; das Schließen des Fensters (Kreuz oder Alt+F4)
      bricht nichts ab (höchstens ein Hinweis mit demselben Text). Die Installation läuft zu Ende.
   5. (d) Neu, EE fertig werden lassen (Schritt 2 von 2 beginnt), dann während der Downloads von NeoEE „Abbrechen“:
-     Die Frage nennt zusätzlich „Empire Earth (mit The Art of Conquest) ist schon installiert und bleibt installiert.“;
-     „Ja“. Danach die Suite noch einmal wie in TP-93 starten: EE steht als „Schon installiert“ da.
+     Die Frage nennt zusätzlich „Empire Earth (mit The Art of Conquest) ist schon installiert und bleibt installiert.
+     Das Setup schließt dann mit dem Launcher und den Verknüpfungen ab, ohne NeoEE.“; „Ja“. Die letzte Seite zeigt
+     „Neo Empire Earth: von dir abgebrochen, nichts daran wurde geändert (…)“ und die Überschrift „Nicht alles wurde
+     installiert“. Danach Desktop, Startmenü und `C:\Program Files\Empire Earth Community` ansehen. Dann die Suite noch
+     einmal wie in TP-93 starten: EE steht als „Schon installiert“ da.
   6. (e) Neu, auf einem Computer mit EE aus TP-93: vorher notieren: Zeitstempel und Größe von
      `C:\Program Files (x86)\Empire Earth\_setupdata_EE\install.ini` und `files.sha256`, den Inhalt von
      `C:\Program Files (x86)\Empire Earth\Empire Earth\Data\Random Map Scripts` (Anzahl der Dateien), und den Zustand von EE im
@@ -3720,6 +3735,9 @@ auf dem Desktop. Es gilt:
      „Ja“. Danach die Dateien und den Launcher noch einmal ansehen. Dann die Suite noch einmal als Reparatur starten
      und diesmal die Frage zu „Abbrechen“ **offen lassen**, bis im Log der Suite die Zeile `Product EE phase: install`
      steht (die Frage bleibt dabei bedienbar, die Downloads laufen im Hintergrund weiter), und erst dann „Ja“ klicken.
+  7. In allen Varianten: Während ein Spiel-Setup läuft, im Fenster der Suite Esc und Tab drücken. Esc bricht nicht ab
+     und Tab wechselt den Fokus nicht (das Warten auf das Spiel-Setup ist handgemacht und umgeht die Tastaturbehandlung
+     der Fenster); Maus und Leertaste oder Eingabe auf dem Knopf „Abbrechen“ wirken. Als Hinweis festhalten, kein Fehler.
 - **Erwartetes Ergebnis:**
   - (a) Auf „Ja“ sind `EE_Setup.exe` **und** `EE_Setup.tmp` sofort aus dem Task-Manager verschwunden (nicht nur das
     eine), das Fenster der Suite schließt sich ohne weitere Meldung, kein Ordner `C:\Program Files (x86)\Empire Earth`,
@@ -3729,13 +3747,19 @@ auf dem Desktop. Es gilt:
     Das Fenster zeigt zu keinem Zeitpunkt „Keine Rückmeldung“.
   - (b) wie TP-93; die Frage ändert nichts am Ablauf.
   - (c) wie beschrieben; kein Abbruch, nichts halb Installiertes.
-  - (d) EE bleibt installiert und startet, NeoEE ist nicht installiert; kein Eintrag und keine Verknüpfung der
-    Suite (die Suite schreibt ihre Verknüpfungen und den Eintrag erst nach den Spielen).
+  - (d) EE bleibt installiert und startet, NeoEE ist nicht installiert. Die Suite hat ihren Teil für EE
+    abgeschlossen: der Launcher ist installiert, die Verknüpfungen für EE (Desktop und Startmenü, `--product=EE`) und
+    der Eintrag der Suite sind da, ihr Datensatz nennt `Products` = `EE`, es gibt keine Verknüpfung für NeoEE. Das
+    Setup endet mit Exit-Code 0; im Log der Suite steht `The installation of NeoEE was cancelled by the user: no
+    further product setup is started, the suite finishes its own part for "EE"`. (Bei (a) mit keinem fertigen Spiel
+    bleibt es dagegen beim Abbruch mit Exit-Code 3 ohne Verknüpfung und Eintrag.)
   - (e) Nach dem ersten „Ja“ sind `install.ini` und `files.sha256` unverändert da (gleicher Zeitstempel, gleiche Größe),
     die Karten in `Random Map Scripts` sind dieselben wie vorher, der Launcher zeigt EE weiter als „Intakt“ (nicht
     „Unbekannt“ oder „Beschädigt“), und die Suite endet ohne Änderung (Exit-Code 3). Im zweiten Lauf zeigt „Ja“ nach
     der Zeile `Product EE phase: install` den Hinweis, dass Abbrechen nicht mehr möglich ist, das Setup läuft zu Ende, und das Log der Suite
     enthält `the cancel came too late, its setup has started to install the game files`.
+  - Die Zeile unter dem Balken („Abbrechen ist nicht mehr möglich: Das Spiel wird gerade installiert.“) bricht um und ist bei
+    Deutsch und Französisch, 100 % und 150 % Skalierung, nicht abgeschnitten; die Liste der Schritte beginnt darunter.
   - **bestanden**, wenn alle Punkte stimmen. **Fehler**: ein Prozess `EE_Setup.tmp` läuft nach „Ja“ weiter und
     installiert das Spiel (dann zerstört die Suite den Ablauf nicht sauber: Log und Task-Manager sichern), die
     Frage erscheint nach „Dateien werden installiert“ oder „Abbrechen“ ist dort noch bedienbar, das Fenster friert ein,

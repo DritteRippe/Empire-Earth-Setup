@@ -1204,17 +1204,26 @@ begin
   // the time limits: no log growth for 10 minutes (asked once), 90 minutes at most, none in the advanced mode
   Check('SuiteStallMs', IntToStr(SuiteStallMs), '600000');
   Check('SuiteProductCapMs', IntToStr(SuiteProductCapMs), '5400000');
-  Check('SuiteTimeoutCheck at the start', IntToStr(SuiteTimeoutCheck(0, 0, False, False, False)), IntToStr(SuiteTimeoutNone));
-  Check('SuiteTimeoutCheck a minute before the stall', IntToStr(SuiteTimeoutCheck(900000, SuiteStallMs - 1, False, False, False)), IntToStr(SuiteTimeoutNone));
-  Check('SuiteTimeoutCheck stall', IntToStr(SuiteTimeoutCheck(900000, SuiteStallMs, False, False, False)), IntToStr(SuiteTimeoutStall));
-  Check('SuiteTimeoutCheck stall asked once', IntToStr(SuiteTimeoutCheck(900000, SuiteStallMs, False, True, False)), IntToStr(SuiteTimeoutNone));
-  Check('SuiteTimeoutCheck a log that grows is no stall', IntToStr(SuiteTimeoutCheck(3600000, 1000, False, False, False)), IntToStr(SuiteTimeoutNone));
-  Check('SuiteTimeoutCheck just below the cap', IntToStr(SuiteTimeoutCheck(SuiteProductCapMs - 1, 1000, False, False, False)), IntToStr(SuiteTimeoutNone));
-  Check('SuiteTimeoutCheck cap', IntToStr(SuiteTimeoutCheck(SuiteProductCapMs, 1000, False, False, False)), IntToStr(SuiteTimeoutCap));
-  Check('SuiteTimeoutCheck cap before stall', IntToStr(SuiteTimeoutCheck(SuiteProductCapMs, SuiteStallMs, False, False, False)), IntToStr(SuiteTimeoutCap));
-  Check('SuiteTimeoutCheck cap handled once', IntToStr(SuiteTimeoutCheck(SuiteProductCapMs, 1000, False, True, True)), IntToStr(SuiteTimeoutNone));
-  Check('SuiteTimeoutCheck advanced mode: no stall', IntToStr(SuiteTimeoutCheck(900000, SuiteStallMs, True, False, False)), IntToStr(SuiteTimeoutNone));
-  Check('SuiteTimeoutCheck advanced mode: no cap', IntToStr(SuiteTimeoutCheck(SuiteProductCapMs * 2, 1000, True, False, False)), IntToStr(SuiteTimeoutNone));
+  Check('SuiteTimeoutCheck at the start', IntToStr(SuiteTimeoutCheck(0, 0, False, False, False, False)), IntToStr(SuiteTimeoutNone));
+  Check('SuiteTimeoutCheck a minute before the stall', IntToStr(SuiteTimeoutCheck(900000, SuiteStallMs - 1, False, False, False, False)), IntToStr(SuiteTimeoutNone));
+  Check('SuiteTimeoutCheck stall', IntToStr(SuiteTimeoutCheck(900000, SuiteStallMs, False, False, False, False)), IntToStr(SuiteTimeoutStall));
+  Check('SuiteTimeoutCheck stall asked once', IntToStr(SuiteTimeoutCheck(900000, SuiteStallMs, False, False, True, False)), IntToStr(SuiteTimeoutNone));
+  Check('SuiteTimeoutCheck a log that grows is no stall', IntToStr(SuiteTimeoutCheck(3600000, 1000, False, False, False, False)), IntToStr(SuiteTimeoutNone));
+  Check('SuiteTimeoutCheck just below the cap', IntToStr(SuiteTimeoutCheck(SuiteProductCapMs - 1, 1000, False, False, False, False)), IntToStr(SuiteTimeoutNone));
+  Check('SuiteTimeoutCheck cap', IntToStr(SuiteTimeoutCheck(SuiteProductCapMs, 1000, False, False, False, False)), IntToStr(SuiteTimeoutCap));
+  Check('SuiteTimeoutCheck cap before stall', IntToStr(SuiteTimeoutCheck(SuiteProductCapMs, SuiteStallMs, False, False, False, False)), IntToStr(SuiteTimeoutCap));
+  Check('SuiteTimeoutCheck cap handled once', IntToStr(SuiteTimeoutCheck(SuiteProductCapMs, 1000, False, False, True, True)), IntToStr(SuiteTimeoutNone));
+  Check('SuiteTimeoutCheck advanced mode: no stall', IntToStr(SuiteTimeoutCheck(900000, SuiteStallMs, True, False, False, False)), IntToStr(SuiteTimeoutNone));
+  Check('SuiteTimeoutCheck advanced mode: no cap', IntToStr(SuiteTimeoutCheck(SuiteProductCapMs * 2, 1000, True, False, False, False)), IntToStr(SuiteTimeoutNone));
+  // the cap stops only a product setup that has changed nothing in the game folder; one that installs is never stopped for
+  // its time (a kill leaves a half installed game), the cap is only logged, once
+  Check('SuiteTimeoutCheck cap while installing: only logged', IntToStr(SuiteTimeoutCheck(SuiteProductCapMs, 1000, False, True, False, False)), IntToStr(SuiteTimeoutCapInstalling));
+  Check('SuiteTimeoutCheck cap while installing, long after', IntToStr(SuiteTimeoutCheck(SuiteProductCapMs * 3, 1000, False, True, False, False)), IntToStr(SuiteTimeoutCapInstalling));
+  Check('SuiteTimeoutCheck cap while installing logged once', IntToStr(SuiteTimeoutCheck(SuiteProductCapMs, 1000, False, True, False, True)), IntToStr(SuiteTimeoutNone));
+  Check('SuiteTimeoutCheck cap while installing before the stall', IntToStr(SuiteTimeoutCheck(SuiteProductCapMs, SuiteStallMs, False, True, False, False)), IntToStr(SuiteTimeoutCapInstalling));
+  Check('SuiteTimeoutCheck stall while installing is still asked', IntToStr(SuiteTimeoutCheck(900000, SuiteStallMs, False, True, False, False)), IntToStr(SuiteTimeoutStall));
+  Check('SuiteTimeoutCheck just below the cap while installing', IntToStr(SuiteTimeoutCheck(SuiteProductCapMs - 1, 1000, False, True, False, False)), IntToStr(SuiteTimeoutNone));
+  Check('SuiteTimeoutCheck advanced mode while installing: nothing', IntToStr(SuiteTimeoutCheck(SuiteProductCapMs * 2, SuiteStallMs, True, True, False, False)), IntToStr(SuiteTimeoutNone));
 
   // what the Cancel button does: asks before the product setup installed anything (and a job can stop it), else off
   Check('SuiteCancelMode before it installs', IntToStr(SuiteCancelMode(False, True, False)), IntToStr(SuiteCancelAsk));
@@ -1250,7 +1259,10 @@ var
   Dir, Cmd: String;
   Proc, Job: THandle;
   Err, Code, I: Integer;
-  Alive: Boolean;
+  Alive, Ended: Boolean;
+  Msg: TSuiteMsg;
+  Started: DWORD;
+  Elapsed: Int64;
 begin
   Dir := ExpandConstant('{tmp}\suite_proc');
   ForceDirectories(Dir);
@@ -1320,6 +1332,29 @@ begin
   SuiteCloseHandle(Proc);
   if Job <> 0 then
     SuiteCloseHandle(Job);
+  DeleteFile(Dir + '\started.txt');
+  DeleteFile(Dir + '\survived.txt');
+
+  // a WM_QUIT (Setup is closing) ends the wait at once: SuitePumpMessages puts it back for Setup, and a wait that pumped
+  // again would find it again and spin for the rest of its time (review of 2026-10-07, finding 10)
+  CheckBool('SuiteStartProduct starts a program for the WM_QUIT test', SuiteStartProduct(ExpandConstant('{srcexe}'),
+    '/VERYSILENT /SUPPRESSMSGBOXES /ProcSleepDir="' + Dir + '"', Dir, Proc, Job, Err), True);
+  SuitePostQuitMessage(0);
+  Started := SuiteTickCount;
+  Ended := SuiteWaitEnd(Proc, 4000);
+  Elapsed := SuiteTicksBetween(Started, SuiteTickCount);
+  // take the WM_QUIT out of the queue of the test setup, which would end it otherwise
+  while SuitePeekMessage(Msg, 0, SuiteWmQuit, SuiteWmQuit, SuitePmRemove) do
+    I := I + 1;
+  CheckBool('SuiteWaitEnd gives up when Setup is closing: the program is still running', Ended, False);
+  CheckBool('SuiteWaitEnd gives up when Setup is closing: at once, not after the 4 seconds', Elapsed < 2000, True);
+  CheckBool('SuitePumpMessages after the WM_QUIT was taken out of the queue', SuitePumpMessages, True);
+  SuiteKillProduct(Proc, Job);
+  SuiteWaitEnd(Proc, SuiteKillWaitMs);
+  SuiteCloseHandle(Proc);
+  if Job <> 0 then
+    SuiteCloseHandle(Job);
+  Sleep(500);
   DeleteFile(Dir + '\started.txt');
   DeleteFile(Dir + '\survived.txt');
   RemoveDir(Dir);
