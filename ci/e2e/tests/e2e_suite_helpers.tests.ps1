@@ -129,29 +129,44 @@ CheckProblems 'child arguments: German' (Test-E2ESuiteChildArguments (ChangedArg
 # --- Shortcuts -----------------------------------------------------------------------------------------------------------
 $roots = @{ EE = 'C:\Program Files (x86)\Empire Earth'; NeoEE = 'C:\Program Files (x86)\Neo Empire Earth' }
 $ids = @{ EE = $E2ESuiteConst.ProductAppIds['EE']; NeoEE = $E2ESuiteConst.ProductAppIds['NeoEE'] }
-$expected = @(Get-E2ESuiteExpectedShortcuts -Products @('EE', 'NeoEE') -SuiteRoot 'C:\Program Files\Empire Earth Community' -Desktop 'C:\Users\Public\Desktop' `
-  -Group 'C:\ProgramData\Start\Empire Earth Community' -Roots $roots -AppIds $ids -DiagnosticFor @('EE'))
-Check 'shortcuts: count (the icon + 4 game shortcuts that must not exist + 2 diagnostic + 3 others)' $expected.Count 10
+$expected = @(Get-E2ESuiteExpectedShortcuts -SuiteRoot 'C:\Program Files\Empire Earth Community' -Desktop 'C:\Users\Public\Desktop' `
+  -Group 'C:\ProgramData\Start\Empire Earth Community')
+Check 'shortcuts: count (4 present + the 7 of suite 1.0.0 that must not exist)' $expected.Count 11
+Check 'shortcuts: present' @($expected | Where-Object { $_.Present }).Count 4
 $byName = @{}
 foreach ($item in $expected) { $byName[$item.Path] = $item }
 $d = $byName['C:\Users\Public\Desktop\Empire Earth Community.lnk']
-Check 'shortcuts: the one icon, target' $d.Target 'C:\Program Files\Empire Earth Community\Empire Earth Launcher.exe'
-Check 'shortcuts: the one icon, no product' $d.Arguments ''
-Check 'shortcuts: the one icon present' $d.Present $true
-foreach ($path in @('C:\Users\Public\Desktop\Neo Empire Earth.lnk', 'C:\Users\Public\Desktop\Empire Earth.lnk', 'C:\ProgramData\Start\Empire Earth Community\Empire Earth.lnk', 'C:\ProgramData\Start\Empire Earth Community\Neo Empire Earth.lnk')) {
-  Check "shortcuts: no game shortcut $path" $byName[$path].Present $false
-}
-$diag = $byName['C:\ProgramData\Start\Empire Earth Community\Empire Earth Diagnostic.lnk']
-Check 'shortcuts: EE diagnostic target' $diag.Target 'C:\Program Files (x86)\Empire Earth\Tools\Diagnostic\EE-Diagnostic.exe'
-Check 'shortcuts: EE diagnostic arguments' $diag.Arguments '{00000000-0000-0000-0000-0000000000EE}_is1'
-Check 'shortcuts: NeoEE has no diagnostic here' $byName['C:\ProgramData\Start\Empire Earth Community\Neo Empire Earth Diagnostic.lnk'].Present $false
+Check 'shortcuts: desktop target' $d.Target 'C:\Program Files\Empire Earth Community\Empire Earth Launcher.exe'
+Check 'shortcuts: desktop without arguments' $d.Arguments ''
+Check 'shortcuts: desktop present' $d.Present $true
+$g = $byName['C:\ProgramData\Start\Empire Earth Community\Empire Earth Community.lnk']
+Check 'shortcuts: start menu target' $g.Target 'C:\Program Files\Empire Earth Community\Empire Earth Launcher.exe'
+Check 'shortcuts: start menu without arguments' $g.Arguments ''
+Check 'shortcuts: start menu present' $g.Present $true
 Check 'shortcuts: the Mod Creator' $byName['C:\ProgramData\Start\Empire Earth Community\Mod Creator.lnk'].Target 'C:\Program Files\Empire Earth Community\Mod Creator\Empire_Earth_Mod.exe'
 Check 'shortcuts: the uninstaller' $byName['C:\ProgramData\Start\Empire Earth Community\Uninstall Empire Earth Community.lnk'].Target 'C:\Program Files\Empire Earth Community\unins000.exe'
-$only = @(Get-E2ESuiteExpectedShortcuts -Products @('EE') -SuiteRoot 'C:\S' -Desktop 'C:\D' -Group 'C:\G' -Roots $roots -AppIds $ids)
-Check 'shortcuts: EE only, NeoEE game shortcut absent' (@($only | Where-Object { $_.Path -eq 'C:\D\Neo Empire Earth.lnk' })[0].Present) $false
-Check 'shortcuts: EE only, EE game shortcut absent too' (@($only | Where-Object { $_.Path -eq 'C:\D\Empire Earth.lnk' })[0].Present) $false
-Check 'shortcuts: EE only, the one icon present' (@($only | Where-Object { $_.Path -eq 'C:\D\Empire Earth Community.lnk' })[0].Present) $true
-Check 'shortcuts: no diagnostic without the program' (@($only | Where-Object { $_.Path -eq 'C:\G\Empire Earth Diagnostic.lnk' })[0].Present) $false
+
+# the seven shortcuts of suite 1.0.0: exactly the paths of SuiteOldSuiteShortcutPath, absent
+$v1 = @(Get-E2ESuiteV1Shortcuts -SuiteRoot 'C:\Program Files\Empire Earth Community' -Desktop 'C:\Users\Public\Desktop' -Group 'C:\ProgramData\Start\Empire Earth Community' -Roots $roots -AppIds $ids)
+Check 'suite 1.0.0: seven shortcuts' $v1.Count 7
+$v1Paths = @($v1 | ForEach-Object { $_.Path })
+foreach ($path in @('C:\Users\Public\Desktop\Empire Earth.lnk', 'C:\Users\Public\Desktop\Neo Empire Earth.lnk',
+    'C:\ProgramData\Start\Empire Earth Community\Empire Earth.lnk', 'C:\ProgramData\Start\Empire Earth Community\Neo Empire Earth.lnk',
+    'C:\ProgramData\Start\Empire Earth Community\Empire Earth Diagnostic.lnk', 'C:\ProgramData\Start\Empire Earth Community\Neo Empire Earth Diagnostic.lnk',
+    'C:\ProgramData\Start\Empire Earth Community\Empire Earth Launcher.lnk')) {
+  Check "suite 1.0.0: $path" ($v1Paths -contains $path) $true
+  Check "suite 1.0.0: $path must not exist" $byName[$path].Present $false
+}
+$old = @{}
+foreach ($item in $v1) { $old[$item.Path] = $item }
+Check 'suite 1.0.0: EE desktop shortcut starts the launcher with --product=EE' $old['C:\Users\Public\Desktop\Empire Earth.lnk'].Arguments '--product=EE'
+Check 'suite 1.0.0: EE desktop shortcut target' $old['C:\Users\Public\Desktop\Empire Earth.lnk'].Target 'C:\Program Files\Empire Earth Community\Empire Earth Launcher.exe'
+Check 'suite 1.0.0: NeoEE group shortcut' $old['C:\ProgramData\Start\Empire Earth Community\Neo Empire Earth.lnk'].Arguments '--product=NeoEE'
+Check 'suite 1.0.0: EE diagnostic target' $old['C:\ProgramData\Start\Empire Earth Community\Empire Earth Diagnostic.lnk'].Target 'C:\Program Files (x86)\Empire Earth\Tools\Diagnostic\EE-Diagnostic.exe'
+Check 'suite 1.0.0: EE diagnostic arguments' $old['C:\ProgramData\Start\Empire Earth Community\Empire Earth Diagnostic.lnk'].Arguments '{00000000-0000-0000-0000-0000000000EE}_is1'
+Check 'suite 1.0.0: launcher shortcut without arguments' $old['C:\ProgramData\Start\Empire Earth Community\Empire Earth Launcher.lnk'].Arguments ''
+$v1None = @(Get-E2ESuiteV1Shortcuts -SuiteRoot 'C:\S' -Desktop 'C:\D' -Group 'C:\G' -Roots @{} -AppIds @{})
+Check 'suite 1.0.0: without roots the Diagnostic target is empty' $v1None[4].Target ''
 
 $actual = @{}
 foreach ($item in $expected) {
@@ -161,7 +176,11 @@ CheckProblems 'shortcuts compare: all as expected' (Compare-E2EShortcuts $expect
 $broken = @{}
 foreach ($key in $actual.Keys) { $broken[$key] = $actual[$key] }
 $broken.Remove('C:\Users\Public\Desktop\Empire Earth Community.lnk')
-CheckProblems 'shortcuts compare: the icon missing' (Compare-E2EShortcuts $expected $broken) 'Empire Earth Community.lnk missing'
+CheckProblems 'shortcuts compare: the desktop shortcut missing' (Compare-E2EShortcuts $expected $broken) 'Empire Earth Community.lnk missing'
+$broken = @{}
+foreach ($key in $actual.Keys) { $broken[$key] = $actual[$key] }
+$broken.Remove('C:\ProgramData\Start\Empire Earth Community\Empire Earth Community.lnk')
+CheckProblems 'shortcuts compare: the start menu shortcut missing' (Compare-E2EShortcuts $expected $broken) 'ProgramData.*Empire Earth Community\.lnk missing'
 $broken = @{}
 foreach ($key in $actual.Keys) { $broken[$key] = $actual[$key] }
 $broken['C:\Users\Public\Desktop\Empire Earth Community.lnk'] = @{ Target = 'C:\Program Files (x86)\Neo Empire Earth\Empire Earth\Empire Earth.exe'; Arguments = '' }
@@ -169,11 +188,12 @@ CheckProblems 'shortcuts compare: the game program instead of the launcher' (Com
 $broken['C:\Users\Public\Desktop\Empire Earth Community.lnk'] = @{ Target = 'c:\program files\empire earth community\EMPIRE EARTH LAUNCHER.EXE'; Arguments = '--product=EE' }
 CheckProblems 'shortcuts compare: a product in the arguments' (Compare-E2EShortcuts $expected $broken) "arguments '--product=EE', expected ''"
 $broken['C:\Users\Public\Desktop\Empire Earth Community.lnk'] = $actual['C:\Users\Public\Desktop\Empire Earth Community.lnk']
-$broken['C:\Users\Public\Desktop\Neo Empire Earth.lnk'] = @{ Target = 'c:\program files\empire earth community\EMPIRE EARTH LAUNCHER.EXE'; Arguments = '--product=NeoEE' }
-CheckProblems 'shortcuts compare: a game shortcut of suite 1.0.0 that is still there' (Compare-E2EShortcuts $expected $broken) 'Neo Empire Earth.lnk exists'
-$broken.Remove('C:\Users\Public\Desktop\Neo Empire Earth.lnk')
-$broken['C:\ProgramData\Start\Empire Earth Community\Neo Empire Earth Diagnostic.lnk'] = @{ Target = 'x'; Arguments = '' }
-CheckProblems 'shortcuts compare: one that must not exist' (Compare-E2EShortcuts $expected $broken) 'Neo Empire Earth Diagnostic.lnk exists'
+foreach ($path in $v1Paths) {
+  $leftover = @{}
+  foreach ($key in $broken.Keys) { $leftover[$key] = $broken[$key] }
+  $leftover[$path] = @{ Target = 'x'; Arguments = '' }
+  CheckProblems "shortcuts compare: a shortcut of suite 1.0.0 is still there: $path" (Compare-E2EShortcuts $expected $leftover) ((Split-Path -Leaf $path) + ' exists')
+}
 $broken = @{}
 foreach ($key in $actual.Keys) { $broken[$key.ToUpperInvariant()] = $actual[$key] }
 CheckProblems 'shortcuts compare: path case does not matter' (Compare-E2EShortcuts $expected $broken) ''

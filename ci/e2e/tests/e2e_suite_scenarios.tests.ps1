@@ -156,9 +156,11 @@ try {
     return @()
   }
   function Set-FakeShortcut([string]$Path, [string]$Target, [string]$Arguments) {
+    $Path = $Path.Replace('\', [System.IO.Path]::DirectorySeparatorChar)
     New-Item -ItemType Directory -Force -Path (Split-Path -Parent $Path) | Out-Null
     [System.IO.File]::WriteAllText($Path, "$Target|$Arguments")
   }
+  # The shortcuts of suite 1.0.0 that S9 plants (scenarios.ps1 calls the Windows function)
   function Set-E2EShortcut([string]$Path, [string]$Target, [string]$Arguments) { Set-FakeShortcut $Path $Target $Arguments }
 
   # The log of the fake: lines with a time stamp like the ones of Inno Setup
@@ -323,30 +325,27 @@ try {
     $launcher = Join-E2EPath $suiteRoot $E2ESuiteConst.LauncherExe
     $desktop = Get-E2ESuiteDesktop
     $group = Get-E2ESuiteGroup
-    # the one icon of the suite (the launcher without a product); a game shortcut of suite 1.0.0 (the launcher with
-    # --product=) is deleted, a shortcut of a game program stays (SuiteGameShortcut)
+    # SuiteRemoveOldSuiteShortcuts first: the seven shortcuts of suite 1.0.0, the desktop one named Empire Earth only if it
+    # starts the launcher (the run of the EE setup above deletes the EE setup's own shortcut of that name)
+    foreach ($oldShortcut in (Get-E2ESuiteV1Shortcuts -SuiteRoot $suiteRoot -Desktop $desktop -Group $group -Roots $roots -AppIds (Get-E2ESuiteAppIds))) {
+      $link = Get-E2EShortcut $oldShortcut.Path
+      if (-not $link -or $script:Bug -eq 'oldkept') { continue }
+      if ($oldShortcut.Path -ieq (Join-E2EPath $desktop 'Empire Earth.lnk') -and $link.Target -ine $launcher) {
+        $lines += "Shortcut of suite 1.0.0 kept, it does not start the launcher: $($oldShortcut.Path)"
+        continue
+      }
+      Remove-Item -LiteralPath $oldShortcut.Path -Force
+      $lines += "Shortcut of suite 1.0.0 removed: $($oldShortcut.Path)"
+    }
+    # the one shortcut on the desktop and in the start menu folder
     if ($script:Bug -ne 'noshortcuts') {
       $arguments = ''
       if ($script:Bug -eq 'wrongargs') { $arguments = '--product=EE' }
-      Set-FakeShortcut (Join-Path $desktop 'Empire Earth Community.lnk') $launcher $arguments
-      $lines += "Shortcut created: $(Join-Path $desktop 'Empire Earth Community.lnk') -> $launcher $arguments"
-    }
-    foreach ($game in $E2ESuiteGames) {
       foreach ($folder in @($desktop, $group)) {
-        $old = Join-Path $folder "$($game.Name).lnk"
-        $link = Get-E2EShortcut $old
-        if ($link -and $link.Target -ieq $launcher -and $script:Bug -ne 'oldiconkept') {
-          Remove-Item -LiteralPath $old -Force
-          $lines += "Old game shortcut of suite 1.0.0 removed (the launcher starts every game now): $old"
-        }
-      }
-      $installed = Test-E2ERegKey 'HKLM64' (Get-E2EUninstallKeyPath (Get-E2EProduct $game.Id))
-      if (-not $installed) { continue }
-      if (Test-Path -LiteralPath (Join-Path $roots[$game.Id] 'Tools\Diagnostic\EE-Diagnostic.exe')) {
-        Set-FakeShortcut (Join-Path $group "$($game.Diagnostic).lnk") (Join-E2EPath $roots[$game.Id] 'Tools\Diagnostic\EE-Diagnostic.exe') ('{' + $E2ESuiteConst.ProductAppIds[$game.Id] + '}_is1')
+        Set-FakeShortcut (Join-Path $folder "$E2ESuiteShortcutName.lnk") $launcher $arguments
+        $lines += "Shortcut created: $(Join-Path $folder "$E2ESuiteShortcutName.lnk") -> $launcher $arguments"
       }
     }
-    Set-FakeShortcut (Join-Path $group 'Empire Earth Launcher.lnk') $launcher ''
     Set-FakeShortcut (Join-Path $group 'Mod Creator.lnk') (Join-E2EPath $suiteRoot $E2ESuiteConst.ModCreatorExe) ''
     Set-FakeShortcut (Join-Path $group 'Uninstall Empire Earth Community.lnk') (Join-E2EPath $suiteRoot 'unins000.exe') ''
     # the record and the uninstall key
@@ -450,7 +449,7 @@ try {
   $defects = @(
     @{ Bug = 'noshortcuts'; Scenario = 'S1'; Check = 'install/LNK' },
     @{ Bug = 'wrongargs'; Scenario = 'S1'; Check = 'install/LNK' },
-    @{ Bug = 'oldiconkept'; Scenario = 'S9'; Check = 'repair/OLDICONS' },
+    @{ Bug = 'oldkept'; Scenario = 'S9'; Check = 'repair/OLD-SHORTCUTS' },
     @{ Bug = 'legacykept'; Scenario = 'S3'; Check = 'suite/LNK' },
     @{ Bug = 'keepproduct'; Scenario = 'S8'; Check = 'suite-uninstall/REMOVED' },
     @{ Bug = 'keepproduct'; Scenario = 'S7'; Check = 'suite-uninstall/SKIPPED' },

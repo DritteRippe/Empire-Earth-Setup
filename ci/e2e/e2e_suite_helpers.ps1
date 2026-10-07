@@ -67,19 +67,15 @@ $E2ESuiteTitles = @{
   S6  = 'Game or launcher running: refused (exit code 14)'
   S7  = 'NeoEE removed on its own, then the suite uninstaller: skipped cleanly'
   S8  = 'Suite uninstaller: products, launcher and shortcuts gone, saved games kept'
-  S9  = 'Second run as a repair: roots and tasks kept, no CD key task, shortcuts restored'
+  S9  = 'Second run as a repair: roots and tasks kept, no CD key task, shortcut restored, shortcuts of suite 1.0.0 removed'
   S10 = 'Zone.Identifier on the package files does not change the chain'
   S11 = 'Cancel while the first product setup runs: it is stopped before it installs anything (exit code 3)'
   S12 = 'Cancel while the second product setup runs: the suite finishes its part for the first one (exit code 0)'
   S13 = 'Cancel of a repair: the installed product stays exactly as it was (exit code 3)'
 }
 
-# The game shortcut names (contract 1.7 point 8): since suite 1.1.0 the suite creates none with the launcher, and the
-# Diagnostic shortcut belongs to each of them
-$E2ESuiteGames = @(
-  @{ Id = 'EE';    Name = 'Empire Earth';      Diagnostic = 'Empire Earth Diagnostic' },
-  @{ Id = 'NeoEE'; Name = 'Neo Empire Earth';  Diagnostic = 'Neo Empire Earth Diagnostic' }
-)
+# The one shortcut of the suite 1.1.0 (contract 1.7 point 8): it starts the launcher without an argument
+$E2ESuiteShortcutName = 'Empire Earth Community'
 
 # --- Command lines ------------------------------------------------------------------------------------------
 
@@ -188,43 +184,58 @@ function Join-E2EPath([string]$Folder, [string]$Name) { return ($Folder.TrimEnd(
 
 # --- Shortcuts (contract 1.7 point 8) -----------------------------------------------------------------------------
 
-# The shortcuts a run leaves, as @{ Path; Target; Arguments; Present }: the one desktop shortcut "Empire Earth
-# Community" (the launcher without a product); NO game shortcut (the names Empire Earth and Neo Empire Earth on the
-# desktop and in the start menu folder, which suite 1.0.0 created with --product=<id> and suite 1.1.0 deletes where they
-# start the launcher; the standalone setups' own shortcuts of these names are deleted by the product runner), so they
-# are listed as absent; the shortcuts of the launcher, the Mod Creator and the uninstaller always; the Diagnostic
-# shortcut of a product only if it is in Products and has its program (DiagnosticFor). Roots: product id -> install
-# root. AppIds: product id -> AppId (the Diagnostic tool gets "{<AppId>}_is1").
+# The shortcuts of a run as @{ Path; Target; Arguments; Present } (contract 1.7 point 8): the one shortcut "Empire Earth
+# Community" on the desktop and in the start menu folder, the launcher without arguments, the Mod Creator and the
+# uninstaller in the folder; the seven shortcuts of suite 1.0.0 (Get-E2ESuiteV1Shortcuts) must not exist (Present =
+# $false). The launcher is installed in every scenario: the runner of CI has .NET Framework 4.8.
 function Get-E2ESuiteExpectedShortcuts {
   param(
-    [string[]]$Products,
+    [string]$SuiteRoot,
+    [string]$Desktop,
+    [string]$Group
+  )
+  $launcher = Join-E2EPath $SuiteRoot $E2ESuiteConst.LauncherExe
+  $list = @()
+  $list += @{ Path = Join-E2EPath $Desktop "$E2ESuiteShortcutName.lnk"; Target = $launcher; Arguments = ''; Present = $true }
+  $list += @{ Path = Join-E2EPath $Group "$E2ESuiteShortcutName.lnk"; Target = $launcher; Arguments = ''; Present = $true }
+  $list += @{ Path = Join-E2EPath $Group 'Mod Creator.lnk'; Target = (Join-E2EPath $SuiteRoot $E2ESuiteConst.ModCreatorExe); Arguments = ''; Present = $true }
+  $list += @{ Path = Join-E2EPath $Group 'Uninstall Empire Earth Community.lnk'; Target = (Join-E2EPath $SuiteRoot 'unins000.exe'); Arguments = ''; Present = $true }
+  foreach ($old in (Get-E2ESuiteV1Shortcuts -SuiteRoot $SuiteRoot -Desktop $Desktop -Group $Group -Roots @{} -AppIds @{})) {
+    $list += @{ Path = $old.Path; Target = ''; Arguments = ''; Present = $false }
+  }
+  return $list
+}
+
+# The seven shortcuts that suite 1.0.0 created (contract 1.7 point 8; SuiteOldSuiteShortcutPath), as @{ Path; Target;
+# Arguments }: the game shortcuts on the desktop and in the start menu folder (the launcher with --product=<id>), the
+# Diagnostic shortcuts of the two products (EE-Diagnostic.exe with "{<AppId>}_is1") and the launcher. Roots: product id ->
+# install root, AppIds: product id -> AppId (for the Diagnostic tool; an empty table gives empty targets).
+function Get-E2ESuiteV1Shortcuts {
+  param(
     [string]$SuiteRoot,
     [string]$Desktop,
     [string]$Group,
     [hashtable]$Roots,
-    [hashtable]$AppIds,
-    [string[]]$DiagnosticFor = @()
+    [hashtable]$AppIds
   )
   $launcher = Join-E2EPath $SuiteRoot $E2ESuiteConst.LauncherExe
-  $list = @()
-  $list += @{ Path = Join-E2EPath $Desktop 'Empire Earth Community.lnk'; Target = $launcher; Arguments = ''; Present = $true }
-  foreach ($game in $E2ESuiteGames) {
-    $present = ($Products -contains $game.Id)
-    $list += @{ Path = Join-E2EPath $Desktop "$($game.Name).lnk"; Target = ''; Arguments = ''; Present = $false }
-    $list += @{ Path = Join-E2EPath $Group "$($game.Name).lnk"; Target = ''; Arguments = ''; Present = $false }
-    $diag = ($present -and ($DiagnosticFor -contains $game.Id))
-    $target = ''
-    $arguments = ''
-    if ($diag) {
-      $target = Join-E2EPath $Roots[$game.Id] 'Tools\Diagnostic\EE-Diagnostic.exe'
-      $arguments = '{' + $AppIds[$game.Id] + '}_is1'
+  $diagnostic = @{}
+  foreach ($id in @('EE', 'NeoEE')) {
+    if ($Roots.ContainsKey($id) -and $AppIds.ContainsKey($id)) {
+      $diagnostic[$id] = @{ Target = (Join-E2EPath $Roots[$id] 'Tools\Diagnostic\EE-Diagnostic.exe'); Arguments = '{' + $AppIds[$id] + '}_is1' }
+    } else {
+      $diagnostic[$id] = @{ Target = ''; Arguments = '' }
     }
-    $list += @{ Path = Join-E2EPath $Group "$($game.Diagnostic).lnk"; Target = $target; Arguments = $arguments; Present = $diag }
   }
-  $list += @{ Path = Join-E2EPath $Group 'Empire Earth Launcher.lnk'; Target = $launcher; Arguments = ''; Present = $true }
-  $list += @{ Path = Join-E2EPath $Group 'Mod Creator.lnk'; Target = (Join-E2EPath $SuiteRoot $E2ESuiteConst.ModCreatorExe); Arguments = ''; Present = $true }
-  $list += @{ Path = Join-E2EPath $Group 'Uninstall Empire Earth Community.lnk'; Target = (Join-E2EPath $SuiteRoot 'unins000.exe'); Arguments = ''; Present = $true }
-  return $list
+  return @(
+    @{ Path = Join-E2EPath $Desktop 'Empire Earth.lnk'; Target = $launcher; Arguments = '--product=EE' },
+    @{ Path = Join-E2EPath $Desktop 'Neo Empire Earth.lnk'; Target = $launcher; Arguments = '--product=NeoEE' },
+    @{ Path = Join-E2EPath $Group 'Empire Earth.lnk'; Target = $launcher; Arguments = '--product=EE' },
+    @{ Path = Join-E2EPath $Group 'Neo Empire Earth.lnk'; Target = $launcher; Arguments = '--product=NeoEE' },
+    @{ Path = Join-E2EPath $Group 'Empire Earth Diagnostic.lnk'; Target = $diagnostic['EE'].Target; Arguments = $diagnostic['EE'].Arguments },
+    @{ Path = Join-E2EPath $Group 'Neo Empire Earth Diagnostic.lnk'; Target = $diagnostic['NeoEE'].Target; Arguments = $diagnostic['NeoEE'].Arguments },
+    @{ Path = Join-E2EPath $Group 'Empire Earth Launcher.lnk'; Target = $launcher; Arguments = '' }
+  )
 }
 
 # Problems of the shortcuts: Expected from Get-E2ESuiteExpectedShortcuts, Actual path -> @{ Target; Arguments } of

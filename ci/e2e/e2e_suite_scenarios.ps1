@@ -84,7 +84,8 @@ function Test-E2EMachineSnapshot([string]$Scenario, [string]$Step) {
 # --- Clean machine ----------------------------------------------------------------------------------------------
 
 # What a scenario must not find at its start: the dirty state of the products (their AppIds are the dummies,
-# Set-E2EAppIdOverride) and what the suite adds: its uninstall key, its folders, the shortcut names of NeoEE
+# Set-E2EAppIdOverride) and what the suite adds: its uninstall key, its folders, its shortcut and the shortcut name of NeoEE
+# (suite 1.0.0)
 function Get-E2ESuiteDirtyState {
   $found = @(Get-E2EDirtyState)
   foreach ($hive in @('HKLM64', 'HKLM32', 'HKCU')) {
@@ -426,16 +427,11 @@ function Test-E2ESuiteLog([string]$Scenario, [string]$Step, $Run, [string[]]$Pro
   [void](Complete-E2ECheck $Scenario "$Step/LOG" $problems "$(@($Run.LogLines).Count) log lines")
 }
 
-# The shortcuts through WScript.Shell: target and arguments of each (Get-E2EShortcut), and none of the products'
-# own shortcuts left besides the one name the suite shares with EE
-function Test-E2ESuiteShortcuts([string]$Scenario, [string]$Step, [string[]]$Products) {
-  $roots = Get-E2ESuiteProductRoots
-  $diagnostic = @()
-  foreach ($id in $Products) {
-    if (Test-Path -LiteralPath (Join-Path $roots[$id] 'Tools\Diagnostic\EE-Diagnostic.exe') -PathType Leaf) { $diagnostic += $id }
-  }
-  $expected = @(Get-E2ESuiteExpectedShortcuts -Products $Products -SuiteRoot (Get-E2ESuiteRoot) -Desktop (Get-E2ESuiteDesktop) `
-    -Group (Get-E2ESuiteGroup) -Roots $roots -AppIds (Get-E2ESuiteAppIds) -DiagnosticFor $diagnostic)
+# The shortcuts through WScript.Shell: target and arguments of each (Get-E2EShortcut): the one shortcut of the suite on
+# the desktop and in its start menu folder, the Mod Creator and the uninstaller; none of the seven shortcuts of suite 1.0.0
+# and none of the products' own besides the names the suite shares with them
+function Test-E2ESuiteShortcuts([string]$Scenario, [string]$Step) {
+  $expected = @(Get-E2ESuiteExpectedShortcuts -SuiteRoot (Get-E2ESuiteRoot) -Desktop (Get-E2ESuiteDesktop) -Group (Get-E2ESuiteGroup))
   $actual = @{}
   foreach ($item in $expected) {
     $link = Get-E2EShortcut $item.Path
@@ -446,7 +442,7 @@ function Test-E2ESuiteShortcuts([string]$Scenario, [string]$Step, [string[]]$Pro
   foreach ($path in (Get-E2EKnownShortcuts)) {
     if (($expectedPaths -notcontains $path.Replace('/', '\')) -and (Test-Path -LiteralPath $path)) { $problems += "a shortcut or folder of the products is still there: $path" }
   }
-  [void](Complete-E2ECheck $Scenario "$Step/LNK" $problems "$(@($expected | Where-Object { $_.Present }).Count) shortcuts start the launcher or the suite, none of the products' own")
+  [void](Complete-E2ECheck $Scenario "$Step/LNK" $problems "$(@($expected | Where-Object { $_.Present }).Count) shortcuts start the launcher or the suite, none of suite 1.0.0, none of the products' own")
 }
 
 # The files of the suite: the stub launcher, the Mod Creator, the license texts, the uninstaller, a log per product
@@ -482,7 +478,7 @@ function Invoke-E2ESuiteInstalledChecks {
   Test-E2ESuiteRecord $Scenario $Step $Recorded $Package
   foreach ($id in $Products) { Test-E2EProductInstalled $Scenario $Step $id $roots[$id] }
   Test-E2EProductLogs $Scenario $Step $Run $Products $Adopted
-  Test-E2ESuiteShortcuts $Scenario $Step $Products
+  Test-E2ESuiteShortcuts $Scenario $Step
   Test-E2ESuiteFiles $Scenario $Step $Products
   Test-E2EMachineSnapshot $Scenario $Step
 }
@@ -847,6 +843,16 @@ function Get-E2ESuiteState([string[]]$Ids) {
   return $state
 }
 
+# Plants the seven shortcuts that suite 1.0.0 created (Get-E2ESuiteV1Shortcuts) as that suite made them; returns their paths
+function New-E2ESuiteV1Shortcuts([hashtable]$Roots) {
+  $paths = @()
+  foreach ($old in (Get-E2ESuiteV1Shortcuts -SuiteRoot (Get-E2ESuiteRoot) -Desktop (Get-E2ESuiteDesktop) -Group (Get-E2ESuiteGroup) -Roots $Roots -AppIds (Get-E2ESuiteAppIds))) {
+    Set-E2EShortcut $old.Path $old.Target $old.Arguments
+    $paths += $old.Path
+  }
+  return $paths
+}
+
 function Invoke-E2EScenarioS9 {
   $s = 'S9'
   if (-not (Initialize-E2ESuiteScenario $s)) { return }
@@ -871,22 +877,13 @@ function Invoke-E2EScenarioS9 {
       [System.IO.File]::WriteAllText($mods[$id], "ci mod $id", (New-Object System.Text.UTF8Encoding($false)))
     }
 
-    # damage: a game program is gone, two of the suite's shortcuts are gone
+    # damage: a game program is gone, two of the suite's shortcuts are gone, and the seven shortcuts of suite 1.0.0 are there
+    # (an update of suite 1.0.0 looks like this): the repair deletes them
     $game = Join-Path (Join-Path $roots['EE'] $E2EGames['EE'].Folder) $E2EGames['EE'].Exe
     Remove-Item -LiteralPath $game -Force
-    $gone = @((Join-Path (Get-E2ESuiteDesktop) 'Empire Earth Community.lnk'), (Join-Path (Get-E2ESuiteGroup) 'Empire Earth Launcher.lnk'))
+    $gone = @((Join-Path (Get-E2ESuiteDesktop) 'Empire Earth Community.lnk'), (Join-Path (Get-E2ESuiteGroup) 'Mod Creator.lnk'))
     foreach ($path in $gone) { Remove-Item -LiteralPath $path -Force }
-    # the four game shortcuts that suite 1.0.0 created (desktop and start menu folder, the launcher with --product=): an update or
-    # repair of suite 1.1.0 deletes them (the one icon starts every game)
-    $launcherExe = Join-E2EPath (Get-E2ESuiteRoot) $E2ESuiteConst.LauncherExe
-    $oldIcons = @()
-    foreach ($entry in $E2ESuiteGames) {
-      foreach ($folder in @((Get-E2ESuiteDesktop), (Get-E2ESuiteGroup))) {
-        $path = Join-Path $folder "$($entry.Name).lnk"
-        Set-E2EShortcut $path $launcherExe "--product=$($entry.Id)"
-        $oldIcons += $path
-      }
-    }
+    $old = @(New-E2ESuiteV1Shortcuts $roots)
 
     # as a repair by the suite itself: no /TYPE, so the products keep their components
     $repair = Invoke-E2ESuiteRun -Scenario $s -Step 'repair' -Package $env:E2E_SUITE -Products 'EE,NeoEE' `
@@ -909,14 +906,18 @@ function Invoke-E2EScenarioS9 {
         if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { $problems += "$path was not restored" }
       }
       [void](Complete-E2ECheck $s 'repair/KEPT' $problems 'the same folders, components and tasks (no neoee_cdkeys), the missing game program and the two shortcuts restored')
+      # the shortcuts of suite 1.0.0 are gone: six by the suite's own deletion (a log line each), the desktop shortcut Empire Earth
+      # (it starts the launcher here) by the run of the EE setup, which deletes its own shortcut of that name first (contract 1.7 point 7)
       $problems = @()
-      foreach ($path in $oldIcons) {
-        if (Test-Path -LiteralPath $path) { $problems += "$path (a game shortcut of suite 1.0.0) is still there after the repair" }
+      foreach ($path in $old) {
+        if (Test-Path -LiteralPath $path) { $problems += "$path (a shortcut of suite 1.0.0) is still there after the repair" }
+        elseif ($path.Replace('/', '\') -ieq (Join-E2EPath (Get-E2ESuiteDesktop) 'Empire Earth.lnk').Replace('/', '\')) {
+          $problems += @(Test-E2ELogLines -Lines $repair.LogLines -Contains @("Old shortcut of the EE setup removed: $(Join-Path (Get-E2ESuiteDesktop) 'Empire Earth.lnk')"))
+        } else {
+          $problems += @(Test-E2ELogLines -Lines $repair.LogLines -Contains @("Shortcut of suite 1.0.0 removed: $path"))
+        }
       }
-      foreach ($path in @($oldIcons | Where-Object { $_ -like '*Neo Empire Earth.lnk' })) {
-        $problems += @(Test-E2ELogLines -Lines $repair.LogLines -Contains @("Old game shortcut of suite 1.0.0 removed (the launcher starts every game now): $path"))
-      }
-      [void](Complete-E2ECheck $s 'repair/OLDICONS' $problems 'the four game shortcuts of suite 1.0.0 (desktop and start menu folder, the launcher with --product=) were deleted by the repair')
+      [void](Complete-E2ECheck $s 'repair/OLD-SHORTCUTS' $problems 'the seven shortcuts of suite 1.0.0 (desktop and start menu folder, the launcher with --product=, the Diagnostic tools, the launcher) were deleted by the repair')
       $problems = @()
       foreach ($id in $ids) {
         if (-not (Test-Path -LiteralPath $mods[$id] -PathType Leaf)) { $problems += "${id}: the self-made mod folder $($mods[$id]) is gone after the repair" }
