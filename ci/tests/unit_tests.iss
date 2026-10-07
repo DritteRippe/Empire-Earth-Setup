@@ -621,6 +621,48 @@ begin
   CheckBool('IsDownloadSizeAcceptable negative progress', IsDownloadSizeAcceptable(-1, 1000, 1000), False);
 end;
 
+// The progress lines of a download: one per 10 percent step, each once (finding 6 of the review of 2026-10-07)
+procedure CheckProgressLog(const Name: String; const Received, Total: Int64; const Next: Integer; const ExpectedDue: Boolean; const ExpectedNext: Integer);
+var
+  N: Integer;
+begin
+  N := Next;
+  CheckBool('IsProgressLogDue ' + Name, IsProgressLogDue(Received, Total, N), ExpectedDue);
+  Check('IsProgressLogDue next step after ' + Name, IntToStr(N), IntToStr(ExpectedNext));
+end;
+
+procedure TestIsProgressLogDue;
+var
+  N, Lines: Integer;
+  Received: Int64;
+begin
+  CheckProgressLog('nothing yet', 0, 1000, 10, False, 10);
+  CheckProgressLog('just below 10 percent', 99, 1000, 10, False, 10);
+  CheckProgressLog('exactly 10 percent', 100, 1000, 10, True, 20);
+  CheckProgressLog('a jump over three steps', 350, 1000, 10, True, 40);
+  CheckProgressLog('the same step again', 150, 1000, 20, False, 20);
+  CheckProgressLog('the last step', 1000, 1000, 100, True, 110);
+  CheckProgressLog('after the last step', 1000, 1000, 110, False, 110);
+  CheckProgressLog('no known size', 500, 0, 10, False, 10);
+  CheckProgressLog('negative size', 500, -1, 10, False, 10);
+  CheckProgressLog('more than announced', 2000, 1000, 10, True, 110);
+  CheckProgressLog('a file above 4 GiB', 4294967296, 8589934592, 10, True, 60);
+  CheckProgressLog('the 164 MB data file at a third', 57000000, 171671814, 10, True, 40);
+  // a whole download in reads of 64 KiB: ten lines, not one per read
+  N := 10;
+  Lines := 0;
+  Received := 0;
+  while Received < 171671814 do
+  begin
+    Received := Received + 65536;
+    if Received > 171671814 then
+      Received := 171671814;
+    if IsProgressLogDue(Received, 171671814, N) then
+      Lines := Lines + 1;
+  end;
+  Check('IsProgressLogDue: ten lines for a whole download in reads of 64 KiB', IntToStr(Lines), '10');
+end;
+
 procedure TestParsePinnedSize;
 begin
   Check('ParsePinnedSize 1', IntToStr(ParsePinnedSize('1')), '1');
@@ -1889,6 +1931,7 @@ begin
     TestChooseOnlineFilesServerOrder;
     TestGetOnlineFileTransport;
     TestIsDownloadSizeAcceptable;
+    TestIsProgressLogDue;
     TestParsePinnedSize;
     TestSplitDownloadUrl;
     TestDescribeWinHttpError;

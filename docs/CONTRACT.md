@@ -430,8 +430,9 @@ run, the products the user selects and the launcher:
    | `Online files server <URL>: ...` | `downloads.iss` | the setup asks its online files servers |
    | `English language selected, no need to download online files.` | `setup_is6.iss` | no downloads in this run |
    | `Downloading <N> online files, one at a time` | `downloads.iss` | the downloads start, N files |
-   | `Downloading pinned online file ... from <URL>: <target>` | `downloads.iss` | the file being downloaded (the last part of the URL) |
-   | `<X> of <Y> bytes done.` (two blanks before X) | `downloads.iss` | bytes of the file being downloaded |
+   | `Downloading pinned online file ... from <URL>: <target>` | `downloads.iss` | the file being downloaded (the last part of the URL), WinHTTP transport of the pinned files from a server with an invalid certificate |
+   | `Downloading temporary file from <URL>: <target>` | Inno Setup | the same for a file of the validated TLS transport (Inno Setup's own wording, written when its download page starts a file) |
+   | `<X> of <Y> bytes done.` (two blanks before X) | `downloads.iss` | bytes of the file being downloaded, written at every 10 percent by both transports (the callback of the download page for the validated one, the read loop for WinHTTP) |
    | `Online file downloaded, ...`, `Online file not downloaded, it failed on both servers: ...`, `Online file not downloaded, not retried: ...`, `Online file not downloaded, unexpected error: ...`, `Online file skipped, downloads stopped by the user: ...` | `downloads.iss` | one file is finished |
    | `Online files: <n> downloaded with validated TLS ...`, `All <n> online files accepted`, `<m> of <k> selected online files are missing ...` | `downloads.iss` | the downloads are over and checked |
    | `Install step: the game folder is changed from here on` | `setup_is6.iss` | the point of no return: the first statement of `CurStepChanged(ssInstall)` of the product script, before it deletes `install.ini` and `files.sha256`, checks and moves the downloads and replaces the shipped random maps; from here on the setup cannot be stopped without leaving a game without install state or half installed (before, it only downloaded into its own `%TEMP%` and changed nothing in the game folder) |

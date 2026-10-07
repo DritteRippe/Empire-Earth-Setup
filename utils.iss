@@ -660,6 +660,18 @@ begin
     Result := (Progress >= 0) and (Progress <= UnsizedPinnedDownloadMaxBytes) and (ProgressMax <= UnsizedPinnedDownloadMaxBytes);
 end;
 
+// True if a download has passed the next progress line that is not logged yet: Received of Total bytes, NextPercent the
+// next step (10, 20, ... 100; 110 once the last one is logged). Then NextPercent moves past every step that is reached,
+// so each step is logged once and a jump over several steps logs one line. False without a known total size. Both
+// transports of the online files use it (the line "<X> of <Y> bytes done." is read by the suite, contract 1.7 point 5).
+function IsProgressLogDue(const Received, Total: Int64; var NextPercent: Integer): Boolean;
+begin
+  Result := (Total > 0) and (NextPercent <= 100) and (Received * 100 >= Total * NextPercent);
+  if Result then
+    while (NextPercent <= 100) and (Received * 100 >= Total * NextPercent) do
+      NextPercent := NextPercent + 10;
+end;
+
 // The size of a pin as pins\online-files.txt writes it: a positive decimal number of at most 15
 // digits without sign, spaces or leading zero; -1 for anything else
 function ParsePinnedSize(const Text: String): Int64;

@@ -913,6 +913,14 @@ setup version stays 1.7.2 until the release.
   shortcut, no launcher and no record. The suite now finishes its own part (launcher, shortcuts, record) for the games
   that succeeded and the last page says "cancelled by you" for the other one; a cancel with no finished game still ends
   with exit code 3 and writes nothing.
+- Suite installer: the file name and the size of the file being downloaded were shown for the WinHTTP transport only
+  (the pinned files from a server with an invalid certificate). The normal validated TLS transport logs only Inno
+  Setup's line `Downloading temporary file from <URL>: <target>` and no bytes, so with a valid certificate the line below the
+  status line stayed empty, the bar moved per file, and a large file (164 MB at 1 Mbit/s takes about 22 minutes)
+  could trigger the question "no progress for 10 minutes" during a healthy download. The suite now reads that line of Inno
+  Setup too, and the setups log `<X> of <Y> bytes done.` at every 10 percent in that transport as well
+  (`OnOnlineFileDownloadProgress`, `IsProgressLogDue` in `utils.iss`, one helper for both transports, unit-tested). Contract
+  1.7 point 5 lists both lines, TP-98 covers both transports.
 - Suite installer: `/TestCancel` requests the cancel only if the log that was just read is still before the install step
   (it logs `/TestCancel not requested` otherwise, so the scenario S11 fails with a clear line instead of testing a cancel
   that came too late), and `/TestCancelNeoEE` cancels the second game (scenario S12). `SuiteWaitEnd` leaves its wait as

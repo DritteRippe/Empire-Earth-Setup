@@ -569,3 +569,12 @@ the CHANGELOG); the points are added with the commit that fixes them.
 10. **Keyboard and `WM_QUIT`.** The hand-made message pump bypasses the key handling of the forms: Esc (Cancel) and Tab do not
    work while a product setup runs, mouse and the focused button do. TP-99 and the README say so. `SuiteWaitEnd` leaves
    its wait when `SuitePumpMessages` reports a `WM_QUIT` (it spun for up to 5 seconds), unit-tested with a real program.
+6. **The file line works with both transports.** The file name and the bytes came only from the WinHTTP transport (`Downloading
+   pinned online file ...`, `<X> of <Y> bytes done.`). Inno Setup's download page logs only `Downloading temporary file
+   from <URL>: <target>` and no progress, so with a valid certificate the line stayed empty and a large file could trigger
+   the stall question during a healthy download. The suite parses Inno Setup's line as well (`SuiteLogTempFile`, listed with
+   the other Inno lines in `ci/check_suite.py`), and the progress callback of the download page logs the same
+   `<X> of <Y> bytes done.` line at every 10 percent (`IsProgressLogDue`, shared with the WinHTTP loop and unit-tested).
+   The stall question stays as it is for the download phase: at 10 percent a line comes at least every few minutes unless
+   the line is slower than about 0.25 Mbit/s for the largest file, and then the question is asked once and "keep waiting"
+   is the default.

@@ -220,6 +220,8 @@ var
   CurrentDownloadPinned, DownloadSizeRejected: Boolean;
   CurrentDownloadPinnedSize: Int64;
   DownloadSizeRejectedNote: String;
+  // The next 10 percent step of the current built-in download that gets a progress line (IsProgressLogDue)
+  BuiltInNextLogPercent: Integer;
   // Files downloaded per transport, for the summary line of DownloadOnlineFiles
   OnlineFilesByBuiltIn, OnlineFilesByWinHttp: Integer;
 
@@ -511,13 +513,17 @@ begin
 end;
 
 // Progress callback of the download page: notes whether the server announced the size of the
-// current download (Content-Length), and stops the download of a pinned file as soon as its size
-// cannot match the pin (IsDownloadSizeAcceptable, utils.iss: another announced size, more bytes
-// than pinned). The page itself logs the progress and processes the stop button. True: go on.
+// current download (Content-Length), logs a line at every 10 percent (Inno Setup logs only the start of a download,
+// and the suite shows the part of the file that has arrived from these lines, as it does for the WinHTTP transport)
+// and stops the download of a pinned file as soon as its size cannot match the pin (IsDownloadSizeAcceptable,
+// utils.iss: another announced size, more bytes than pinned). The page itself processes the stop button. True: go on.
 function OnOnlineFileDownloadProgress(const Url, FileName: String; const Progress, ProgressMax: Int64): Boolean;
 begin
   if ProgressMax > 0 then
     DownloadSizeAnnounced := True;
+  if IsProgressLogDue(Progress, ProgressMax, BuiltInNextLogPercent) then
+    // The suite parses this line (contract 1.7 point 5): change it only together with suite/suite_common.iss
+    Log('  ' + IntToStr(Progress) + ' of ' + IntToStr(ProgressMax) + ' bytes done.');
   Result := True;
   if CurrentDownloadPinned and not IsDownloadSizeAcceptable(Progress, ProgressMax, CurrentDownloadPinnedSize) then
   begin
@@ -659,13 +665,9 @@ begin
         Result := DownloadOutcomePinMismatch;
         Exit;
       end;
-      if (Total > 0) and (NextLogPercent <= 100) and (Received * 100 >= Total * NextLogPercent) then
-      begin
+      if IsProgressLogDue(Received, Total, NextLogPercent) then
         // The suite parses this line (contract 1.7 point 5): change it only together with suite/suite_common.iss
         Log('  ' + IntToStr(Received) + ' of ' + IntToStr(Total) + ' bytes done.');
-        while (NextLogPercent <= 100) and (Received * 100 >= Total * NextLogPercent) do
-          NextLogPercent := NextLogPercent + 10;
-      end;
     end;
   end;
   Result := DownloadOutcomeSuccess;
@@ -834,6 +836,7 @@ begin
   // and deletes an older Target first, so after a failure there is no Target.
   OnlineFilesDownloadPage.Add(Url, OnlineFiles[Index].RelDest, '');
   DownloadSizeAnnounced := False;
+  BuiltInNextLogPercent := 10;
   CurrentDownloadPinned := OnlineFiles[Index].SHA256 <> '';
   CurrentDownloadPinnedSize := OnlineFiles[Index].Size;
   DownloadSizeRejected := False;

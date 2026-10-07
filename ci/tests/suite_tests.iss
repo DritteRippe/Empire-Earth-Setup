@@ -615,7 +615,7 @@ end;
 procedure TestSuiteProgress;
 var
   P, Q: TSuiteProgress;
-  Crlf, Bom, Blanks: String;
+  Crlf, Bom, Blanks, DoneText, TotalText: String;
   I, Sum: Integer;
 begin
   Crlf := #13#10;
@@ -748,6 +748,24 @@ begin
   Check('a line of a retry on the other server is not a finished file', IntToStr(SuiteTestPhaseAfter('Online file: trying the other server, https://x/localized/y.dll')), '0');
   SuiteTestFeed(P, ['Online file not downloaded from https://x/localized/g.dll: no answer', 'Online file download failed from https://x/localized/g.dll: timeout after 5 bytes']);
   Check('the lines of one attempt are not a finished file', IntToStr(P.DownloadDone), '8');
+  // the validated TLS transport logs only Inno Setup's line at the start of a file, and the progress lines of the callback
+  // (finding 6 of the review of 2026-10-07): the file name and the bytes work with it as with the WinHTTP transport
+  SuiteProgressInit(Q, 'EE');
+  SuiteTestFeed(Q, ['Downloading 17 online files, one at a time',
+    'Downloading temporary file from https://files.empireearth.eu/localized/Game/de/EE/Data/data.ssa: C:\T\is-AAAAA.tmp\EE\Data\data.ssa',
+    '  17167181 of 171671814 bytes done.']);
+  Check('the file of Inno Setup line: phase', IntToStr(Q.Phase), IntToStr(SuitePhaseDownload));
+  Check('the file of Inno Setup line: file name', Q.CurrentFile, 'data.ssa');
+  Check('the file of Inno Setup line: bytes', IntToStr(Q.CurrentBytes), '17167181');
+  Check('the file of Inno Setup line: total', IntToStr(Q.CurrentTotal), '171671814');
+  SuiteBytesTexts(Q.CurrentBytes, Q.CurrentTotal, 'de', DoneText, TotalText);
+  Check('the file of Inno Setup line: the line below the status line, done', DoneText, '16,4');
+  Check('the file of Inno Setup line: the line below the status line, total', TotalText, '163,7 MB');
+  SuiteTestFeed(Q, ['Downloading temporary file from https://files.empireearth.eu/localized/Game/de/EE/Language.dll: C:\T\is-AAAAA.tmp\EE\Language.dll']);
+  Check('the next file of Inno Setup line: file name', Q.CurrentFile, 'Language.dll');
+  Check('the next file of Inno Setup line: no bytes yet', IntToStr(Q.CurrentTotal), '0');
+  Check('an English log with that line only is a download', IntToStr(SuiteTestPhaseAfter('Downloading temporary file from https://x/localized/a.dll: C:\T\a.dll')), IntToStr(SuitePhaseDownload));
+  Check('the line of Inno Setup does not count a file', IntToStr(Q.DownloadDone), '0');
   // more finished files than announced: stays at the count
   SuiteProgressInit(Q, 'EE');
   SuiteTestFeed(Q, ['Downloading 2 online files, one at a time', 'Online file downloaded, SHA-256 pinned: https://x/localized/a.dll',

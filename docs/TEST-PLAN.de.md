@@ -3637,7 +3637,13 @@ auf dem Desktop. Es gilt:
   5. (c) Neu, „Erweitert“: Die Setups der Spiele zeigen ihre eigenen Fenster; die Statuszeile sagt „Das Setup von … ist
      geöffnet. Bitte gehe es dort durch.“, der Balken läuft ohne Stand, die Liste zeigt nur die Namen der Spiele und
      „Fertig“ (das Protokoll des Spiels wird nicht gelesen).
-  6. Das Log der Suite (`C:\Program Files\Empire Earth Community\Logs`) und das Log je Spiel durchsehen.
+  6. Das Log der Suite (`C:\Program Files\Empire Earth Community\Logs`) und das Log je Spiel durchsehen. Beide
+     Übertragungswege prüfen: Bei gültigem Zertifikat des Dateiservers (der normale Fall) steht im Log des Spiels je
+     Datei `Downloading temporary file from <URL>: <Ziel>` (Inno Setup) und alle 10 % `  <X> of <Y> bytes done.`; bei
+     ungültigem Zertifikat (die angepinnten Dateien, ADR 0012) `Downloading pinned online file without certificate
+     validation (WinHTTP) from <URL>: <Ziel>` und dieselben Fortschrittszeilen. In beiden Fällen zeigt die Zeile unter
+     der Statuszeile den Dateinamen und `<Stand> von <Größe> MB` (nicht leer), und die Frage „kein Fortschritt seit 10
+     Minuten“ kommt bei einem gesunden Download einer großen Datei (164 MB bei 1 MBit/s etwa 22 Minuten) nicht.
   7. (d) Neu, Sprache Deutsch und dann Französisch, jeweils bei 100 % und bei 150 % Skalierung (nach dem Ändern der
      Skalierung abmelden und neu anmelden): die lange Statuszeile „Schritt 1 von 2: Empire Earth (mit The Art of
      Conquest) wird installiert ...“ und, sobald die Installation der Spieldateien beginnt, die Zeile unter dem Balken

@@ -135,7 +135,7 @@ PRODUCT_LOG_LINES = [
 # return: the product's CurStepChanged(ssInstall) runs before it and already changes the game folder, so the point of no
 # return is the marker line SuiteLogInstallPhase, which the product script logs as the first statement of that step
 # (check_install_marker).
-INNO_LOG_CONSTANTS = ("SuiteLogInstallStart", "SuiteLogInstallDone", "SuiteLogDestFile", "SuiteLogClosed")
+INNO_LOG_CONSTANTS = ("SuiteLogInstallStart", "SuiteLogTempFile", "SuiteLogInstallDone", "SuiteLogDestFile", "SuiteLogClosed")
 PRODUCT_LOG_FILES = tuple(sorted({rel for rel, _ in PRODUCT_LOG_LINES}))
 LOG_LINE_COMMENT = "suite parses this line"
 PRODUCT_SOURCES = ("{#EESetupFile}", "{#NeoEESetupFile}")
@@ -1100,6 +1100,9 @@ def self_test(source_root):
         ("the last page does not name the cancelled product",
          replace("suite/suite_pages.iss", "CompareText(SuiteCancelledProduct, Product) = 0", "False"),
          "the last page must name the product the user cancelled"),
+        ("the progress line of the validated TLS transport without the comment",
+         replace("downloads.iss", "    // The suite parses this line (contract 1.7 point 5): change it only together with suite/suite_common.iss\n    Log('  ' + IntToStr(Progress)", "    Log('  ' + IntToStr(Progress)"),
+         "needs the comment"),
         ("a parsed product log line of the manifest reworded",
          replace("utils.iss", "Result := 'Manifest: ' + IntToStr(FileCount)", "Result := 'Manifest written: ' + IntToStr(FileCount)"),
          "no line contains 'Manifest: '"),

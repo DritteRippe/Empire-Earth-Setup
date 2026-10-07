@@ -720,6 +720,10 @@ const
   // procedure CurStepChanged(ssInstall) of the product script has returned, so it is no point of no return of its
   // own: SuiteLogInstallPhase is, and this line only backs it up for a product setup that logs none.
   SuiteLogInstallStart = 'Starting the installation process.';
+  // Inno Setup's line at the start of a download of the validated TLS transport (TDownloadWizardPage); the WinHTTP
+  // transport of pinned files has its own line above (SuiteLogFile), and both log "<X> of <Y> bytes done." at every 10
+  // percent (SuiteLogOf), so the file line of the window works with either
+  SuiteLogTempFile = 'Downloading temporary file from ';
   SuiteLogInstallDone = 'Installation process succeeded.';
   SuiteLogDestFile = 'Dest filename: ';
   SuiteLogClosed = 'Log closed.';
@@ -989,7 +993,7 @@ begin
     if P.Phase < SuitePhaseDownload then
       P.NoDownload := True;
   end
-  else if SuiteStartsWith(T, SuiteLogFile) then
+  else if SuiteStartsWith(T, SuiteLogFile) or SuiteStartsWith(T, SuiteLogTempFile) then
   begin
     SuiteRaisePhase(P, SuitePhaseDownload);
     P.NoDownload := False;
