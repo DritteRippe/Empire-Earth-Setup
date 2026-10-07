@@ -13,6 +13,10 @@
 // amendment of the runner): the wait loop keeps the window of Setup alive, reads the product log for the phase, honors
 // Cancel before the product setup installed anything (and only then), and stops one that shows no sign of life or
 // runs far too long. The exit code, the mapping to SuiteChildExitKind and the success rule are those of Exec.
+// The same wait loop shows what the product setup does (suite 1.1.0, S4): the status line names the step and what the
+// log says is going on, the line between the status line and the bar the file, the bar the whole run, and a list the steps that are done
+// (SuiteShowProgress; the log is only ever read, success stays the exit code and the uninstall entry). The advanced mode
+// shows its own wizard and keeps the status line "the setup is open".
 // Requires: suite_common.iss, suite.iss (the pins, SuiteMutexes, SuiteStop and the globals of the products).
 
 var
@@ -20,6 +24,12 @@ var
   SuiteRunStopped: Boolean;
   // The step the status text of the installation page names
   SuiteRunStep, SuiteRunSteps: Integer;
+  // What the installation page shows of the running product setup, to change a control only when its text changes
+  // (no flicker): the status line, the file line, the bar, and the steps of the game that are in the list already (one
+  // bit per stage, 1 shl SuiteStage*). The display failed once (SuiteShowProgress): it is left as it is.
+  SuiteShownStatus, SuiteShownFile: String;
+  SuiteShownPosition, SuiteStagesShown: Integer;
+  SuiteProgressBroken: Boolean;
 
 function SuiteProductSetupFile(const Product: String): String;
 begin
@@ -279,15 +289,17 @@ begin
     SuppressibleMsgBox(Text, mbError, MB_OK, IDOK);
 end;
 
-// The Cancel button and the reason below the status line for what the Cancel button does now (SuiteCancelMode):
+// The Cancel button and the reason below the bar for what the Cancel button does now (SuiteCancelMode):
 // on while the question may be asked, off with the reason otherwise. In a /VERYSILENT run the window is not shown.
 procedure SuiteShowCancelMode(Mode: Integer);
 begin
   WizardForm.CancelButton.Enabled := Mode = SuiteCancelAsk;
   case Mode of
-    SuiteCancelInstalling: WizardForm.FilenameLabel.Caption := CustomMessage('SuiteCancelNotNow');
-    SuiteCancelOwnWizard: WizardForm.FilenameLabel.Caption := CustomMessage('SuiteCancelOwnSetup');
-    SuiteCancelNoJob: WizardForm.FilenameLabel.Caption := CustomMessage('SuiteCancelUnavailable');
+    SuiteCancelInstalling: SuiteCancelLabel.Caption := CustomMessage('SuiteCancelNotNow');
+    SuiteCancelOwnWizard: SuiteCancelLabel.Caption := CustomMessage('SuiteCancelOwnSetup');
+    SuiteCancelNoJob: SuiteCancelLabel.Caption := CustomMessage('SuiteCancelUnavailable');
+  else
+    SuiteCancelLabel.Caption := '';
   end;
 end;
 
@@ -363,9 +375,151 @@ begin
   end;
 end;
 
-// Looks into the log of the product setup (not in the advanced mode: its wizard is the display) and writes a line
-// to the log of the suite when the phase changes. True if the log grew.
+// The short name of the game for the status line
+function SuiteProductShort(const Product: String): String;
+begin
+  if CompareText(Product, SuiteProductEE) = 0 then
+    Result := CustomMessage('SuiteShortEE')
+  else
+    Result := CustomMessage('SuiteShortNeoEE');
+end;
+
+// The status line for what the log of the product setup says it does: the number of the step and the game, then the
+// phase (SuiteStatusKind); the line of the start is the one that names the game with its whole title
+function SuiteStatusText(const Product: String; const P: TSuiteProgress): String;
+var
+  Step, Steps, Name: String;
+begin
+  Step := IntToStr(SuiteRunStep);
+  Steps := IntToStr(SuiteRunSteps);
+  Name := SuiteProductShort(Product);
+  case SuiteStatusKind(P) of
+    SuiteStatusProbe: Result := FmtMessage(CustomMessage('SuiteStepProbe'), [Step, Steps, Name]);
+    SuiteStatusDownload: Result := FmtMessage(CustomMessage('SuiteStepDownload'), [Step, Steps, Name,
+      IntToStr(SuiteDownloadIndex(P)), IntToStr(P.DownloadFiles)]);
+    SuiteStatusVerify: Result := FmtMessage(CustomMessage('SuiteStepVerify'), [Step, Steps, Name]);
+    SuiteStatusInstall: Result := FmtMessage(CustomMessage('SuiteStepInstall'), [Step, Steps, Name]);
+    SuiteStatusCdKeys: Result := FmtMessage(CustomMessage('SuiteStepCdKeys'), [Step, Steps, Name]);
+    SuiteStatusFinish: Result := FmtMessage(CustomMessage('SuiteStepFinish'), [Step, Steps, Name]);
+  else
+    Result := FmtMessage(CustomMessage('SuiteStepRun'), [Step, Steps, SuiteProductTitle(Product)]);
+  end;
+end;
+
+// The line under the status line: the online file being downloaded with the part of it that has arrived, or the game file
+// being installed; '' otherwise
+function SuiteFileText(const P: TSuiteProgress): String;
+var
+  DoneText, TotalText: String;
+begin
+  Result := '';
+  if P.Phase = SuitePhaseDownload then
+  begin
+    Result := P.CurrentFile;
+    if (Result <> '') and (P.CurrentTotal > 0) then
+    begin
+      SuiteBytesTexts(P.CurrentBytes, P.CurrentTotal, ActiveLanguage, DoneText, TotalText);
+      Result := FmtMessage(CustomMessage('SuiteFileProgress'), [Result, DoneText, TotalText]);
+    end;
+  end
+  else if P.Phase = SuitePhaseInstall then
+    Result := P.InstallFile;
+end;
+
+// Puts the bar at Permille of the whole run (Max of the bar is 1000), if it is not there already
+procedure SuiteSetPosition(Permille: Integer);
+begin
+  if Permille <> SuiteShownPosition then
+  begin
+    SuiteShownPosition := Permille;
+    WizardForm.ProgressGauge.Position := Permille;
+  end;
+end;
+
+// Adds a step of the game to the list once (Stage is one of SuiteStage*)
+procedure SuiteAddStage(Stage: Integer; const Text: String; Ticked: Boolean);
+begin
+  SuiteStagesShown := SuiteStagesShown or (1 shl Stage);
+  SuiteStageAdd(Text, Ticked);
+end;
+
+// Adds the steps of the game that are done now to the list, each once, in the order of the log
+procedure SuiteShowStages(const P: TSuiteProgress);
+var
+  Got, Total: Integer;
+begin
+  if ((SuiteStagesShown and (1 shl SuiteStageDownload)) = 0) and SuiteStageReached(P, SuiteStageDownload) then
+  begin
+    if SuiteOnlineCounts(P, Got, Total) then
+      SuiteAddStage(SuiteStageDownload, FmtMessage(CustomMessage('SuiteStageDownloaded'), [IntToStr(Got), IntToStr(Total)]), True)
+    else
+      SuiteAddStage(SuiteStageDownload, CustomMessage('SuiteStageNoDownload'), True);
+  end;
+  if ((SuiteStagesShown and (1 shl SuiteStageInstall)) = 0) and SuiteStageReached(P, SuiteStageInstall) then
+    SuiteAddStage(SuiteStageInstall, CustomMessage('SuiteStageInstalled'), True);
+  if ((SuiteStagesShown and (1 shl SuiteStageCdKeys)) = 0) and SuiteStageReached(P, SuiteStageCdKeys) then
+  begin
+    if SuiteCdKeyKind(P.CdKeyResult) = SuiteCdKeyRegistered then
+      SuiteAddStage(SuiteStageCdKeys, CustomMessage('SuiteStageCdKeysOk'), True)
+    else
+      SuiteAddStage(SuiteStageCdKeys, FmtMessage(CustomMessage('SuiteStageCdKeysFailed'), [Trim(P.CdKeyResult)]), False);
+  end;
+  if ((SuiteStagesShown and (1 shl SuiteStageManifest)) = 0) and SuiteStageReached(P, SuiteStageManifest) then
+    SuiteAddStage(SuiteStageManifest, CustomMessage('SuiteStageManifest'), True);
+end;
+
+// Shows what the log of the running product setup says in the window: the status line, the file, the bar and the steps
+// that are done. Not in the advanced mode (its wizard is the display and its log is not read). The display is never a
+// reason to stop an installation: if it fails once, that is logged and it stays as it is.
+procedure SuiteShowProgress(const Product: String);
+var
+  Text: String;
+begin
+  if SuiteAdvanced or SuiteProgressBroken then
+    Exit;
+  try
+    Text := SuiteStatusText(Product, SuiteChildProgress);
+    if Text <> SuiteShownStatus then
+    begin
+      SuiteShownStatus := Text;
+      WizardForm.StatusLabel.Caption := Text;
+    end;
+    Text := SuiteFileText(SuiteChildProgress);
+    if Text <> SuiteShownFile then
+    begin
+      SuiteShownFile := Text;
+      WizardForm.FilenameLabel.Caption := Text;
+    end;
+    SuiteSetPosition(SuiteOverallPermille(SuiteRunStep, SuiteRunSteps, SuiteRunningPermille(SuiteChildProgress)));
+    SuiteShowStages(SuiteChildProgress);
+  except
+    SuiteProgressBroken := True;
+    Log('The progress display failed and stays as it is: ' + GetExceptionMessage);
+  end;
+end;
+
+// The line of the last page about the language files of a product whose setup succeeded, from what its log told; ''
+// if it was not read to its end (the advanced mode)
+function SuiteLangLine(const P: TSuiteProgress): String;
+var
+  Got, Total: Integer;
+begin
+  Result := '';
+  if SuiteAdvanced or (P.Phase < SuitePhaseDone) then
+    Exit;
+  if not SuiteOnlineCounts(P, Got, Total) then
+    Result := CustomMessage('SuiteFinishLangNone')
+  else if Got >= Total then
+    Result := FmtMessage(CustomMessage('SuiteFinishLangOk'), [IntToStr(Got), IntToStr(Total)])
+  else
+    Result := FmtMessage(CustomMessage('SuiteFinishLangMissing'), [IntToStr(Got), IntToStr(Total), IntToStr(Total - Got)]);
+end;
+
+// Looks into the log of the product setup (not in the advanced mode: its wizard is the display), shows what it says
+// and writes a line to the log of the suite when the phase changes. True if the log grew.
 function SuiteLookAtLog(const Product, LogFile: String; var Phase: Integer): Boolean;
+var
+  Detail: String;
 begin
   Result := False;
   if SuiteAdvanced then
@@ -374,8 +528,12 @@ begin
   if SuiteChildProgress.Phase <> Phase then
   begin
     Phase := SuiteChildProgress.Phase;
-    Log('Product ' + Product + ' phase: ' + SuitePhaseName(Phase) + ' (' + IntToStr(SuiteProgressPermille(SuiteChildProgress)) + ' of 1000)');
+    Detail := '';
+    if (Phase = SuitePhaseDownload) and (SuiteChildProgress.DownloadFiles > 0) then
+      Detail := ', ' + IntToStr(SuiteChildProgress.DownloadFiles) + ' files';
+    Log('Product ' + Product + ' phase: ' + SuitePhaseName(Phase) + Detail + ' (' + IntToStr(SuiteProgressPermille(SuiteChildProgress)) + ' of 1000)');
   end;
+  SuiteShowProgress(Product);
 end;
 
 // Stops the product setup and its job, waits up to SuiteKillWaitMs for it to be gone, and logs what became of it
@@ -508,6 +666,56 @@ begin
   until False;
 end;
 
+// One line in the log of the suite with what the log of the product setup told, to compare with the estimates of the
+// bar and with the product log (not in the advanced mode, which reads none)
+procedure SuiteLogProgressEnd(const Product: String);
+var
+  Got, Total: Integer;
+begin
+  if SuiteAdvanced then
+    Exit;
+  Got := 0;
+  Total := 0;
+  SuiteOnlineCounts(SuiteChildProgress, Got, Total);
+  Log('Product ' + Product + ' log read: last phase ' + SuitePhaseName(SuiteChildProgress.Phase) + ', language files ' +
+    IntToStr(Got) + ' of ' + IntToStr(Total) + ' (' + IntToStr(SuiteChildProgress.OnlineMissing) + ' missing), ' +
+    IntToStr(SuiteChildProgress.InstallFiles) + ' file entries installed (estimate ' + IntToStr(SuiteChildProgress.InstallEstimate) +
+    '), CD key result "' + SuiteChildProgress.CdKeyResult + '"');
+end;
+
+// The window before the setup of a product starts: its heading in the list, the display of the last product forgotten
+// and the bar at the start of the step (not in the advanced mode: the bar keeps running without a position)
+procedure SuiteBeginProductDisplay(const Product: String);
+begin
+  SuiteShownStatus := '';
+  SuiteShownFile := '';
+  SuiteShownPosition := -1;
+  SuiteStagesShown := 0;
+  try
+    SuiteStageHeading(SuiteProductTitle(Product));
+    if not SuiteAdvanced then
+      SuiteSetPosition(SuiteOverallPermille(SuiteRunStep + 1, SuiteRunSteps, 0));
+  except
+    Log('The list of the steps could not be extended: ' + GetExceptionMessage);
+  end;
+end;
+
+// The window after the setup of a product ended with its result (Ok: exit code 0 and the uninstall entry): the last
+// line of its block in the list, and the bar at the end of the step, which the exit code now allows
+procedure SuiteEndProductDisplay(Ok: Boolean);
+begin
+  try
+    if Ok then
+      SuiteStageAdd(CustomMessage('SuiteStageDone'), True)
+    else
+      SuiteStageAdd(CustomMessage('SuiteStageFailed'), False);
+    if not SuiteAdvanced then
+      SuiteSetPosition(SuiteOverallPermille(SuiteRunStep, SuiteRunSteps, 1000));
+  except
+    Log('The list of the steps could not be extended: ' + GetExceptionMessage);
+  end;
+end;
+
 // Runs the setup of one product. True if it succeeded: exit code 0 and its uninstall entry. Every other
 // outcome is logged, told to the user (not in a silent run) and False; the caller goes on with the next product.
 function SuiteRunProduct(const Product: String): Boolean;
@@ -585,6 +793,7 @@ begin
       SuiteChildProc := 0;
       SuiteChildJob := 0;
       WizardForm.CancelButton.Enabled := True;
+      SuiteCancelLabel.Caption := '';
       SuiteCloseHandle(Proc);
       if Job <> 0 then
         SuiteCloseHandle(Job);
@@ -593,6 +802,7 @@ begin
   else
     Code := Err;
   Lock.Free;
+  SuiteLogProgressEnd(Product);
 
   // (e) the extracted setup is deleted whatever happened
   if not DeleteFile(Exe) then
@@ -647,6 +857,10 @@ begin
 
   Result := True;
   SuiteProductsOk := SuiteMergeProducts(SuiteProductsOk, Product);
+  if CompareText(Product, SuiteProductEE) = 0 then
+    SuiteLangLineEE := SuiteLangLine(SuiteChildProgress)
+  else
+    SuiteLangLineNeoEE := SuiteLangLine(SuiteChildProgress);
   // the old shortcuts of earlier standalone runs go before the suite creates its own (at ssPostInstall)
   SuiteRemoveLegacyShortcuts(Product);
   if CompareText(Product, SuiteProductNeoEE) = 0 then
@@ -668,11 +882,16 @@ end;
 procedure SuiteRunProducts;
 var
   I: Integer;
+  OldStyle: TNewProgressBarStyle;
+  OldMax, OldPosition: Longint;
 begin
   SuiteRunStopped := False;
   SuiteRunCancelled := False;
   SuiteRunStep := 0;
   SuiteRunSteps := 0;
+  SuiteProgressBroken := False;
+  SuiteLangLineEE := '';
+  SuiteLangLineNeoEE := '';
   SuiteTestCancel := SuiteHasParam('/TestCancel') and not SuiteAdvanced;
   for I := 1 to 2 do
     if SuiteRunsProduct(SuiteProductOfNumber(I)) then
@@ -684,13 +903,39 @@ begin
   end;
   if not ForceDirectories(ExpandConstant('{app}\Logs')) then
     Log('The folder of the logs could not be created: ' + ExpandConstant('{app}\Logs'));
-  WizardForm.ProgressGauge.Style := npbstMarquee;
+  // The bar of the whole run (1000 steps, one product setup a step of 1000 / number of steps) runs from here to the
+  // end of the last setup; the advanced mode has no log to read and keeps the running bar. What Setup had set for its own
+  // installation of the files afterwards is put back.
+  OldStyle := WizardForm.ProgressGauge.Style;
+  OldMax := WizardForm.ProgressGauge.Max;
+  OldPosition := WizardForm.ProgressGauge.Position;
+  SuiteStageClear;
+  SuiteLayoutProgressControls;
+  SuiteStageList.Visible := True;
+  if SuiteAdvanced then
+    WizardForm.ProgressGauge.Style := npbstMarquee
+  else
+  begin
+    WizardForm.ProgressGauge.Style := npbstNormal;
+    WizardForm.ProgressGauge.Min := 0;
+    WizardForm.ProgressGauge.Max := 1000;
+    WizardForm.ProgressGauge.Position := 0;
+  end;
   try
     for I := 1 to 2 do
       if SuiteRunsProduct(SuiteProductOfNumber(I)) and not SuiteRunStopped and not SuiteRunCancelled then
-        SuiteRunProduct(SuiteProductOfNumber(I));
+      begin
+        SuiteBeginProductDisplay(SuiteProductOfNumber(I));
+        if SuiteRunProduct(SuiteProductOfNumber(I)) then
+          SuiteEndProductDisplay(True)
+        else if not SuiteRunCancelled then
+          SuiteEndProductDisplay(False);
+      end;
   finally
-    WizardForm.ProgressGauge.Style := npbstNormal;
+    SuiteStageList.Visible := False;
+    WizardForm.ProgressGauge.Style := OldStyle;
+    WizardForm.ProgressGauge.Max := OldMax;
+    WizardForm.ProgressGauge.Position := OldPosition;
   end;
   Log('Products that succeeded in this run: "' + SuiteProductsOk + '"');
   if SuiteRunCancelled then

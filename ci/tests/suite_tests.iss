@@ -796,6 +796,34 @@ begin
   P.Phase := SuitePhaseInstall;
   Check('no estimate: the install block stays below its end', IntToStr(SuiteProgressPermille(P)), '898');
 
+  // the file the installation works on: the file name of the last entry "Dest filename:"
+  SuiteProgressInit(P, 'EE');
+  Check('no install file at the start', P.InstallFile, '');
+  SuiteTestFeed(P, ['Starting the installation process.', 'Dest filename: C:\G\Data\Models\unit.ssm']);
+  Check('install file: the file name of the entry', P.InstallFile, 'unit.ssm');
+  SuiteTestFeed(P, ['Dest filename: C:\Program Files (x86)\Empire Earth\Empire Earth.exe', 'Dest file exists.']);
+  Check('install file: the last entry, a path with blanks', P.InstallFile, 'Empire Earth.exe');
+  SuiteTestFeed(P, ['Installation process succeeded.', 'Dest filename: C:\G\later.dll']);
+  Check('install file: no entry after the installation', P.InstallFile, 'Empire Earth.exe');
+  Check('SuiteFileNameOf a path', SuiteFileNameOf('C:\a\b\c.txt'), 'c.txt');
+  Check('SuiteFileNameOf a URL', SuiteFileNameOf('https://x/y/z.dll'), 'z.dll');
+  Check('SuiteFileNameOf a name', SuiteFileNameOf('c.txt'), 'c.txt');
+  Check('SuiteFileNameOf nothing after the last backslash', SuiteFileNameOf('C:\a\'), '');
+
+  // the online files that are accepted or missing: how many there are
+  SuiteProgressInit(P, 'EE');
+  Check('no online total at the start', IntToStr(P.OnlineTotal), '0');
+  SuiteTestFeed(P, ['All 17 online files accepted']);
+  Check('online total of the accepted files', IntToStr(P.OnlineTotal), '17');
+  Check('no online file missing after "All accepted"', IntToStr(P.OnlineMissing), '0');
+  SuiteProgressInit(P, 'EE');
+  SuiteTestFeed(P, ['2 of 20 selected online files are missing, the setup installs its own files instead:']);
+  Check('online total of the line with missing files', IntToStr(P.OnlineTotal), '20');
+  Check('online files missing of it', IntToStr(P.OnlineMissing), '2');
+  SuiteProgressInit(P, 'EE');
+  SuiteTestFeed(P, ['Online files: 0 downloaded with validated TLS (Inno Setup), 17 pinned ones with WinHTTP without certificate validation, of 17']);
+  Check('the end of the downloads gives no online total', IntToStr(P.OnlineTotal), '0');
+
   // post install, CD keys, manifest, end
   SuiteProgressInit(P, 'NeoEE');
   SuiteTestFeed(P, ['Downloading 1 online files, one at a time', 'Starting the installation process.', 'Installation process succeeded.']);
@@ -886,6 +914,154 @@ begin
   Check('a line without an end that is too long is dropped', P.TailCarry, '');
   SuiteFeedLogChunk(P, SuiteTestLine('Starting the installation process.') + Crlf);
   Check('the log goes on after a dropped piece', IntToStr(P.Phase), IntToStr(SuitePhaseInstall));
+end;
+
+// ---- what the window shows of the progress (S4) ------------------------------------------------------
+
+procedure TestSuiteDisplay;
+var
+  P: TSuiteProgress;
+  Done, Total: String;
+  Got, All, I: Integer;
+begin
+  // the kind of the status line follows the phase
+  SuiteProgressInit(P, 'EE');
+  Check('status kind at the start', IntToStr(SuiteStatusKind(P)), IntToStr(SuiteStatusStart));
+  SuiteTestFeed(P, ['Online files server https://x/localized: no answer']);
+  Check('status kind at the probe', IntToStr(SuiteStatusKind(P)), IntToStr(SuiteStatusProbe));
+  SuiteTestFeed(P, ['Downloading 17 online files, one at a time']);
+  Check('status kind at the downloads', IntToStr(SuiteStatusKind(P)), IntToStr(SuiteStatusDownload));
+  SuiteTestFeed(P, ['Online files: 0 downloaded with validated TLS (Inno Setup), 17 pinned ones, of 17']);
+  Check('status kind at the check of the files', IntToStr(SuiteStatusKind(P)), IntToStr(SuiteStatusVerify));
+  SuiteTestFeed(P, ['Starting the installation process.']);
+  Check('status kind at the installation', IntToStr(SuiteStatusKind(P)), IntToStr(SuiteStatusInstall));
+  SuiteTestFeed(P, ['Installation process succeeded.']);
+  Check('status kind after the installation', IntToStr(SuiteStatusKind(P)), IntToStr(SuiteStatusFinish));
+  SuiteTestFeed(P, ['Register NeoEE CD Keys for EE']);
+  Check('status kind at the CD keys', IntToStr(SuiteStatusKind(P)), IntToStr(SuiteStatusCdKeys));
+  SuiteTestFeed(P, ['CD Keys generation result: 0']);
+  Check('status kind after the CD key result', IntToStr(SuiteStatusKind(P)), IntToStr(SuiteStatusFinish));
+  SuiteTestFeed(P, ['Checking 5 recorded destinations of installed files for C:\G\files.sha256', 'Manifest: 5 files, 1.0 MB, 10 ms, 100 MB/s']);
+  Check('status kind at the manifest', IntToStr(SuiteStatusKind(P)), IntToStr(SuiteStatusFinish));
+  SuiteTestFeed(P, ['Log closed.']);
+  Check('status kind at the end of the log', IntToStr(SuiteStatusKind(P)), IntToStr(SuiteStatusFinish));
+  // a download line without the count before it says no more than the start
+  SuiteProgressInit(P, 'EE');
+  SuiteTestFeed(P, ['Downloading pinned online file without certificate validation (WinHTTP) from https://x/localized/a.dll: C:\T\a.dll']);
+  Check('status kind of the download phase without a count', IntToStr(SuiteStatusKind(P)), IntToStr(SuiteStatusStart));
+
+  // the number of the file the download is at
+  SuiteProgressInit(P, 'EE');
+  SuiteTestFeed(P, ['Downloading 3 online files, one at a time']);
+  Check('download index of the first file', IntToStr(SuiteDownloadIndex(P)), '1');
+  SuiteTestFeed(P, ['Online file downloaded, SHA-256 pinned: https://x/localized/a.dll', 'Online file downloaded, SHA-256 pinned: https://x/localized/b.dll']);
+  Check('download index of the third file', IntToStr(SuiteDownloadIndex(P)), '3');
+  SuiteTestFeed(P, ['Online file downloaded, SHA-256 pinned: https://x/localized/c.dll']);
+  Check('download index stays at the count', IntToStr(SuiteDownloadIndex(P)), '3');
+
+  // the bar: never 100 percent while the product setup runs, the steps of the run share the bar
+  SuiteProgressInit(P, 'EE');
+  P.Phase := SuitePhaseDone;
+  Check('the permille of the log at its end', IntToStr(SuiteProgressPermille(P)), '1000');
+  Check('SuiteRunningPermille stays below 100 percent', IntToStr(SuiteRunningPermille(P)), IntToStr(SuiteRunningPermilleMax));
+  P.Phase := SuitePhaseInstall;
+  Check('SuiteRunningPermille passes the permille on', IntToStr(SuiteRunningPermille(P)), IntToStr(SuiteProgressPermille(P)));
+  Check('overall: the first of two steps at its start', IntToStr(SuiteOverallPermille(1, 2, 0)), '0');
+  Check('overall: the first of two steps half done', IntToStr(SuiteOverallPermille(1, 2, 500)), '250');
+  Check('overall: the first of two steps done', IntToStr(SuiteOverallPermille(1, 2, 1000)), '500');
+  Check('overall: the second of two steps at its start', IntToStr(SuiteOverallPermille(2, 2, 0)), '500');
+  Check('overall: the second of two steps at 990', IntToStr(SuiteOverallPermille(2, 2, SuiteRunningPermilleMax)), '995');
+  Check('overall: the second of two steps done', IntToStr(SuiteOverallPermille(2, 2, 1000)), '1000');
+  Check('overall: one step', IntToStr(SuiteOverallPermille(1, 1, 400)), '400');
+  Check('overall: one step done', IntToStr(SuiteOverallPermille(1, 1, 1000)), '1000');
+  Check('overall: no step counted', IntToStr(SuiteOverallPermille(0, 0, 500)), '500');
+  Check('overall: a step beyond the number', IntToStr(SuiteOverallPermille(5, 2, 500)), '750');
+  Check('overall: a permille out of range', IntToStr(SuiteOverallPermille(1, 2, 5000)), '500');
+  Check('overall: a negative permille', IntToStr(SuiteOverallPermille(2, 2, -5)), '500');
+  // the bar of the whole run never goes back: the permille of every step of a normal run fed line by line
+  SuiteProgressInit(P, 'EE');
+  Got := 0;
+  All := 1;
+  for I := 1 to 5 do
+  begin
+    case I of
+      1: SuiteTestFeed(P, ['Online files server https://x/localized: no answer']);
+      2: SuiteTestFeed(P, ['Downloading 4 online files, one at a time']);
+      3: SuiteTestFeed(P, ['Online file downloaded, SHA-256 pinned: https://x/localized/a.dll']);
+      4: SuiteTestFeed(P, ['All 4 online files accepted', 'Starting the installation process.']);
+      5: SuiteTestFeed(P, ['Installation process succeeded.', 'Log closed.']);
+    end;
+    if SuiteOverallPermille(1, 2, SuiteRunningPermille(P)) < Got then
+      All := 0;
+    Got := SuiteOverallPermille(1, 2, SuiteRunningPermille(P));
+  end;
+  Check('the bar of a normal run never goes back', IntToStr(All), '1');
+  Check('the bar of a normal run ends below the end of its step', IntToStr(Got), '495');
+
+  // sizes: megabytes with one decimal from 1 MB, else kilobytes rounded up; the decimal separator and the unit by language
+  SuiteBytesTexts(17170432, 171671814, 'en', Done, Total);
+  Check('size in MB, English', Done + ' of ' + Total, '16.4 of 163.7 MB');
+  SuiteBytesTexts(17170432, 171671814, 'de', Done, Total);
+  Check('size in MB, German', Done + ' von ' + Total, '16,4 von 163,7 MB');
+  SuiteBytesTexts(17170432, 171671814, 'fr', Done, Total);
+  Check('size in MB, French', Done + ' sur ' + Total, '16,4 sur 163,7 Mo');
+  SuiteBytesTexts(0, 1048576, 'en', Done, Total);
+  Check('size: exactly 1 MB', Done + ' of ' + Total, '0.0 of 1.0 MB');
+  SuiteBytesTexts(1048575, 1048576, 'en', Done, Total);
+  Check('size: the part rounds to the nearest tenth', Done + ' of ' + Total, '1.0 of 1.0 MB');
+  SuiteBytesTexts(50000, 249856, 'en', Done, Total);
+  Check('size in KB, English', Done + ' of ' + Total, '49 of 244 KB');
+  SuiteBytesTexts(50000, 249856, 'fr', Done, Total);
+  Check('size in KB, French', Done + ' of ' + Total, '49 of 244 Ko');
+  SuiteBytesTexts(1, 1, 'de', Done, Total);
+  Check('size: one byte is one KB', Done + ' of ' + Total, '1 of 1 KB');
+  SuiteBytesTexts(0, 0, 'en', Done, Total);
+  Check('size: nothing', Done + ' of ' + Total, '0 of 0 KB');
+  SuiteBytesTexts(-5, 2097152, 'en', Done, Total);
+  Check('size: a negative part is nothing', Done + ' of ' + Total, '0.0 of 2.0 MB');
+  SuiteBytesTexts(5368709120, 5368709120, 'en', Done, Total);
+  Check('size: gigabytes stay in MB', Done + ' of ' + Total, '5120.0 of 5120.0 MB');
+  Check('SuiteTenthsText, language in capitals', SuiteTenthsText(25, 'DE'), '2,5');
+  Check('SuiteTenthsText, another language', SuiteTenthsText(25, 'es'), '2.5');
+
+  // how many online files arrived
+  SuiteProgressInit(P, 'EE');
+  CheckBool('no online files known at the start', SuiteOnlineCounts(P, Got, All), False);
+  SuiteTestFeed(P, ['Downloading 17 online files, one at a time']);
+  CheckBool('online files from the count of the downloads', SuiteOnlineCounts(P, Got, All), True);
+  Check('got of the count', IntToStr(Got) + ' of ' + IntToStr(All), '17 of 17');
+  SuiteTestFeed(P, ['3 of 20 selected online files are missing, the setup installs its own files instead:']);
+  CheckBool('online files with missing ones', SuiteOnlineCounts(P, Got, All), True);
+  Check('got of the total of the missing line', IntToStr(Got) + ' of ' + IntToStr(All), '17 of 20');
+  SuiteProgressInit(P, 'EE');
+  P.OnlineMissing := 5;
+  P.OnlineTotal := 3;
+  SuiteOnlineCounts(P, Got, All);
+  Check('got never below zero', IntToStr(Got), '0');
+
+  // the steps that are done: each when its result is known
+  SuiteProgressInit(P, 'NeoEE');
+  CheckBool('stage download at the start', SuiteStageReached(P, SuiteStageDownload), False);
+  SuiteTestFeed(P, ['Downloading 17 online files, one at a time', 'Online files: 0 downloaded with validated TLS (Inno Setup), 17 pinned ones, of 17']);
+  CheckBool('stage download before the counts are accepted', SuiteStageReached(P, SuiteStageDownload), False);
+  SuiteTestFeed(P, ['All 17 online files accepted']);
+  CheckBool('stage download after "All accepted"', SuiteStageReached(P, SuiteStageDownload), True);
+  CheckBool('stage install not yet', SuiteStageReached(P, SuiteStageInstall), False);
+  SuiteProgressInit(P, 'NeoEE');
+  SuiteTestFeed(P, ['English language selected, no need to download online files.', 'Starting the installation process.']);
+  CheckBool('stage download of a run without downloads, at the start of the installation', SuiteStageReached(P, SuiteStageDownload), True);
+  CheckBool('stage install while it runs', SuiteStageReached(P, SuiteStageInstall), False);
+  SuiteTestFeed(P, ['Installation process succeeded.']);
+  CheckBool('stage install after it', SuiteStageReached(P, SuiteStageInstall), True);
+  CheckBool('stage CD keys without the line', SuiteStageReached(P, SuiteStageCdKeys), False);
+  SuiteTestFeed(P, ['Register NeoEE CD Keys for EE']);
+  CheckBool('stage CD keys while they are registered', SuiteStageReached(P, SuiteStageCdKeys), False);
+  SuiteTestFeed(P, ['CD Keys generation result: 0']);
+  CheckBool('stage CD keys with the result', SuiteStageReached(P, SuiteStageCdKeys), True);
+  CheckBool('stage manifest not yet', SuiteStageReached(P, SuiteStageManifest), False);
+  SuiteTestFeed(P, ['Manifest: 5 files, 1.0 MB, 10 ms, 100 MB/s']);
+  CheckBool('stage manifest after its line', SuiteStageReached(P, SuiteStageManifest), True);
+  CheckBool('an unknown stage is never reached', SuiteStageReached(P, 99), False);
 end;
 
 // Writes Text (ASCII) to a file handle of CreateFile, as the product setup writes its log

@@ -16,9 +16,14 @@ shows them itself (docs/CONTRACT.md 1.7 point 4). They must not drift from the p
   rules     the file the suite embeds (DestName neoee_rules.rtf) is MyInfoBeforeFile of config_neoee.iss:
             the same path, or a copy with the same bytes
   pages     suite/suite_pages.iss extracts both files by those DestNames
+  messages  every message of suite/suite_messages.iss has its English, German and French text (the names of the
+            games and the launcher, which are the same in every language, have the English entry only), and the
+            three texts use the same placeholders (%1 to %9): the status line, the list of the finished steps and
+            the last page fill them from Pascal code, so a placeholder that is missing in one language would show
+            a wrong text or an error only in that language
 
 --self-test runs the check against changed temporary copies (a changed German question, a missing
-translation, a copy of the EULA or the rules with other bytes, a source that does not exist, a changed
+translation, a placeholder that is not in the German text, a copy of the EULA or the rules with other bytes, a source that does not exist, a changed
 question in messages.iss, a page script that loads another file) that must fail, and the unchanged
 copy, which must pass. Exit code 0 if everything is as expected.
 """
@@ -36,6 +41,8 @@ LANGUAGES = ("", "de.", "fr.")  # the entry without a prefix is English
 FILES = ["messages.iss", "setup_is6.iss", "config_neoee.iss", "suite/suite.iss", "suite/suite_messages.iss",
          "suite/suite_pages.iss"]
 EULA_DEST, RULES_DEST = "EULA_DSML.txt", "neoee_rules.rtf"
+# the messages that are names and have the English entry only
+NAME_MESSAGES = ("SuiteProductNeoEE", "SuiteNameLauncher", "SuiteShortEE", "SuiteShortNeoEE", "SuiteUninstallItemProduct")
 
 
 def read(root, rel):
@@ -114,6 +121,25 @@ def check_embedded(root, main, rel_source_of_product, what, dest, errors):
                       f"({rel_source_of_product}); embed that file itself")
 
 
+def check_languages(suite, errors):
+    """The three languages of every message of the suite and the same placeholders in them; the number of messages."""
+    texts = {}
+    for line in suite.splitlines():
+        match = re.match(r"^(?:(de|fr)\.)?(Suite\w+)=(.*)$", line)
+        if match:
+            texts.setdefault(match.group(2), {})[match.group(1) or "en"] = match.group(3)
+    for name, by_language in texts.items():
+        if name not in NAME_MESSAGES:
+            for language in ("en", "de", "fr"):
+                if language not in by_language:
+                    errors.append(f"suite/suite_messages.iss: {name} has no {language} text")
+        placeholders = {language: sorted(set(re.findall(r"%\d", text))) for language, text in by_language.items()}
+        if len({tuple(found) for found in placeholders.values()}) > 1:
+            errors.append(f"suite/suite_messages.iss: {name} uses other placeholders in its languages: "
+                          + ", ".join(f"{language} {' '.join(found) or 'none'}" for language, found in sorted(placeholders.items())))
+    return len(texts)
+
+
 def check_pages(pages, errors):
     for dest in (EULA_DEST, RULES_DEST):
         if not re.search(r"ExtractTemporaryFile\s*\(\s*'" + re.escape(dest) + r"'\s*\)", pages):
@@ -132,6 +158,7 @@ def check(root):
         setup = read(root, "setup_is6.iss")
         config = read(root, "config_neoee.iss")
         check_question(root, errors)
+        messages = check_languages(read(root, "suite/suite_messages.iss"), errors)
     except CheckError as error:
         return [str(error)], ""
     license_match = re.search(r"^LicenseFile=(.+?)\s*$", setup, re.M)
@@ -145,7 +172,8 @@ def check(root):
     else:
         check_embedded(root, main, rules_match.group(1), "NeoEE rules", RULES_DEST, errors)
     check_pages(pages, errors)
-    return errors, "suite texts: legal question en/de/fr, EULA and NeoEE rules are the product's"
+    return errors, (f"suite texts: legal question en/de/fr, EULA and NeoEE rules are the product's, {messages} messages "
+                    "in en/de/fr with the same placeholders")
 
 
 def self_test(source_root):
@@ -185,6 +213,13 @@ def self_test(source_root):
                                             "fr.SuiteLegalQuestion=Avez vous"), "fr.SuiteLegalQuestion differs"),
         ("question changed in the product", replace("messages.iss", "de.LegalQuestion=Haben Sie das",
                                                     "de.LegalQuestion=Haben Sie dein"), "de.SuiteLegalQuestion differs"),
+        ("a placeholder missing in the German status line",
+         replace("suite/suite_messages.iss", "de.SuiteStepDownload=Schritt %1 von %2: %3 - lädt Sprachdatei %4 von %5 herunter ...",
+                 "de.SuiteStepDownload=Schritt %1 von %2: %3 - lädt Sprachdatei %4 herunter ..."), "SuiteStepDownload uses other placeholders"),
+        ("a French text missing", replace("suite/suite_messages.iss", "fr.SuiteStageInstalled=Fichiers du jeu installés\r\n",
+                                          ""), "SuiteStageInstalled has no fr text"),
+        ("a German text missing", replace("suite/suite_messages.iss", "de.SuiteFinishLangNone=Sprachdateien: keine nötig.\r\n",
+                                          ""), "SuiteFinishLangNone has no de text"),
         ("French question missing", replace("suite/suite_messages.iss", "fr.SuiteLegalQuestion=", "fr.SuiteLegalQuestionX="),
          "no fr.SuiteLegalQuestion"),
         ("EULA copy with other bytes",

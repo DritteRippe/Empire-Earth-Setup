@@ -1933,6 +1933,7 @@ begin
     TestSuiteUninstaller;
     TestSuiteLinks;
     TestSuiteProgress;
+    TestSuiteDisplay;
     TestSuiteTailLog;
     TestSuiteRunLimits;
     TestSuiteProcess;

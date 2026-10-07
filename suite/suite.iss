@@ -341,6 +341,9 @@ var
   SuiteCdKeyResult: String;
   // True if the NeoEE setup ran without the task neoee_cdkeys (chosen, not a failure; SuiteCdKeyNotChosen)
   SuiteCdKeyNotChosenFlag: Boolean;
+  // What the log of a product setup told about its language files (the online files), as a line of the last page: set by
+  // the product runner when the product succeeded, '' if it told nothing (the advanced mode shows its own wizard)
+  SuiteLangLineEE, SuiteLangLineNeoEE: String;
 
 procedure ExitProcess(ExitCode: Cardinal);
   external 'ExitProcess@kernel32.dll stdcall';

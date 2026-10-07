@@ -46,6 +46,12 @@ to stay safe and installable:
             question, the cap with a job); every wait for a process is bounded; the wait pumps the messages and
             watches the limits; CancelButtonClick answers while a product setup runs; /TestCancel is read once;
             after a cancel no further product setup starts and Setup ends with Abort
+  [Display] the progress in the window of the suite (suite 1.1.0, S4): SuiteShowProgress (called by SuiteLookAtLog) leaves
+            the advanced mode alone, takes the bar from SuiteRunningPermille (never 100 percent while a product setup
+            runs), fails only into a log line (try/except, SuiteProgressBroken) and does not touch the bar's end; the bar
+            reaches the end of a step in SuiteEndProductDisplay only, which SuiteRunProducts calls after
+            SuiteRunProduct returned; SuiteRunProducts puts the style, Max and Position of the bar back; the list
+            of the finished steps shows only (SuiteStageClickCheck puts a clicked box back)
   [Marker]  MarkSuiteUninstallKey (suite/suite_record.iss, contract 1.3, revision 5) asks RegKeyExists
             before it writes with RegWriteDWordValue (no stub key is created) and deletes nothing
             (ci/check_contract.py checks the value, its type and the key)
@@ -493,13 +499,51 @@ def check_process(files, errors):
         if needed not in button:
             errors.append(f"suite/suite_run.iss: CancelButtonClick must answer the click while a product setup runs ({needed})")
     products = bodies.get("SuiteRunProducts", "")
-    if "not SuiteRunCancelled" not in products or not re.search(r"if\s+SuiteRunCancelled\s+then\s+begin.*?\bAbort;", products, re.DOTALL) \
+    if not re.search(r"and\s+not\s+SuiteRunStopped\s+and\s+not\s+SuiteRunCancelled\s+then", products) or not re.search(r"if\s+SuiteRunCancelled\s+then\s+begin.*?\bAbort;", products, re.DOTALL) \
             or products.find("Abort;") < products.find("finally"):
         errors.append("suite/suite_run.iss: after a cancel SuiteRunProducts must start no further product setup and end Setup "
                       "with Abort, after the progress bar was restored")
     if "SuiteChildTimeout" not in bodies.get("SuiteReasonText", ""):
         errors.append("suite/suite_run.iss: SuiteReasonText must name the reason of a product setup the suite stopped")
     return 12
+
+
+def check_display(files, errors):
+    """Rules for what the window shows of the progress of a product setup (S4); the number of rules checked."""
+    bodies = {}
+    for text in files.values():
+        bodies.update(function_bodies(code_lines(text)))
+    show = bodies.get("SuiteShowProgress", "")
+    if not re.search(r"if\s+SuiteAdvanced\s+or\s+SuiteProgressBroken\s+then\s+Exit;", show):
+        errors.append("suite/suite_run.iss: SuiteShowProgress must leave the advanced mode (its wizard is the display, no log is "
+                      "read) and a display that failed alone (SuiteAdvanced, SuiteProgressBroken)")
+    if not re.search(r"\btry\b.*\bexcept\b.*SuiteProgressBroken\s*:=\s*True;", show, re.DOTALL):
+        errors.append("suite/suite_run.iss: SuiteShowProgress must catch its own failure (try, except, SuiteProgressBroken := True): "
+                      "the display is never a reason to stop an installation")
+    if "SuiteRunningPermille(" not in show or re.search(r"SuiteSetPosition\s*\([^;]*\b1000\b", show):
+        errors.append("suite/suite_run.iss: SuiteShowProgress must take the bar from SuiteRunningPermille and never set the end of "
+                      "the bar: 100 percent only when the exit code is known (SuiteEndProductDisplay)")
+    if "SuiteShowProgress(" not in bodies.get("SuiteLookAtLog", ""):
+        errors.append("suite/suite_run.iss: SuiteLookAtLog must show what it read (SuiteShowProgress)")
+    ends = [name for name, body in bodies.items()
+            if re.search(r"SuiteOverallPermille\s*\([^;]*,\s*1000\s*\)", body) and name != "SuiteOverallPermille"]
+    if ends != ["SuiteEndProductDisplay"]:
+        errors.append(f"the bar reaches the end of a step in SuiteEndProductDisplay only (found: {ends})")
+    products = bodies.get("SuiteRunProducts", "")
+    if not re.search(r"if\s+SuiteRunProduct\s*\(.*?\)\s+then\s+SuiteEndProductDisplay\s*\(\s*True\s*\)", products, re.DOTALL) \
+            or not re.search(r"SuiteEndProductDisplay\s*\(\s*False\s*\)", products):
+        errors.append("suite/suite_run.iss: SuiteRunProducts must end the display of a product with its result after "
+                      "SuiteRunProduct returned (SuiteEndProductDisplay(True) or (False))")
+    for needed in ("ProgressGauge.Style := OldStyle;", "ProgressGauge.Max := OldMax;", "ProgressGauge.Position := OldPosition;"):
+        after_finally = products.split("finally", 1)[1] if "finally" in products else ""
+        if needed not in after_finally:
+            errors.append(f"suite/suite_run.iss: SuiteRunProducts must put the bar back after the products ({needed})")
+    click = bodies.get("SuiteStageClickCheck", "")
+    if "SuiteStageTicks" not in click or "Checked[I] :=" not in click \
+            or not re.search(r"OnClickCheck\s*:=\s*@SuiteStageClickCheck", bodies.get("SuiteBuildProgressControls", "")):
+        errors.append("suite/suite_pages.iss: the list of the finished steps only shows: SuiteBuildProgressControls must set "
+                      "OnClickCheck to SuiteStageClickCheck, which puts a clicked box back")
+    return 8
 
 
 def check_marker(record, errors):
@@ -725,11 +769,12 @@ def check(root):
     frame = check_frame_rules(main, files, errors)
     removal = check_uninstaller(uninstaller, main, files, errors)
     process = check_process(files, errors)
+    display = check_display(files, errors)
     check_forbidden_words(root, errors)
     log_lines = check_product_log_lines(root, common, errors)
     return errors, (f"suite frame: {directives} [Setup] directives, {products} product setups and {launcher} "
                     f"launcher, license and legal text entries in [Files], {codes} exit codes, {frame} slice, mode and registry view rules, product runner "
-                    f"{steps} rules, process {process} rules, uninstall key marker {marker} rules, uninstaller {removal} rules, no CD key registry or library reference, {log_lines} product log lines the suite parses")
+                    f"{steps} rules, process {process} rules, display {display} rules, uninstall key marker {marker} rules, uninstaller {removal} rules, no CD key registry or library reference, {log_lines} product log lines the suite parses")
 
 
 def self_test(source_root):
@@ -847,14 +892,14 @@ def self_test(source_root):
          "imports CreateProcessA"),
         ("a kill on close job", replace(common, "function SuiteTickCount: DWORD;", "function SuiteSetJob(hJob: THandle; c: Integer; var d: Integer; e: Integer): BOOL;\n  external 'SetInformationJobObject@kernel32.dll stdcall';\nfunction SuiteTickCount: DWORD;"),
          "imports SetInformationJobObject"),
-        ("TerminateProcess outside the stop", replace(run, "  Lock.Free;\n\n  // (e)", "  Lock.Free;\n  SuiteTerminateProcess(Proc, 1);\n\n  // (e)"),
+        ("TerminateProcess outside the stop", replace(run, "  SuiteLogProgressEnd(Product);\n\n  // (e)", "  SuiteLogProgressEnd(Product);\n  SuiteTerminateProcess(Proc, 1);\n\n  // (e)"),
          "SuiteTerminateProcess is called by ['SuiteKillProduct', 'SuiteRunProduct']"),
-        ("the stop of the job outside SuiteKillProduct", replace(run, "  Lock.Free;\n\n  // (e)", "  Lock.Free;\n  SuiteTerminateJob(Job, 1);\n\n  // (e)"),
+        ("the stop of the job outside SuiteKillProduct", replace(run, "  SuiteLogProgressEnd(Product);\n\n  // (e)", "  SuiteLogProgressEnd(Product);\n  SuiteTerminateJob(Job, 1);\n\n  // (e)"),
          "SuiteTerminateJob is called by"),
         ("a product setup stopped outside the cancel and the limits",
          replace(run, "    Waited := SuiteWaitObject(SuiteChildProc, SuiteWaitSliceMs);\n", "    SuiteStopProduct(Product, 'x');\n    Waited := SuiteWaitObject(SuiteChildProc, SuiteWaitSliceMs);\n"),
          "SuiteStopProduct is called 4 times, expected 3"),
-        ("a stop outside the wait", replace(run, "  Lock.Free;\n\n  // (e)", "  Lock.Free;\n  SuiteKillProduct(Proc, Job);\n\n  // (e)"),
+        ("a stop outside the wait", replace(run, "  SuiteLogProgressEnd(Product);\n\n  // (e)", "  SuiteLogProgressEnd(Product);\n  SuiteKillProduct(Proc, Job);\n\n  // (e)"),
          "SuiteKillProduct is called by"),
         ("cancel while the product setup installs",
          replace(run, "      if SuiteProgressInstalling(SuiteChildProgress) then\n      begin\n        Log('Product ' + Product + ': the cancel came too late, its setup has started",
@@ -988,6 +1033,26 @@ def self_test(source_root):
         ("the comment above a line that is not a parsed log line",
          replace("installstate.iss", "    Log('Wrote ' + IniPath", "    // The suite parses this line (contract 1.7 point 5): x\n    Log('Wrote ' + IniPath"),
          "stands above a line that"),
+        ("the display without its own failure handling",
+         replace(run, "    SuiteProgressBroken := True;\n    Log('The progress display failed", "    Log('The progress display failed"),
+         "SuiteShowProgress must catch its own failure"),
+        ("the display in the advanced mode", replace(run, "  if SuiteAdvanced or SuiteProgressBroken then\n    Exit;\n  try\n    Text := SuiteStatusText",
+                                                     "  try\n    Text := SuiteStatusText"),
+         "SuiteShowProgress must leave the advanced mode"),
+        ("the bar from the log without a limit", replace(run, "SuiteRunningPermille(SuiteChildProgress)));\n    SuiteShowStages", "SuiteProgressPermille(SuiteChildProgress)));\n    SuiteShowStages"),
+         "SuiteShowProgress must take the bar from SuiteRunningPermille"),
+        ("the end of the bar set while the product setup runs",
+         replace(run, "    SuiteShowStages(SuiteChildProgress);\n  except", "    SuiteSetPosition(1000);\n    SuiteShowStages(SuiteChildProgress);\n  except"),
+         "never set the end of the bar"),
+        ("the log is not shown", replace(run, "  SuiteShowProgress(Product);\nend;", "end;"), "SuiteLookAtLog must show what it read"),
+        ("the end of a step in another place",
+         replace(run, "    SuiteShownPosition := Permille;\n", "    SuiteShownPosition := Permille;\n    if SuiteOverallPermille(1, 1, 1000) = 0 then Exit;\n"),
+         "the bar reaches the end of a step in SuiteEndProductDisplay only"),
+        ("the product display not ended with the result", replace(run, "          SuiteEndProductDisplay(True)\n", "          SuiteBeginProductDisplay('x')\n"),
+         "SuiteRunProducts must end the display of a product with its result"),
+        ("the bar not put back", replace(run, "    WizardForm.ProgressGauge.Max := OldMax;\n", ""), "must put the bar back after the products"),
+        ("the list of the steps can be ticked", replace("suite/suite_pages.iss", "  SuiteStageList.OnClickCheck := @SuiteStageClickCheck;\n", ""),
+         "the list of the finished steps only shows"),
     ]
     passing = [("unchanged copy", None, None)]
     failures = 0

@@ -5,9 +5,10 @@
 // every item. A silent run (/SILENT, /VERYSILENT) shows none of them: its products come from /PRODUCTS
 // (InitializeSetup in suite.iss). The legal texts are the texts of the product setups, which skip them
 // when they run silently (contract 1.7 point 4); ci/check_suite_texts.py checks the copies.
-// The product runner (suite_run.iss) reads SuiteWantEE, SuiteWantNeoEE and SuiteAdvanced and sets SuiteProductsOk
-// and SuiteCdKeyResult; this file only shows them. It never starts a product setup and never touches
-// the CD key registration.
+// The product runner (suite_run.iss) reads SuiteWantEE, SuiteWantNeoEE and SuiteAdvanced and sets SuiteProductsOk,
+// SuiteCdKeyResult and the language lines of the products; this file only shows them. It never starts a product setup and
+// never touches the CD key registration. The installation page also gets what the runner shows there (suite 1.1.0):
+// the list of the finished steps and the line for what Cancel does now; the runner fills them.
 // Requires: suite.iss (the globals, SuiteSilent, IsDotNet48, SuiteProductSucceeded, the constants of the
 // installation sizes), suite_common.iss (the helpers), the messages of suite_messages.iss.
 
@@ -18,6 +19,13 @@ var
   SuiteEulaViewer, SuiteRulesViewer: TRichEditViewer;
   // True if the legal question has to be answered (neither product installed)
   SuiteLegalRequired: Boolean;
+  // The installation page: the list of the finished steps (a heading per game, then its steps), and the line below the
+  // file name that says what Cancel does now
+  SuiteStageList: TNewCheckListBox;
+  SuiteCancelLabel: TNewStaticText;
+  // One character per item of the list: '1' a ticked step, '0' a step that is not ticked, '-' a heading. A click on a box
+  // puts it back: the list only shows.
+  SuiteStageTicks: String;
 
 // How a product is installed on this computer, from its uninstall entry (the AppId at run time, as
 // the product setup was built with it): HKLM for all users, HKCU for one user only. The suite installs
@@ -253,11 +261,83 @@ begin
   end;
 end;
 
+// A click or the space bar on a box of the list of the finished steps: the box goes back to what it shows
+procedure SuiteStageClickCheck(Sender: TObject);
+var
+  I: Integer;
+begin
+  for I := 0 to SuiteStageList.Items.Count - 1 do
+    if (I < Length(SuiteStageTicks)) and (SuiteStageTicks[I + 1] <> '-') and
+      (SuiteStageList.Checked[I] <> (SuiteStageTicks[I + 1] = '1')) then
+      SuiteStageList.Checked[I] := SuiteStageTicks[I + 1] = '1';
+end;
+
+// The place of the line for Cancel and of the list on the installation page of Setup. The page of Setup has the status
+// line on top, the file line below it and then the bar; the line for Cancel goes below the bar and the list takes the rest of
+// the page. Called again when the list is shown: the bar has its final size only then.
+procedure SuiteLayoutProgressControls;
+var
+  Page: TWinControl;
+begin
+  Page := WizardForm.ProgressGauge.Parent;
+  SuiteCancelLabel.Left := WizardForm.ProgressGauge.Left;
+  SuiteCancelLabel.Top := WizardForm.ProgressGauge.Top + WizardForm.ProgressGauge.Height + ScaleY(6);
+  SuiteCancelLabel.Width := WizardForm.ProgressGauge.Width;
+  SuiteCancelLabel.Height := ScaleY(16);
+  SuiteStageList.Left := WizardForm.ProgressGauge.Left;
+  SuiteStageList.Top := SuiteCancelLabel.Top + SuiteCancelLabel.Height + ScaleY(8);
+  SuiteStageList.Width := WizardForm.ProgressGauge.Width;
+  SuiteStageList.Height := Page.ClientHeight - SuiteStageList.Top;
+end;
+
+// The line for Cancel and the list of the finished steps on the installation page; the list is shown from the first
+// product setup on (SuiteRunProducts)
+procedure SuiteBuildProgressControls;
+begin
+  SuiteCancelLabel := TNewStaticText.Create(WizardForm);
+  SuiteCancelLabel.Parent := WizardForm.ProgressGauge.Parent;
+  SuiteCancelLabel.AutoSize := False;
+  SuiteCancelLabel.Caption := '';
+  SuiteStageList := TNewCheckListBox.Create(WizardForm);
+  SuiteStageList.Parent := WizardForm.ProgressGauge.Parent;
+  SuiteStageList.OnClickCheck := @SuiteStageClickCheck;
+  SuiteStageList.Visible := False;
+  SuiteStageTicks := '';
+  SuiteLayoutProgressControls;
+end;
+
+// The list is empty again
+procedure SuiteStageClear;
+begin
+  SuiteStageList.Items.Clear;
+  SuiteStageTicks := '';
+end;
+
+// The heading of a game: the first line of its block
+procedure SuiteStageHeading(const Text: String);
+begin
+  SuiteStageList.AddGroup(Text, '', 0, nil);
+  SuiteStageTicks := SuiteStageTicks + '-';
+end;
+
+// A step of the game: ticked if it was done, not ticked if it failed; the list scrolls to the new line
+procedure SuiteStageAdd(const Text: String; Ticked: Boolean);
+begin
+  SuiteStageList.AddCheckBox(Text, '', 1, Ticked, True, False, False, nil);
+  if Ticked then
+    SuiteStageTicks := SuiteStageTicks + '1'
+  else
+    SuiteStageTicks := SuiteStageTicks + '0';
+  // LB_SETTOPINDEX: the last line at the top, as far as the list can scroll
+  SendMessage(SuiteStageList.Handle, $0197, SuiteStageList.Items.Count - 1, 0);
+end;
+
 procedure InitializeWizard;
 begin
   SuiteBuildSelectPage;
   SuiteBuildLegalPage;
   SuiteBuildRulesPage;
+  SuiteBuildProgressControls;
 end;
 
 // A silent run skips the pages of the suite: Setup would "click" Next on them, the product page would take
@@ -339,9 +419,13 @@ begin
   NL := #13#10;
   ResultEE := SuiteItemResult(SuiteProductSucceeded(SuiteProductEE), SuiteWantEE, SuiteStateEE);
   ResultNeoEE := SuiteItemResult(SuiteProductSucceeded(SuiteProductNeoEE), SuiteWantNeoEE, SuiteStateNeoEE);
-  Text := CustomMessage('SuiteFinishIntro') + NL + NL +
-    SuiteItemLine(CustomMessage('SuiteProductEE'), ResultEE) + NL +
-    SuiteItemLine(CustomMessage('SuiteProductNeoEE'), ResultNeoEE) + NL;
+  Text := CustomMessage('SuiteFinishIntro') + NL + NL + SuiteItemLine(CustomMessage('SuiteProductEE'), ResultEE) + NL;
+  // what the run found out about the language files of a game that was installed (the runner sets the line)
+  if (ResultEE = SuiteResultOk) and (SuiteLangLineEE <> '') then
+    Text := Text + '    ' + SuiteLangLineEE + NL;
+  Text := Text + SuiteItemLine(CustomMessage('SuiteProductNeoEE'), ResultNeoEE) + NL;
+  if (ResultNeoEE = SuiteResultOk) and (SuiteLangLineNeoEE <> '') then
+    Text := Text + '    ' + SuiteLangLineNeoEE + NL;
   if IsDotNet48 then
     Text := Text + CustomMessage('SuiteNameLauncher') + ': ' + CustomMessage('SuiteStatusOk') + NL
   else

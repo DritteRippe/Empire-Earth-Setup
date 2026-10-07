@@ -135,6 +135,16 @@ fr.SuiteCdKeyNotChosen=Clés CD de NeoEE : enregistrement non sélectionné, rie
 SuiteCdKeyUnknown=NeoEE CD keys: result unknown. Start this setup again to repair the registration.
 de.SuiteCdKeyUnknown=NeoEE-CD-Keys: Ergebnis unbekannt. Starte dieses Setup erneut, um die Registrierung zu reparieren.
 fr.SuiteCdKeyUnknown=Clés CD de NeoEE : résultat inconnu. Relancez ce programme d'installation pour réparer l'enregistrement.
+; The language files of a game that was installed: %1 = how many arrived, %2 = how many there are, %3 = how many are missing
+SuiteFinishLangOk=Language files: %1 of %2 installed from the download.
+de.SuiteFinishLangOk=Sprachdateien: %1 von %2 aus dem Download installiert.
+fr.SuiteFinishLangOk=Fichiers de langue : %1 sur %2 installés depuis le téléchargement.
+SuiteFinishLangMissing=Language files: %1 of %2 installed from the download. For the other %3 the game uses the files of the setup, so some content may not be translated. Start this setup again with a working internet connection to get them.
+de.SuiteFinishLangMissing=Sprachdateien: %1 von %2 aus dem Download installiert. Für die übrigen %3 verwendet das Spiel die Dateien des Setups, daher sind einige Inhalte möglicherweise nicht übersetzt. Starte dieses Setup erneut mit einer funktionierenden Internetverbindung, um sie nachzuholen.
+fr.SuiteFinishLangMissing=Fichiers de langue : %1 sur %2 installés depuis le téléchargement. Pour les %3 autres, le jeu utilise les fichiers du programme d'installation, certains contenus ne sont donc peut-être pas traduits. Relancez ce programme d'installation avec une connexion Internet fonctionnelle pour les obtenir.
+SuiteFinishLangNone=Language files: none needed.
+de.SuiteFinishLangNone=Sprachdateien: keine nötig.
+fr.SuiteFinishLangNone=Fichiers de langue : aucun nécessaire.
 ; %1 = folder of the logs
 SuiteFinishLogs=Logs: %1
 de.SuiteFinishLogs=Protokolle: %1
@@ -166,6 +176,60 @@ fr.SuiteStepRun=Étape %1 sur %2 : installation de %3 ...
 SuiteStepAdvanced=Step %1 of %2: the setup of %3 is open. Please go through it there.
 de.SuiteStepAdvanced=Schritt %1 von %2: Das Setup von %3 ist geöffnet. Bitte gehe es dort durch.
 fr.SuiteStepAdvanced=Étape %1 sur %2 : le programme d'installation de %3 est ouvert. Veuillez le parcourir.
+; The status line while the setup of a game runs and the log tells what it does: %1 = number of the step, %2 = number of
+; steps, %3 = the short name of the game, %4 = number of the language file, %5 = number of language files
+SuiteStepProbe=Step %1 of %2: %3 - looking for the language files online ...
+de.SuiteStepProbe=Schritt %1 von %2: %3 - sucht die Sprachdateien im Internet ...
+fr.SuiteStepProbe=Étape %1 sur %2 : %3 - recherche des fichiers de langue en ligne ...
+SuiteStepDownload=Step %1 of %2: %3 - downloading language file %4 of %5 ...
+de.SuiteStepDownload=Schritt %1 von %2: %3 - lädt Sprachdatei %4 von %5 herunter ...
+fr.SuiteStepDownload=Étape %1 sur %2 : %3 - téléchargement du fichier de langue %4 sur %5 ...
+SuiteStepVerify=Step %1 of %2: %3 - checking the language files ...
+de.SuiteStepVerify=Schritt %1 von %2: %3 - prüft die Sprachdateien ...
+fr.SuiteStepVerify=Étape %1 sur %2 : %3 - vérification des fichiers de langue ...
+SuiteStepInstall=Step %1 of %2: %3 - installing the game files ...
+de.SuiteStepInstall=Schritt %1 von %2: %3 - installiert die Spieldateien ...
+fr.SuiteStepInstall=Étape %1 sur %2 : %3 - installation des fichiers du jeu ...
+SuiteStepCdKeys=Step %1 of %2: %3 - registering the CD keys ...
+de.SuiteStepCdKeys=Schritt %1 von %2: %3 - registriert die CD-Keys ...
+fr.SuiteStepCdKeys=Étape %1 sur %2 : %3 - enregistrement des clés CD ...
+SuiteStepFinish=Step %1 of %2: %3 - finishing the installation ...
+de.SuiteStepFinish=Schritt %1 von %2: %3 - schließt die Installation ab ...
+fr.SuiteStepFinish=Étape %1 sur %2 : %3 - finalisation de l'installation ...
+; The short names of the games in the status line (names, not translated)
+SuiteShortEE=Empire Earth
+SuiteShortNeoEE=NeoEE
+; The line under the status line: the file the game setup works on. %1 = the file, %2 = the part done, %3 = the size with its unit
+SuiteFileProgress=%1 - %2 of %3
+de.SuiteFileProgress=%1 - %2 von %3
+fr.SuiteFileProgress=%1 - %2 sur %3
+; The list of the finished steps of the installation page (one block per game, headed by its name)
+SuiteStageNoDownload=No language files needed
+de.SuiteStageNoDownload=Keine Sprachdateien nötig
+fr.SuiteStageNoDownload=Aucun fichier de langue nécessaire
+; %1 = the language files that arrived, %2 = how many there are
+SuiteStageDownloaded=Language files downloaded: %1 of %2
+de.SuiteStageDownloaded=Sprachdateien heruntergeladen: %1 von %2
+fr.SuiteStageDownloaded=Fichiers de langue téléchargés : %1 sur %2
+SuiteStageInstalled=Game files installed
+de.SuiteStageInstalled=Spieldateien installiert
+fr.SuiteStageInstalled=Fichiers du jeu installés
+SuiteStageCdKeysOk=CD keys registered
+de.SuiteStageCdKeysOk=CD-Keys registriert
+fr.SuiteStageCdKeysOk=Clés CD enregistrées
+; %1 = the result number of the NeoEE setup
+SuiteStageCdKeysFailed=CD keys not registered (result %1)
+de.SuiteStageCdKeysFailed=CD-Keys nicht registriert (Ergebnis %1)
+fr.SuiteStageCdKeysFailed=Clés CD non enregistrées (résultat %1)
+SuiteStageManifest=List of the installed files written (for the launcher)
+de.SuiteStageManifest=Liste der installierten Dateien geschrieben (für den Launcher)
+fr.SuiteStageManifest=Liste des fichiers installés écrite (pour le lanceur)
+SuiteStageDone=Finished
+de.SuiteStageDone=Fertig
+fr.SuiteStageDone=Terminé
+SuiteStageFailed=Not installed (the log tells why)
+de.SuiteStageFailed=Nicht installiert (das Protokoll nennt den Grund)
+fr.SuiteStageFailed=Non installé (le journal en donne la raison)
 ; A game setup did not start because a game or the launcher is running: %1 = the game
 SuiteRunGameRunning=%1 was not installed. Empire Earth, The Art of Conquest, NeoEE or the Empire Earth Launcher is probably running.%n%nClose it and start this setup again. The setup goes on with the next game.
 de.SuiteRunGameRunning=%1 wurde nicht installiert. Vermutlich läuft Empire Earth, The Art of Conquest, NeoEE oder der Empire Earth Launcher.%n%nBeende das Programm und starte dieses Setup erneut. Das Setup macht mit dem nächsten Spiel weiter.

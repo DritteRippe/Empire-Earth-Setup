@@ -771,7 +771,9 @@ type
     CurrentBytes: Int64;         // bytes of it done, of CurrentTotal, from the last "<X> of <Y> bytes done." line
     CurrentTotal: Int64;
     OnlineMissing: Integer;      // M of "<M> of <K> selected online files are missing", else 0
+    OnlineTotal: Integer;        // R of "All <R> online files accepted" or K of the line above, 0 = no such line (yet)
     InstallFiles: Integer;       // entries "Dest filename:" since the installation started
+    InstallFile: String;         // the file name of the last of them, '' = none yet
     InstallEstimate: Integer;    // how many entries to expect (SuiteInstallEstimate)
     ManifestDone: Boolean;       // "Manifest: <n> files, ..." is there
     CdKeyResult: String;         // the number after "CD Keys generation result:", '' = no such line yet
@@ -801,7 +803,9 @@ begin
   P.CurrentBytes := 0;
   P.CurrentTotal := 0;
   P.OnlineMissing := 0;
+  P.OnlineTotal := 0;
   P.InstallFiles := 0;
+  P.InstallFile := '';
   P.InstallEstimate := SuiteInstallEstimate(Product);
   P.ManifestDone := False;
   P.CdKeyResult := '';
@@ -929,6 +933,20 @@ begin
     end;
 end;
 
+// The file name of a path: what follows the last backslash or slash
+function SuiteFileNameOf(const Path: String): String;
+var
+  I: Integer;
+begin
+  Result := Path;
+  for I := Length(Path) downto 1 do
+    if (Path[I] = '\') or (Path[I] = '/') then
+    begin
+      Result := Copy(Path, I + 1, Length(Path));
+      Exit;
+    end;
+end;
+
 // A file of the download phase is finished (downloaded, failed or skipped)
 procedure SuiteDownloadFileFinished(var P: TSuiteProgress);
 begin
@@ -954,7 +972,10 @@ begin
   if SuiteStartsWith(T, SuiteLogDestFile) then
   begin
     if P.Phase = SuitePhaseInstall then
+    begin
       P.InstallFiles := P.InstallFiles + 1;
+      P.InstallFile := SuiteFileNameOf(Trim(Copy(T, Length(SuiteLogDestFile) + 1, Length(T))));
+    end;
   end
   else if SuiteStartsWith(T, SuiteLogProbe) then
     SuiteRaisePhase(P, SuitePhaseProbe)
@@ -991,11 +1012,16 @@ begin
     SuiteDownloadFileFinished(P)
   else if (SuiteStartsWith(T, SuiteLogVerified) and (Pos(SuiteLogVerifiedEnd, T) > 0)) or
     SuiteNumberBetween(T, SuiteLogAccepted, SuiteLogAcceptedEnd, A) then
-    SuiteRaisePhase(P, SuitePhaseVerify)
+  begin
+    SuiteRaisePhase(P, SuitePhaseVerify);
+    if SuiteNumberBetween(T, SuiteLogAccepted, SuiteLogAcceptedEnd, A) then
+      P.OnlineTotal := A;
+  end
   else if SuiteTwoNumbers(T, SuiteLogMissingEnd, A, B) then
   begin
     SuiteRaisePhase(P, SuitePhaseVerify);
     P.OnlineMissing := A;
+    P.OnlineTotal := B;
   end
   else if SuiteStartsWith(T, SuiteLogInstallStart) then
   begin
@@ -1179,6 +1205,155 @@ begin
   Result := ((Before * 1000) + (Weight * Within)) div Total;
   if Result > 990 then
     Result := 990;
+end;
+
+// ---- what the window shows of the progress (S4, suite_run.iss and suite_pages.iss) ----------------
+
+const
+  // What the status line of the installation page says about the running product setup (SuiteStatusKind)
+  SuiteStatusStart = 0;            // nothing is known yet: "installing <game> ..."
+  SuiteStatusProbe = 1;            // it asks the online files servers
+  SuiteStatusDownload = 2;         // it downloads the online files (the language files)
+  SuiteStatusVerify = 3;           // it checks them
+  SuiteStatusInstall = 4;          // it installs the game files
+  SuiteStatusCdKeys = 5;           // NeoEE: it registers the CD keys
+  SuiteStatusFinish = 6;           // the rest: shortcuts, entries, the list of the installed files for the launcher
+
+  // The stages of a product setup that the list of the installation page names once they are done (SuiteStageReached)
+  SuiteStageDownload = 1;
+  SuiteStageInstall = 2;
+  SuiteStageCdKeys = 3;
+  SuiteStageManifest = 4;
+
+  // The most the bar shows while a product setup runs, in thousandths: 100 percent only when the exit code is known
+  SuiteRunningPermilleMax = 990;
+
+// The kind of the status line for the progress of a product setup
+function SuiteStatusKind(const P: TSuiteProgress): Integer;
+begin
+  case P.Phase of
+    SuitePhaseProbe: Result := SuiteStatusProbe;
+    SuitePhaseDownload:
+      begin
+        // the count comes before the first file; without it the line says no more than at the start
+        if P.DownloadFiles > 0 then
+          Result := SuiteStatusDownload
+        else
+          Result := SuiteStatusStart;
+      end;
+    SuitePhaseVerify: Result := SuiteStatusVerify;
+    SuitePhaseInstall: Result := SuiteStatusInstall;
+    SuitePhaseCdKeys:
+      begin
+        if P.CdKeyResult = '' then
+          Result := SuiteStatusCdKeys
+        else
+          Result := SuiteStatusFinish;
+      end;
+    SuitePhasePost, SuitePhaseManifest, SuitePhaseDone: Result := SuiteStatusFinish;
+  else
+    Result := SuiteStatusStart;
+  end;
+end;
+
+// The number of the file the download phase is at (1 to the count): the finished ones and the one it works on
+function SuiteDownloadIndex(const P: TSuiteProgress): Integer;
+begin
+  Result := P.DownloadDone + 1;
+  if (P.DownloadFiles > 0) and (Result > P.DownloadFiles) then
+    Result := P.DownloadFiles;
+end;
+
+// The progress of a running product setup in thousandths for the bar: never 100 percent, which only the exit
+// code allows (the log ends a moment before the process does, and it ends the same way when the setup failed)
+function SuiteRunningPermille(const P: TSuiteProgress): Integer;
+begin
+  Result := SuiteProgressPermille(P);
+  if Result > SuiteRunningPermilleMax then
+    Result := SuiteRunningPermilleMax;
+end;
+
+// The bar of the whole run in thousandths: Step of Steps products (1 to Steps), Permille of the current one done
+function SuiteOverallPermille(Step, Steps, Permille: Integer): Integer;
+begin
+  if Steps < 1 then
+    Steps := 1;
+  if Step < 1 then
+    Step := 1;
+  if Step > Steps then
+    Step := Steps;
+  if Permille < 0 then
+    Permille := 0;
+  if Permille > 1000 then
+    Permille := 1000;
+  Result := (((Step - 1) * 1000) + Permille) div Steps;
+end;
+
+// A number of tenths as text with the decimal separator of the language (a comma in German and French)
+function SuiteTenthsText(Tenths: Int64; const Lang: String): String;
+var
+  Separator: String;
+begin
+  Separator := '.';
+  if (CompareText(Lang, 'de') = 0) or (CompareText(Lang, 'fr') = 0) then
+    Separator := ',';
+  Result := IntToStr(Tenths div 10) + Separator + IntToStr(Tenths mod 10);
+end;
+
+// The two sizes of "<done> of <total>" in one unit: megabytes with one decimal from a total of 1 MB (1 MB =
+// 1048576 bytes), else whole kilobytes, rounded up; the unit is in TotalText only ("MB", "KB", in French "Mo", "Ko")
+procedure SuiteBytesTexts(Done, Total: Int64; const Lang: String; var DoneText, TotalText: String);
+var
+  Mega, Kilo: String;
+begin
+  Mega := 'MB';
+  Kilo := 'KB';
+  if CompareText(Lang, 'fr') = 0 then
+  begin
+    Mega := 'Mo';
+    Kilo := 'Ko';
+  end;
+  if Done < 0 then
+    Done := 0;
+  if Total >= 1048576 then
+  begin
+    DoneText := SuiteTenthsText(((Done * 10) + 524288) div 1048576, Lang);
+    TotalText := SuiteTenthsText(((Total * 10) + 524288) div 1048576, Lang) + ' ' + Mega;
+  end
+  else
+  begin
+    DoneText := IntToStr((Done + 1023) div 1024);
+    TotalText := IntToStr((Total + 1023) div 1024) + ' ' + Kilo;
+  end;
+end;
+
+// How many online files (the language files) the product setup got of how many: Total from "All <R> online files
+// accepted" or "<M> of <K> ... are missing", else from the count of the downloads. False if there is no
+// online file at all (nothing to download, or the log has not said yet).
+function SuiteOnlineCounts(const P: TSuiteProgress; var Got, Total: Integer): Boolean;
+begin
+  Total := P.OnlineTotal;
+  if Total <= 0 then
+    Total := P.DownloadFiles;
+  Got := Total - P.OnlineMissing;
+  if Got < 0 then
+    Got := 0;
+  Result := Total > 0;
+end;
+
+// True if the stage is done and its result known: the online files (the log said how many are accepted or
+// missing, or the installation has started), the installation of the files, the CD keys (the setup logged their
+// result) and the list of the installed files for the launcher
+function SuiteStageReached(const P: TSuiteProgress; Stage: Integer): Boolean;
+begin
+  case Stage of
+    SuiteStageDownload: Result := (P.Phase >= SuitePhaseInstall) or (P.OnlineTotal > 0);
+    SuiteStageInstall: Result := P.Phase >= SuitePhasePost;
+    SuiteStageCdKeys: Result := P.CdKeyResult <> '';
+    SuiteStageManifest: Result := P.ManifestDone;
+  else
+    Result := False;
+  end;
 end;
 
 // ---- the process of a product setup: start, wait, limits (S2, suite_run.iss) -------------------------
