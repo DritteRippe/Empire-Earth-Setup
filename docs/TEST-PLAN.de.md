@@ -1555,6 +1555,10 @@ Gemeinsam für alle Fälle dieses Blocks:
   3. *(c) Lobby, Editor, Alt+Tab.* In die Mehrspieler-Lobby gehen (EE: „Mehrspieler“ › Online; NeoEE: mit Anmeldung),
      herumklicken, wieder hinaus; geht die Maus im Menü noch? Den Szenario-Editor öffnen, etwas klicken, schließen. Dann
      dreimal: Alt+Tab hinaus, 5 Sekunden warten, über die Taskleiste zurück: volle Größe, nichts verschoben, Maus geht?
+     Danach im Launcher-`log.txt` nachsehen, ob die Zeilen `Watch t+…: main window 0x…` (Hauptfenster) und `foreground window
+     changed … class 'WONLobbyPopup'` (Lobby) zusammenpassen: das Handle des Hauptfensters bleibt, solange die Lobby offen ist,
+     dasselbe, und die Lobby wird nie als `main window` genannt (der Schutz des Aktivierungssignals setzt voraus, dass die
+     Lobby ein Popup mit Besitzer ist, das `IsMainWindowCandidate` aussortiert; gemessen ist das noch nicht).
   4. *(c) Benachrichtigung.* In der Uhr-App einen Timer auf 1 Minute stellen, zurück ins Spiel (Hauptmenü), warten. Notieren:
      nichts, ein Hinweis, oder minimiert sich das Spiel? Wenn es sich minimiert: über die Taskleiste zurück; volle Größe, Maus?
   5. *(b) Direktstart (bekannte Grenze).* Spiel beenden, im Explorer `Empire Earth.exe` im EE-Ordner doppelklicken, bis zum
@@ -1576,7 +1580,8 @@ Gemeinsam für alle Fälle dieses Blocks:
   - (c) Die Lobby minimiert das Spiel nicht und lässt sich bedienen, die Maus geht danach im Menü; der Editor läuft (4:3 mit
     Rand links und rechts ist erwartet); Alt+Tab dreimal: jedes Mal volle Größe, nichts verschoben, Maus geht. Die
     Benachrichtigung ist eine Beobachtung (TP-23 Schritt 8): minimiert sich das Spiel, muss es aus der Taskleiste in voller
-    Größe und mit Maus zurückkommen.
+    Größe und mit Maus zurückkommen. Im `log.txt` bleibt das Handle des Hauptfensters während der offenen Lobby gleich und die
+    Lobby steht nie als `main window` da; sonst ist das ein Befund zum Lobby-Schutz des Aktivierungssignals.
   - (d) wie (a) mit `dgVoodoo_DX11_LVL11.conf`, (b) wie oben.
   - (e) Nach dem Update sind die Dateien von (a) installiert, `Game Window Height` ist 1200 (TP-26) und die Intro-Videos
     sind installiert (TP-27).
