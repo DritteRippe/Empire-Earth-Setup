@@ -588,6 +588,13 @@ setup version stays 1.7.2 until the release.
   a damaged EE installation. The publisher stays, so Windows "Apps" still shows
   `Empire Earth Community`. `ci/check_contract.py` and `ci/check_suite.py` check the marker, and
   `ci/check_contract.py` also that no product script names it; the suite scenarios assert it.
+- `docs/CONTRACT.md` revision 6 (compatible, still contract version 1, no MUST or MUST NOT relaxed; the same
+  text in the launcher repository) joins the suite part (1.7 points 2, 3 and 5, see the suite entries below)
+  and the launcher part: the user's explicit choice of the game window size in launcher 1.1.0 is the consent
+  of 3.2 to overwrite `Game Window Width` and `Game Window Height`, within the limits of 3.3, after the guard
+  and the backup of 3.6 (3.2, 3.3, 3.6). The product setups change nothing for it: they write both values at
+  every run as before, so a repair or an update ends the user's choice. One row in the history, the
+  checklist "Additions of revision 6" names the suite, product setup and launcher items.
 - `suite/`: the frame of the suite installer "Empire Earth Community" (ADR 0013, not yet the whole
   installer): `suite.iss` (`[Setup]` for Windows 7 SP1 and later, 64-bit install mode, disk spanning
   into slices of `DiskSliceSize` bytes; the launcher, the Mod Creator and the licenses only with
