@@ -10,7 +10,7 @@ repositories at once (same text, same commit subject), see [5. Versioning](#5-ve
 |---|---|
 | Contract version | **1** |
 | Status | **Draft**: specified for setup v2 and launcher v2, not implemented by a release yet |
-| Based on | setup `setup_is6.iss`, `config_ee.iss`, `config_neoee.iss`, `utils.iss` (branch `v2` at 2ce68ee, plus the task `compatibility_legacy` that revision 2 adds) and the setup's decision records 0004, 0005, 0007, 0008 and 0010 (`docs/adr`, branch `v2` at 2ce68ee), launcher `GameDirectoryLocator.cs` (branch `v2` at 79464d4) and the launcher's decision record 0016 (branch `v2` at ec02afa), the official setups 1.7.2; revision 3 also on setup `environment.iss` (branch `v2` at 3a9498d) and the launcher v2 core library with its decision records 0015 and 0016 (branch `v2` at 1b49410); revision 4 also on the setup's decision record 0013 (suite installer) and `setup_is6.iss` (branch `v2` at 332d877) and launcher `SingleInstance.cs` (branch `v2` at 19386bb); revision 5 also on the suite `suite/suite_record.iss` (branch `v2` at 85736cf), launcher `UninstallKeyScanner.cs` (branch `v2` at d454079) and the laptop test TP-93 of the setup's test plan; revision 6 also on the suite `suite/suite_common.iss` and `suite/suite_run.iss` (branch `v2`: the log parser at 826525a, the process runner at 0bf9681, the progress display at db8be16, the runner fixes at 04f80ac), the line `Install step: ...` of setup `setup_is6.iss` and the suite's point of no return (branch `v2` at 83f4528), the download lines of setup `downloads.iss` and `utils.iss` (branch `v2` at cbd64c8), the download pages of setup `utils.iss` and `setup_is6.iss` (branch `v2` at ed5584d), the one shortcut of the suite `suite/suite_shortcuts.iss` (branch `v2` at 53d145d, its helpers in `suite/suite_common.iss` at 8c14f54), launcher `ResolutionOptions.cs` and `GameDefaultsService.cs` (branch `v2` at e8f7f98) and launcher `ProductChoices.cs`, `DiscoveryResult.cs`, `InstallationService.cs`, `InstanceForwarding.cs`, `PlayModel.cs` and `SetupDownloadPage.cs` (branch `v2` at 132bbd4) |
+| Based on | setup `setup_is6.iss`, `config_ee.iss`, `config_neoee.iss`, `utils.iss` (branch `v2` at 2ce68ee, plus the task `compatibility_legacy` that revision 2 adds) and the setup's decision records 0004, 0005, 0007, 0008 and 0010 (`docs/adr`, branch `v2` at 2ce68ee), launcher `GameDirectoryLocator.cs` (branch `v2` at 79464d4) and the launcher's decision record 0016 (branch `v2` at ec02afa), the official setups 1.7.2; revision 3 also on setup `environment.iss` (branch `v2` at 3a9498d) and the launcher v2 core library with its decision records 0015 and 0016 (branch `v2` at 1b49410); revision 4 also on the setup's decision record 0013 (suite installer) and `setup_is6.iss` (branch `v2` at 332d877) and launcher `SingleInstance.cs` (branch `v2` at 19386bb); revision 5 also on the suite `suite/suite_record.iss` (branch `v2` at 85736cf), launcher `UninstallKeyScanner.cs` (branch `v2` at d454079) and the laptop test TP-93 of the setup's test plan; revision 6 also on the suite `suite/suite_common.iss` and `suite/suite_run.iss` (branch `v2`: the log parser at 826525a, the process runner at 0bf9681, the progress display at db8be16, the runner fixes at 04f80ac), the line `Install step: ...` of setup `setup_is6.iss` and the suite's point of no return (branch `v2` at 83f4528), the download lines of setup `downloads.iss` and `utils.iss` (branch `v2` at cbd64c8), the download pages of setup `utils.iss` and `setup_is6.iss` (branch `v2` at ed5584d), the one shortcut of the suite `suite/suite_shortcuts.iss` (branch `v2` at 53d145d, its helpers in `suite/suite_common.iss` at 8c14f54), launcher `ResolutionOptions.cs` and `GameDefaultsService.cs` (branch `v2` at e8f7f98) and launcher `ProductChoices.cs`, `DiscoveryResult.cs`, `InstallationService.cs`, `InstanceForwarding.cs`, `PlayModel.cs` and `SetupDownloadPage.cs` (branch `v2` at 132bbd4), the window size limits of setup `utils.iss` (branch `v2` at ae777f5), the record value `ComponentDefaults` of setup `setup_is6.iss` (branch `v2` at 1f0c5eb) and launcher `ComputedValues.cs` and `ResolutionOptions.cs` (branch `v2` at fc46565) |
 
 The key words MUST, MUST NOT, SHOULD and MAY are used as in RFC 2119. "Setup" means the EE and the
 NeoEE setup of every build variant, including their uninstallers; "launcher" means the Empire Earth
@@ -711,9 +711,10 @@ Who writes what, and when:
   user picked a size and clicked the button that applies it: with the `.reg` backup of
   [3.6](#36-launcher-procedures) first, only while no setup and no game runs, and within the limits of
   [3.3](#33-computed-values) (the launcher MUST NOT write a size outside them; revision 6 raised the
-  height limit from 1080 to 1200, a launcher that offers more than 1920 x 1200 needs a new revision). The marker ([3.5](#35-defaults-marker)) is not touched. The
-  setup overwrites both values on its next run (class D, `deletevalue`), so the choice does not survive a
-  repair or an update; the launcher SHOULD say so.
+  height limit from 1080 to 1200, a launcher that offers more than 1920 x 1200 needs a new revision).
+  The marker ([3.5](#35-defaults-marker)) is not touched. The setup overwrites both values on its next
+  run (class D, `deletevalue`), so the choice does not survive a repair or an update; the launcher SHOULD
+  say so.
 - **Always in sync**: S follows the installation that is started.
 - "Create if missing" tests only whether the value exists, like Inno Setup. "Overwrite" deletes a value
   of another type first, like `deletevalue`.
@@ -1232,10 +1233,9 @@ installation made by an older setup.
 Launcher 1.1.0 (revision 6; the launcher does not start or watch the product setups of the suite, so the
 suite part asks nothing of it):
 
-- the graphics page offers game window sizes within the limits of [3.3](#33-computed-values), from
-  1024 x 768 up to the physical size of the primary screen and at most 1920 x 1200 (1920 x 1200 only on a screen at least
-  that tall), recommends the computed size of 3.3 with its wide-screen limit, and refuses a size outside them
-  ([3.2](#32-values));
+- the graphics page offers game window sizes within the limits of [3.3](#33-computed-values), from 1024 x 768 up to the
+  physical size of the primary screen and at most 1920 x 1200 (1920 x 1200 only on a screen at least that tall),
+  recommends the computed size of 3.3 with its wide-screen limit, and refuses a size outside them ([3.2](#32-values));
 - after the user picked a size and clicked the button that applies it, it overwrites `Game Window Width`
   and `Game Window Height`, and only these two values, of every game of the installation in HKCU of the
   account that runs it; the marker ([3.5](#35-defaults-marker)) and the other values stay as they are
