@@ -1,0 +1,9 @@
+; The exports of the stand-in (EEStatsSetup.c), undecorated as eestats.iss imports them
+LIBRARY EEStatsSetup
+EXPORTS
+  EEStats_runInVM
+  EEStats_getUID
+  EEStats_isWine
+  EEStats_getWineVersion
+  EEStats_getProcessorArch
+  EEStats_getGpuVendorId

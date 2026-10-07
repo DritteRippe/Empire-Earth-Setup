@@ -1,0 +1,15 @@
+# The dgVoodoo files the setups install (setup_is6.iss, GameAddOnFiles), pinned by SHA-256 and size. dgVoodoo is the
+# work of Dege (http://dege.fw.hu/); its terms allow shipping individual dgVoodoo files with a game or game mod, not
+# bundling it in launchers or frameworks for general use (THIRD-PARTY-NOTICES.md). The configurations are not dgVoodoo
+# files: they are kept in config/dgVoodoo.
+# Lines: "Version <DgVoodooVersion of setup_is6.iss>", "Archive <SHA-256> <size> <https URL of the official archive>",
+# "File <SHA-256> <size> <name in data\Add-on\DirectX_Wrapper\dgVoodoo_bin> <path in the archive>". 64 lowercase hex
+# digits, sizes without leading zeros, one space between the fields, each name once, in this order: Version, Archive,
+# the File lines sorted by name (ordinal).
+# ci/dgvoodoo_pins.ps1 checks this file; ci/build.ps1 compares the files of data\ with it when it builds the real data.
+# Source: 2026-10-06, the official release dgVoodoo 2.87.5 (archive dgVoodoo2_87_5.zip), the laptop tests of run 5d.
+Version v2.87.5
+Archive 5ffde6927f7355ca3fdd5d785b581256a8e6539fa13e395a891ade6ba1040850 9268078 https://github.com/dege-diosg/dgVoodoo2/releases/download/v2.87.5/dgVoodoo2_87_5.zip
+File 93c534f2d17419ea78f15551f7e0aac78b3c503733a840914fa063708a5afe8e 208384 D3DImm.dll MS/x86/D3DImm.dll
+File 612a24408a090a3c6f3886557fa18034ee742e94ad0a40ebdf854d2816176c2e 255488 DDraw.dll MS/x86/DDraw.dll
+File 87fb878166dcaef3e75ff170de030527c73f5c9b164c5943da13f8a97b0b75c6 451072 dgVoodooCpl.exe dgVoodooCpl.exe

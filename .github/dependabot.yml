@@ -1,0 +1,14 @@
+# Version updates for the GitHub Actions the workflows use (README.md, "Continuous integration").
+# Nothing else: the NuGet packages, the Python and PowerShell tooling and the build tools are pinned
+# on purpose and change by a commit that says why. Security alerts for them come from the Dependabot
+# alerts of the repository settings, not from this file.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    target-branch: main
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: CI

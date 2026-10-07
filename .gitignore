@@ -5,3 +5,9 @@ internal/media
 internal/misc
 internal/runtime
 setup_is6_wip.iss
+# Temporary files of the two-pass build (ci/build.ps1)
+_pp_*.iss
+_ppout_*.iss
+
+# Python byte code of the CI tools and their tests
+__pycache__/

@@ -1,0 +1,306 @@
+# Compiles all four setup variants (EE/NeoEE x Regular/Portable) against placeholder assets.
+# The real game data is not in the repository, so this checks that the script compiles; the
+# produced installers are useless and are deliberately not uploaded.
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compile:
+    name: Compile all variants (placeholder assets)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      # The script targets Inno Setup 6.2.x; pin the version the releases are built with.
+      - name: Install Inno Setup 6.2.2
+        shell: pwsh
+        run: choco install innosetup --version=6.2.2 --allow-downgrade --no-progress -y
+
+      # Mistakes in messages.iss (duplicate keys, '==' typos, ...), undefined messages in the own
+      # scripts and a missing BOM or a non-CRLF line end compile without a warning (or break
+      # non-ASCII text). --coverage also prints the missing translations per language (a report,
+      # not an error).
+      - name: Check messages and own scripts
+        shell: pwsh
+        run: python ci/check_messages.py --coverage
+
+      # Modified copies of the repository (e.g. a new module without BOM or with an undefined
+      # message) must fail the check above, an unmodified copy must pass.
+      - name: Check messages (self-test)
+        shell: pwsh
+        run: python ci/check_messages.py --self-test
+
+      # docs/TEST-PLAN.de.md: unique test case ids, a status and a priority per case, the P1 short
+      # run (exactly the P1 cases, at most three hours), forum test cases 1 to 22 assigned, every id
+      # named in the documentation defined; then the self-test of the check (modified copies).
+      - name: Check the test plan
+        shell: pwsh
+        run: python ci/check_test_plan.py
+
+      - name: Check the test plan (self-test)
+        shell: pwsh
+        run: python ci/check_test_plan.py --self-test
+
+      # The tables of docs/CONTRACT.md (header, the publishers of 0, 2.4, 3.2, 3.3, 3.4, 3.7) must
+      # match the script, the source of truth, and every [Files] entry below {app} must have
+      # ignoreversion and none of onlyifdoesntexist, promptifolder, confirmoverwrite (contract 2.3);
+      # then the self-test of the check (modified copies that must fail).
+      - name: Check the contract against the script
+        shell: pwsh
+        run: python ci/check_contract.py
+
+      - name: Check the contract against the script (self-test)
+        shell: pwsh
+        run: python ci/check_contract.py --self-test
+
+      # The frame of the suite installer (suite/suite.iss, ADR 0013): Windows 7 SP1 and later, 64-bit
+      # install mode, disk spanning with the size from the define, the launcher files only with
+      # .NET Framework 4.8, the product setups stored byte for byte, the exit codes 10 to 15, and
+      # ExitProcess only through SuiteStop (which logs first); then the self-test (changed copies
+      # that must fail)
+      - name: Check the frame of the suite installer
+        shell: pwsh
+        run: python ci/check_suite.py
+
+      - name: Check the frame of the suite installer (self-test)
+        shell: pwsh
+        run: python ci/check_suite.py --self-test
+
+      # The legal texts the suite shows itself (its product setups skip them when they run silently, contract
+      # 1.7 point 4) are the texts of the product setups: the legal question in en/de/fr, the EULA file and the
+      # NeoEE rules file; then the self-test (changed copies must fail)
+      - name: Check the legal texts of the suite installer
+        shell: pwsh
+        run: python ci/check_suite_texts.py
+
+      - name: Check the legal texts of the suite installer (self-test)
+        shell: pwsh
+        run: python ci/check_suite_texts.py --self-test
+
+      # docs/CONTRACT.md must be identical in the launcher repository, which CI cannot reach: the
+      # copy check runs locally (README, "Verify"); here only its self-test.
+      - name: Contract copy check (self-test)
+        shell: pwsh
+        run: python ci/compare_contract.py --self-test
+
+      # pins/online-files.txt pins every online file of both products by its server path (ADR 0012):
+      # its format, no online file without a pin (read from the code of RegisterOnlineFiles), no pin
+      # of a path that no setup downloads; then the self-test (changed copies must fail)
+      - name: Check the pins of the online files
+        shell: pwsh
+        run: ./ci/online_pins.ps1
+
+      - name: Check the pins of the online files (self-test)
+        shell: pwsh
+        run: ./ci/online_pins.ps1 -SelfTest
+
+      # pins/dgvoodoo.txt and config/dgVoodoo (ADR 0005, amendment 2026-10-07): the pins, the [Files] entries of the
+      # dgVoodoo levels in both game folders, and the window keys of the five configurations (fake fullscreen, Alt+Enter
+      # off, no deferred screen mode switch, dgVoodoo 2.87); then the self-test (changed copies must fail)
+      - name: Check the dgVoodoo pins and configurations
+        shell: pwsh
+        run: ./ci/dgvoodoo_pins.ps1
+
+      - name: Check the dgVoodoo pins and configurations (self-test)
+        shell: pwsh
+        run: ./ci/dgvoodoo_pins.ps1 -SelfTest
+
+      # Certificate errors may only be ignored for pinned online files (ADR 0012): the flags in one
+      # function, called once, only for the probe and the download of pinned files; then the
+      # self-test (changed copies of the scripts must fail)
+      - name: Check where certificate errors may be ignored
+        shell: pwsh
+        run: python ci/check_tls_policy.py
+
+      - name: Check where certificate errors may be ignored (self-test)
+        shell: pwsh
+        run: python ci/check_tls_policy.py --self-test
+
+      # Unit tests of the [Code] helpers: a tiny test setup that only computes (no network)
+      - name: Unit tests
+        shell: pwsh
+        run: ./ci/run_unit_tests.ps1
+
+      # Helpers of the build script: hash list, DER copy of the signing certificate, SHA-256 files
+      # of the setups, the online files without a pin (read from setup_is6.iss), the dgVoodoo pins
+      # and configurations, dry runs of ci/build.ps1 with a fake ISCC
+      - name: Build script tests
+        shell: pwsh
+        run: ./ci/tests/build_helpers.tests.ps1
+
+      # The build script of the suite installer (suite/build_suite.ps1) and its helpers on made-up inputs
+      # with a fake ISCC: checksum files of the inputs, the slice size of the placeholder build, the
+      # three passes (count and total of the slices, identical bytes in pass 2 and 3), the 50,000,000 byte
+      # limit, SHA256SUMS.txt, BUILD-INFO.txt and every stop of the script. No Inno Setup, no game data.
+      - name: Suite build script tests
+        shell: pwsh
+        run: ./ci/tests/suite_build.tests.ps1
+
+      # Tools of the real-data end-to-end test (.github/workflows/e2e-realdata.yml) with made-up
+      # data: header extraction, placing the official files, the read set of the build against the
+      # map, the upload guard, the report and the rules of the checks (in Windows PowerShell 5.1,
+      # which runs the scenarios). The same for the scenarios S1 to S14 of the suite installer (job
+      # suite-e2e below): their rules in Windows PowerShell 5.1, and the scenarios themselves against a
+      # fake Windows (an in-memory registry, a fake suite) in PowerShell 7: every check must pass
+      # against the fake and each of a few defects of the fake must fail its check. No game data, no
+      # installer runs here.
+      - name: End-to-end test tools (self-test)
+        shell: pwsh
+        run: |
+          python -m unittest discover -s ci/e2e/tests -p "test_*.py"
+          if ($LASTEXITCODE) { exit 1 }
+          powershell -NoProfile -ExecutionPolicy Bypass -File ci/e2e/tests/e2e_helpers.tests.ps1
+          if ($LASTEXITCODE) { exit 1 }
+          powershell -NoProfile -ExecutionPolicy Bypass -File ci/e2e/tests/e2e_suite_helpers.tests.ps1
+          if ($LASTEXITCODE) { exit 1 }
+          pwsh -NoProfile -File ci/e2e/tests/e2e_suite_scenarios.tests.ps1
+          if ($LASTEXITCODE) { exit 1 }
+
+      # The setups load EEStatsSetup.dll when they start (eestats.iss), and the dummy file of the placeholder
+      # generator cannot be loaded: the placeholder setups would stop before they do anything, and the job
+      # suite-e2e runs them. A 32-bit stand-in with the six functions of eestats.iss (ci/e2e/stub) goes into
+      # data\ first (the generator keeps existing files); test builds only, never shipped.
+      - name: Stand-in of EEStatsSetup.dll for the placeholder setups
+        shell: pwsh
+        run: ./ci/e2e/build_eestats_stub.ps1 -OutFile data/Add-on/DLLs/EEStats/EEStatsSetup.dll
+
+      # The scenarios of the job suite-e2e check that each product setup installs its game program and that a
+      # repair brings it back (S9), but the placeholder generator only writes placeholder.txt into the game
+      # folders: a text file with the name of the game program goes there first (never started by any scenario).
+      - name: Placeholder game programs for the suite scenarios
+        shell: pwsh
+        run: |
+          foreach ($folder in 'data/Empire Earth Base/Empire Earth', 'data/NeoEE Base/Empire Earth') {
+            New-Item -ItemType Directory -Force -Path $folder | Out-Null
+            $exe = Join-Path $folder 'Empire Earth.exe'
+            if (-not (Test-Path -LiteralPath $exe)) { Set-Content -LiteralPath $exe -Value 'placeholder of the game program, CI only' -Encoding Ascii }
+          }
+
+      # A release build (TestID 0): it also reads the online files without a pin from the code of
+      # RegisterOnlineFiles and stops if it cannot (with placeholders it only prints the number)
+      - name: Build
+        shell: pwsh
+        run: ./ci/build.ps1 -Placeholders -RequireVersion 6.2.2 -KeepPreprocessed out/preprocessed
+
+      # The ISPP interpreter of the contract check must read [Registry] exactly as ISCC did for
+      # every variant (with the SetupBuild that build.ps1 passed in CI, the short commit, which the
+      # check reads from the install record), and the fully expanded [Files] sections must pass
+      # its lint as well
+      - name: Contract check against the preprocessed scripts
+        shell: pwsh
+        run: python ci/check_contract.py --preprocessed out/preprocessed
+
+      # The resolved scripts are handy to review what a change does to each variant.
+      - name: Upload preprocessed scripts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: preprocessed-scripts
+          path: out/preprocessed
+          if-no-files-found: ignore
+
+      # The suite installer (suite/suite.iss, ADR 0013) around the placeholder product setups that the
+      # build above wrote to out/EE_Regular and out/NeoEE_Regular, a stub launcher and dummy AppIds: three
+      # ISCC passes (the setup checks the number and the total size of its slices), DiskSliceSize computed
+      # from the size of the setup program. It never downloads the official setups (r2.empireearth.eu
+      # blocks GitHub runners). The result only proves that the suite compiles and its build script
+      # works; it is useless and never to be distributed.
+      - name: Build the suite (placeholder products)
+        shell: pwsh
+        run: ./suite/build_suite.ps1 -Placeholders -RequireVersion 6.2.2
+
+      - name: Upload the placeholder suite
+        uses: actions/upload-artifact@v4
+        with:
+          name: suite-placeholder
+          path: out/Suite
+          retention-days: 7
+          if-no-files-found: error
+
+      # The inputs of the job suite-e2e: the placeholder suite, the same suite with a wrong pin of the EE
+      # setup compiled in (scenario S5: the suite must refuse its own EE setup before it runs anything) and the
+      # placeholder product setups (scenario S3 installs EE on its own first). Placeholders only: no game data,
+      # nothing to download, nothing that works as an installer.
+      - name: Build the suite with a wrong EE pin (scenario S5)
+        shell: pwsh
+        run: ./suite/build_suite.ps1 -Placeholders -TestWrongEEPin -RequireVersion 6.2.2 -OutputDir out/SuiteWrongPin
+
+      - name: Collect the inputs of the suite end-to-end test
+        shell: pwsh
+        run: |
+          $inputs = 'out/suite-e2e-inputs'
+          New-Item -ItemType Directory -Force -Path "$inputs/products" | Out-Null
+          Copy-Item -LiteralPath out/Suite -Destination "$inputs/suite" -Recurse
+          Copy-Item -LiteralPath out/SuiteWrongPin -Destination "$inputs/wrongpin" -Recurse
+          Copy-Item -Path out/EE_Regular/*.exe, out/NeoEE_Regular/*.exe -Destination "$inputs/products"
+          Get-ChildItem -LiteralPath $inputs -Recurse -File | ForEach-Object { $_.FullName.Substring((Resolve-Path $inputs).Path.Length + 1) }
+
+      - name: Upload the inputs of the suite end-to-end test
+        uses: actions/upload-artifact@v4
+        with:
+          name: suite-e2e-inputs
+          path: out/suite-e2e-inputs
+          retention-days: 1
+          if-no-files-found: error
+
+  # The scenarios S1 to S14 of the suite installer (suite/suite.iss, ADR 0013) with the PLACEHOLDER builds of
+  # the job above: silent runs of the suite, which runs the placeholder EE and NeoEE setups, with exact task
+  # lists (never neoee_cdkeys, certinclude, directplay, dxwebsetup), every host blocked, a dummy under
+  # Software\Sierra\CDKeys that must survive everything, and the shortcuts read through WScript.Shell. It needs
+  # no download at all (the official setups of e2e-realdata.yml and r2.empireearth.eu are not involved), so
+  # a blocked server cannot make it fail. The runner is thrown away after the job. Every scenario is a PASS or
+  # FAIL line in the job summary (ci/e2e/run_e2e_suite.ps1 -Scenario Report).
+  suite-e2e:
+    name: Suite installer end-to-end test (placeholder products)
+    needs: compile
+    runs-on: windows-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+
+      # The folders of the test, below the temporary folder of the runner (not below %TEMP%: the suite takes a
+      # package there for a ZIP view, exit code 12 instead of 11)
+      - name: Folders of the test
+        shell: pwsh
+        run: |
+          $root = Join-Path $env:RUNNER_TEMP 'ee-suite-e2e'
+          @(
+            "E2E_SUITE=$root\inputs\suite", "E2E_WRONGPIN=$root\inputs\wrongpin", "E2E_PRODUCTS=$root\inputs\products",
+            "E2E_WORK=$root\work", "E2E_REPORT=$root\report"
+          ) | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Download the inputs
+        uses: actions/download-artifact@v4
+        with:
+          name: suite-e2e-inputs
+          path: ${{ runner.temp }}\ee-suite-e2e\inputs
+
+      # Windows PowerShell 5.1, as the scenarios of e2e-realdata.yml. The budget is below the limit of the
+      # step, which is below the limit of the job: every program the scenarios start has its own limit, too.
+      - name: Scenarios S1 to S14
+        timeout-minutes: 130
+        shell: pwsh
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File ci/e2e/run_e2e_suite.ps1 -Scenario All -BudgetMinutes 120
+
+      - name: Job summary
+        if: always()
+        shell: pwsh
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File ci/e2e/run_e2e_suite.ps1 -Scenario Report
+
+      - name: Upload the logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: suite-e2e-report
+          path: ${{ runner.temp }}\ee-suite-e2e\report
+          retention-days: 14
+          if-no-files-found: ignore

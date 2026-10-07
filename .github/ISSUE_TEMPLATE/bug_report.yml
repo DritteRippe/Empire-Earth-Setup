@@ -1,0 +1,76 @@
+name: Bug report
+description: The setup, the suite installer or the launcher does not do what it should
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for the report. Before you start, please read [Support](https://github.com/DritteRippe/Empire-Earth-Setup#support) in the README: it explains where the logs are.
+
+        **Never attach or paste game files, CD keys or the private test package.** Logs contain no CD keys and no passwords, but they can contain folder names with your Windows user name (`C:\Users\<name>\...`): look at them before you post them and replace the names if you like.
+  - type: dropdown
+    id: program
+    attributes:
+      label: Which program?
+      options:
+        - Suite installer "Empire Earth Community"
+        - Setup EE (regular or portable)
+        - Setup NeoEE (regular or portable)
+        - Empire Earth Launcher
+        - Build or CI (this repository)
+        - Something else
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version of the suite, the setup or the launcher
+      description: The version in the title of the installer window or in the file name, the launcher version in its window or in `log.txt`. For a build of your own, the commit (`git log -1 --oneline`).
+      placeholder: "Suite 1.1.0, launcher 1.1.0"
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version
+      description: "For example Windows 10 22H2 or Windows 11 24H2, 64-bit or 32-bit (`winver`)."
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened, and what did you expect?
+      description: In your own words, with the exact text of any message the program showed.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: What you did, in order (installation for all users or "just for me", the folder, the options you chose, silent or with the wizard).
+      placeholder: |
+        1. ...
+        2. ...
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: |
+        Paste the relevant lines, or attach the file as `.txt` or `.log` (drag it into this box). Which log depends on the program:
+        - Setup or suite installer: `%TEMP%\Setup Log <date> #<n>.txt` (every run writes one; the highest number of that day is the last run). If Windows asked for the password of an administrator account, it is in that account's `%TEMP%`.
+        - Game setups started by the suite installer: `Logs\EE-<yyyyMMdd-HHmm>.log` and `Logs\NeoEE-<yyyyMMdd-HHmm>.log` in the folder of the suite (by default `C:\Program Files\Empire Earth Community\Logs`).
+        - Launcher: `%LOCALAPPDATA%\Empire Earth Launcher\log.txt`.
+        - Uninstaller: only written if you start it with `/LOG="<file>"`.
+    validations:
+      required: false
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Confirmations
+      options:
+        - label: I own the original game.
+          required: true
+        - label: I am not attaching game files, CD keys or the private package.
+          required: true
