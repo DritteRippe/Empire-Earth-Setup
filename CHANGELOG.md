@@ -464,6 +464,19 @@ setup version stays 1.7.2 until the release.
   subfolders), with the functions of `winhttp.dll` declared only in `utils.iss`, each under its own
   name (no alias). CI runs all four. SERVER-OPERATIONS section 6 explains when and how the operators
   regenerate the pins.
+- README, section "Known issues" (documentation only, no change to any program or configuration; the findings
+  are not yet confirmed on real hardware): that `Empire Earth.exe` minimizes itself when the application loses
+  activation (`WM_ACTIVATEAPP`, then `CloseWindow`), independent of the DirectX wrapper, and what reduces the
+  triggers (Windows 11 "Do not disturb"/"Nicht stören", tray programs that take the foreground); the goal is a
+  reliable restore, not "never minimizes". The mouse that does not react at the start until the game is minimized
+  and restored (probable cause: DirectInput in foreground mode, not proven) with the two start comparisons that
+  separate launcher from game. Editing `dgVoodoo.conf`: the setup writes it again on every run, `FullScreenMode`
+  alone does nothing while `AppControlledScreenMode = true`, and a copy in the VirtualStore can shadow the file.
+  The "2 GB": address space of a 32-bit program, not RAM, no report of a memory problem in the forum archive,
+  why the setup does not set the large-address-aware flag (NeoEE programs are not ours to change, signature,
+  integrity check, every run), and how to measure the memory of a running game (PowerShell, Task Manager,
+  VMMap, Event Viewer). Test plan: TP-23 gets the steps 7 to 10 (mouse at the start, self-minimizing and "Do not
+  disturb", VirtualStore copy, optional memory measurement) as observations, section 12 names them.
 
 ### Changed
 - The hidden setup data folder (holds `EEStatsSetup.dll` for the uninstaller) is now

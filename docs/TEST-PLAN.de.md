@@ -1370,7 +1370,9 @@ Gemeinsam für alle Fälle dieses Blocks:
 - **Priorität:** P2
 - **Bezug:** ADR 0005 (Punkt 2: Wrapper-Vorauswahl bleibt, wählbar), ADR 0010 Punkt 4 (die
   Entscheidungsregel), Vertrag 3.3 (`Rasterizer Name`); Forum §8 Nr. 3 (t=5751, t=1862, t=1643,
-  t=2884, t=5588, t=5887 p=39385; NeoEE-Einblendung t=10968 p=47345)
+  t=2884, t=5588, t=5887 p=39385; NeoEE-Einblendung t=10968 p=47345); README „Known issues“
+  (Selbst-Minimieren, „Nicht stören“, Maus beim Start, VirtualStore-Kopie der `dgVoodoo.conf`,
+  Speicher messen)
 - **Ziel:** Für den Grafikchip des Testrechners belegen, wie sich die Spiele ohne Wrapper und mit
   jedem Wrapper verhalten (Menütexte, HUD, Einheiten, Flackern, Maus, NeoEE-Einblendung), und dass
   der Weg zu „Nativ“ funktioniert. Das Ergebnis entscheidet, ob die Vorauswahl je Hersteller bleibt.
@@ -1407,6 +1409,34 @@ Gemeinsam für alle Fälle dieses Blocks:
      und 3. Dasselbe mit „DirectX 9 [Am kompatibelsten]“ (`…_dx9.log`).
   6. Das EE-Setup (eigener Standardordner `Empire Earth`) mit der Vorauswahl und mit „Nativ“;
      Schritte 2 und 3 ohne die NeoEE-Einblendung.
+  7. *Notiz: Maus beim Start (nur Beobachtung, nichts ändern; nur mit der Vorauswahl, NeoEE-admin).*
+     Den Launcher schließen. Das Spiel über die Desktop- oder Startmenü-Verknüpfung starten, bis
+     zum Hauptmenü nichts anklicken und nichts drücken, dann die Maus bewegen: reagiert sie?
+     Dreimal wiederholen, danach dreimal vom Launcher aus („Spielen“) starten. Je Start eine Zeile:
+     Maus ja/nein, Startweg. Reagiert die Maus nicht, einmal die Taskleistenschaltfläche des Spiels
+     anklicken (statt zu minimieren) und notieren, ob sie danach reagiert. Die Auswertung steht im
+     Feld „Erwartetes Ergebnis“; geändert wird nichts (die Versuche mit der `dgVoodoo.conf` warten
+     auf die Tests mit dgVoodoo 2.87 und gehören nicht zu diesem Fall).
+  8. *Notiz: Selbst-Minimieren und „Nicht stören“ (nur Beobachtung).* Die Windows-Uhr öffnen, einen
+     Timer auf eine Minute stellen, das Spiel starten (Menü genügt) und warten, bis die
+     Benachrichtigung kommt. Notieren: Minimiert sich das Spiel? Welches Fenster hat den Vordergrund
+     genommen (Titel oder Programm)? Nach dem Wiederherstellen über die Taskleiste: volle
+     Bildschirmgröße, Maus reagiert? Dann mit „Nicht stören“ (Einstellungen › System ›
+     Benachrichtigungen, mit der automatischen Regel „bei Verwendung einer App im Vollbildmodus“)
+     wiederholen und danach wieder ausschalten.
+  9. *Notiz: VirtualStore.* Nach den Schritten 1 bis 8 prüfen, ob es für die Wrapper-Konfiguration
+     eine Kopie gibt:
+     `dir "%LOCALAPPDATA%\VirtualStore\Program Files (x86)\dgVoodoo.conf" /s /b`
+     (erwartet: „Die Datei wurde nicht gefunden.“; sonst den Pfad notieren, die Kopie nicht
+     löschen, bevor der Befund im Protokoll steht).
+  10. *Notiz, optional: Speicher messen.* Ein langes, großes Spiel spielen (viele Spieler, große
+      Karte, späte Epochen, eine Stunde oder länger; auf einem zweiten Rechner oder mit
+      Computergegnern) und währenddessen in einer PowerShell
+      `Get-Process 'Empire Earth','EE-AOC' -ErrorAction SilentlyContinue | Select-Object Name, @{n='CommitMB';e={[int]($_.PagedMemorySize64/1MB)}}, @{n='PeakCommitMB';e={[int]($_.PeakPagedMemorySize64/1MB)}}, @{n='PeakWorkingSetMB';e={[int]($_.PeakWorkingSet64/1MB)}}`
+      ausführen (oder im Task-Manager, Reiter „Details“, die Spalten „Commit-Größe“ und „Maximaler
+      Arbeitssatz“). Optional Sysinternals VMMap („Total address space“, größter freier Block).
+      Notieren: Spiel (EE, AoC, NeoEE), Karte, Spieler, gespielte Minuten, die Zahlen. Kein
+      Screenshot mit Spielernamen oder IP-Adressen.
 - **Erwartetes Ergebnis:**
   - Nach jedem Lauf liegen genau die Wrapper-Dateien der Einstellung im Spielordner (die Dateien der
     vorigen Einstellung entfernt das Setup vorher); `Rasterizer Name` ist `Direct3D` mit Wrapper und
@@ -1422,6 +1452,18 @@ Gemeinsam für alle Fälle dieses Blocks:
     der Matrix zu ändern; die Änderung selbst ist ein Folgepaket mit CHANGELOG-Eintrag. Bei gleichem
     Ergebnis bleibt die Vorauswahl. Ein Defekt, den auch „Nativ“ zeigt, betrifft nicht die
     Vorauswahl (ins Protokoll, an die Maintainer).
+  - Die Schritte 7 bis 10 sind Beobachtungen, kein Bestehen oder Durchfallen des Setups: Sie
+    belegen die „Known issues“ der README und sagen, welche Versuche danach lohnen. Schritt 7
+    trennt zwei Ursachen: Funktioniert die Maus beim Start über die Verknüpfung, aber nicht vom
+    Launcher aus, liegt es daran, wie das Spiel in den Vordergrund kommt; versagen beide Wege,
+    liegt es am Spiel oder am Wrapper. Schritt 8: Dass sich das Spiel beim Verlust der Aktivierung
+    selbst minimiert, ist bekanntes Verhalten von `Empire Earth.exe`; zu prüfen ist, ob es danach
+    in voller Größe und mit Maus zurückkommt und ob „Nicht stören“ es verhindert (ja, nein oder
+    „anderes Fenster“ mit Name). Schritt 9: Eine Kopie im VirtualStore ist ein Befund (Pfad
+    notieren), kein Fehler des Setups. Schritt 10: Ein Spitzenwert (`PeakCommitMB`) weit unter
+    2048 MB (rund 1200 MB oder weniger) heißt, dass die 2-GB-Grenze des Adressraums keine Rolle
+    spielt; nur ein Wert nahe 2 GB oder ein Absturz mit Speicherfehler spräche für weitere
+    Schritte (das Setup ändert in 1.1.0 keine Programmdatei).
 - **Log-Hinweis:** `<Hersteller> GPU detected` bzw. `Unknown GPU detected` und
   `Using <Hersteller> GPU settings: additional\directx_wrapper\dx11_lvl11` (bzw. `…\dx11_lvl10_1`,
   `…\dx9`, `!additional\directx_wrapper` bei „Nativ“). Bei der benutzerdefinierten Installation
@@ -3808,7 +3850,7 @@ einzigen Administratorkonto und ohne Bildschirm für den Assistenten.
 | TP-16 | nein | | manipulierter Download (braucht einen manipulierten Server); der Test prüft nur, dass echte Downloads zu ihren Pins passen |
 | TP-17, TP-20, TP-21 | nein | | Windows 7 |
 | TP-22 | teilweise | K8 in A (Teil a), C nach dem Update über 1.7.2 (Teil e) und B (NeoEE-user statt d) | b, c und Windows 8.1 (f), der Spielstart |
-| TP-23, TP-24 | nein | K6 und K10 prüfen nur, dass GPU-Präferenz und Wrapper der Wahl der GPU-Seite folgen | Grafikmatrix, Anzeigeskalierung |
+| TP-23, TP-24 | nein | K6 und K10 prüfen nur, dass GPU-Präferenz und Wrapper der Wahl der GPU-Seite folgen | Grafikmatrix mit den Beobachtungen zu Maus, Selbst-Minimieren, VirtualStore und Speicher (TP-23, Schritte 7 bis 10), Anzeigeskalierung |
 | TP-30 | nein | | SHA-256-Datei der Setups, Log ohne `/LOG` (der Test startet jedes Setup mit `/LOG`) |
 | TP-40 | teilweise | K1 bis K3 und K7 in A und E (Teil a) und B (NeoEE-user); C: 1.7.2 über v2 entfernt die Vertragsversion aus dem Uninstall-Schlüssel, Eintrag und `install.ini` bleiben (Teil f), v2 stellt sie wieder her | b, c, d (NeoEE-admin neben EE-admin), e |
 | TP-41 | teilweise | K5 für das installierende Konto; L: das frische Konto, wie es der Launcher sieht (simuliert durch Löschen der Spieleinstellungen) | ein echtes zweites Konto, Over-the-Shoulder-Erhöhung |
