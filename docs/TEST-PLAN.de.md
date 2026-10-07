@@ -243,8 +243,8 @@ Es gibt drei Wege; die Build-Art jedes Falls nennt, welche er braucht:
 ### 6.1 Voraussetzungen (alle Wege)
 
 - Windows 10 oder 11, Windows PowerShell 5.1 (eingebaut) oder PowerShell 7.
-- Eine Arbeitskopie dieses Repositorys mit dem Stand, der getestet wird (Branch `main` oder der Branch des Testbuilds). Den Commit
-  notieren (`git log -1 --oneline`), er kommt ins Protokoll.
+- Eine Arbeitskopie dieses Repositorys mit dem Stand, der getestet wird (Branch `main` oder der Branch des
+  Testbuilds). Den Commit notieren (`git log -1 --oneline`), er kommt ins Protokoll.
 - **Inno Setup 6.2.2**, genau diese Version (ADR 0002; neuere Versionen bauen dieses Skript nicht
   unverändert). Aus dem Download-Archiv von jrsoftware.org oder mit
   `choco install innosetup --version=6.2.2`. `ci\build.ps1` findet `ISCC.exe` im Standardordner

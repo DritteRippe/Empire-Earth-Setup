@@ -2,4 +2,4 @@ blank_issues_enabled: false
 contact_links:
   - name: Help, logs and the community
     url: https://github.com/DritteRippe/Empire-Earth-Setup#support
-    about: "How to find the setup log and where to ask (empireearth.eu, the community Discord). Security problems: see SECURITY.md and do not open an issue."
+    about: "How to find the setup log and where to ask (empireearth.eu, the community Discord). Security problems: see SECURITY.md; never post details in an issue."

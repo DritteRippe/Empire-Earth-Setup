@@ -27,7 +27,7 @@ setup version stays 1.7.2 until the release.
   to the README section "Support"); `SECURITY.md`: report vulnerabilities privately through GitHub private vulnerability
   reporting, the latest release is supported, scope is the code and CI of this repository, no bug bounty.
 - `.github/dependabot.yml`: Dependabot proposes monthly pull requests into `main` for the GitHub Actions of the workflows (at most
-  three open, commit subjects start with "Update action"). No version updates for NuGet or pip: those versions are pinned on purpose.
+  three open, commit subjects start with "CI:"). No version updates for NuGet or pip: those versions are pinned on purpose.
 - Suite installer 1.1.0: `SuiteVersion` of `suite/suite.iss` is 1.1.0 (the suite has no changelog of its own; its entries are
   the ones of this file that name the suite). It packages launcher 1.1.0 (`LAUNCHER_COMMIT` of
   `.github/workflows/e2e-realdata.yml`); `MySetupVersion` of the product setups stays 1.7.2 until setup v2 is released.
@@ -504,9 +504,9 @@ setup version stays 1.7.2 until the release.
 ### Changed
 - One main line `main`: development happens on short-lived feature branches with a pull request into `main`, releases
   are tags on `main` (this repository and the launcher repository; the work of the branch `v2` is merged into the base
-  branch, which is called `main` from now on, here after the rename of the fork's `master`). `build.yml` runs on a push to `main` only (pull requests and manual runs as before),
-  the real-data end-to-end test checks the launcher commit against the launcher's `main`, README and the test plan name
-  `main`. References to what happened at a past commit (CONTRACT.md "Based on", released changelog entries, ADR texts
+  branch, which is called `main` from now on, here after the rename of the fork's `master`). `build.yml` runs on a push
+  to `main` only (pull requests and manual runs as before), the real-data end-to-end test checks the launcher commit
+  against the launcher's `main`, README and the test plan name `main`. References to what happened at a past commit (CONTRACT.md "Based on", released changelog entries, ADR texts
   about past decisions and runs) keep the branch names of that time.
 - The real-data end-to-end test (`.github/workflows/e2e-realdata.yml`) runs by hand only (`workflow_dispatch`, input
   `launcher_commit`), not for pull requests: `r2.empireearth.eu` answers GitHub runners with HTTP 403 (an external block),
