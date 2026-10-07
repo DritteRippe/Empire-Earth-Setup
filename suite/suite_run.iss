@@ -258,10 +258,10 @@ var
   // The cancel question is open (no second one), the user answered it with Yes (the wait stops the product setup
   // after it looked at the log once more), the run was cancelled (no further product, Setup ends)
   SuiteCancelAsking, SuiteCancelRequested, SuiteRunCancelled: Boolean;
-  // /TestCancel of the command line (CI scenario S11, S13): the first product setup is cancelled as soon as its real setup
-  // has opened its log, as if the user had answered the question with Yes; /TestCancelNeoEE (S12) does the same for the
-  // NeoEE setup, the second one. Without them nobody can click Cancel in a silent run. SuiteTestCancelProduct is the
-  // product whose setup is cancelled.
+  // /TestCancel of the command line (CI scenario S11, S13): the first product setup that runs (EE, or NeoEE in a run
+  // without EE) is cancelled as soon as its real setup has opened its log, as if the user had answered the question with
+  // Yes; /TestCancelNeoEE (S12) does the same for the NeoEE setup, the second one. Without them nobody can click Cancel
+  // in a silent run. SuiteTestCancelProduct is the product whose setup is cancelled.
   SuiteTestCancel: Boolean;
   SuiteTestCancelProduct: String;
 
@@ -323,14 +323,10 @@ end;
 // setup, which a stopped setup leaves with what it had downloaded.
 function SuiteCancelQuestionText(const Product, Done: String; Installed: Boolean): String;
 begin
-  if Installed and (Done <> '') then
-    Result := FmtMessage(CustomMessage('SuiteCancelQuestionInstalledKept'), [SuiteProductTitle(Product), SuiteProductTitle(Done)])
-  else if Installed then
-    Result := FmtMessage(CustomMessage('SuiteCancelQuestionInstalled'), [SuiteProductTitle(Product)])
-  else if Done <> '' then
-    Result := FmtMessage(CustomMessage('SuiteCancelQuestionKept'), [SuiteProductTitle(Product), SuiteProductTitle(Done)])
+  if Done <> '' then
+    Result := FmtMessage(CustomMessage(SuiteCancelQuestionMessage(Done, Installed)), [SuiteProductTitle(Product), SuiteProductTitle(Done)])
   else
-    Result := FmtMessage(CustomMessage('SuiteCancelQuestion'), [SuiteProductTitle(Product)]);
+    Result := FmtMessage(CustomMessage(SuiteCancelQuestionMessage(Done, Installed)), [SuiteProductTitle(Product)]);
 end;
 
 // The question of the Cancel button before the product setup changed the game folder. Yes only sets the request: the
@@ -973,7 +969,7 @@ begin
   SuiteLangLineEE := '';
   SuiteLangLineNeoEE := '';
   SuiteTestCancel := (SuiteHasParam('/TestCancel') or SuiteHasParam('/TestCancelNeoEE')) and not SuiteAdvanced;
-  if SuiteHasParam('/TestCancelNeoEE') then
+  if SuiteHasParam('/TestCancelNeoEE') or not SuiteRunsProduct(SuiteProductEE) then
     SuiteTestCancelProduct := SuiteProductNeoEE
   else
     SuiteTestCancelProduct := SuiteProductEE;

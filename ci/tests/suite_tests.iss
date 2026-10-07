@@ -1292,6 +1292,21 @@ begin
   Check('SuiteCancelMode advanced mode', IntToStr(SuiteCancelMode(True, True, False)), IntToStr(SuiteCancelOwnWizard));
   Check('SuiteCancelMode advanced mode, installing', IntToStr(SuiteCancelMode(True, True, True)), IntToStr(SuiteCancelOwnWizard));
 
+  // which of the four texts of the question of Cancel is asked: what stays decides (a repaired game stays as it is, a game this run
+  // finished stays installed)
+  Check('SuiteCancelQuestionMessage first installation', SuiteCancelQuestionMessage('', False), 'SuiteCancelQuestion');
+  Check('SuiteCancelQuestionMessage first installation, EE finished before', SuiteCancelQuestionMessage('EE', False), 'SuiteCancelQuestionKept');
+  Check('SuiteCancelQuestionMessage repair', SuiteCancelQuestionMessage('', True), 'SuiteCancelQuestionInstalled');
+  Check('SuiteCancelQuestionMessage repair, a game finished before', SuiteCancelQuestionMessage('EE', True), 'SuiteCancelQuestionInstalledKept');
+
+  // the last page says "cancelled" only for a failed game that the user cancelled (SuiteProductResult)
+  Check('SuiteCancelledResult the cancelled game', IntToStr(SuiteCancelledResult(SuiteResultFailed, 'NeoEE', 'NeoEE')), IntToStr(SuiteResultCancelled));
+  Check('SuiteCancelledResult the id has any case', IntToStr(SuiteCancelledResult(SuiteResultFailed, 'neoee', 'NeoEE')), IntToStr(SuiteResultCancelled));
+  Check('SuiteCancelledResult another game stays failed', IntToStr(SuiteCancelledResult(SuiteResultFailed, 'NeoEE', 'EE')), IntToStr(SuiteResultFailed));
+  Check('SuiteCancelledResult nobody cancelled', IntToStr(SuiteCancelledResult(SuiteResultFailed, '', 'EE')), IntToStr(SuiteResultFailed));
+  Check('SuiteCancelledResult a game that succeeded stays ok', IntToStr(SuiteCancelledResult(SuiteResultOk, 'EE', 'EE')), IntToStr(SuiteResultOk));
+  Check('SuiteCancelledResult a game that was not selected stays', IntToStr(SuiteCancelledResult(SuiteResultNotSelected, 'EE', 'EE')), IntToStr(SuiteResultNotSelected));
+
   // the tick counter of Windows wraps after 49.7 days
   Check('SuiteTicksBetween', IntToStr(SuiteTicksBetween(100, 350)), '250');
   Check('SuiteTicksBetween no time', IntToStr(SuiteTicksBetween(7, 7)), '0');

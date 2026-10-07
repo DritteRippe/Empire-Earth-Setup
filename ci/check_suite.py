@@ -1148,7 +1148,7 @@ def self_test(source_root):
          replace(run, "    if SuiteProductsOk = '' then\n    begin\n      // nothing of this run is installed", "    begin\n      // nothing of this run is installed"),
          "only if no product succeeded in this run"),
         ("the last page does not name the cancelled product",
-         replace("suite/suite_pages.iss", "CompareText(SuiteCancelledProduct, Product) = 0", "False"),
+         replace("suite/suite_pages.iss", ", SuiteCancelledProduct, Product);", ", '', Product);"),
          "the last page must name the product the user cancelled"),
         ("the progress line of the validated TLS transport without the comment",
          replace("downloads.iss", "    // The suite parses this line (contract 1.7 point 5): change it only together with suite/suite_common.iss\n    Log('  ' + IntToStr(Progress)", "    Log('  ' + IntToStr(Progress)"),

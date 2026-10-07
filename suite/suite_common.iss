@@ -1294,9 +1294,8 @@ const
   SuiteStageCdKeys = 3;
   SuiteStageManifest = 4;
 
-  // The line on the installation page that says why Cancel is off wraps: the lines it gets room for and the height of one
-  // line at 100 percent display scaling (ScaleY makes it the real one)
-  SuiteCancelLines = 3;
+  // The line on the installation page that says why Cancel is off wraps and takes the height its text needs: the least it
+  // gets, the height of one line at 100 percent display scaling (ScaleY makes it the real one)
   SuiteCancelLineHeight = 16;
 
   // The most the bar shows while a product setup runs, in thousandths: 100 percent only when the exit code is known
@@ -1753,6 +1752,30 @@ begin
     Result := SuiteCancelNoJob
   else
     Result := SuiteCancelAsk;
+end;
+
+// The name of the custom message for the question of the Cancel button (SuiteAskCancel), by what stays: a game that is
+// installed already and is repaired or updated (Installed) stays exactly as it is, a game that this run finished before
+// (Done <> '') stays installed and the suite then finishes without the cancelled game
+function SuiteCancelQuestionMessage(const Done: String; Installed: Boolean): String;
+begin
+  if Installed and (Done <> '') then
+    Result := 'SuiteCancelQuestionInstalledKept'
+  else if Installed then
+    Result := 'SuiteCancelQuestionInstalled'
+  else if Done <> '' then
+    Result := 'SuiteCancelQuestionKept'
+  else
+    Result := 'SuiteCancelQuestion';
+end;
+
+// What the last page says about a game: the result Base (SuiteItemResult), but "cancelled" instead of "failed" for the
+// game whose setup the user cancelled (Cancelled is its id, '' if the user cancelled none)
+function SuiteCancelledResult(Base: Integer; const Cancelled, Product: String): Integer;
+begin
+  Result := Base;
+  if (Result = SuiteResultFailed) and (Cancelled <> '') and (CompareText(Cancelled, Product) = 0) then
+    Result := SuiteResultCancelled;
 end;
 
 // The name of a phase in the log of the suite

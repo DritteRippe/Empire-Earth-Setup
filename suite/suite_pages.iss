@@ -276,8 +276,8 @@ end;
 // The place of the line for Cancel and of the list on the installation page of Setup. The page of Setup has the status
 // line on top, the file line below it and then the bar; the line for Cancel goes below the bar and the list takes the rest of
 // the page. The line wraps: its German and French texts are wider than the page of the modern wizard at 100 percent, and
-// the text of a long status line may be as well, so it gets room for SuiteCancelLines lines while it has a text (none
-// otherwise) and the list starts below its real height. Called again when the text changes and when the list is shown: the
+// the text of a long status line may be as well, so it takes the height its text needs at that width and font
+// (AdjustHeight, at least one line; none without a text) and the list starts below its real height. Called again when the text changes and when the list is shown: the
 // bar has its final size only then.
 procedure SuiteLayoutProgressControls;
 var
@@ -290,7 +290,11 @@ begin
   if SuiteCancelLabel.Caption = '' then
     SuiteCancelLabel.Height := 0
   else
-    SuiteCancelLabel.Height := ScaleY(SuiteCancelLineHeight) * SuiteCancelLines;
+  begin
+    // the height of one line first, so that the label has a size if AdjustHeight cannot measure; then what the text needs
+    SuiteCancelLabel.Height := ScaleY(SuiteCancelLineHeight);
+    SuiteCancelLabel.AdjustHeight;
+  end;
   SuiteCancelLabel.Visible := SuiteCancelLabel.Caption <> '';
   SuiteStageList.Left := WizardForm.ProgressGauge.Left;
   SuiteStageList.Top := SuiteCancelLabel.Top + SuiteCancelLabel.Height + ScaleY(8);
@@ -423,9 +427,7 @@ end;
 // for the game whose setup the user cancelled
 function SuiteProductResult(const Product: String; Selected: Boolean; State: Integer): Integer;
 begin
-  Result := SuiteItemResult(SuiteProductSucceeded(Product), Selected, State);
-  if (Result = SuiteResultFailed) and (CompareText(SuiteCancelledProduct, Product) = 0) then
-    Result := SuiteResultCancelled;
+  Result := SuiteCancelledResult(SuiteItemResult(SuiteProductSucceeded(Product), Selected, State), SuiteCancelledProduct, Product);
 end;
 
 // The text of the last page: what became of the games and the launcher, the CD key line of NeoEE, the logs
