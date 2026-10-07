@@ -21,6 +21,8 @@ installation through links, and a complete German test plan for Windows. No new 
 setup version stays 1.7.2 until the release.
 
 ### Added
+- `.github/dependabot.yml`: Dependabot proposes monthly pull requests into `main` for the GitHub Actions of the workflows (at most
+  three open, commit subjects start with "Update action"). No version updates for NuGet or pip: those versions are pinned on purpose.
 - Suite installer 1.1.0: `SuiteVersion` of `suite/suite.iss` is 1.1.0 (the suite has no changelog of its own; its entries are
   the ones of this file that name the suite). It packages launcher 1.1.0 (`LAUNCHER_COMMIT` of
   `.github/workflows/e2e-realdata.yml`); `MySetupVersion` of the product setups stays 1.7.2 until setup v2 is released.
