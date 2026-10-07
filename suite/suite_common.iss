@@ -1918,7 +1918,8 @@ end;
 
 // True if the content of a shortcut file (.lnk, read as a text without its NUL characters, so the
 // path is found in its ANSI and in its Unicode form) names the file FileName. A heuristic that needs no COM
-// call: the uninstaller removes a game shortcut of a product that stays installed only if it starts the launcher.
+// call: the suite deletes the desktop shortcut Empire Earth of suite 1.0.0 only if it starts the launcher (the EE setup's
+// own shortcut has that name).
 function SuiteLinkTextNamesFile(const Content, FileName: String): Boolean;
 var
   Nul, Text: String;
