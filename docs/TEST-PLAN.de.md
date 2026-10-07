@@ -3884,7 +3884,7 @@ auf dem Desktop. Es gilt:
   3. (b) Neu, wie (a), aber in der Frage „Nein“ klicken: Die Installation läuft weiter bis zum Ende wie in TP-93.
      Danach deinstallieren (TP-95 (a)).
   4. (c) Neu, die Installation laufen lassen, bis die Downloads fertig sind und die Zeile unter dem Balken
-     „Abbrechen ist nicht mehr möglich: Die Spieldateien werden gerade installiert.“ zeigt (im Log der Suite die Zeile
+     „Abbrechen ist nicht mehr möglich: Das Spiel wird gerade installiert.“ zeigt (im Log der Suite die Zeile
      `Product EE phase: install`): Der Knopf „Abbrechen“ ist grau; das Schließen des Fensters (Kreuz oder Alt+F4)
      bricht nichts ab (höchstens ein Hinweis mit demselben Text). Die Installation läuft zu Ende.
   5. (d) Neu, EE fertig werden lassen (Schritt 2 von 2 beginnt), dann während der Downloads von NeoEE „Abbrechen“:
@@ -3896,7 +3896,7 @@ auf dem Desktop. Es gilt:
   6. (e) Neu, auf einem Computer mit EE aus TP-93: vorher notieren: Zeitstempel und Größe von
      `C:\Program Files (x86)\Empire Earth\_setupdata_EE\install.ini` und `files.sha256`, den Inhalt von
      `C:\Program Files (x86)\Empire Earth\Empire Earth\Data\Random Map Scripts` (Anzahl der Dateien), und den Zustand von EE im
-     Launcher (Seite „Werkzeuge“: „Intakt“). Die Suite noch einmal starten (Reparatur: EE steht als „Schon installiert“ da
+     Launcher (Seite „Spielen“, Zeile „Dateien: …“). Die Suite noch einmal starten (Reparatur: EE steht als „Schon installiert“ da
      und ist zur Reparatur gewählt), die Seiten durchgehen, „Installieren“. Während der Downloads von EE „Abbrechen“,
      „Ja“. Danach die Dateien und den Launcher noch einmal ansehen. Dann die Suite noch einmal als Reparatur starten
      und diesmal die Frage zu „Abbrechen“ **offen lassen**, bis im eigenen Log des Spiel-Setups
@@ -3923,8 +3923,8 @@ auf dem Desktop. Es gilt:
     further product setup is started, the suite finishes its own part for "EE"`. (Bei (a) mit keinem fertigen Spiel
     bleibt es dagegen beim Abbruch mit Exit-Code 3 ohne Verknüpfung und Eintrag.)
   - (e) Nach dem ersten „Ja“ sind `install.ini` und `files.sha256` unverändert da (gleicher Zeitstempel, gleiche Größe),
-    die Karten in `Random Map Scripts` sind dieselben wie vorher, der Launcher zeigt EE weiter als „Intakt“ (nicht
-    „Unbekannt“ oder „Beschädigt“), und die Suite endet ohne Änderung (Exit-Code 3). Im zweiten Lauf zeigt „Ja“ nach
+    die Karten in `Random Map Scripts` sind dieselben wie vorher, der Launcher zeigt für EE dieselbe Zeile „Dateien: …“ wie vorher (nicht
+    „Dateien: nicht prüfbar“, „unvollständig“ oder „beschädigt“), und die Suite endet ohne Änderung (Exit-Code 3). Im zweiten Lauf zeigt „Ja“ nach
     der Zeile `Install step: …` im Log des Spiel-Setups den Hinweis, dass Abbrechen nicht mehr möglich ist, das Setup läuft zu Ende, und das Log der Suite
     enthält `the cancel came too late, its setup has started to install the game files`.
   - Die Zeile unter dem Balken („Abbrechen ist nicht mehr möglich: Das Spiel wird gerade installiert.“) bricht um und ist bei
