@@ -804,6 +804,9 @@ function Invoke-E2EScenarioS8 {
       if (-not (Test-E2ERegKey 'HKCU' "$($E2EConst.CommunityKey)\GameDefaults\$id")) { $problems += "HKCU GameDefaults\$id missing before the uninstallation" }
     }
     [void](Complete-E2ECheck $s 'before/DATA' $problems 'saved games, launcher data and the defaults in HKCU exist')
+    # the seven shortcuts of suite 1.0.0, as an update from that suite leaves them (the desktop Empire Earth starts the launcher):
+    # the uninstaller deletes them with its own shortcuts (contract 1.7 point 8); no scenario but this one runs that code on real files
+    $old = @(New-E2ESuiteV1Shortcuts $roots)
 
     $un = Invoke-E2ESuiteUninstall $s 'suite-uninstall'
     $problems = @($un.Problems)
@@ -819,6 +822,12 @@ function Invoke-E2EScenarioS8 {
     if (-not (Test-Path -LiteralPath (Join-Path $data 'Backups\ci-backup.reg') -PathType Leaf)) { $problems += 'the backup of the launcher is gone (a silent uninstallation keeps the user data)' }
     $problems += @(Test-E2ELogLines -Lines $un.LogLines -Contains @('Silent uninstallation: the user data stays:') -NotContains @('User data folder deleted'))
     [void](Complete-E2ECheck $s 'suite-uninstall/REMOVED' $problems 'both products, the launcher, the shortcuts, the record and the defaults in HKCU are gone; saved games, self-made mods and backups stay')
+    $problems = @()
+    foreach ($path in $old) {
+      if (Test-Path -LiteralPath $path) { $problems += "$path (a shortcut of suite 1.0.0) is still there after the uninstallation" }
+    }
+    $problems += @(Test-E2ELogLines -Lines $un.LogLines -Contains @($old | ForEach-Object { "Shortcut of suite 1.0.0 removed: $_" }))
+    [void](Complete-E2ECheck $s 'suite-uninstall/OLD-SHORTCUTS' $problems 'the seven shortcuts of suite 1.0.0 (planted before) were deleted by the uninstaller, a log line each')
     Test-E2EMachineSnapshot $s 'suite-uninstall'
   } finally {
     Invoke-E2ESuiteCleanup $s
@@ -856,6 +865,7 @@ function New-E2ESuiteV1Shortcuts([hashtable]$Roots) {
 function Invoke-E2EScenarioS9 {
   $s = 'S9'
   if (-not (Initialize-E2ESuiteScenario $s)) { return }
+  $desktopOld = ''
   try {
     $run = Invoke-E2ESuiteInstall $s 'install' $env:E2E_SUITE 'EE,NeoEE' $false
     if (-not $run.Ok) { return }
@@ -924,8 +934,33 @@ function Invoke-E2EScenarioS9 {
         elseif ([System.IO.File]::ReadAllText($mods[$id]) -cne "ci mod $id") { $problems += "${id}: the file of the self-made mod changed" }
       }
       [void](Complete-E2ECheck $s 'repair/MODS' $problems 'a folder below Data\dxm\mods that the player made is still there, unchanged (the setups delete only the presets they install)')
+
+      # a repair of NeoEE alone: the EE setup does not run, so the desktop shortcut Empire Earth is not deleted by its cleanup and only
+      # SuiteRemoveOldSuiteShortcuts can delete it, which it does if the shortcut starts the launcher (the one of suite 1.0.0 does)
+      # and does not if it starts a game program (then it is the shortcut of the EE setup or of the player, finding 2 of the review)
+      $desktopOld = Join-E2EPath (Get-E2ESuiteDesktop) 'Empire Earth.lnk'
+      $old = @(New-E2ESuiteV1Shortcuts $roots)
+      $neoRepair = Invoke-E2ESuiteRun -Scenario $s -Step 'repair-neo' -Package $env:E2E_SUITE -Products 'NeoEE' -NeoEEArgs $E2ESuiteConst.RepairNeoEEArgs
+      if ($neoRepair.Ok) {
+        $problems = @(Test-E2ELogLines -Lines $neoRepair.LogLines -NotMatches @('^Old shortcut of the EE setup removed', '^Product EE \(step'))
+        foreach ($path in $old) {
+          if (Test-Path -LiteralPath $path) { $problems += "$path (a shortcut of suite 1.0.0) is still there after the repair of NeoEE alone" }
+          else { $problems += @(Test-E2ELogLines -Lines $neoRepair.LogLines -Contains @("Shortcut of suite 1.0.0 removed: $path")) }
+        }
+        [void](Complete-E2ECheck $s 'repair-neo/OLD-SHORTCUTS' $problems 'a repair of NeoEE alone deleted the seven shortcuts of suite 1.0.0, the desktop Empire Earth too (it starts the launcher)')
+        Set-E2EShortcut $desktopOld $game ''
+        $keepRun = Invoke-E2ESuiteRun -Scenario $s -Step 'repair-neo-kept' -Package $env:E2E_SUITE -Products 'NeoEE' -NeoEEArgs $E2ESuiteConst.RepairNeoEEArgs
+        if ($keepRun.Ok) {
+          $problems = @(Test-E2ELogLines -Lines $keepRun.LogLines -Contains @("Shortcut of suite 1.0.0 kept, it does not start the launcher: $desktopOld") `
+            -NotContains @("Shortcut of suite 1.0.0 removed: $desktopOld"))
+          if (-not (Test-Path -LiteralPath $desktopOld -PathType Leaf)) { $problems += "$desktopOld (it starts the game program of EE) was deleted" }
+          [void](Complete-E2ECheck $s 'repair-neo-kept/GAME-SHORTCUT' $problems 'the desktop shortcut Empire Earth that starts a game program stays, the log says why')
+        }
+      }
     }
   } finally {
+    # the shortcut that the last step keeps is not the suite's: the next scenario must not find it
+    if ($desktopOld -and (Test-Path -LiteralPath $desktopOld)) { Remove-Item -LiteralPath $desktopOld -Force }
     Invoke-E2ESuiteCleanup $s
   }
 }
@@ -1056,9 +1091,12 @@ function Invoke-E2EScenarioS12 {
 
 # --- S13: cancel of a repair leaves the installed product as it was -------------------------------------------------------
 
-# EE is installed by the suite, then the suite runs again as a repair with /TestCancel: the cancel stops the EE setup before
-# it changes the game folder (the first statement of its install step, finding 1 of the review). Nothing of EE may differ
-# afterwards: every file with its size and time, the uninstall key values, and the record of the suite stay as they were.
+# EE is installed by the suite, then the suite runs again as a repair with /TestCancel: a cancel during the downloads of a
+# repair leaves EE unchanged. /TestCancel fires as soon as the real setup has opened its log, long before the install step, so
+# this scenario does NOT test the boundary of the point of no return (the cancel window inside CurStepChanged(ssInstall),
+# finding 1 of the review of 2026-10-07): that is covered by the unit tests of the log parsing, by check_install_marker in
+# ci/check_suite.py and by TP-99 (e) on the laptop. Nothing of EE may differ afterwards: every file with its size and time,
+# the uninstall key values, and the record of the suite stay as they were.
 function Invoke-E2EScenarioS13 {
   $s = 'S13'
   if (-not (Initialize-E2ESuiteScenario $s)) { return }

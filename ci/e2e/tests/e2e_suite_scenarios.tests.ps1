@@ -330,7 +330,7 @@ try {
     foreach ($oldShortcut in (Get-E2ESuiteV1Shortcuts -SuiteRoot $suiteRoot -Desktop $desktop -Group $group -Roots $roots -AppIds (Get-E2ESuiteAppIds))) {
       $link = Get-E2EShortcut $oldShortcut.Path
       if (-not $link -or $script:Bug -eq 'oldkept') { continue }
-      if ($oldShortcut.Path -ieq (Join-E2EPath $desktop 'Empire Earth.lnk') -and $link.Target -ine $launcher) {
+      if ($oldShortcut.Path -ieq (Join-E2EPath $desktop 'Empire Earth.lnk') -and $link.Target -ine $launcher -and $script:Bug -ne 'oldremoved') {
         $lines += "Shortcut of suite 1.0.0 kept, it does not start the launcher: $($oldShortcut.Path)"
         continue
       }
@@ -386,12 +386,24 @@ try {
         $lines += "Product $id is listed but not installed any more (removed through its own entry in Apps): nothing to remove"
       }
     }
+    # SuiteRemoveOldSuiteShortcuts first (the uninstaller runs ApplySuiteShortcuts too): a log line for each shortcut of suite 1.0.0
+    foreach ($oldShortcut in (Get-E2ESuiteV1Shortcuts -SuiteRoot $suiteRoot -Desktop (Get-E2ESuiteDesktop) -Group (Get-E2ESuiteGroup) -Roots $roots -AppIds (Get-E2ESuiteAppIds))) {
+      $link = Get-E2EShortcut $oldShortcut.Path
+      if (-not $link -or $script:Bug -eq 'olduninst') { continue }
+      if ($oldShortcut.Path -ieq (Join-E2EPath (Get-E2ESuiteDesktop) 'Empire Earth.lnk') -and $link.Target -ine (Join-E2EPath $suiteRoot $E2ESuiteConst.LauncherExe)) {
+        $lines += "Shortcut of suite 1.0.0 kept, it does not start the launcher: $($oldShortcut.Path)"
+        continue
+      }
+      Remove-Item -LiteralPath $oldShortcut.Path -Force
+      $lines += "Shortcut of suite 1.0.0 removed: $($oldShortcut.Path)"
+    }
     foreach ($folder in @((Get-E2ESuiteDesktop), (Get-E2ESuiteGroup))) {
-      foreach ($file in @('Empire Earth.lnk', 'Neo Empire Earth.lnk', 'Empire Earth Community.lnk')) {
+      foreach ($file in @('Empire Earth Community.lnk')) {
         if (Test-Path -LiteralPath (Join-Path $folder $file)) { Remove-Item -LiteralPath (Join-Path $folder $file) -Force }
       }
     }
-    if (Test-Path -LiteralPath (Get-E2ESuiteGroup)) { Remove-Item -LiteralPath (Get-E2ESuiteGroup) -Recurse -Force }
+    # RemoveDir of the real uninstaller removes the folder only if it is empty: the fake removes what is left of the suite's own files
+    if ($script:Bug -ne 'olduninst' -and (Test-Path -LiteralPath (Get-E2ESuiteGroup))) { Remove-Item -LiteralPath (Get-E2ESuiteGroup) -Recurse -Force }
     Remove-E2ERegTree 'HKLM64' $E2ESuiteConst.RecordKey
     Remove-E2ERegTree 'HKLM64' (Get-E2ESuiteUninstallKeyPath)
     foreach ($file in @('settings.json', 'log.txt')) {
@@ -450,6 +462,9 @@ try {
     @{ Bug = 'noshortcuts'; Scenario = 'S1'; Check = 'install/LNK' },
     @{ Bug = 'wrongargs'; Scenario = 'S1'; Check = 'install/LNK' },
     @{ Bug = 'oldkept'; Scenario = 'S9'; Check = 'repair/OLD-SHORTCUTS' },
+    @{ Bug = 'oldkept'; Scenario = 'S9'; Check = 'repair-neo/OLD-SHORTCUTS' },
+    @{ Bug = 'oldremoved'; Scenario = 'S9'; Check = 'repair-neo-kept/GAME-SHORTCUT' },
+    @{ Bug = 'olduninst'; Scenario = 'S8'; Check = 'suite-uninstall/OLD-SHORTCUTS' },
     @{ Bug = 'legacykept'; Scenario = 'S3'; Check = 'suite/LNK' },
     @{ Bug = 'keepproduct'; Scenario = 'S8'; Check = 'suite-uninstall/REMOVED' },
     @{ Bug = 'keepproduct'; Scenario = 'S7'; Check = 'suite-uninstall/SKIPPED' },
