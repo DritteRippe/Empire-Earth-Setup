@@ -982,6 +982,25 @@ setup version stays 1.7.2 until the release.
   Setup too, and the setups log `<X> of <Y> bytes done.` at every 10 percent in that transport as well
   (`OnOnlineFileDownloadProgress`, `IsProgressLogDue` in `utils.iss`, one helper for both transports, unit-tested). Contract
   1.7 point 5 lists both lines, TP-98 covers both transports.
+- Suite installer: Cancel could still kill a game setup that had started to change the game folder (run of 2026-10-07,
+  scenario S12 on windows-latest: `Neo Empire Earth exists`). The suite decided "before the install step" on a look at the
+  log that was a few milliseconds old, and the game setup logged `Install step: ...`, deleted its install state and
+  created the game folder before the job was terminated; for a repair the same window deletes `install.ini` and
+  `files.sha256` and moves the random maps. Now every stop of a game setup before its install step (Yes of the cancel
+  question, "stop" of the stall question, the 90 minute limit) first suspends every process of the job
+  (`NtSuspendProcess`, the job listed again until no process is new), then reads the log to its end (a half written
+  last line counts as the line of the install step), and only then decides in the pure function `SuiteStopDecision`: the
+  line is there, a process cannot be frozen or the log cannot be read: the game setup is resumed and runs on, the click
+  counts as too late (as before, "Cancel is no longer possible", Cancel works for the next game); otherwise the job is
+  terminated while frozen and the log read once more, and a line that shows up now (a missed one) gives the message that
+  the game may be only partly installed and must be repaired by running the suite again (new text
+  `SuiteRunCancelledLate` in English, German and French) instead of "cancelled before it installed anything". The log
+  of the suite names the steps (`freezing its setup ...`, `N processes frozen`, `N processes run again`).
+  Unit-tested (decision, partial lines, `SuiteTailLogToEnd`, freeze and resume of real processes), checked by
+  `ci/check_suite.py` (part [Freeze]). CI: the placeholder setups pause 2 seconds before and after the install step
+  (only `ci/build.ps1 -Placeholders`; `build.ps1` and `check_suite.py` prove that no other build has the hook), so S11,
+  S12 and S13 stop before the line deterministically, and the new scenario S14 (`/TestCancelAtInstall`) cancels exactly at
+  the line and expects "too late": the game setup completes, the cancel of the second game stops it.
 - Suite installer: `/TestCancel` requests the cancel only if the log that was just read is still before the install step
   (it logs `/TestCancel not requested` otherwise, so the scenario S11 fails with a clear line instead of testing a cancel
   that came too late), and `/TestCancelNeoEE` cancels the second game (scenario S12). `SuiteWaitEnd` leaves its wait as

@@ -116,7 +116,7 @@ Nummer ihres Blocks. Ein neues Arbeitspaket mit eigenen Fällen bekommt den näc
 | TP-6x | Umgebung | S-WP8 | Hinweis unter 768 Pixeln Höhe und Bildschirm, DPI und Spielfenster im Log (TP-60), fremde und alte Installationen: Schlüssel in HKLM, fremde Uninstall-Einträge, CD-Ordner, Wortlaut zu den CD-Keys (TP-61), EE und NeoEE in einem Ordner (TP-62), Installation in den Ordner einer GOG- oder CD-Installation (TP-63) |
 | TP-7x | Allgemeine Abläufe und Forumfälle | S-WP2, S-WP9 | Grundablauf mit Update über 1.7.2 (TP-70), Standardnutzer und VirtualStore (TP-71), Version und Mehrspieler (TP-72), Reparatur (TP-73), AoC ohne EE-Start (TP-74), EE und NeoEE getrennt, eines deinstalliert (TP-75), Firewall beim Hosten (TP-76), CD-Keys (TP-77), Deutsch (TP-78), laufendes Spiel (TP-79) |
 | TP-8x | Links in den für alle beschreibbaren Ordnern | S-WP11 | Ein Standardbenutzer ersetzt `Data\Movies` durch eine Junction; das Update als Administrator hält auf der Seite „Vorbereitung der Installation“ an, ändert nichts und läuft nach dem Entfernen des Links durch; still Exit-Code 7; ein Link im Spielerordner unter `Users` und eine feste Verknüpfung (Hardlink) dort halten ebenfalls an (TP-80); eigene Mods unter `Data\dxm\mods` bleiben bei Reparatur, Update, Versionswechsel von dreXmod und Deinstallation (TP-81) |
-| TP-9x | Suite „Empire Earth Community“ | Suite-Plan (WP10) | Fälle zum Paket mit Launcher auf dem Laptop mit echten Daten: das ZIP ohne und mit „Zulassen“ (TP-90, TP-91), Start aus der ZIP-Ansicht (TP-92), beide Spiele mit den Standardwerten und Spielstart von den Symbolen (TP-93), Reparatur (TP-94), Deinstallation mit „Behalten“ und „Löschen“ (TP-95), Pfad „Erweitert“ (TP-96), Update über ein vorhandenes Einzel-Setup (TP-97), Fortschrittsanzeige im Fenster der Suite (TP-98), Abbrechen in der Suite vor der Installation eines Spiels und nicht mehr danach (TP-99); TP-93 und TP-95 sind das Freigabekriterium für Launcher 1.0.0 und Suite 1.0.0, für Suite 1.1.0 kommen TP-94 (c), TP-97, TP-98, TP-99 (mit der Variante e), TP-25 (a) bis (d) und TP-27 (a) und ein grüner Lauf des Jobs `suite-e2e` (S1 bis S13) auf windows-latest dazu, siehe Block 9 |
+| TP-9x | Suite „Empire Earth Community“ | Suite-Plan (WP10) | Fälle zum Paket mit Launcher auf dem Laptop mit echten Daten: das ZIP ohne und mit „Zulassen“ (TP-90, TP-91), Start aus der ZIP-Ansicht (TP-92), beide Spiele mit den Standardwerten und Spielstart von den Symbolen (TP-93), Reparatur (TP-94), Deinstallation mit „Behalten“ und „Löschen“ (TP-95), Pfad „Erweitert“ (TP-96), Update über ein vorhandenes Einzel-Setup (TP-97), Fortschrittsanzeige im Fenster der Suite (TP-98), Abbrechen in der Suite vor der Installation eines Spiels und nicht mehr danach (TP-99); TP-93 und TP-95 sind das Freigabekriterium für Launcher 1.0.0 und Suite 1.0.0, für Suite 1.1.0 kommen TP-94 (c), TP-97, TP-98, TP-99 (mit der Variante e), TP-25 (a) bis (d) und TP-27 (a) und ein grüner Lauf des Jobs `suite-e2e` (S1 bis S14) auf windows-latest dazu, siehe Block 9 |
 
 ## 4. Vorlage je Fall
 
@@ -3278,7 +3278,7 @@ jede Prüfung der Deinstallation der Suite beachten muss, weil es sich nur auf e
 #### Gemeinsame Angaben der Fälle TP-90 bis TP-99
 
 Diese Fälle prüfen das **Suite-Setup auf dem Laptop mit den echten Daten** (Build-Art B). Sie ergänzen
-die automatischen Szenarien S1 bis S13 des Jobs `suite-e2e` ([README](../README.md), „End-to-end
+die automatischen Szenarien S1 bis S14 des Jobs `suite-e2e` ([README](../README.md), „End-to-end
 test of the suite installer“), die mit Platzhalter-Setups, still und ohne Netz laufen und nichts
 von dem sehen, was hier geprüft wird: SmartScreen, den Assistenten, das Spiel, die Verknüpfungen
 auf dem Desktop. Es gilt:
@@ -3327,13 +3327,13 @@ auf dem Desktop. Es gilt:
   TP-98, TP-99, TP-25 (a) bis (d) und TP-27 (a)** bestanden haben, TP-99 mit allen Varianten (a bis e, auch dem Abbruch einer Reparatur und dem
   Abbruch des zweiten Spiels) und TP-98 mit der Darstellung bei 100 % und 150 % in Deutsch und Französisch,
   **und** der Job `suite-e2e` für diesen Commit auf windows-latest grün war, mit S8, S9 (Verknüpfungen der Suite 1.0.0
-  bei Reparatur und Deinstallation) sowie S11, S12 und S13. TP-94 (c) (Update von Suite 1.0.0) und TP-97 (Update über
+  bei Reparatur und Deinstallation) sowie S11 bis S14. TP-94 (c) (Update von Suite 1.0.0) und TP-97 (Update über
   ein Einzel-Setup) sind der Weg „ein Update oder eine Reparatur der Suite entfernt die zwei alten Symbole“, den die
   Entscheidung für 1.1.0 verlangt; die CI-Szenarien legen die Verknüpfungen nur nach. Grund: Die
   Prozess- und Abbruchlogik der Suite (`CreateProcessW`, Job-Objekt, eigene Nachrichtenschleife, die Records
   für die API) lief bis dahin nur als Unit-Test und unter Wine, die Fenster-Layouts nur im Compiler; der erste
   Lauf auf Windows ist dieser Job, danach der Laptop. Ein ausgelassener Teil steht mit Grund im Protokoll, aber
-  ein roter oder fehlender Lauf von S8, S9 und S11 bis S13 verhindert den Tag.
+  ein roter oder fehlender Lauf von S8, S9 und S11 bis S14 verhindert den Tag.
 
 #### TP-90: Paket-ZIP ohne „Zulassen“: genau eine SmartScreen-Warnung
 
@@ -3848,11 +3848,14 @@ auf dem Desktop. Es gilt:
 - **Status:** ausgearbeitet
 - **Priorität:** P2 (Freigabekriterium für Suite 1.1.0, mit allen Varianten)
 - **Bezug:** ADR 0013 (Ergänzung: die Setups der Spiele als Prozess mit Handle, Abbrechen, Zeitgrenzen), Vertrag 1.7
-  Punkt 2 (Hinweis zum Abbrechen), TP-93; Suite-Szenario S11 (still, `/TestCancel`, Platzhalter)
+  Punkt 2 (Hinweis zum Abbrechen), TP-93; Suite-Szenarien S11 bis S14 (still, `/TestCancel`, `/TestCancelAtInstall`,
+  Platzhalter; S14 prüft die Grenze zum Punkt ohne Rückkehr mit einer Pause des Platzhalter-Setups)
 - **Ziel:** Abbrechen während des Downloads eines Spiels fragt nach und beendet auf „Ja“ sofort das Setup des
   Spiels und alles, was es gestartet hat; vom Spiel wird nichts installiert und an einem schon installierten Spiel
   nichts geändert, die Suite endet sauber (was das Setup bis dahin heruntergeladen hat, bleibt im temporären
-  Ordner `is-*.tmp`; die Frage sagt es). Ein fertig installiertes erstes Spiel bleibt installiert, und die Suite
+  Ordner `is-*.tmp`; die Frage sagt es). Die Suite hält vor jedem Beenden alle Prozesse des Spiel-Setups an, liest das Protokoll
+  noch einmal bis zum Ende und beendet das Setup nur, wenn dort noch keine Zeile `Install step: …` steht; für den Benutzer
+  ändert das nichts, nur ein „Ja“ in den Millisekunden um diese Zeile ist jetzt sicher (zu spät statt ein halb installiertes Spiel). Ein fertig installiertes erstes Spiel bleibt installiert, und die Suite
   schließt Launcher, Verknüpfungen und Eintrag für es ab. Ab dem ersten Schritt der Installation (Zeile `Install step:
   …` im Protokoll des Spiels, vor dem Löschen des Installationszustands) ist Abbrechen grau und sagt warum. Das
   Fenster der Suite reagiert die ganze Zeit (die Maus; Esc und Tab wirken dort nicht, siehe Schritt 7).
@@ -3931,13 +3934,24 @@ auf dem Desktop. Es gilt:
     Frage erscheint nach „Dateien werden installiert“ oder „Abbrechen“ ist dort noch bedienbar, das Fenster friert ein,
     oder nach „Ja“ bleiben Spieldateien unter `Program Files (x86)`; bei (e) fehlen nach „Ja“ `install.ini` oder
     `files.sha256` oder die Karten, oder der Launcher zeigt „Unbekannt“ (das Setup wurde nach dem Löschen des
-    Installationszustands beendet: der Abbruch kam zu spät für den Hinweis).
+    Installationszustands beendet: der Abbruch kam zu spät für den Hinweis); ein Prozess des Spiel-Setups bleibt nach dem
+    Anhalten stehen (Task-Manager: „angehalten“, kein Fortschritt im Log).
 - **Log-Hinweis:** Suite-Log: `Product EE phase: …` bei jedem Phasenwechsel, bei „Ja“ `Product EE: cancelled by the user
   before it installed anything, stopping its setup and everything it started`, `Product EE: its setup is gone`,
   `Product EE was cancelled by the user before it installed anything`, `The installation was cancelled by the user: no
   further product setup is started, Setup ends`, dann `CurStepChanged raised an exception (fatal)` (das ist das
   stille Abbrechen von Setup, Exit-Code 3); bei (c) nach dem Klick auf „Abbrechen“ keine solche Zeile. Kam „Ja“ zu spät:
   `the cancel came too late, its setup has started to install the game files`.
+  Das Einfrieren steht in beiden Fällen im Log der Suite: vor dem Beenden `Product EE: freezing its setup and everything
+  it started, to look at its log once more before it is stopped` und `Product EE: 2 processes frozen` (mit dem Setup des
+  Spiels sind es zwei Prozesse, bei einer Installation mit dem 64-Bit-Helfer drei), bei „Ja“ danach `cancelled by the
+  user before it installed anything, stopping its setup ...`; kam „Ja“ zu spät, steht stattdessen `Product EE: its log
+  shows the install step, its setup is not stopped`, `Product EE: 2 processes run again` und `the cancel came too late
+  …`, und das Setup läuft zu Ende (ein Prozess, der nach dem späten „Ja“ stehen bleibt, ist ein Fehler: dann fehlt die
+  Zeile `processes run again`). Steht `its setup could not be frozen (…)` im Log, hat Windows das Anhalten verweigert: das
+  Setup wurde bewusst nicht beendet (Befund festhalten). Die Zeile `Product EE was cancelled by the user, but its log shows
+  …` mit der Meldung „… ist möglicherweise nur teilweise installiert“ bedeutet, dass das Protokoll die Zeile erst nach dem
+  Beenden zeigte: die Suite muss noch einmal laufen (Reparatur), nichts davon als bestanden werten.
 
 ## 9. Forum-Testfälle §8
 
