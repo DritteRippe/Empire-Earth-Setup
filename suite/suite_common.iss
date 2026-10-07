@@ -440,6 +440,8 @@ const
 
   // How many old shortcut files of a product setup the suite deletes (SuiteLegacyShortcutPath)
   SuiteLegacyShortcutCount = 5;
+  // How many shortcut files of suite 1.0.0 the suite deletes (SuiteOldSuiteShortcutPath, contract 1.7 point 8)
+  SuiteOldSuiteShortcutCount = 7;
 
 // The product setup's AppName, the name its own shortcuts have (config_ee.iss and config_neoee.iss: MyAppName)
 function SuiteProductAppName(const Product: String): String;
@@ -469,6 +471,64 @@ begin
     3: Result := AddBackslash(GroupDir) + Name + '.lnk';
     4: Result := AddBackslash(GroupDir) + Name + ' - AoC.lnk';
     5: Result := AddBackslash(GroupDir) + Name + ' Diagnostic.lnk';
+  end;
+end;
+
+// The shortcuts of suite 1.0.0 (revisions 4 and 5) that suite 1.1.0 no longer creates, exactly these (contract 1.7
+// point 8): Index 1 to SuiteOldSuiteShortcutCount, '' for any other number. DesktopDir is {autodesktop}, GroupDir the
+// start menu folder of the suite ({autoprograms}\Empire Earth Community).
+//   1 Desktop\Empire Earth.lnk           2 Desktop\Neo Empire Earth.lnk
+//   3 Group\Empire Earth.lnk             4 Group\Neo Empire Earth.lnk
+//   5 Group\Empire Earth Diagnostic.lnk  6 Group\Neo Empire Earth Diagnostic.lnk
+//   7 Group\Empire Earth Launcher.lnk
+function SuiteOldSuiteShortcutPath(Index: Integer; const DesktopDir, GroupDir: String): String;
+begin
+  case Index of
+    1: Result := AddBackslash(DesktopDir) + 'Empire Earth.lnk';
+    2: Result := AddBackslash(DesktopDir) + 'Neo Empire Earth.lnk';
+    3: Result := AddBackslash(GroupDir) + 'Empire Earth.lnk';
+    4: Result := AddBackslash(GroupDir) + 'Neo Empire Earth.lnk';
+    5: Result := AddBackslash(GroupDir) + 'Empire Earth Diagnostic.lnk';
+    6: Result := AddBackslash(GroupDir) + 'Neo Empire Earth Diagnostic.lnk';
+    7: Result := AddBackslash(GroupDir) + 'Empire Earth Launcher.lnk';
+  else
+    Result := '';
+  end;
+end;
+
+// True if the old shortcut Index may be deleted: 1 only if it starts the launcher (the EE setup's own desktop
+// shortcut has that name, and a run of the EE setup deletes it, contract 1.7 point 7), every other one always (names
+// only the suite used)
+function SuiteOldSuiteShortcutRemovable(Index: Integer; StartsLauncher: Boolean): Boolean;
+begin
+  Result := (Index >= 1) and (Index <= SuiteOldSuiteShortcutCount) and ((Index <> 1) or StartsLauncher);
+end;
+
+// The product whose game program the suite shortcut starts without .NET Framework 4.8: the first id of Products
+// (comma separated, e.g. 'NeoEE,EE') that is installed, '' if none; an id that is no product is skipped
+function SuiteFirstInstalledProduct(const Products: String; EEInstalled, NeoEEInstalled: Boolean): String;
+var
+  Rest, Id: String;
+  P: Integer;
+begin
+  Result := '';
+  Rest := Products;
+  while (Rest <> '') and (Result = '') do
+  begin
+    P := Pos(',', Rest);
+    if P = 0 then
+    begin
+      Id := Trim(Rest);
+      Rest := '';
+    end else
+    begin
+      Id := Trim(Copy(Rest, 1, P - 1));
+      Rest := Copy(Rest, P + 1, Length(Rest));
+    end;
+    if (CompareText(Id, SuiteProductEE) = 0) and EEInstalled then
+      Result := SuiteProductEE
+    else if (CompareText(Id, SuiteProductNeoEE) = 0) and NeoEEInstalled then
+      Result := SuiteProductNeoEE;
   end;
 end;
 

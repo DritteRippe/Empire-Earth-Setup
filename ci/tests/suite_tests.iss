@@ -425,6 +425,47 @@ begin
   Check('SuiteLegacyShortcutPath index 6', SuiteLegacyShortcutPath('EE', SuiteLegacyShortcutCount + 1, 'D:\Desk', 'D:\Start'), '');
   Check('SuiteLegacyShortcutPath unknown product', SuiteLegacyShortcutPath('AoC', 1, 'D:\Desk', 'D:\Start'), '');
   Check('SuiteLegacyShortcutCount', IntToStr(SuiteLegacyShortcutCount), '5');
+
+  // the shortcuts of suite 1.0.0 that suite 1.1.0 deletes: exactly these paths (contract 1.7 point 8)
+  Check('SuiteOldSuiteShortcutPath 1', SuiteOldSuiteShortcutPath(1, 'C:\Users\Public\Desktop', 'C:\ProgramData\Start\Empire Earth Community'),
+    'C:\Users\Public\Desktop\Empire Earth.lnk');
+  Check('SuiteOldSuiteShortcutPath 2', SuiteOldSuiteShortcutPath(2, 'C:\Users\Public\Desktop', 'C:\ProgramData\Start\Empire Earth Community'),
+    'C:\Users\Public\Desktop\Neo Empire Earth.lnk');
+  Check('SuiteOldSuiteShortcutPath 3', SuiteOldSuiteShortcutPath(3, 'C:\Users\Public\Desktop', 'C:\ProgramData\Start\Empire Earth Community'),
+    'C:\ProgramData\Start\Empire Earth Community\Empire Earth.lnk');
+  Check('SuiteOldSuiteShortcutPath 4', SuiteOldSuiteShortcutPath(4, 'C:\Users\Public\Desktop', 'C:\ProgramData\Start\Empire Earth Community'),
+    'C:\ProgramData\Start\Empire Earth Community\Neo Empire Earth.lnk');
+  Check('SuiteOldSuiteShortcutPath 5', SuiteOldSuiteShortcutPath(5, 'C:\Users\Public\Desktop', 'C:\ProgramData\Start\Empire Earth Community'),
+    'C:\ProgramData\Start\Empire Earth Community\Empire Earth Diagnostic.lnk');
+  Check('SuiteOldSuiteShortcutPath 6', SuiteOldSuiteShortcutPath(6, 'C:\Users\Public\Desktop', 'C:\ProgramData\Start\Empire Earth Community'),
+    'C:\ProgramData\Start\Empire Earth Community\Neo Empire Earth Diagnostic.lnk');
+  Check('SuiteOldSuiteShortcutPath 7', SuiteOldSuiteShortcutPath(7, 'C:\Users\Public\Desktop', 'C:\ProgramData\Start\Empire Earth Community'),
+    'C:\ProgramData\Start\Empire Earth Community\Empire Earth Launcher.lnk');
+  Check('SuiteOldSuiteShortcutPath folders with a backslash', SuiteOldSuiteShortcutPath(4, 'D:\Desk\', 'D:\Start\Empire Earth Community\'),
+    'D:\Start\Empire Earth Community\Neo Empire Earth.lnk');
+  Check('SuiteOldSuiteShortcutPath index 0', SuiteOldSuiteShortcutPath(0, 'D:\Desk', 'D:\Start'), '');
+  Check('SuiteOldSuiteShortcutPath index 8', SuiteOldSuiteShortcutPath(SuiteOldSuiteShortcutCount + 1, 'D:\Desk', 'D:\Start'), '');
+  Check('SuiteOldSuiteShortcutCount', IntToStr(SuiteOldSuiteShortcutCount), '7');
+  CheckBool('SuiteOldSuiteShortcutRemovable 1 that starts the launcher', SuiteOldSuiteShortcutRemovable(1, True), True);
+  CheckBool('SuiteOldSuiteShortcutRemovable 1 that starts a game program', SuiteOldSuiteShortcutRemovable(1, False), False);
+  CheckBool('SuiteOldSuiteShortcutRemovable 2 with the launcher', SuiteOldSuiteShortcutRemovable(2, True), True);
+  CheckBool('SuiteOldSuiteShortcutRemovable 2 without it', SuiteOldSuiteShortcutRemovable(2, False), True);
+  CheckBool('SuiteOldSuiteShortcutRemovable 7 without it', SuiteOldSuiteShortcutRemovable(7, False), True);
+  CheckBool('SuiteOldSuiteShortcutRemovable 0', SuiteOldSuiteShortcutRemovable(0, True), False);
+  CheckBool('SuiteOldSuiteShortcutRemovable 8', SuiteOldSuiteShortcutRemovable(SuiteOldSuiteShortcutCount + 1, True), False);
+
+  // the product the one shortcut starts without .NET Framework 4.8
+  Check('SuiteFirstInstalledProduct both, NeoEE first', SuiteFirstInstalledProduct('NeoEE,EE', True, True), 'NeoEE');
+  Check('SuiteFirstInstalledProduct only EE', SuiteFirstInstalledProduct('NeoEE,EE', True, False), 'EE');
+  Check('SuiteFirstInstalledProduct only NeoEE', SuiteFirstInstalledProduct('NeoEE,EE', False, True), 'NeoEE');
+  Check('SuiteFirstInstalledProduct none', SuiteFirstInstalledProduct('NeoEE,EE', False, False), '');
+  Check('SuiteFirstInstalledProduct the order of the list', SuiteFirstInstalledProduct('EE,NeoEE', True, True), 'EE');
+  Check('SuiteFirstInstalledProduct one id', SuiteFirstInstalledProduct('EE', True, True), 'EE');
+  Check('SuiteFirstInstalledProduct one id that is not installed', SuiteFirstInstalledProduct('EE', False, True), '');
+  Check('SuiteFirstInstalledProduct unknown id is skipped', SuiteFirstInstalledProduct('AoC,NeoEE', True, True), 'NeoEE');
+  Check('SuiteFirstInstalledProduct only unknown ids', SuiteFirstInstalledProduct('AoC,GOG', True, True), '');
+  Check('SuiteFirstInstalledProduct lower case and blanks', SuiteFirstInstalledProduct(' neoee , ee', False, True), 'NeoEE');
+  Check('SuiteFirstInstalledProduct empty list', SuiteFirstInstalledProduct('', True, True), '');
 end;
 
 procedure CheckWait(const Name: String; KeyPresent, ExeExists: Boolean; ElapsedMs, Expected: Integer);
