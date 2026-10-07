@@ -3440,19 +3440,30 @@ auf dem Desktop. Es gilt:
      `Empire Earth Community` und die Symbole auf dem Desktop sind weg; „Apps“ zeigt keinen der drei Einträge;
      `HKLM\SOFTWARE\Empire Earth Community\Suite` ist weg; die markierten Ordner mit `tp95-marker.txt` und den
      Spielständen sind unverändert da; `%LOCALAPPDATA%\Empire Earth Launcher\settings.json` und `log.txt` sind
-     weg. Der Wert unter `Software\Sierra\CDKeys` ist noch da.
+     weg. Der Wert unter `Software\Sierra\CDKeys` ist noch da. `Users\default` (mit den mitgelieferten
+     Zivilisationen unter `Civilizations`) ist **kein** Spielerordner, sondern Inhalt des Setups: Das Setup
+     installiert diese Dateien, der Deinstaller der Spiele entfernt sie und danach den leeren Ordner
+     `default`. Daher fehlt `Users\default` nach „Behalten“, wenn darin nur mitgelieferte Zivilisationen
+     lagen; `Users` selbst und die Spielerordner (auch `tp95-marker.txt`) bleiben. Das ist kein Fehler.
+     Optional: vorher im Civilization Builder eine eigene Zivilisation anlegen und notieren, wo sie
+     gespeichert wird; liegt sie unter `Users\default\Civilizations`, bleiben dieser Ordner und die Datei
+     erhalten (Inno Setup entfernt nur die Dateien, die es selbst aufgezeichnet hat).
   6. (b) Das Paket noch einmal wie in TP-93 mit den Standardwerten installieren (frisch, kein Reparaturlauf).
      Prüfen, dass der Spielstand und das Profil im Spiel noch da sind (EE und NeoEE, Hauptmenü).
+     `Users\default` ist durch die Neuinstallation mit den mitgelieferten Zivilisationen wieder da.
   7. (c) Die Suite noch einmal deinstallieren wie (a), diesmal im Dialog **„Löschen“** wählen. Danach prüfen:
      genau die angebotenen Ordner (`Users`, `Data\Saved Games` und `Data\dxm\mods` der beiden Spiele, `Backups` und `Mod Creator`
      im `%LOCALAPPDATA%\Empire Earth Launcher`) sind weg, sonst nichts außerhalb der Programmordner (die
      `Eigene Dateien`/`Dokumente` bleiben unberührt); wieder Wert unter `Software\Sierra\CDKeys` vorhanden.
+     Eine eigene Zivilisation (siehe Schritt 5) ist hier mit `Users` weg, das ist Absicht.
   8. Die Dialoge zählen: Wie oft und in welcher Reihenfolge erscheint eine Frage (Block 9 „Zwei
      Fragen?“)?
 - **Erwartetes Ergebnis:**
   - Die Spiele werden nacheinander entfernt (NeoEE, dann EE), das Fenster der Suite bleibt bedienbar; nach (a)
     sind die Einträge `{<AppId>}_is1` beider Spiele und der Suite weg.
   - (a) „Behalten“: alle markierten Ordner und Spielstände bleiben, `settings.json` und `log.txt` sind weg.
+    `Users\default` verschwindet, wenn darin nur mitgelieferte Zivilisationen lagen; eigene Dateien und
+    Spielerordner bleiben (die mitgelieferten Zivilisationen gehören zum Setup und kommen mit (b) zurück).
   - (b) Die Neuinstallation läuft ohne Fehler, die Spielstände sind da.
   - (c) „Löschen“ entfernt genau die im Dialog genannten Ordner mit allem, was darin liegt.
   - Der Inhalt von `Software\Sierra\CDKeys` bleibt bei Installation und beiden Deinstallationen (Regel 3).
@@ -3460,7 +3471,9 @@ auf dem Desktop. Es gilt:
     von Inno Setup „Sind Sie sicher, dass Sie Empire Earth Community und alle zugehörigen Komponenten entfernen möchten?“ („Ja“); danach der Dialog zu den Nutzerdaten. Weitere Fragen oder eine andere
     Reihenfolge sind ein Befund (Block 9).
   - **bestanden**, wenn alle Punkte stimmen. **Fehler**: ein Ordner geht bei „Behalten“ verloren, ein nicht
-    angebotener Ordner geht bei „Löschen“ verloren, ein Eintrag bleibt in „Apps“, der CD-Key-Wert fehlt danach. Ohne
+    angebotener Ordner geht bei „Löschen“ verloren, ein Eintrag bleibt in „Apps“, der CD-Key-Wert fehlt danach, eine eigene
+    Datei unter `Users` (auch eine selbst angelegte Zivilisation) fehlt nach „Behalten“ (dann überschreibt der Civilization
+    Builder eine mitgelieferte Datei an Ort und Stelle: Befund für ein Folgepaket). Ohne
     bestandenen TP-95 kein Tag Launcher 1.0.0 und Suite 1.0.0.
 - **Log-Hinweis:** `TP-95a_unins.log` und `TP-95c_unins.log` der Suite: `Suite record lists the products
   "…"` mit beiden Spielen, `Product NeoEE is installed in …: it will be removed`, `Product NeoEE: wait state … outcome`, `The user
