@@ -2688,7 +2688,7 @@ AppMutex=StainlessSteelStudiosPresentsEmpireEarth,MadDocSoftwarePresentsEmpireEa
 Root: HKLM; Subkey: "Software\Empire Earth Community"; Flags: uninsdeletekeyifempty
 Root: HKLM; Subkey: "{#SuiteKey}"; Flags: uninsdeletekey
 Root: HKLM; Subkey: "{#SuiteKey}"; ValueType: dword; ValueName: "ContractVersion"; ValueData: "{#ContractVersion}"
-Root: HKLM; Subkey: "{#SuiteKey}"; ValueType: string; ValueName: "SuiteVersion"; ValueData: "1.0.0"
+Root: HKLM; Subkey: "{#SuiteKey}"; ValueType: string; ValueName: "SuiteVersion"; ValueData: "1.1.0"
 Root: HKLM; Subkey: "{#SuiteKey}"; ValueType: string; ValueName: "InstallPath"; ValueData: "{app}"
 Root: HKLM; Subkey: "{#SuiteKey}"; ValueType: string; ValueName: "Products"; ValueData: "{code:SuiteProducts}"
 Root: HKLM; Subkey: "{#SuiteKey}"; ValueType: string; ValueName: "SourceDir"; ValueData: "{src}"
@@ -2725,7 +2725,7 @@ AppMutex=StainlessSteelStudiosPresentsEmpireEarth,MadDocSoftwarePresentsEmpireEa
 procedure WriteSuiteRecord;
 begin
   RegWriteDWordValue(HKLM, '{#SuiteKey}', 'ContractVersion', {#ContractVersion});
-  RegWriteStringValue(HKLM, '{#SuiteKey}', 'SuiteVersion', '1.0.0');
+  RegWriteStringValue(HKLM, '{#SuiteKey}', 'SuiteVersion', '1.1.0');
   RegWriteStringValue(HKLM, '{#SuiteKey}', 'InstallPath', RemoveBackslash(ExpandConstant('{app}')));
   RegWriteStringValue(HKLM, '{#SuiteKey}', 'Products', 'EE');
   RegWriteStringValue(HKLM, '{#SuiteKey}', 'SourceDir', RemoveBackslash(ExpandConstant('{src}')));

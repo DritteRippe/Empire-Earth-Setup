@@ -104,7 +104,7 @@ $logEE = 'C:\Program Files\Empire Earth Community\Logs\EE-20261005-1204.log'
 $logNeo = 'C:\Program Files\Empire Earth Community\Logs\NeoEE-20261005-1204.log'
 $lineEE = 'Product EE (step 1 of 2, state 0): C:\Users\runneradmin\AppData\Local\Temp\is-AB12C.tmp\EE_Setup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /ALLUSERS /LANG=en /NOICONS /MERGETASKS="!desktopicon" /LOG="' + $logEE + '" /TYPE=compact /TASKS=compatibility,compatibility_windows'
 $lineNeo = 'Product NeoEE (step 2 of 2, state 0): C:\Users\runneradmin\AppData\Local\Temp\is-AB12C.tmp\NeoEE_Setup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /ALLUSERS /LANG=en /NOICONS /MERGETASKS="!desktopicon,!neoee_cdkeys,!certinclude,!directplay,!dxwebsetup" /LOG="' + $logNeo + '" /TYPE=compact /TASKS=compatibility,compatibility_windows'
-$suiteLog = @('Suite 1.0.0 (contract 1, test build 0), started from D:\x', $lineEE, 'Product EE: the setup ended with exit code 0', $lineNeo)
+$suiteLog = @('Suite 1.1.0 (contract 1, test build 0), started from D:\x', $lineEE, 'Product EE: the setup ended with exit code 0', $lineNeo)
 $cmdEE = Get-E2ESuiteChildCommand $suiteLog 'EE'
 $cmdNeo = Get-E2ESuiteChildCommand $suiteLog 'NeoEE'
 Check 'child command: EE step' $cmdEE.Step 1
@@ -227,7 +227,7 @@ Check 'zone identifier' (Get-E2EZoneIdentifierText) "[ZoneTransfer]`r`nZoneId=3`
 
 # --- Suite record ----------------------------------------------------------------------------------------------------------
 $record = @{
-  ContractVersion = (New-E2ERegValue 'DWord' 1); SuiteVersion = (New-E2ERegValue 'String' '1.0.0')
+  ContractVersion = (New-E2ERegValue 'DWord' 1); SuiteVersion = (New-E2ERegValue 'String' '1.1.0')
   InstallPath = (New-E2ERegValue 'String' 'C:\Program Files\Empire Earth Community'); Products = (New-E2ERegValue 'String' 'EE,NeoEE')
   SourceDir = (New-E2ERegValue 'String' 'D:\a\_temp\suite'); EEAppId = (New-E2ERegValue 'String' $ids['EE'])
   NeoEEAppId = (New-E2ERegValue 'String' $ids['NeoEE']); Written = (New-E2ERegValue 'String' '2026-10-05 18:04:31')

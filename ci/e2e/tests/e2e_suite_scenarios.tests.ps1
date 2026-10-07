@@ -359,7 +359,7 @@ try {
     $products = @(Split-E2EList (Get-E2ESwitchValue $tokens 'PRODUCTS'))
     $package = Split-Path -Parent $Exe
     $suiteRoot = Get-E2ESuiteRoot
-    $lines = @("Suite 1.0.0 (contract 1, test build 0), started from $package, temporary folder x, silent 1")
+    $lines = @("Suite 1.1.0 (contract 1, test build 0), started from $package, temporary folder x, silent 1")
     $bins = @(Get-ChildItem -LiteralPath $package -Filter 'Empire Earth Community Setup-*.bin' -File)
     if ($bins.Count -lt 3) {
       Add-FakeLog $log ($lines + 'Precheck failed, exit code 11: slices missing or wrong: Empire Earth Community Setup-2.bin (missing)')
@@ -509,7 +509,7 @@ try {
     $merged = @(@('EE', 'NeoEE') | Where-Object { (Split-E2EList $earlier) -contains $_ -or $ok -contains $_ }) -join ','
     $record = $E2ESuiteConst.RecordKey
     Set-E2ERegValue 'HKLM64' $record 'ContractVersion' 1 'DWord'
-    foreach ($pair in @(@('SuiteVersion', '1.0.0'), @('InstallPath', $suiteRoot), @('Products', $merged), @('SourceDir', $package),
+    foreach ($pair in @(@('SuiteVersion', '1.1.0'), @('InstallPath', $suiteRoot), @('Products', $merged), @('SourceDir', $package),
         @('EEAppId', $E2ESuiteConst.ProductAppIds['EE']), @('NeoEEAppId', $E2ESuiteConst.ProductAppIds['NeoEE']), @('Written', '2026-10-05 12:04:31'))) {
       Set-E2ERegValue 'HKLM64' $record $pair[0] $pair[1] 'String'
     }
@@ -529,7 +529,7 @@ try {
     $suiteRoot = Get-E2ESuiteRoot
     $record = Get-E2ERegValues 'HKLM64' $E2ESuiteConst.RecordKey
     $recorded = Get-E2ERegString $record 'Products'
-    $lines = @('Suite uninstaller 1.0.0 (contract 1)', "Suite record lists the products `"$recorded`"")
+    $lines = @('Suite uninstaller 1.1.0 (contract 1)', "Suite record lists the products `"$recorded`"")
     $roots = Get-E2ESuiteProductRoots
     foreach ($id in @('NeoEE', 'EE')) {
       if ((Split-E2EList $recorded) -notcontains $id) { $lines += "Product $id is not listed by the suite: it is not touched"; continue }
