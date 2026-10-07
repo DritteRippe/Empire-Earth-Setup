@@ -1966,6 +1966,13 @@ procedure CurStepChanged(CurStep: TSetupStep);
 begin
   if (CurStep = ssInstall) then
   begin
+    // The very first statement of this step, before anything below changes the game folder (the install state
+    // goes, the downloads are moved, the shipped random maps are deleted or moved aside): from this line on the
+    // suite no longer offers Cancel, because a killed setup would leave a game without install state or without
+    // its random maps. Inno Setup's own "Starting the installation process." comes later (after this procedure
+    // returned), too late for that.
+    // The suite parses this line (contract 1.7 point 5): change it only together with suite/suite_common.iss
+    Log('Install step: the game folder is changed from here on');
     // First, before [Files]: install.ini and files.sha256 of the previous run go, so that an aborted
     // installation leaves none that claims a valid state; a failed deletion is remembered
     // (WriteInstallState)

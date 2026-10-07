@@ -366,11 +366,14 @@ run, the products the user selects and the launcher:
    and size with the values fixed at build time (a mismatch stops the suite before any product setup
    runs); run it and wait until it ends; delete it. Since revision 6 the suite starts the product setup with a
    process handle and keeps its window alive while it waits (informative): until the product setup has logged
-   `Starting the installation process.` (point 5) the user can cancel; the suite then stops the product setup
-   and everything it started (the setup program is only the loader of the real setup), starts no further
-   product setup and ends with exit code 3. A product that finished before stays installed, and the next run
-   adopts it ([4.1](#41-principle)). From that line on the suite does not offer to cancel, because a stopped
-   product setup would leave a half installed game. A product setup whose log does not grow for 10 minutes is
+   the line `Install step: the game folder is changed from here on` (point 5) the user can cancel; the suite
+   then stops the product setup and everything it started (the setup program is only the loader of the real
+   setup), starts no further product setup and ends with exit code 3. A product that finished before stays
+   installed, and the next run adopts it ([4.1](#41-principle)). From that line on the suite does not offer to
+   cancel, because a stopped product setup would leave a game without install state or half installed: the
+   product setup logs that line as the first statement of its installation step, before it deletes
+   `install.ini` and `files.sha256`, moves the downloads and replaces the shipped random maps, so until then a
+   repair or an update has changed nothing in the game folder (it only downloaded into its own `%TEMP%`). A product setup whose log does not grow for 10 minutes is
    reported to the user once (a silent run keeps waiting), one that runs for more than 90 minutes is stopped
    and counts as failed like any other failure, so the suite goes on with the next product. The advanced mode
    (point 3) has no limits and no cancel of the suite: the user cancels in the product setup.
@@ -422,7 +425,8 @@ run, the products the user selects and the launcher:
    | `<X> of <Y> bytes done.` (two blanks before X) | `downloads.iss` | bytes of the file being downloaded |
    | `Online file downloaded, ...`, `Online file not downloaded, it failed on both servers: ...`, `Online file not downloaded, not retried: ...`, `Online file not downloaded, unexpected error: ...`, `Online file skipped, downloads stopped by the user: ...` | `downloads.iss` | one file is finished |
    | `Online files: <n> downloaded with validated TLS ...`, `All <n> online files accepted`, `<m> of <k> selected online files are missing ...` | `downloads.iss` | the downloads are over and checked |
-   | `Starting the installation process.` | Inno Setup | the setup starts to write the game files; from here on it cannot be stopped without leaving a half installed game (before, it only downloaded into its own `%TEMP%`) |
+   | `Install step: the game folder is changed from here on` | `setup_is6.iss` | the point of no return: the first statement of `CurStepChanged(ssInstall)` of the product script, before it deletes `install.ini` and `files.sha256`, checks and moves the downloads and replaces the shipped random maps; from here on the setup cannot be stopped without leaving a game without install state or half installed (before, it only downloaded into its own `%TEMP%` and changed nothing in the game folder) |
+   | `Starting the installation process.` | Inno Setup | Inno Setup starts to write the game files, after the line above; the suite takes it as the point of no return only for a product setup that logs no line above |
    | `Dest filename: ...` | Inno Setup | one file entry of the installation, counted against an estimate per product |
    | `Installation process succeeded.` | Inno Setup | the files are installed; the rest are the entries of `[Run]`, the registry and the CD keys |
    | `Register NeoEE CD Keys ...` and `CD Keys generation result: <n>` | `setup_is6.iss` (NeoEE) | the CD key step; the number is read as text, as above |
@@ -1143,14 +1147,17 @@ setups changes):
   [1.7](#17-how-the-suite-runs-a-product-setup-informative) point 5; the product scripts mark each of them
   with the comment "suite parses this line", and `ci/check_suite.py` checks that they are still written;
 - the suite waits for a product setup with a process handle: Cancel of the suite works until the product setup
-  has logged `Starting the installation process.` and stops the product setup with everything it started
+  has logged `Install step: the game folder is changed from here on` (the first statement of its installation
+  step, `setup_is6.iss`) and stops the product setup with everything it started
   (exit code 3 of the suite, a finished first product stays installed), a stall of 10 minutes is reported
   once, 90 minutes stop the product setup as a failure ([1.7](#17-how-the-suite-runs-a-product-setup-informative) point 2);
 - `ci/check_suite.py`, the unit tests of `SuiteProductArguments` and the suite scenarios of CI expect
   `/VERYSILENT` and no `/SILENT`.
 
-Product setups (revision 6): none; they overwrite `Game Window Width` and `Game Window Height` at every run
-as before (class D, `deletevalue`, [3.2](#32-values)), which ends a size the user chose in the launcher.
+Product setups (revision 6): no registry value and no file changes; they log the
+line `Install step: the game folder is changed from here on` as the first statement of their installation step
+([1.7](#17-how-the-suite-runs-a-product-setup-informative) point 5). They overwrite `Game Window Width` and
+`Game Window Height` at every run as before (class D, `deletevalue`, [3.2](#32-values)), which ends a size the user chose in the launcher.
 
 Launcher 1.1.0 (revision 6; the launcher does not start or watch the product setups of the suite, so the
 suite part asks nothing of it):

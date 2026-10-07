@@ -424,8 +424,9 @@ Windows tests with real data are the cases TP-90 to TP-99 of the test plan (Bloc
   download, verify, install, post install, CD keys, manifest, done) and set counters (files downloaded of
   N, the file being downloaded and its bytes, entries `Dest filename:` against an estimate per product);
   `SuiteProgressPermille` weights the blocks (3, 65, 2, 20, 10 percent; the download weight drops out for a
-  run without download; 100 percent only at "Log closed."). "Starting the installation process." is the
-  point of no return (`SuiteProgressInstalling`). Success is never decided from the log: exit code and
+  run without download; 100 percent only at "Log closed."). The line `Install step: the game folder is changed from here on`, the
+  first statement of `CurStepChanged(ssInstall)` of the product script, is the
+  point of no return (`SuiteProgressInstalling`; Inno Setup's later line `Starting the installation process.` only backs it up). Success is never decided from the log: exit code and
   uninstall entry stay authoritative (`SuiteRunSucceeded`). `ci/check_suite.py` checks that the product
   scripts still write the lines, each marked with the comment "suite parses this line".
 - **A product setup as a process (suite 1.1.0, ADR 0013, amendment):** `SuiteStartProduct` (`suite_common.iss`)
@@ -434,7 +435,7 @@ Windows tests with real data are the cases TP-90 to TP-99 of the test plan (Bloc
   `%TEMP%`), so only the job stops both (`SuiteKillProduct`, the one place that stops a program). `SuiteWaitForProduct`
   (`suite_run.iss`) waits in slices of 50 ms and handles the messages of Setup (`PeekMessageW`,
   `DispatchMessageW`), reads the product log every 500 ms and logs each phase change; `CancelButtonClick` asks
-  before "Starting the installation process." (a Yes stops the job after one more look at the log, no further
+  before the line `Install step: ...` of the product script (a Yes stops the job after one more look at the log, no further
   product, `Abort`, exit code 3), and after it the button is off; no new log line for 10 minutes asks once, 90
   minutes stop the product setup (`SuiteChildTimeout`, then the next product); the advanced mode has no limits.
   The pure parts are `SuiteTimeoutCheck`, `SuiteCancelMode`, `SuiteChildKind`, `SuiteTicksBetween`; the process

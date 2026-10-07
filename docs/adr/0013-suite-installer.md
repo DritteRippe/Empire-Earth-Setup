@@ -390,7 +390,8 @@ started to install files; a first product that is finished stays installed; afte
    setup runs as it did with `Exec`, nothing is stopped, the Cancel button is off with a reason and the time cap
    only writes a line.
 3. **Cancel.** `CancelButtonClick` answers while a product setup runs (Setup's own handling stays when none runs):
-   before the log shows `Starting the installation process.` it asks (default "No", the question names the game
+   before the log shows the install step (the first version of this amendment took `Starting the installation
+   process.`, see the amendment of the review below) it asks (default "No", the question names the game
    and, in the second step, the game that is installed already and stays); "Yes" only sets a request. The wait loop
    looks at the log once more, because the product setup went on while the question was open: if it has started to
    install by then the request is refused with a message, otherwise the job is stopped, the run starts no further
@@ -500,3 +501,28 @@ the behaviour of `TNewCheckListBox` are verified by the compile only: TP-98 on t
   real bytes of the current file.
 - The window is only as fresh as the log: the reader looks every 500 ms and a product setup writes the progress of
   a download about every 10 percent of a file, so the counter of bytes moves in jumps.
+
+## Amendment: review of the runner (2026-10-07, suite 1.1.0)
+
+**Context.** An adversarial review of the runner, the progress display and the Cancel handling (branch `v2` at
+b352efe) found one blocker and several defects. This amendment records the decisions of the fixes, one numbered
+point each; the points are added with the commit that fixes them.
+
+1. **The point of no return is a line of the product script, not Inno Setup's.** The suite took `Starting the
+   installation process.` as the moment from which Cancel is off. The procedure `CurStepChanged(ssInstall)` of
+   `setup_is6.iss` runs before that line (`Main.pas` calls it before `Install.pas` logs the line) and already
+   changes the game folder: `DeleteInstallState` deletes `install.ini` and `files.sha256`, `VerifyDownloadedFiles`
+   hashes and moves the downloads (seconds for 170 MB) and `PrepareRandomMapScripts` deletes the shipped maps and,
+   on an installation of setup 1.7.2, moves the whole folder `Random Map Scripts` aside. A kill in that window
+   (`TerminateJobObject`) skips `DeinitializeSetup` and `RestoreRandomMapScripts` and leaves a game without install
+   state, which the launcher shows as Unknown or Damaged, and possibly without its random maps. That breaks the
+   rule that Cancel works only while nothing is installed (decision of 2026-10-06). The fix: the product script
+   logs `Install step: the game folder is changed from here on` as the first statement of that step, before
+   `DeleteInstallState`, marked "suite parses this line" like the other interface lines; the suite parses it as
+   `SuitePhaseInstall` (`SuiteLogInstallPhase`) and keeps Inno Setup's line only as the fallback for a product
+   setup that logs none; `ci/check_suite.py` checks the text, the mark and that it is the first statement of
+   the step (`check_install_marker`, three mutants), and the unit tests feed the order of a real log. The log is
+   read again after every "Yes" (the existing re-read), so a click that arrives after the line is refused with the
+   "not now" message. The bar and the stage list lose the short phase "checking
+   the language files": the checking is part of the install step now, which is what it is for the game folder (the
+   status line says "installing the game files" for those seconds).

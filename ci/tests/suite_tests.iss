@@ -651,7 +651,9 @@ begin
   Check('marker verify, all accepted', IntToStr(SuiteTestPhaseAfter('All 20 online files accepted')), IntToStr(SuitePhaseVerify));
   Check('marker verify, some missing',
     IntToStr(SuiteTestPhaseAfter('2 of 20 selected online files are missing, the setup installs its own files instead:')), IntToStr(SuitePhaseVerify));
-  Check('marker install', IntToStr(SuiteTestPhaseAfter('Starting the installation process.')), IntToStr(SuitePhaseInstall));
+  Check('marker install, the line of the product script', IntToStr(SuiteTestPhaseAfter('Install step: the game folder is changed from here on')), IntToStr(SuitePhaseInstall));
+  Check('marker install, the line of Inno Setup as the fallback', IntToStr(SuiteTestPhaseAfter('Starting the installation process.')), IntToStr(SuitePhaseInstall));
+  Check('the marker text is the line of setup_is6.iss', SuiteLogInstallPhase, 'Install step: the game folder is changed from here on');
   Check('marker post install', IntToStr(SuiteTestPhaseAfter('Installation process succeeded.')), IntToStr(SuitePhasePost));
   Check('marker CD keys, EE only', IntToStr(SuiteTestPhaseAfter('Register NeoEE CD Keys for EE')), IntToStr(SuitePhaseCdKeys));
   Check('marker CD keys, EE and AoC', IntToStr(SuiteTestPhaseAfter('Register NeoEE CD Keys for EE and AoC')), IntToStr(SuitePhaseCdKeys));
@@ -660,6 +662,29 @@ begin
     IntToStr(SuitePhaseManifest));
   Check('marker manifest, written', IntToStr(SuiteTestPhaseAfter('Manifest: 1905 files, 683.4 MB, 10500 ms, 65.1 MB/s')), IntToStr(SuitePhaseManifest));
   Check('marker done', IntToStr(SuiteTestPhaseAfter('Log closed.')), IntToStr(SuitePhaseDone));
+
+  // The point of no return is the line of the product script, not Inno Setup's later line: CurStepChanged(ssInstall) of the
+  // product setup runs before "Starting the installation process." and already deletes install.ini and files.sha256, moves
+  // the downloads and the shipped random maps (review of 2026-10-07, finding 1). The order of a real log.
+  SuiteProgressInit(P, 'EE');
+  SuiteTestFeed(P, ['Downloading 17 online files, one at a time',
+    'Online files: 0 downloaded with validated TLS (Inno Setup), 17 pinned ones with WinHTTP without certificate validation, of 17']);
+  CheckBool('before the install step line: Cancel is still possible', SuiteProgressInstalling(P), False);
+  SuiteTestFeed(P, ['Install step: the game folder is changed from here on']);
+  CheckBool('from the install step line on: no way back', SuiteProgressInstalling(P), True);
+  Check('cancel mode from the install step line on', IntToStr(SuiteCancelMode(False, True, SuiteProgressInstalling(P))), IntToStr(SuiteCancelInstalling));
+  SuiteTestFeed(P, ['Online file verified, SHA-256 pinned: Game/de/EE/Language.dll (SHA-256 00)', 'All 17 online files accepted']);
+  Check('the lines of the verification after it do not take the phase back', IntToStr(P.Phase), IntToStr(SuitePhaseInstall));
+  Check('the verification after it still sets the number of language files', IntToStr(P.OnlineTotal), '17');
+  CheckBool('the stage "language files" is done after the verification in the install step', SuiteStageReached(P, SuiteStageDownload), True);
+  SuiteTestFeed(P, ['Starting the installation process.', 'Dest filename: C:\G\Data\x.ssm']);
+  Check('the files are counted from the install step line on', IntToStr(P.InstallFiles), '1');
+  // a run without downloads has none from the line on
+  SuiteProgressInit(P, 'EE');
+  SuiteTestFeed(P, ['Install step: the game folder is changed from here on']);
+  CheckBool('no download logged before the install step line: no download weight', P.NoDownload, True);
+  // a line that only contains the text is none
+  Check('no marker: the text inside another line', IntToStr(SuiteTestPhaseAfter('Log: Install step: the game folder is changed from here on')), '0');
 
   // lines that look alike but are no markers
   Check('no marker: online files counted', IntToStr(SuiteTestPhaseAfter('Online files: 124 SHA-256 hashes known')), '0');

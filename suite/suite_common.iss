@@ -658,7 +658,7 @@ const
   SuitePhaseProbe = 1;             // it asks the online files servers
   SuitePhaseDownload = 2;          // it downloads the online files
   SuitePhaseVerify = 3;            // the downloads are over, it checks what it has
-  SuitePhaseInstall = 4;           // "Starting the installation process.": the point of no return, the game files are written
+  SuitePhaseInstall = 4;           // the line "Install step: ..." of the product script: the point of no return, the game folder is changed
   SuitePhasePost = 5;              // the files are installed; entries of [Run], shortcuts, registry
   SuitePhaseCdKeys = 6;            // NeoEE only: the setup registers the CD keys
   SuitePhaseManifest = 7;          // it records the installed files for the launcher
@@ -707,6 +707,7 @@ const
   SuiteLogAcceptedEnd = ' online files accepted';
   SuiteLogMissingEnd = ' selected online files are missing';
   // setup_is6.iss
+  SuiteLogInstallPhase = 'Install step: the game folder is changed from here on';
   SuiteLogNoDownload = 'English language selected, no need to download online files.';
   SuiteLogCdKeysStart = 'Register NeoEE CD Keys';
   SuiteLogCdKeysResult = 'CD Keys generation result:';
@@ -714,7 +715,9 @@ const
   SuiteLogChecking = 'Checking ';
   SuiteLogCheckingEnd = ' recorded destinations';
   SuiteLogManifest = 'Manifest: ';
-  // Inno Setup's own lines (not in the product scripts)
+  // Inno Setup's own lines (not in the product scripts). "Starting the installation process." comes after the
+  // procedure CurStepChanged(ssInstall) of the product script has returned, so it is no point of no return of its
+  // own: SuiteLogInstallPhase is, and this line only backs it up for a product setup that logs none.
   SuiteLogInstallStart = 'Starting the installation process.';
   SuiteLogInstallDone = 'Installation process succeeded.';
   SuiteLogDestFile = 'Dest filename: ';
@@ -813,8 +816,9 @@ begin
   P.TailCarry := '';
 end;
 
-// True from "Starting the installation process." on: the product setup writes the game files and cannot be
-// stopped without leaving a half installed game (before that it only downloaded into its own %TEMP%)
+// True from the line "Install step: ..." of the product script on: the product setup changes the game folder (it
+// deletes the install state, then writes the game files) and cannot be stopped without leaving a game without install
+// state or half installed (before that it only downloaded into its own %TEMP%)
 function SuiteProgressInstalling(const P: TSuiteProgress): Boolean;
 begin
   Result := P.Phase >= SuitePhaseInstall;
@@ -1023,7 +1027,7 @@ begin
     P.OnlineMissing := A;
     P.OnlineTotal := B;
   end
-  else if SuiteStartsWith(T, SuiteLogInstallStart) then
+  else if SuiteStartsWith(T, SuiteLogInstallPhase) or SuiteStartsWith(T, SuiteLogInstallStart) then
   begin
     // a run that logged no download at all has none
     if P.DownloadFiles = 0 then

@@ -72,7 +72,9 @@ to stay safe and installable:
             suite/suite_common.iss, contract 1.7 point 5) are still written by the product scripts
             (downloads.iss, installstate.iss, setup_is6.iss, utils.iss), each of them marked there with a
             comment "suite parses this line"; every constant is listed here and used by the parser, and a
-            comment of that kind stands only above a listed line
+            comment of that kind stands only above a listed line; the marker line of the point of no return
+            (SuiteLogInstallPhase) is the first statement of CurStepChanged(ssInstall) in setup_is6.iss, before
+            anything changes the game folder (DeleteInstallState, VerifyDownloadedFiles, PrepareRandomMapScripts)
 
 --self-test runs the check against changed temporary copies of the suite files (MinVersion 10.0, a
 number as DiskSliceSize, a launcher entry without the Check, a product setup that is compressed,
@@ -122,13 +124,17 @@ PRODUCT_LOG_LINES = [
     ("downloads.iss", ("SuiteLogVerified", "SuiteLogVerifiedEnd")),
     ("downloads.iss", ("SuiteLogAccepted", "SuiteLogAcceptedEnd")),
     ("downloads.iss", ("SuiteLogOf", "SuiteLogMissingEnd")),
+    ("setup_is6.iss", ("SuiteLogInstallPhase",)),
     ("setup_is6.iss", ("SuiteLogNoDownload",)),
     ("setup_is6.iss", ("SuiteLogCdKeysStart",)),
     ("setup_is6.iss", ("SuiteLogCdKeysResult",)),
     ("installstate.iss", ("SuiteLogChecking", "SuiteLogCheckingEnd")),
     ("utils.iss", ("SuiteLogManifest",)),
 ]
-# Inno Setup's own lines: nothing in the product scripts to check
+# Inno Setup's own lines: nothing in the product scripts to check. "Starting the installation process." is no point of no
+# return: the product's CurStepChanged(ssInstall) runs before it and already changes the game folder, so the point of no
+# return is the marker line SuiteLogInstallPhase, which the product script logs as the first statement of that step
+# (check_install_marker).
 INNO_LOG_CONSTANTS = ("SuiteLogInstallStart", "SuiteLogInstallDone", "SuiteLogDestFile", "SuiteLogClosed")
 PRODUCT_LOG_FILES = tuple(sorted({rel for rel, _ in PRODUCT_LOG_LINES}))
 LOG_LINE_COMMENT = "suite parses this line"
@@ -736,6 +742,34 @@ def check_product_log_lines(root, common, errors):
     return len(PRODUCT_LOG_LINES) + len(INNO_LOG_CONSTANTS)
 
 
+def check_install_marker(root, common, errors):
+    """The marker line of the point of no return is the very first statement of CurStepChanged(ssInstall) of the
+    product script: everything that changes the game folder follows it. Returns the number of rules."""
+    marker = log_constants(common).get("SuiteLogInstallPhase")
+    if marker is None:
+        errors.append("suite/suite_common.iss: SuiteLogInstallPhase is not declared")
+        return 1
+    try:
+        lines = read(root, "setup_is6.iss").splitlines()
+    except CheckError as error:
+        errors.append(str(error))
+        return 1
+    start = next((i for i, line in enumerate(lines) if re.match(r"\s*procedure CurStepChanged\b", line)), None)
+    if start is None:
+        errors.append("setup_is6.iss: no procedure CurStepChanged")
+        return 1
+    step = next((i for i in range(start, len(lines)) if re.match(r"\s*if \(?CurStep = ssInstall\)? then\s*$", lines[i])), None)
+    if step is None or step + 1 >= len(lines) or lines[step + 1].strip().lower() != "begin":
+        errors.append("setup_is6.iss: CurStepChanged has no block 'if (CurStep = ssInstall) then begin'")
+        return 1
+    first = next((line.strip() for line in lines[step + 2:] if line.strip() and not line.strip().startswith("//")), "")
+    if f"Log('{marker}')" not in first:
+        errors.append(f"setup_is6.iss: the first statement of CurStepChanged(ssInstall) must be Log('{marker}') (the point "
+                      f"of no return of the suite, contract 1.7 point 5), before DeleteInstallState and every other "
+                      f"step that changes the game folder; it is: {first[:80]}")
+    return 1
+
+
 def check(root):
     """(errors, summary) for the repository root."""
     errors = []
@@ -772,9 +806,10 @@ def check(root):
     display = check_display(files, errors)
     check_forbidden_words(root, errors)
     log_lines = check_product_log_lines(root, common, errors)
+    check_install_marker(root, common, errors)
     return errors, (f"suite frame: {directives} [Setup] directives, {products} product setups and {launcher} "
                     f"launcher, license and legal text entries in [Files], {codes} exit codes, {frame} slice, mode and registry view rules, product runner "
-                    f"{steps} rules, process {process} rules, display {display} rules, uninstall key marker {marker} rules, uninstaller {removal} rules, no CD key registry or library reference, {log_lines} product log lines the suite parses")
+                    f"{steps} rules, process {process} rules, display {display} rules, uninstall key marker {marker} rules, uninstaller {removal} rules, no CD key registry or library reference, {log_lines} product log lines the suite parses, the install marker first in CurStepChanged(ssInstall)")
 
 
 def self_test(source_root):
@@ -1018,6 +1053,16 @@ def self_test(source_root):
         ("a parsed product log line of the CD key step reworded",
          replace("setup_is6.iss", "Log('CD Keys generation result: ' + IntToStr(AuthExitCode));", "Log('CD keys result: ' + IntToStr(AuthExitCode));"),
          "no line contains 'CD Keys generation result:'"),
+        ("the install marker reworded in the product script",
+         replace("setup_is6.iss", "Log('Install step: the game folder is changed from here on');", "Log('Install step: begins');"),
+         "no line contains 'Install step: the game folder is changed from here on'"),
+        ("the install marker after DeleteInstallState",
+         lambda root: (replace("setup_is6.iss", "    // The suite parses this line (contract 1.7 point 5): change it only together with suite/suite_common.iss\n    Log('Install step: the game folder is changed from here on');\n", "")(root),
+                       replace("setup_is6.iss", "    DeleteInstallState();\n", "    DeleteInstallState();\n    // The suite parses this line (contract 1.7 point 5): change it only together with suite/suite_common.iss\n    Log('Install step: the game folder is changed from here on');\n")(root)),
+         "the first statement of CurStepChanged(ssInstall) must be"),
+        ("the install marker missing",
+         replace("setup_is6.iss", "    // The suite parses this line (contract 1.7 point 5): change it only together with suite/suite_common.iss\n    Log('Install step: the game folder is changed from here on');\n", ""),
+         "no line contains 'Install step: the game folder is changed from here on'"),
         ("a parsed product log line of the manifest reworded",
          replace("utils.iss", "Result := 'Manifest: ' + IntToStr(FileCount)", "Result := 'Manifest written: ' + IntToStr(FileCount)"),
          "no line contains 'Manifest: '"),

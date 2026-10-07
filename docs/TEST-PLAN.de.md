@@ -3639,7 +3639,8 @@ auf dem Desktop. Es gilt:
   6. Das Log der Suite (`C:\Program Files\Empire Earth Community\Logs`) und das Log je Spiel durchsehen.
 - **Erwartetes Ergebnis:**
   - Die Statuszeile folgt dem Setup des Spiels: „Schritt 1 von 2: Empire Earth - sucht die Sprachdateien im
-    Internet ...“, „... lädt Sprachdatei 4 von 17 herunter ...“, „... prüft die Sprachdateien ...“, „... installiert
+    Internet ...“, „... lädt Sprachdatei 4 von 17 herunter ...“, „... prüft die Sprachdateien ...“ (nur für einen Moment oder gar nicht: das Prüfen der Downloads gehört
+    seit dem Schritt `Install step: …` im Protokoll des Spiels zur Installation), „... installiert
     die Spieldateien ...“, bei NeoEE „Schritt 2 von 2: NeoEE - registriert die CD-Keys ...“, danach „... schließt die
     Installation ab ...“. Vor der ersten Zeile des Protokolls steht noch „Schritt 1 von 2: Empire Earth (mit The Art of
     Conquest) wird installiert ...“.
@@ -3664,7 +3665,7 @@ auf dem Desktop. Es gilt:
     ein Balken auf 100 % vor dem Ende des Setups oder einer, der zurückgeht, ein Text, der zur Phase nicht passt (zum
     Beispiel „installiert“ während des Downloads), eine Zeile in einer anderen Sprache als der des Setups, eine
     abgeschnittene Zeile oder Flackern der Zeilen, die Liste ohne die erledigten Schritte.
-- **Log-Hinweis:** Suite-Log: `Product EE phase: download, 17 files (… of 1000)`, danach `verify`, `install`, `post
+- **Log-Hinweis:** Suite-Log: `Product EE phase: download, 17 files (… of 1000)`, danach `verify` (kann fehlen, wenn das Protokoll zwischen zwei Blicken sofort bis `install` weiterläuft), `install`, `post
   install`, `manifest`, `done` (bei NeoEE auch `CD keys`), je einmal in dieser Reihenfolge, dann `Product EE log read:
   last phase done, language files 17 of 17 (0 missing), … file entries installed (estimate …), CD key result "…"`
   (die Zahl der Einträge und die Schätzung vergleichen: weichen sie weit ab, die Zahl der Einträge melden, sie ist die
@@ -3688,6 +3689,8 @@ auf dem Desktop. Es gilt:
 - **Snapshot:** `Laptop` (Wiederherstellungspunkt)
 - **Varianten:** (a) Abbrechen während der Downloads von EE, „Ja“; (b) Abbrechen während der Downloads, „Nein“;
   (c) während „Dateien werden installiert“; (d) EE ist fertig, Abbrechen während der Downloads von NeoEE, „Ja“;
+  (e) Reparatur: EE ist durch die Suite installiert, die Suite läuft noch einmal darüber, Abbrechen während der
+  Downloads, „Ja“, und ein zweiter Lauf, in dem „Ja“ erst nach dem Ende der Downloads kommt;
   Windows 10 22H2 und Windows 11 24H2.
 - **Schritte:**
   1. Die Suite wie in TP-93 starten und die Seiten mit den Standardwerten durchgehen; ab „Installieren“ gleich
@@ -3709,6 +3712,14 @@ auf dem Desktop. Es gilt:
   5. (d) Neu, EE fertig werden lassen (Schritt 2 von 2 beginnt), dann während der Downloads von NeoEE „Abbrechen“:
      Die Frage nennt zusätzlich „Empire Earth (mit The Art of Conquest) ist schon installiert und bleibt installiert.“;
      „Ja“. Danach die Suite noch einmal wie in TP-93 starten: EE steht als „Schon installiert“ da.
+  6. (e) Neu, auf einem Computer mit EE aus TP-93: vorher notieren: Zeitstempel und Größe von
+     `C:\Program Files (x86)\Empire Earth\_setupdata_EE\install.ini` und `files.sha256`, den Inhalt von
+     `C:\Program Files (x86)\Empire Earth\Empire Earth\Data\Random Map Scripts` (Anzahl der Dateien), und den Zustand von EE im
+     Launcher (Seite „Werkzeuge“: „Intakt“). Die Suite noch einmal starten (Reparatur: EE steht als „Schon installiert“ da
+     und ist zur Reparatur gewählt), die Seiten durchgehen, „Installieren“. Während der Downloads von EE „Abbrechen“,
+     „Ja“. Danach die Dateien und den Launcher noch einmal ansehen. Dann die Suite noch einmal als Reparatur starten
+     und diesmal die Frage zu „Abbrechen“ **offen lassen**, bis im Log der Suite die Zeile `Product EE phase: install`
+     steht (die Frage bleibt dabei bedienbar, die Downloads laufen im Hintergrund weiter), und erst dann „Ja“ klicken.
 - **Erwartetes Ergebnis:**
   - (a) Auf „Ja“ sind `EE_Setup.exe` **und** `EE_Setup.tmp` sofort aus dem Task-Manager verschwunden (nicht nur das
     eine), das Fenster der Suite schließt sich ohne weitere Meldung, kein Ordner `C:\Program Files (x86)\Empire Earth`,
@@ -3720,10 +3731,17 @@ auf dem Desktop. Es gilt:
   - (c) wie beschrieben; kein Abbruch, nichts halb Installiertes.
   - (d) EE bleibt installiert und startet, NeoEE ist nicht installiert; kein Eintrag und keine Verknüpfung der
     Suite (die Suite schreibt ihre Verknüpfungen und den Eintrag erst nach den Spielen).
+  - (e) Nach dem ersten „Ja“ sind `install.ini` und `files.sha256` unverändert da (gleicher Zeitstempel, gleiche Größe),
+    die Karten in `Random Map Scripts` sind dieselben wie vorher, der Launcher zeigt EE weiter als „Intakt“ (nicht
+    „Unbekannt“ oder „Beschädigt“), und die Suite endet ohne Änderung (Exit-Code 3). Im zweiten Lauf zeigt „Ja“ nach
+    der Zeile `Product EE phase: install` den Hinweis, dass Abbrechen nicht mehr möglich ist, das Setup läuft zu Ende, und das Log der Suite
+    enthält `the cancel came too late, its setup has started to install the game files`.
   - **bestanden**, wenn alle Punkte stimmen. **Fehler**: ein Prozess `EE_Setup.tmp` läuft nach „Ja“ weiter und
     installiert das Spiel (dann zerstört die Suite den Ablauf nicht sauber: Log und Task-Manager sichern), die
     Frage erscheint nach „Dateien werden installiert“ oder „Abbrechen“ ist dort noch bedienbar, das Fenster friert ein,
-    oder nach „Ja“ bleiben Spieldateien unter `Program Files (x86)`.
+    oder nach „Ja“ bleiben Spieldateien unter `Program Files (x86)`; bei (e) fehlen nach „Ja“ `install.ini` oder
+    `files.sha256` oder die Karten, oder der Launcher zeigt „Unbekannt“ (das Setup wurde nach dem Löschen des
+    Installationszustands beendet: der Abbruch kam zu spät für den Hinweis).
 - **Log-Hinweis:** Suite-Log: `Product EE phase: …` bei jedem Phasenwechsel, bei „Ja“ `Product EE: cancelled by the user
   before it installed anything, stopping its setup and everything it started`, `Product EE: its setup is gone`,
   `Product EE was cancelled by the user before it installed anything`, `The installation was cancelled by the user: no

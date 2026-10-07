@@ -757,11 +757,12 @@ setup version stays 1.7.2 until the release.
   The suite starts each product setup with `CreateProcessW` and keeps its handle (`SuiteStartProduct`,
   `SuiteWaitForProduct`) instead of `Exec`: it keeps its window alive while it waits, logs every phase
   change of the product setup, and takes the exit code from the handle. Before a game setup has logged
-  `Starting the installation process.` a click on Cancel asks and, on "Yes", stops the game setup and
+  `Install step: the game folder is changed from here on` (the first statement of the installation step of the game
+  setup, see Fixed) a click on Cancel asks and, on "Yes", stops the game setup and
   everything it started (the job object holds the setup program and the real setup it starts, a kill of the
   program alone would leave the game installing), starts no further game and ends the suite with exit code 3;
   a first game that was finished stays installed and the next run adopts it. From the start of the file
-  installation on, in the advanced mode and where no job can be used the Cancel button is off and a line
+  installation step on, in the advanced mode and where no job can be used the Cancel button is off and a line
   says why; before, a click was only honored after both games. A game setup whose log does not grow for 10
   minutes asks once whether to keep waiting (a silent run keeps waiting), one that runs for 90 minutes is
   stopped and counts as failed, and the suite goes on with the next game. New texts in English, German and French,
@@ -879,6 +880,19 @@ setup version stays 1.7.2 until the release.
 - Suite installer: its own uninstall key (Publisher `Empire Earth Community`, the publisher of EE)
   no longer looks like an EE installation to the launcher: the suite marks it with
   `Empire Earth Community: Suite` at the end of every run (see Changed, revision 5; laptop test TP-93).
+- Suite installer: Cancel no longer stops a repair, an update or an adoption after the product setup has changed
+  its game folder. The point of no return was Inno Setup's line `Starting the installation process.`, but the
+  procedure `CurStepChanged(ssInstall)` of the product script runs before it and already deleted `install.ini`
+  and `files.sha256`, moved the verified downloads (seconds for 170 MB) and deleted the shipped random maps (on an
+  installation of setup 1.7.2 it moves the whole folder aside). A "Yes" in that window killed the product setup
+  before `DeinitializeSetup` and `RestoreRandomMapScripts` could run: a game without install state (the launcher
+  showed it as Unknown or Damaged) and possibly without its random maps folder. The product scripts now log the
+  line `Install step: the game folder is changed from here on` as the very first statement of that step, the suite
+  takes it as the install phase (`SuiteLogInstallPhase`; Inno Setup's line stays as the fallback for a product
+  setup that logs none), `ci/check_suite.py` fails if the line is reworded, not written or no longer the first
+  statement, and unit tests feed the order of a real log. The status "checking the language files" is therefore only
+  seen for a moment: the checking of the downloaded files belongs to the install step. Contract 1.7 points 2 and 5,
+  ADR 0013 (amendment) and the test case TP-99 (variant e: a repair that is cancelled) follow.
 
 ### Security
 - Online localized files: downloads use HTTPS only, from both servers, and TLS certificates are
