@@ -21,6 +21,11 @@ installation through links, and a complete German test plan for Windows. No new 
 setup version stays 1.7.2 until the release.
 
 ### Added
+- GitHub issue form for bug reports (`.github/ISSUE_TEMPLATE/bug_report.yml`: program, version, Windows version, what happened,
+  steps, the log locations of the setup, the suite and the launcher, a required confirmation that the reporter owns the original
+  game and attaches no game files, CD keys or private package) and `.github/ISSUE_TEMPLATE/config.yml` (no blank issues, a link
+  to the README section "Support"); `SECURITY.md`: report vulnerabilities privately through GitHub private vulnerability
+  reporting, the latest release is supported, scope is the code and CI of this repository, no bug bounty.
 - `.github/dependabot.yml`: Dependabot proposes monthly pull requests into `main` for the GitHub Actions of the workflows (at most
   three open, commit subjects start with "Update action"). No version updates for NuGet or pip: those versions are pinned on purpose.
 - Suite installer 1.1.0: `SuiteVersion` of `suite/suite.iss` is 1.1.0 (the suite has no changelog of its own; its entries are
