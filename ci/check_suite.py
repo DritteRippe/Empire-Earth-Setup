@@ -52,6 +52,12 @@ to stay safe and installable:
             reaches the end of a step in SuiteEndProductDisplay only, which SuiteRunProducts calls after
             SuiteRunProduct returned; SuiteRunProducts puts the style, Max and Position of the bar back; the list
             of the finished steps shows only (SuiteStageClickCheck puts a clicked box back)
+  [Shortcuts] suite/suite_shortcuts.iss (contract 1.7 point 8, revision 6): SuiteRemoveOldSuiteShortcuts deletes the
+            paths of SuiteOldSuiteShortcutPath only (DeleteFile(Path)), each only after SuiteOldSuiteShortcutRemovable
+            said so, and ApplySuiteShortcuts calls it before the first SuiteShortcut, so that every install, update,
+            repair and uninstallation deletes the shortcuts of suite 1.0.0 and, while installing, creates the one shortcut
+            after that; when removing, SuiteShortcut deletes the shortcut file it names (DeleteFile(Link)); no other file
+            is deleted by suite_shortcuts.iss
   [Marker]  MarkSuiteUninstallKey (suite/suite_record.iss, contract 1.3, revision 5) asks RegKeyExists
             before it writes with RegWriteDWordValue (no stub key is created) and deletes nothing
             (ci/check_contract.py checks the value, its type and the key)
@@ -192,6 +198,39 @@ def check_setup(text, errors):
     return len(found)
 
 
+def check_shortcuts(text, errors):
+    """Rules for suite/suite_shortcuts.iss (contract 1.7 point 8): the shortcuts of suite 1.0.0 are deleted by
+    SuiteRemoveOldSuiteShortcuts only (the paths of SuiteOldSuiteShortcutPath, each after SuiteOldSuiteShortcutRemovable),
+    ApplySuiteShortcuts calls it before the first SuiteShortcut, the removal of SuiteShortcut deletes the shortcut it
+    names, and nothing else is deleted."""
+    where = "suite/suite_shortcuts.iss"
+    code = code_lines(text)
+    bodies = function_bodies(code)
+    old = bodies.get("SuiteRemoveOldSuiteShortcuts", "")
+    path_at, removable_at, delete_at = old.find("SuiteOldSuiteShortcutPath("), old.find("SuiteOldSuiteShortcutRemovable("), \
+        old.find("DeleteFile(Path)")
+    if path_at < 0 or delete_at < 0 or path_at > delete_at or len(re.findall(r"\bPath\s*:=", old)) != 1:
+        errors.append(f"{where}: SuiteRemoveOldSuiteShortcuts must delete the paths of SuiteOldSuiteShortcutPath only "
+                      "(DeleteFile(Path) after the one assignment Path := SuiteOldSuiteShortcutPath(...))")
+    elif removable_at < 0 or removable_at > delete_at:
+        errors.append(f"{where}: SuiteRemoveOldSuiteShortcuts must ask SuiteOldSuiteShortcutRemovable before DeleteFile(Path): "
+                      "the desktop shortcut Empire Earth is the EE setup's own unless it starts the launcher")
+    apply = bodies.get("ApplySuiteShortcuts", "")
+    old_at, first_at = apply.find("SuiteRemoveOldSuiteShortcuts;"), apply.find("SuiteShortcut(")
+    if old_at < 0 or first_at < 0 or old_at > first_at:
+        errors.append(f"{where}: ApplySuiteShortcuts must call SuiteRemoveOldSuiteShortcuts before the first SuiteShortcut "
+                      "(for installing and for removing)")
+    shortcut = bodies.get("SuiteShortcut", "")
+    if not re.search(r"if\s+SuiteShortcutsRemoving\s+then.*?\bDeleteFile\(Link\).*?\bExit;", shortcut, re.DOTALL):
+        errors.append(f"{where}: when removing, SuiteShortcut must delete the shortcut file it names (DeleteFile(Link)) and "
+                      "exit before it creates anything")
+    for no, line in code:
+        for argument in call_arguments(line, "DeleteFile"):
+            if argument not in ("Link", "Path"):
+                errors.append(f"{where}:{no}: DeleteFile({argument}): the suite deletes the shortcut it names (Link) and the "
+                              "shortcuts of suite 1.0.0 (Path of SuiteOldSuiteShortcutPath), no other file")
+
+
 def check_frame_rules(main, files, errors):
     """Rules for the slice check, the install mode and the registry views; the number of rules checked."""
     main_code = "\n".join(line for _, line in code_lines(main))
@@ -217,19 +256,7 @@ def check_frame_rules(main, files, errors):
     guard = re.search(r"if\s+not\s+IsAdminInstallMode\s+then\s+SuiteStop\(", init)
     if not guard or guard.start() > init.find("SuiteSilentArgumentsProblem("):
         errors.append("suite/suite.iss: InitializeSetup must stop first if not IsAdminInstallMode")
-    shortcuts = function_bodies(code_lines(files.get("suite/suite_shortcuts.iss", "")))
-    if not re.search(r"\(Product\s*<>\s*''\)\s+and\s+\(SuiteProductRoot\(Product\)\s*<>\s*''\)"
-                     r"\s+and\s+not\s+SuiteLinkStartsLauncher\(Link\)\s+then.*?\bDeleteFile\(Link\)", shortcuts.get("SuiteRemoveShortcut", ""), re.DOTALL):
-        errors.append("suite/suite_shortcuts.iss: SuiteRemoveShortcut must keep the shortcut of a product that stays "
-                      "installed unless it starts the launcher (SuiteLinkStartsLauncher), before DeleteFile(Link)")
-    for name in ("SuiteShortcut", "SuiteGameShortcut"):
-        if not re.search(r"if\s+SuiteShortcutsRemoving\s+then\s+begin\s+SuiteRemoveShortcut\(Link,\s*Product\);", shortcuts.get(name, "")):
-            errors.append(f"suite/suite_shortcuts.iss: when removing, {name} must delete through SuiteRemoveShortcut (the rule "
-                          "that keeps the shortcut of a product that stays installed)")
-    if not re.search(r"if\s+IsDotNet48\s+then\s+begin\s+if\s+FileExists\(Link\)\s+and\s+SuiteLinkStartsLauncher\(Link\)\s+then\s+begin\s+if\s+DeleteFile\(Link\)",
-                     shortcuts.get("SuiteGameShortcut", "")):
-        errors.append("suite/suite_shortcuts.iss: with the launcher SuiteGameShortcut may delete only a game shortcut that starts the "
-                      "launcher (the old ones of suite 1.0.0), never the shortcut of a game program")
+    check_shortcuts(files.get("suite/suite_shortcuts.iss", ""), errors)
     for rel, text in files.items():
         for no, line in code_lines(text):
             if re.search(r"\b(HKLM64|HKCU64|HKLM32|HKCU32)\b", line):
@@ -881,15 +908,24 @@ def self_test(source_root):
          replace(main, "  if not IsAdminInstallMode then\n", "  if False then\n"), "must stop first if not IsAdminInstallMode"),
         ("64-bit registry view of HKLM",
          replace("suite/suite_pages.iss", "RegValueExists(HKLM, Key,", "RegValueExists(HKLM64, Key,"), "HKLM64, HKCU64, HKLM32 and HKCU32 raise an error"),
-        ("a shortcut of an installed product is deleted",
-         replace("suite/suite_shortcuts.iss", "(SuiteProductRoot(Product) <> '') and not SuiteLinkStartsLauncher(Link)", "False"),
-         "SuiteRemoveShortcut must keep the shortcut of a product that stays installed"),
-        ("the game shortcut removes without the rule of the uninstaller",
-         replace("suite/suite_shortcuts.iss", "  if SuiteShortcutsRemoving then\n  begin\n    SuiteRemoveShortcut(Link, Product);\n    Exit;\n  end;\n  if IsDotNet48 then", "  if SuiteShortcutsRemoving then\n  begin\n    DeleteFile(Link);\n    Exit;\n  end;\n  if IsDotNet48 then"),
-         "SuiteGameShortcut must delete through SuiteRemoveShortcut"),
-        ("an old game shortcut deleted although it starts a game program",
-         replace("suite/suite_shortcuts.iss", "if FileExists(Link) and SuiteLinkStartsLauncher(Link) then\n    begin\n      if DeleteFile(Link) then\n        Log('Old game", "if FileExists(Link) then\n    begin\n      if DeleteFile(Link) then\n        Log('Old game"),
-         "SuiteGameShortcut may delete only a game shortcut that starts the launcher"),
+        ("the shortcuts of suite 1.0.0 of another list",
+         replace("suite/suite_shortcuts.iss", "    if FileExists(Path) then\n    begin\n      if not SuiteOldSuiteShortcutRemovable",
+                 "    Path := ExpandConstant('{autodesktop}\\Empire Earth.lnk');\n    if FileExists(Path) then\n    begin\n      if not SuiteOldSuiteShortcutRemovable"),
+         "SuiteRemoveOldSuiteShortcuts must delete the paths of SuiteOldSuiteShortcutPath only"),
+        ("a shortcut of suite 1.0.0 deleted without asking SuiteOldSuiteShortcutRemovable",
+         replace("suite/suite_shortcuts.iss", "      if not SuiteOldSuiteShortcutRemovable(I, SuiteLinkStartsLauncher(Path)) then\n"
+                 "        Log('Shortcut of suite 1.0.0 kept, it does not start the launcher: ' + Path)\n      else if DeleteFile(Path) then",
+                 "      if DeleteFile(Path) then"),
+         "must ask SuiteOldSuiteShortcutRemovable before DeleteFile(Path)"),
+        ("a file deleted that is no shortcut",
+         replace("suite/suite_shortcuts.iss", "      else if DeleteFile(Path) then", "      else if DeleteFile(ExpandConstant('{app}\\unins000.exe')) then"),
+         "DeleteFile(ExpandConstant('{app}\\unins000.exe')): the suite deletes the shortcut it names"),
+        ("the shortcuts of suite 1.0.0 deleted after the new ones",
+         replace("suite/suite_shortcuts.iss", "  SuiteRemoveOldSuiteShortcuts;\n  SuiteShortcut('{autodesktop}'", "  SuiteShortcut('{autodesktop}'"),
+         "ApplySuiteShortcuts must call SuiteRemoveOldSuiteShortcuts before the first SuiteShortcut"),
+        ("the uninstaller keeps the shortcuts",
+         replace("suite/suite_shortcuts.iss", "      if DeleteFile(Link) then\n        Log('Shortcut removed: ' + Link)", "      if True then\n        Log('Shortcut removed: ' + Link)"),
+         "when removing, SuiteShortcut must delete the shortcut file it names"),
         ("language dialog", replace(main, "ShowLanguageDialog=no", "ShowLanguageDialog=yes"),
          "ShowLanguageDialog=yes, expected no"),
         ("launcher files without Check: IsDotNet48",

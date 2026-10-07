@@ -1,18 +1,18 @@
 ﻿[Code]
-// The shortcuts of the suite (contract 1.7 point 8): the one desktop shortcut "Empire Earth Community", which starts the
-// launcher without a product (it opens with the game the player chose last), and in the start menu folder "Empire Earth
-// Community" the shortcuts of the launcher, of the Mod Creator, of the uninstaller of the suite and of the Diagnostic
-// tool of each product (if it has one). Suite 1.0.0 created the game shortcuts "Empire Earth" and "Neo Empire Earth" on
-// the desktop and in that folder (the launcher with --product=EE or --product=NeoEE); suite 1.1.0 does not, and every
-// run of it deletes them where they start the launcher (SuiteGameShortcut). Without .NET Framework 4.8 there is no
-// launcher: the suite creates no shortcut to it and, instead, the game shortcuts "Empire Earth" and "Neo Empire Earth" to
-// the game program of each installed product (the table of contract 1.7). They are created in code at ssPostInstall
-// (not by [Icons]: ADR 0013 Evidence) by every run of the suite, so a repair restores them, and removed by its
-// uninstaller, which Inno Setup's uninstall log does not do for them.
-// ci/check_contract.py reads the SuiteShortcut and SuiteGameShortcut calls of ApplySuiteShortcuts (one call per shortcut
-// and place, literal arguments) and compares them with the tables of contract 1.7.
-// Requires: IsDotNet48 (suite.iss), SuiteUninstallKey, SuiteProductEE, SuiteIsSameOrInside
-// (suite_common.iss), the defines LauncherExe, ModCreatorExe, EE_AppID, NeoEE_AppID.
+// The shortcuts of the suite (contract 1.7 point 8): one shortcut, "Empire Earth Community", on the desktop and in the start
+// menu folder "Empire Earth Community", which starts the launcher without an argument (the launcher opens with the game
+// the player chose last), and in that folder the shortcuts of the Mod Creator and of the uninstaller of the suite.
+// Without .NET Framework 4.8 there is no launcher: the shortcut of the same name then starts the game program of the
+// first installed product of the list NeoEE, EE. Every run of the suite, before it creates its shortcuts, and its
+// uninstaller delete the shortcuts of suite 1.0.0 (SuiteRemoveOldSuiteShortcuts): the game shortcuts "Empire Earth" and
+// "Neo Empire Earth" (the launcher with --product=EE or --product=NeoEE), the Diagnostic shortcuts and "Empire Earth
+// Launcher". They are created in code at ssPostInstall (not by [Icons]: ADR 0013 Evidence) by every run of the suite, so a
+// repair restores them, and removed by its uninstaller, which Inno Setup's uninstall log does not do for them.
+// ci/check_contract.py reads the SuiteShortcut calls of ApplySuiteShortcuts (one call per shortcut and place, literal
+// arguments) and compares them with the table of contract 1.7.
+// Requires: IsDotNet48 (suite.iss), SuiteUninstallKey, SuiteProductEE, SuiteProductNeoEE, SuiteIsSameOrInside,
+// SuiteFirstInstalledProduct, SuiteOldSuiteShortcutPath, SuiteOldSuiteShortcutRemovable (suite_common.iss), the defines
+// LauncherExe, ModCreatorExe, EE_AppID, NeoEE_AppID.
 
 const
   CLSID_ShellLink = '{00021401-0000-0000-C000-000000000046}';
@@ -109,132 +109,96 @@ begin
   Result := LoadStringFromFile(LinkFile, Content) and SuiteLinkTextNamesFile(String(Content), '{#LauncherExe}');
 end;
 
-// Deletes a shortcut file of the suite (the uninstaller, and the run that replaces old game shortcuts). The shortcut of a
-// product that stays installed (a standalone setup, or the suite could not remove it) is the product's own unless it
-// starts the launcher, which this uninstaller removes.
-procedure SuiteRemoveShortcut(const Link, Product: String);
+// Deletes the shortcuts of suite 1.0.0 that exist (SuiteOldSuiteShortcutPath: exactly these paths), one log line each.
+// The desktop shortcut "Empire Earth" only if it starts the launcher: the EE setup's own shortcut has that name.
+// Called first by ApplySuiteShortcuts, so that every install, update, repair and uninstallation leaves none of them.
+procedure SuiteRemoveOldSuiteShortcuts;
+var
+  I: Integer;
+  Path: String;
 begin
-  if not FileExists(Link) then
-    Exit;
-  if (Product <> '') and (SuiteProductRoot(Product) <> '') and not SuiteLinkStartsLauncher(Link) then
-    Log('Shortcut kept, ' + Product + ' stays installed and the shortcut does not start the launcher: ' + Link)
-  else if DeleteFile(Link) then
-    Log('Shortcut removed: ' + Link)
-  else
-    Log('Shortcut not removed: ' + Link);
+  for I := 1 to SuiteOldSuiteShortcutCount do
+  begin
+    Path := SuiteOldSuiteShortcutPath(I, ExpandConstant('{autodesktop}'), ExpandConstant('{autoprograms}\Empire Earth Community'));
+    if FileExists(Path) then
+    begin
+      if not SuiteOldSuiteShortcutRemovable(I, SuiteLinkStartsLauncher(Path)) then
+        Log('Shortcut of suite 1.0.0 kept, it does not start the launcher: ' + Path)
+      else if DeleteFile(Path) then
+        Log('Shortcut of suite 1.0.0 removed: ' + Path)
+      else
+        Log('Shortcut of suite 1.0.0 could not be removed: ' + Path);
+    end;
+  end;
 end;
 
-// One shortcut: Place (a folder with constants), Name (without .lnk), Target and Parameters (a target that starts with
-// <root> is a program below the install root of Product, created only if the product has that file), Product (EE,
-// NeoEE or '' for none: a shortcut of a product is created only if its setup succeeded in this run or an earlier run
-// left it installed). The launcher and the Mod Creator are installed only with .NET Framework 4.8: without it their
-// shortcuts are skipped. While SuiteShortcutsRemoving is set it deletes the shortcut file instead.
-procedure SuiteShortcut(const Place, Name, Target, Parameters, Product: String);
+// One shortcut: Place (a folder with constants), Name (without .lnk), Target and Parameters (the launcher without
+// parameters: the suite creates no shortcut with --product=), Products (comma separated product ids, '' for none) and
+// Fallback (the game program below the product root, started instead of a file of the suite without .NET Framework
+// 4.8: the first installed product of Products gives the root; '' for none: the shortcut is then skipped without .NET
+// Framework 4.8). With .NET Framework 4.8 the shortcut is created always, so the launcher shows its games disabled if
+// none is installed. While SuiteShortcutsRemoving is set it deletes the shortcut file instead.
+procedure SuiteShortcut(const Place, Name, Target, Parameters, Products, Fallback: String);
 var
-  Folder, Link, Start, Root: String;
+  Folder, Link, Start, Args, Product: String;
 begin
   Folder := ExpandConstant(Place);
   Link := AddBackslash(Folder) + Name + '.lnk';
   if SuiteShortcutsRemoving then
   begin
-    SuiteRemoveShortcut(Link, Product);
+    if FileExists(Link) then
+    begin
+      if DeleteFile(Link) then
+        Log('Shortcut removed: ' + Link)
+      else
+        Log('Shortcut not removed: ' + Link);
+    end;
     Exit;
   end;
-  Root := '';
-  if Product <> '' then
+  Start := ExpandConstant(Target);
+  Args := Parameters;
+  // the launcher and the Mod Creator are installed only with .NET Framework 4.8, the uninstaller always
+  if (CompareText(Start, ExpandConstant('{uninstallexe}')) <> 0) and SuiteIsSameOrInside(Start, ExpandConstant('{app}')) and not IsDotNet48 then
   begin
-    // the product is installed: its setup ran in this run, or an earlier run (or a standalone setup) installed it
-    Root := SuiteProductRoot(Product);
-    if Root = '' then
-    begin
-      Log('Shortcut skipped, ' + Product + ' is not installed: ' + Link);
-      Exit;
-    end;
-  end;
-  if Pos('<root>', Target) = 1 then
-  begin
-    // a program of the product (the Diagnostic tool is an optional component of the product setup)
-    Start := Root + Copy(Target, 7, Length(Target));
-    if (Root = '') or not FileExists(Start) then
-    begin
-      Log('Shortcut skipped, the product has no ' + Start + ': ' + Link);
-      Exit;
-    end;
-  end
-  else
-  begin
-    Start := ExpandConstant(Target);
-    // the launcher and the Mod Creator are installed only with .NET Framework 4.8, the uninstaller always
-    if (CompareText(Start, ExpandConstant('{uninstallexe}')) <> 0) and SuiteIsSameOrInside(Start, ExpandConstant('{app}')) and not IsDotNet48 then
+    if Fallback = '' then
     begin
       Log('Shortcut skipped, the launcher is not installed (no .NET Framework 4.8): ' + Link);
       Exit;
     end;
-  end;
-  ForceDirectories(Folder);
-  if SuiteCreateShortcutFile(Link, Start, Parameters, ExtractFileDir(Start), Start) then
-    Log('Shortcut created: ' + Link + ' -> ' + Start + ' ' + Parameters);
-end;
-
-// A game shortcut of the names of the product setups (Name, Place as for SuiteShortcut; GameProgram is the game program
-// below the product root). With the launcher (.NET Framework 4.8) the suite creates none: the one desktop shortcut starts
-// every game, and a game shortcut of suite 1.0.0 (it starts the launcher with --product=) is deleted, so that an update or
-// a repair leaves no game shortcut of the suite behind; one that starts a game program is the product's own and stays.
-// Without the launcher the shortcut starts the game program of the installed product, with its icon. While
-// SuiteShortcutsRemoving is set it deletes the shortcut like SuiteShortcut does.
-procedure SuiteGameShortcut(const Place, Name, Product, GameProgram: String);
-var
-  Folder, Link, Root, Start: String;
-begin
-  Folder := ExpandConstant(Place);
-  Link := AddBackslash(Folder) + Name + '.lnk';
-  if SuiteShortcutsRemoving then
-  begin
-    SuiteRemoveShortcut(Link, Product);
-    Exit;
-  end;
-  if IsDotNet48 then
-  begin
-    if FileExists(Link) and SuiteLinkStartsLauncher(Link) then
+    Product := SuiteFirstInstalledProduct(Products, SuiteProductRoot(SuiteProductEE) <> '', SuiteProductRoot(SuiteProductNeoEE) <> '');
+    if Product = '' then
     begin
-      if DeleteFile(Link) then
-        Log('Old game shortcut of suite 1.0.0 removed (the launcher starts every game now): ' + Link)
-      else
-        Log('Old game shortcut of suite 1.0.0 not removed: ' + Link);
+      Log('Shortcut skipped, neither NeoEE nor EE is installed (no .NET Framework 4.8): ' + Link);
+      Exit;
     end;
-    Exit;
-  end;
-  Root := SuiteProductRoot(Product);
-  Start := Root + GameProgram;
-  if (Root = '') or not FileExists(Start) then
-  begin
-    Log('Shortcut skipped, the product has no ' + Start + ': ' + Link);
-    Exit;
+    Start := SuiteProductRoot(Product) + Fallback;
+    if not FileExists(Start) then
+    begin
+      Log('Shortcut skipped, the product has no ' + Start + ': ' + Link);
+      Exit;
+    end;
+    Args := '';
   end;
   ForceDirectories(Folder);
-  if SuiteCreateShortcutFile(Link, Start, '', ExtractFileDir(Start), Start) then
-    Log('Shortcut created: ' + Link + ' -> ' + Start);
+  if SuiteCreateShortcutFile(Link, Start, Args, ExtractFileDir(Start), Start) then
+    Log('Shortcut created: ' + Link + ' -> ' + Start + ' ' + Args);
 end;
 
 // Creates (Remove = False) or deletes (True) every shortcut of the suite, then the start menu folder
 // if it is empty. Before the suite creates its shortcuts, the product runner has deleted the
-// shortcuts of earlier standalone runs of the products (contract 1.7 point 7, suite_run.iss).
-// One call per shortcut and place; the shortcuts are those of the tables of contract 1.7. The names
+// shortcuts of earlier standalone runs of the products (contract 1.7 point 7, suite_run.iss), and
+// SuiteRemoveOldSuiteShortcuts deletes those of suite 1.0.0 (point 8), the desktop one named Empire Earth only if it
+// starts the launcher.
+// One call per shortcut and place; the shortcuts are those of the table of contract 1.7. The names
 // are written out here: the uninstaller deletes exactly these files, whatever language it runs in.
 procedure ApplySuiteShortcuts(Remove: Boolean);
 begin
   SuiteShortcutsRemoving := Remove;
-  // the one icon of the suite: the launcher without a product, it opens with the game the player chose last
-  SuiteShortcut('{autodesktop}', 'Empire Earth Community', '{app}\{#LauncherExe}', '', '');
-  SuiteGameShortcut('{autodesktop}', 'Empire Earth', 'EE', '\Empire Earth\Empire Earth.exe');
-  SuiteGameShortcut('{autoprograms}\Empire Earth Community', 'Empire Earth', 'EE', '\Empire Earth\Empire Earth.exe');
-  SuiteGameShortcut('{autodesktop}', 'Neo Empire Earth', 'NeoEE', '\Empire Earth\Empire Earth.exe');
-  SuiteGameShortcut('{autoprograms}\Empire Earth Community', 'Neo Empire Earth', 'NeoEE', '\Empire Earth\Empire Earth.exe');
-  SuiteShortcut('{autoprograms}\Empire Earth Community', 'Empire Earth Launcher', '{app}\{#LauncherExe}', '', '');
-  SuiteShortcut('{autoprograms}\Empire Earth Community', 'Mod Creator', '{app}\Mod Creator\{#ModCreatorExe}', '', '');
-  SuiteShortcut('{autoprograms}\Empire Earth Community', 'Empire Earth Diagnostic', '<root>\Tools\Diagnostic\EE-Diagnostic.exe', '{{#EE_AppID}}_is1', 'EE');
-  SuiteShortcut('{autoprograms}\Empire Earth Community', 'Neo Empire Earth Diagnostic', '<root>\Tools\Diagnostic\EE-Diagnostic.exe', '{{#NeoEE_AppID}}_is1', 'NeoEE');
-  SuiteShortcut('{autoprograms}\Empire Earth Community', 'Uninstall Empire Earth Community', '{uninstallexe}', '', '');
+  SuiteRemoveOldSuiteShortcuts;
+  SuiteShortcut('{autodesktop}', 'Empire Earth Community', '{app}\{#LauncherExe}', '', 'NeoEE,EE', '\Empire Earth\Empire Earth.exe');
+  SuiteShortcut('{autoprograms}\Empire Earth Community', 'Empire Earth Community', '{app}\{#LauncherExe}', '', 'NeoEE,EE', '\Empire Earth\Empire Earth.exe');
+  SuiteShortcut('{autoprograms}\Empire Earth Community', 'Mod Creator', '{app}\Mod Creator\{#ModCreatorExe}', '', '', '');
+  SuiteShortcut('{autoprograms}\Empire Earth Community', 'Uninstall Empire Earth Community', '{uninstallexe}', '', '', '');
   if Remove then
     RemoveDir(ExpandConstant('{autoprograms}\Empire Earth Community'));
   SuiteShortcutsRemoving := False;

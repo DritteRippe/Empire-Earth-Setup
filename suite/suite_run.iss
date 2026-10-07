@@ -205,8 +205,8 @@ end;
 // Deletes the old shortcut files that earlier standalone runs of the product setup left, exactly the paths of
 // contract 1.7 point 7 (SuiteLegacyShortcutPath), each deletion logged, then the start menu folder of the
 // products if it is empty (RemoveDir does not remove a folder with content). Runs after the product setup
-// succeeded and before the suite creates its own shortcuts at ssPostInstall: the suite shortcut of EE has the
-// name of the old one.
+// succeeded and before the suite deletes the shortcuts of suite 1.0.0 and creates its own at ssPostInstall (the
+// desktop shortcut of the EE setup has the name that suite 1.0.0 used for its EE shortcut).
 procedure SuiteRemoveLegacyShortcuts(const Product: String);
 var
   I: Integer;

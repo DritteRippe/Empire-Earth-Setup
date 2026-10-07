@@ -74,21 +74,30 @@ what ssInstall had set), so the rules read them from the [Code] lines of the scr
                                                removal of the record: the flag uninsdeletekey, or in
                                                code RegDeleteKeyIncludingSubkeys(<root>, '<key>')
                                                and RegDeleteKeyIfEmpty(<root>, '<parent key>')
-  1.7, first table (Shortcut | Places |        the calls SuiteShortcut('<place>', '<name>',
-       Target | Parameters | Without .NET)     '<target>', '<parameters>', '<product>') (literal
-                                               arguments), or the [Icons] entries: per row and
-                                               place a shortcut <place>\<shortcut> that starts the
-                                               launcher (row "Launcher program" of 0) with the
-                                               row's parameters ({group} is DefaultGroupName below
-                                               {autoprograms}); no suite shortcut passes
-                                               --product= (the launcher is started without a
-                                               product), and none has the name of a game shortcut
-  1.7, second table (Game shortcut | Product | the calls SuiteGameShortcut('<place>', '<name>',
-       Places | Target)                        '<product>', '<game program>') (literal arguments),
-                                               one per row and place, with the program of the
-                                               Target column below the product root and the
-                                               product of the row (the shortcuts of a computer
-                                               without .NET Framework 4.8)
+  1.7, Shortcut | Product | Places | Target |  the calls SuiteShortcut('<place>', '<name>',
+       Parameters | Without .NET Framework 4.8 '<target>', '<parameters>', '<products>',
+                                               '<fallback>') (literal arguments; <products> are
+                                               the codes of the Product column joined by ',' in
+                                               that order, the fallback is the game program below
+                                               the product root), or the [Icons] entries: per row
+                                               and place a shortcut <place>\<shortcut> that starts
+                                               the launcher (row "Launcher program" of 0) with the
+                                               row's parameters (`none` = no parameters; {group}
+                                               is DefaultGroupName below {autoprograms}) and, as
+                                               the fallback, the program of the fallback column
+                                               below {code:ProductRoot|<products>} without
+                                               parameters; no shortcut passes --product= (the
+                                               launcher is started without a product), and none
+                                               has a name of suite 1.0.0 (Empire Earth, Neo Empire
+                                               Earth, their Diagnostic shortcuts, Empire Earth
+                                               Launcher)
+  4.3, Installation | Page                     the constants SetupURL, SetupURLEE and SetupURLNeoEE
+                                               of utils.iss (concatenations of string literals and
+                                               DomainMain) are the three pages of the table (EE,
+                                               NeoEE, foreign or unknown), and
+                                               OpenUpdateDownloadPage opens ProductDownloadPage(
+                                               '{#InstallType}') and asks the update API for
+                                               nothing: no QueryUpdateApi('') anywhere
   0 "Suite and launcher", row "Suite uninstall  the uninstall key of the suite (revision 5): exactly one
   key marker" (name and data in backticks)     RegWriteDWordValue(HKLM, 'Software\\Microsoft\\Windows\\
                                                CurrentVersion\\Uninstall\\{{#SuiteAppID}}_is1',
@@ -145,7 +154,9 @@ GpuPreference=2; -> GpuPreference=1;, WIN7RTM -> WIN8RTM, a missing row compatib
 [Files] entry without ignoreversion, another component of a verified online file entry, and a
 minimal suite/suite.iss written by the self-test, in the form of [Registry] and [Icons] and in the
 form of code, with one change: the launcher mutex missing in AppMutex, a record value missing or
-added, a game shortcut to the wrong target, a reference to a protected key) that must fail
+added, a shortcut with --product= or with the name of suite 1.0.0, a launcher shortcut in the wrong
+place, the products of the fallback in the wrong order, a changed download page, the update API asked
+for a download URL, a reference to a protected key) that must fail
 with the expected message, and against copies that must pass (also without suite/suite.iss, and
 with the unchanged minimal suite script, checked by the text of the summary).
 
@@ -1784,7 +1795,10 @@ SUITE_CODE_REG_WRITE = re.compile(
 SUITE_CODE_REG_DELETE = re.compile(
     r"^\s*RegDelete(KeyIncludingSubkeys|KeyIfEmpty)\s*\(\s*(\w+)\s*,\s*'((?:[^']|'')*)'\s*\)\s*;")
 SUITE_CODE_SHORTCUT = re.compile(r"^\s*SuiteShortcut\s*\((.*)\)\s*;\s*(?://.*)?$")
-SUITE_CODE_GAME_SHORTCUT = re.compile(r"^\s*SuiteGameShortcut\s*\((.*)\)\s*;\s*(?://.*)?$")
+# The names of the shortcuts of suite 1.0.0 (contract 1.7 point 8; SuiteOldSuiteShortcutPath): suite 1.1.0 deletes them
+# and creates none of them
+SUITE_OLD_SHORTCUT_NAMES = ("Empire Earth", "Neo Empire Earth", "Empire Earth Diagnostic", "Neo Empire Earth Diagnostic",
+                            "Empire Earth Launcher")
 SUITE_CODE_REG_TYPES = {"string": "string", "dword": "dword", "expandstring": "expandsz",
                         "multistring": "multisz", "binary": "binary"}
 SUITE_PROTECTED = re.compile(r"software\\+sierra|\bcdkeys\b|authtools", re.IGNORECASE)
@@ -1958,30 +1972,23 @@ class SuiteScript:
         return result
 
     def code_shortcut_entries(self):
-        """The shortcut calls of the code as ([entries], [game entries]): an entry for each SuiteShortcut
-        call (name = <place>\\<name>, the target and the parameters), a game entry for each SuiteGameShortcut
-        call (the name, the product and the game program below its root)."""
-        entries, games = [], []
+        """The SuiteShortcut calls of the code as [Icons] entries: one entry with the target and the
+        parameters, and one more with the game program of the fallback (below the products)."""
+        entries = []
         for where, text in self.code_lines():
-            game = SUITE_CODE_GAME_SHORTCUT.match(text)
-            if game:
-                args = pascal_literals(game.group(1), where)
-                if len(args) != 4:
-                    raise CheckError(f"{where}: SuiteGameShortcut has {len(args)} arguments, this check reads four "
-                                     "(place, name, product, game program)")
-                place, short, product, program = args
-                games.append((where, place, short, product, program))
-                continue
             match = SUITE_CODE_SHORTCUT.match(text)
             if not match:
                 continue
             args = pascal_literals(match.group(1), where)
-            if len(args) != 5:
-                raise CheckError(f"{where}: SuiteShortcut has {len(args)} arguments, this check reads five "
-                                 "(place, name, target, parameters, product)")
-            place, short, target, parameters, product = args
-            entries.append((where, {"name": f"{place}\\{short}", "filename": target, "parameters": parameters}))
-        return entries, games
+            if len(args) != 6:
+                raise CheckError(f"{where}: SuiteShortcut has {len(args)} arguments, this check reads six "
+                                 "(place, name, target, parameters, products, fallback)")
+            place, short, target, parameters, products, fallback = args
+            name = f"{place}\\{short}"
+            entries.append((where, {"name": name, "filename": target, "parameters": parameters}))
+            if fallback:
+                entries.append((where, {"name": name, "filename": "{code:ProductRoot|" + products + "}" + fallback}))
+        return entries
 
 
 def suite_names(contract_lines):
@@ -2155,65 +2162,38 @@ def check_products_without_suite_marker(root, contract_lines, errors):
     return len(scripts)
 
 
-def contract_tables(numbered_lines):
-    """[(header cells, [(line number, cells)])] of every Markdown table (lines that start with a bar) of the lines."""
-    result, header, rows = [], None, []
-    for no, text in numbered_lines:
-        if not text.startswith("|"):
-            if header is not None:
-                result.append((header, rows))
-                header, rows = None, []
-            continue
-        cells = [cell.strip() for cell in text.strip().strip("|").split("|")]
-        if header is None:
-            header = cells
-        elif not all(re.fullmatch(r":?-+:?", cell) for cell in cells):
-            rows.append((no, dict(zip(header, cells))))
-    if header is not None:
-        result.append((header, rows))
-    return result
-
-
 def check_suite_shortcuts(script, contract_lines, names, errors):
-    """The shortcuts of the suite against the two tables of contract 1.7: per row of the first table and per
-    place an entry <place>\\<shortcut> that starts the launcher with the row's parameters, none that passes
-    --product= or has the name of a game shortcut; per row of the second table and per place a game shortcut
-    (SuiteGameShortcut) of that product with the program of the row's target. {group} is DefaultGroupName below
-    {autoprograms}. Returns the number of shortcuts checked."""
-    section = contract_section(contract_lines, "1.7")
-    launcher_columns = ["Shortcut", "Places", "Target", "Parameters", "Without .NET Framework 4.8"]
-    game_columns = ["Game shortcut", "Product", "Places", "Target"]
-    launcher_table = next((t for t in contract_tables(section) if "Parameters" in t[0]), None)
-    game_table = next((t for t in contract_tables(section) if "Game shortcut" in t[0]), None)
-    if launcher_table is None or game_table is None:
-        raise CheckError(f"{CONTRACT}: 1.7 needs the table of the launcher shortcuts (Shortcut | Places | Target | "
-                         "Parameters | Without .NET Framework 4.8) and the table of the game shortcuts (Game shortcut | "
-                         "Product | Places | Target)")
-    require_columns(launcher_table[0], launcher_columns, "1.7 (launcher shortcuts)")
-    require_columns(game_table[0], game_columns, "1.7 (game shortcuts)")
+    """[Icons] and the SuiteShortcut calls: per row of the table of contract 1.7 and per place an entry
+    <place>\\<shortcut> that starts the launcher with the row's parameters ('none' = no parameters) and an
+    entry for the fallback without .NET Framework 4.8, the program of the last column below
+    {code:ProductRoot|<products of the Product column, in that order>} without parameters; no entry passes
+    --product= (the launcher is started without a product) or has a name of suite 1.0.0. {group} is
+    DefaultGroupName below {autoprograms}. Returns the number of shortcuts (rows times places) checked."""
+    header, rows = first_table(contract_section(contract_lines, "1.7"), "1.7")
+    columns = ["Shortcut", "Product", "Places", "Target", "Parameters", "Without .NET Framework 4.8"]
+    require_columns(header, columns, "1.7")
     launcher = names[SUITE_LAUNCHER_ROW][0]
-    wanted_launcher = []  # (name, places, parameters)
-    for no, row in launcher_table[1]:
-        name, places, target = code_spans(row["Shortcut"]), code_spans(row["Places"]), code_spans(row["Target"])
-        if len(name) != 1 or not places or len(target) != 1:
-            raise CheckError(f"{CONTRACT}:{no}: a row of the table of the launcher shortcuts needs one name, one "
-                             "target and the places in backticks")
-        if target[0].lower() != launcher.lower():
-            raise CheckError(f"{CONTRACT}:{no}: the shortcut must start {launcher}")
-        parameters = code_spans(row["Parameters"])
-        if len(parameters) > 1 or any("--product=" in p for p in parameters):
-            raise CheckError(f"{CONTRACT}:{no}: the launcher shortcut passes no --product= (it opens with the "
-                             "game the player chose last)")
-        wanted_launcher.append((name[0], places, parameters[0] if parameters else ""))
-    wanted_games = []  # (name, product, places, program)
-    for no, row in game_table[1]:
-        name, product, places, target = (code_spans(row[c]) for c in ("Game shortcut", "Product", "Places", "Target"))
-        if len(name) != 1 or len(product) != 1 or not places or len(target) != 1:
-            raise CheckError(f"{CONTRACT}:{no}: a row of the table of the game shortcuts needs one name, one product, "
-                             "one target and the places in backticks")
-        if not target[0].startswith("<product root>\\"):
-            raise CheckError(f"{CONTRACT}:{no}: the target of a game shortcut must start with <product root>\\")
-        wanted_games.append((name[0], product[0], places, target[0][len("<product root>"):]))
+    shortcuts = {}
+    for no, row in rows:
+        values = {column: code_spans(row[column]) for column in columns}
+        if any(len(values[column]) != 1 for column in ("Shortcut", "Target", "Without .NET Framework 4.8")) \
+                or not values["Product"] or not values["Places"]:
+            raise CheckError(f"{CONTRACT}:{no}: a row of the table of 1.7 needs one value in backticks in the "
+                             "columns Shortcut, Target and Without .NET Framework 4.8, and one or more in "
+                             "Product (the order of the fallback) and Places")
+        parameters_cell = plain(row["Parameters"])
+        if len(values["Parameters"]) > 1 or (not values["Parameters"] and parameters_cell.lower() != "none"):
+            raise CheckError(f"{CONTRACT}:{no}: the column Parameters needs one value in backticks or none")
+        parameters = values["Parameters"][0] if values["Parameters"] else ""
+        if values["Target"][0].lower() != launcher.lower() or parameters:
+            raise CheckError(f"{CONTRACT}:{no}: the shortcut must start {launcher} without parameters "
+                             "(no --product=: the launcher opens with the game the player chose last)")
+        fallback = values["Without .NET Framework 4.8"][0]
+        if not fallback.startswith("<product root>\\"):
+            raise CheckError(f"{CONTRACT}:{no}: the column 'Without .NET Framework 4.8' must start with "
+                             "<product root>\\")
+        shortcuts[values["Shortcut"][0].lower()] = (values["Shortcut"][0], values["Places"], values["Product"],
+                                                    fallback[len("<product root>"):])
     groups = script.directives("DefaultGroupName")
     group = groups[0][1] if groups else None
 
@@ -2224,41 +2204,45 @@ def check_suite_shortcuts(script, contract_lines, names, errors):
         place, _, short = name.rpartition("\\")
         return place, short
 
-    code_entries, code_games = script.code_shortcut_entries()
     icons = []
-    for where, params in script.entries("Icons") + code_entries:
+    for where, params in script.entries("Icons") + script.code_shortcut_entries():
         place, short = place_and_name(where, params)
         icons.append((where, place, short, script.expand(params.get("filename", ""), where),
                       script.expand(params.get("parameters", ""), where).strip()))
-    game_names = {name.lower() for name, _, _, _ in wanted_games}
+    old_names = {name.lower() for name in SUITE_OLD_SHORTCUT_NAMES}
     for where, place, short, filename, parameters in icons:
         if "--product=" in parameters:
-            errors.append(f"{where}: {place}\\{short} passes {parameters}: the suite creates no shortcut with --product= "
-                          "(contract 1.7 point 8) [suite 1.7]")
-        if short.lower() in game_names:
-            errors.append(f"{where}: {place}\\{short} has the name of a game shortcut and is no SuiteGameShortcut: "
-                          "with the launcher the suite creates none (contract 1.7 point 8) [suite 1.7]")
+            errors.append(f"{where}: {place}\\{short} passes {parameters}: the suite creates no shortcut with "
+                          "--product= (contract 1.7 point 8) [suite 1.7]")
+        if short.lower() in old_names:
+            errors.append(f"{where}: {place}\\{short} has the name of a shortcut of suite 1.0.0, which the suite "
+                          "deletes and no longer creates (contract 1.7 point 8) [suite 1.7]")
+        row = shortcuts.get(short.lower())
+        if row is None:
+            continue
+        name, _, products, fallback = row
+        wanted = "{code:ProductRoot|" + ",".join(products) + "}" + fallback
+        if filename.lower() == launcher.lower():
+            if parameters:
+                errors.append(f"{where}: {place}\\{short} starts the launcher with '{parameters}' instead of no "
+                              "parameters (contract 1.7) [suite 1.7]")
+        elif filename.lower() != wanted.lower() or parameters:
+            errors.append(f"{where}: the shortcut {place}\\{short} starts {filename} {parameters}".rstrip()
+                          + f"; contract 1.7 allows the launcher {launcher} or, without .NET Framework 4.8, "
+                          f"{wanted} (the products in the order of the column Product) without parameters [suite 1.7]")
     count = 0
-    for name, places, wanted in wanted_launcher:
+    for name, places, products, fallback in shortcuts.values():
+        wanted = "{code:ProductRoot|" + ",".join(products) + "}" + fallback
         for place in places:
             count += 1
             if not any(p.lower() == place.lower() and s.lower() == name.lower() and f.lower() == launcher.lower()
-                       and a == wanted for _, p, s, f, a in icons):
+                       and not a for _, p, s, f, a in icons):
                 errors.append(f"{SUITE_SCRIPT}: no shortcut {place}\\{name} that starts the launcher "
-                              f"{launcher}{' ' + wanted if wanted else ''} (contract 1.7) [suite 1.7]")
-    for name, product, places, program in wanted_games:
-        for place in places:
-            count += 1
-            if not any(p.lower() == place.lower() and s.lower() == name.lower() and pr == product
-                       and pg.lower() == program.lower() for _, p, s, pr, pg in code_games):
-                errors.append(f"{SUITE_SCRIPT}: no SuiteGameShortcut for {place}\\{name} of {product} with the game "
-                              f"program <product root>{program} (contract 1.7) [suite 1.7]")
-    known = {(place.lower(), name.lower(), product, program.lower())
-             for name, product, places, program in wanted_games for place in places}
-    for where, place, short, product, program in code_games:
-        if (place.lower(), short.lower(), product, program.lower()) not in known:
-            errors.append(f"{where}: SuiteGameShortcut {place}\\{short} of {product} with {program} is not a row of the table "
-                          "of the game shortcuts of contract 1.7 [suite 1.7]")
+                              f"{launcher} without parameters (contract 1.7) [suite 1.7]")
+            if not any(p.lower() == place.lower() and s.lower() == name.lower() and f.lower() == wanted.lower()
+                       and not a for _, p, s, f, a in icons):
+                errors.append(f"{SUITE_SCRIPT}: no fallback for {place}\\{name} without .NET Framework 4.8 that "
+                              f"starts {wanted} (contract 1.7) [suite 1.7]")
     return count
 
 
@@ -2291,8 +2275,87 @@ def check_suite(root, contract_lines, version, errors):
     check_suite_uninstall_marker(script, names, errors)
     lines = check_suite_protected(script, errors)
     return (f"suite: SetupMutex and AppMutex ({mutexes} names), record with {values} values, "
-            f"{shortcuts} suite and game shortcuts, the uninstall key marker, no protected key in "
+            f"{shortcuts} launcher shortcuts without --product=, none of suite 1.0.0, the uninstall key marker, no protected key in "
             f"{lines} code lines")
+
+
+# ---------------------------------------------------------------------------------------------
+# Rule 4.3: the download pages of the setup (utils.iss, OpenUpdateDownloadPage)
+
+DOWNLOAD_PAGE_ROWS = (("EE", "SetupURLEE"), ("NeoEE", "SetupURLNeoEE"), ("foreign", "SetupURL"))
+PASCAL_CONSTANT = re.compile(r"^\s*([A-Za-z_]\w*)\s*=\s*(.+?)\s*;\s*(?://.*)?$")
+OPEN_DOWNLOAD_PAGE = re.compile(r"^procedure OpenUpdateDownloadPage;.*?^end;", re.MULTILINE | re.DOTALL)
+ASKS_API_FOR_URL = re.compile(r"QueryUpdateApi\s*\(\s*''\s*[,)]")
+
+
+def pascal_constant_value(name, expressions, where, seen=()):
+    """The value of the constant name: a concatenation ('+') of string literals and of other constants of
+    expressions ({name: expression text}); anything else stops the check, so that nothing is guessed."""
+    if name in seen or name not in expressions:
+        raise CheckError(f"{where}: cannot evaluate the constant {name} (not defined, or defined by itself)")
+    term = r"'(?:[^']|'')*'|[A-Za-z_]\w*"
+    if not re.fullmatch(rf"\s*(?:{term})(?:\s*\+\s*(?:{term}))*\s*", expressions[name]):
+        raise CheckError(f"{where}: cannot read '{expressions[name]}' as the constant {name}: this check reads only "
+                         "string literals and other constants joined by +")
+    result = ""
+    for part in re.findall(term, expressions[name]):
+        if part.startswith("'"):
+            result += part[1:-1].replace("''", "'")
+        else:
+            result += pascal_constant_value(part, expressions, where, seen + (name,))
+    return result
+
+
+def check_download_pages(root, contract_lines, errors):
+    """Contract 4.3: the table (Installation | Page) has the three pages in the order EE, NeoEE, foreign or
+    unknown, they are the constants SetupURLEE, SetupURLNeoEE and SetupURL of utils.iss, ProductDownloadPage
+    returns them, and OpenUpdateDownloadPage opens ProductDownloadPage('{#InstallType}') and asks the update API for
+    no download URL: no QueryUpdateApi('') in any script of the setup. Returns the number of pages."""
+    header, rows = first_table(contract_section(contract_lines, "4.3"), "4.3")
+    require_columns(header, ["Installation", "Page"], "4.3")
+    if len(rows) != len(DOWNLOAD_PAGE_ROWS):
+        raise CheckError(f"{CONTRACT} (4.3): the table has {len(rows)} rows, expected {len(DOWNLOAD_PAGE_ROWS)} "
+                         f"(the pages of {', '.join(product for product, _ in DOWNLOAD_PAGE_ROWS)})")
+    expressions = {}
+    for no, text in logical_lines(read_text(root / UTILS_SCRIPT)):
+        match = PASCAL_CONSTANT.match(text)
+        if match:
+            expressions[match.group(1)] = match.group(2)
+    for (product, constant), (no, row) in zip(DOWNLOAD_PAGE_ROWS, rows):
+        where = f"{CONTRACT}:{no} (4.3)"
+        if product not in code_spans(row["Installation"]):
+            errors.append(f"{where}: the row of the page of {product} is missing or out of order")
+            continue
+        pages = code_spans(row["Page"])
+        if len(pages) != 1:
+            errors.append(f"{where}: the page of {product} needs one address in backticks")
+            continue
+        value = pascal_constant_value(constant, expressions, f"{UTILS_SCRIPT}")
+        if value != pages[0]:
+            errors.append(f"{where}: the page of {product} is {pages[0]} in the contract, {value} in {UTILS_SCRIPT} "
+                          f"({constant})")
+    utils_text = read_text(root / UTILS_SCRIPT)
+    function = re.search(r"^function ProductDownloadPage\(.*?^end;", utils_text, re.MULTILINE | re.DOTALL)
+    if not function:
+        errors.append(f"{UTILS_SCRIPT}: no function ProductDownloadPage (contract 4.3)")
+    else:
+        for needle in ("SetupURLEE", "SetupURLNeoEE", "Result := SetupURL;"):
+            if needle not in function.group(0):
+                errors.append(f"{UTILS_SCRIPT}: ProductDownloadPage does not return {needle.replace('Result := ', '')} "
+                              "(contract 4.3)")
+    main_text = read_text(root / MAIN_SCRIPT)
+    opening = OPEN_DOWNLOAD_PAGE.search(main_text)
+    if not opening:
+        errors.append(f"{MAIN_SCRIPT}: no procedure OpenUpdateDownloadPage (contract 4.3)")
+    elif "ProductDownloadPage('{#InstallType}')" not in opening.group(0):
+        errors.append(f"{MAIN_SCRIPT}: OpenUpdateDownloadPage does not open ProductDownloadPage('{{#InstallType}}'): "
+                      "the page is chosen by the product of the setup alone (contract 4.3)")
+    for rel in own_include_closure(root):
+        for no, text in logical_lines(read_text(root / rel)):
+            if not text.strip().startswith(("//", ";")) and ASKS_API_FOR_URL.search(text.split("//", 1)[0]):
+                errors.append(f"{rel.as_posix()}:{no}: the update API is asked for a download URL (QueryUpdateApi('')): "
+                              "the setup and the launcher make no request to choose the download page (contract 4.3)")
+    return len(DOWNLOAD_PAGE_ROWS)
 
 
 # ---------------------------------------------------------------------------------------------
@@ -2372,6 +2435,8 @@ def check(root):
                    f"{FILES_RECORD_PROC}")
     count = rule("2.3", lambda: check_verified_online_files(root, errors))
     summary.append(f"2.3: {count} [Files] entries of verified online files, the same in {VERIFIED_RECORD_PROC}")
+    count = rule("4.3", lambda: check_download_pages(root, contract_lines, errors))
+    summary.append(f"4.3: {count} download pages, no request to choose them")
     suite = rule("suite", lambda: check_suite(root, contract_lines, version, errors))
     summary.append(suite if suite is not None else "suite: not checked")
     return errors, "; ".join(summary)
@@ -2520,17 +2585,11 @@ Root: HKLM; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\{{#Suit
 
 [Icons]
 Name: "{autodesktop}\Empire Earth Community"; Filename: "{app}\{#LauncherExe}"; WorkingDir: "{app}"; Check: IsDotNet48
-Name: "{group}\Empire Earth Launcher"; Filename: "{app}\{#LauncherExe}"; WorkingDir: "{app}"
+Name: "{group}\Empire Earth Community"; Filename: "{app}\{#LauncherExe}"; WorkingDir: "{app}"; Check: IsDotNet48
+Name: "{autodesktop}\Empire Earth Community"; Filename: "{code:ProductRoot|NeoEE,EE}\Empire Earth\Empire Earth.exe"; Check: not IsDotNet48
+Name: "{autoprograms}\Empire Earth Community\Empire Earth Community"; Filename: "{code:ProductRoot|NeoEE,EE}\Empire Earth\Empire Earth.exe"; Check: not IsDotNet48
+Name: "{group}\Mod Creator"; Filename: "{app}\Mod Creator\Mod Creator.exe"; Check: IsDotNet48
 Name: "{group}\{cm:UninstallProgram,{#SuiteName}}"; Filename: "{uninstallexe}"
-
-[Code]
-procedure ApplySuiteShortcuts(Remove: Boolean);
-begin
-  SuiteGameShortcut('{autodesktop}', 'Empire Earth', 'EE', '\Empire Earth\Empire Earth.exe');
-  SuiteGameShortcut('{autoprograms}\Empire Earth Community', 'Empire Earth', 'EE', '\Empire Earth\Empire Earth.exe');
-  SuiteGameShortcut('{autodesktop}', 'Neo Empire Earth', 'NeoEE', '\Empire Earth\Empire Earth.exe');
-  SuiteGameShortcut('{autoprograms}\Empire Earth Community', 'Neo Empire Earth', 'NeoEE', '\Empire Earth\Empire Earth.exe');
-end;
 """
     fixture = write(suite, SUITE_FIXTURE)
     # The same suite as the script of WP3 writes it: the record and the shortcuts in code
@@ -2574,24 +2633,21 @@ begin
   RegWriteDWordValue(HKLM, 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{{#SuiteAppID}}_is1', 'Empire Earth Community: Suite', 1);
 end;
 
-// SuiteShortcut('{autodesktop}', 'Nothing', 'in a comment', '--product=EE', 'EE');
+// SuiteShortcut('{autodesktop}', 'Nothing', 'in a comment', '--product=EE', 'EE', '');
 procedure ApplySuiteShortcuts(Remove: Boolean);
 begin
-  SuiteShortcut('{autodesktop}', 'Empire Earth Community', '{app}\{#LauncherExe}', '', '');
-  SuiteGameShortcut('{autodesktop}', 'Empire Earth', 'EE', '\Empire Earth\Empire Earth.exe');
-  SuiteGameShortcut('{autoprograms}\Empire Earth Community', 'Empire Earth', 'EE', '\Empire Earth\Empire Earth.exe');
-  SuiteGameShortcut('{autodesktop}', 'Neo Empire Earth', 'NeoEE', '\Empire Earth\Empire Earth.exe');
-  SuiteGameShortcut('{autoprograms}\Empire Earth Community', 'Neo Empire Earth', 'NeoEE', '\Empire Earth\Empire Earth.exe');
-  SuiteShortcut('{autoprograms}\Empire Earth Community', 'Empire Earth Launcher', '{app}\{#LauncherExe}', '', '');
+  SuiteShortcut('{autodesktop}', 'Empire Earth Community', '{app}\{#LauncherExe}', '', 'NeoEE,EE', '\Empire Earth\Empire Earth.exe');
+  SuiteShortcut('{autoprograms}\Empire Earth Community', 'Empire Earth Community', '{app}\{#LauncherExe}', '', 'NeoEE,EE', '\Empire Earth\Empire Earth.exe');
+  SuiteShortcut('{autoprograms}\Empire Earth Community', 'Mod Creator', '{app}\Mod Creator\Mod Creator.exe', '', '', '');
 end;
 """
     code_fixture = write(suite, SUITE_CODE_FIXTURE)
 
-    def code_case(old, new):
-        return both(code_fixture, replace(suite, old, new))
+    def code_case(old, new, count=1):
+        return both(code_fixture, replace(suite, old, new, count))
 
-    def suite_case(old, new):
-        return both(fixture, replace(suite, old, new))
+    def suite_case(old, new, count=1):
+        return both(fixture, replace(suite, old, new, count))
 
     crlf = "\r\n"
     contract, main_script, utils = CONTRACT, MAIN_SCRIPT, UTILS_SCRIPT
@@ -2922,24 +2978,40 @@ end;
         ("suite: record key without uninsdeletekey",
          suite_case('Subkey: "{#SuiteKey}"; Flags: uninsdeletekey\n', 'Subkey: "{#SuiteKey}"; Flags: uninsdeletekeyifempty\n'),
          "has the flag uninsdeletekey"),
-        ("suite: the desktop shortcut passes --product=EE",
-         suite_case('Name: "{autodesktop}\\Empire Earth Community"; Filename: "{app}\\{#LauncherExe}";',
-                    'Name: "{autodesktop}\\Empire Earth Community"; Filename: "{app}\\{#LauncherExe}"; Parameters: "--product=EE";'),
-         "{autodesktop}\\Empire Earth Community passes --product=EE: the suite creates no shortcut with --product="),
-        ("suite: the desktop shortcut starts another program",
-         suite_case('Name: "{autodesktop}\\Empire Earth Community"; Filename: "{app}\\{#LauncherExe}"',
-                    'Name: "{autodesktop}\\Empire Earth Community"; Filename: "{app}\\Mod Creator\\Mod Creator.exe"'),
-         "no shortcut {autodesktop}\\Empire Earth Community that starts the launcher"),
-        ("suite: no desktop shortcut of the suite",
-         suite_case('Name: "{autodesktop}\\Empire Earth Community"', 'Name: "{autodesktop}\\Empire Earth Communi"'),
-         "no shortcut {autodesktop}\\Empire Earth Community that starts the launcher"),
-        ("suite: a game shortcut name that starts the launcher",
-         suite_case('Name: "{group}\\Empire Earth Launcher"; Filename: "{app}\\{#LauncherExe}"; WorkingDir: "{app}"',
-                    'Name: "{autodesktop}\\Neo Empire Earth"; Filename: "{app}\\{#LauncherExe}"; WorkingDir: "{app}"'),
-         "{autodesktop}\\Neo Empire Earth has the name of a game shortcut and is no SuiteGameShortcut"),
-        ("suite: game program shortcut of the wrong product",
-         suite_case("SuiteGameShortcut('{autodesktop}', 'Neo Empire Earth', 'NeoEE',", "SuiteGameShortcut('{autodesktop}', 'Neo Empire Earth', 'EE',"),
-         "no SuiteGameShortcut for {autodesktop}\\Neo Empire Earth of NeoEE"),
+        ("suite: desktop shortcut with --product=EE",
+         suite_case('Name: "{autodesktop}\\Empire Earth Community"; Filename: "{app}\\{#LauncherExe}"; WorkingDir: "{app}"',
+                    'Name: "{autodesktop}\\Empire Earth Community"; Filename: "{app}\\{#LauncherExe}"; Parameters: "--product=EE"; WorkingDir: "{app}"'),
+         "passes --product=EE: the suite creates no shortcut with --product="),
+        ("suite: no Empire Earth Community shortcut in the start menu",
+         suite_case('Name: "{group}\\Empire Earth Community"; Filename: "{app}', 'Name: "{group}\\Community"; Filename: "{app}'),
+         "no shortcut {autoprograms}\\Empire Earth Community\\Empire Earth Community that starts the launcher"),
+        ("suite: the products of the fallback in the wrong order",
+         suite_case("{code:ProductRoot|NeoEE,EE}", "{code:ProductRoot|EE,NeoEE}", count=2),
+         "{code:ProductRoot|NeoEE,EE}\\Empire Earth\\Empire Earth.exe (the products in the order of the column Product)"),
+        ("suite: fallback shortcut to another program",
+         suite_case('Name: "{autodesktop}\\Empire Earth Community"; Filename: "{code:ProductRoot|NeoEE,EE}\\Empire Earth\\Empire Earth.exe"',
+                    'Name: "{autodesktop}\\Empire Earth Community"; Filename: "{code:ProductRoot|NeoEE,EE}\\Empire Earth\\EE-Diagnostic.exe"'),
+         "contract 1.7 allows the launcher"),
+        ("suite: no fallback for the start menu shortcut",
+         suite_case('Name: "{autoprograms}\\Empire Earth Community\\Empire Earth Community"; Filename: "{code:ProductRoot|NeoEE,EE}\\Empire Earth\\Empire Earth.exe"; Check: not IsDotNet48\n', ''),
+         "no fallback for {autoprograms}\\Empire Earth Community\\Empire Earth Community without .NET Framework 4.8"),
+        ("suite: the desktop shortcut Empire Earth of suite 1.0.0 still created",
+         suite_case('Name: "{group}\\Mod Creator";',
+                    'Name: "{autodesktop}\\Empire Earth"; Filename: "{app}\\{#LauncherExe}"; WorkingDir: "{app}"\nName: "{group}\\Mod Creator";'),
+         "{autodesktop}\\Empire Earth has the name of a shortcut of suite 1.0.0"),
+        ("suite: the start menu shortcut Empire Earth Launcher of suite 1.0.0 still created",
+         suite_case('Name: "{group}\\Mod Creator";',
+                    'Name: "{group}\\Empire Earth Launcher"; Filename: "{app}\\{#LauncherExe}"; WorkingDir: "{app}"\nName: "{group}\\Mod Creator";'),
+         "{autoprograms}\\Empire Earth Community\\Empire Earth Launcher has the name of a shortcut of suite 1.0.0"),
+        ("suite: --product= in the Parameters column of 1.7",
+         replace(contract, "| `{app}\\Empire Earth Launcher.exe` | none |", "| `{app}\\Empire Earth Launcher.exe` | `--product=EE` |"),
+         "the shortcut must start {app}\\Empire Earth Launcher.exe without parameters"),
+        ("suite: Parameters column of 1.7 neither none nor a value",
+         replace(contract, "| `{app}\\Empire Earth Launcher.exe` | none |", "| `{app}\\Empire Earth Launcher.exe` | nothing |"),
+         "the column Parameters needs one value in backticks or none"),
+        ("suite: Product column of 1.7 without a product",
+         replace(contract, "| `Empire Earth Community` | `NeoEE`, else `EE` |", "| `Empire Earth Community` | none |"),
+         "needs one value in backticks in the columns Shortcut, Target and Without .NET Framework 4.8, and one or more in Product"),
         # the same rules for the record and the shortcuts written in code
         ("suite code: record without the value Written",
          code_case("'Written', GetDateTimeString", "'Writen', GetDateTimeString"),
@@ -2965,28 +3037,37 @@ end;
         ("suite code: the key above the record is not removed",
          code_case("  RegDeleteKeyIfEmpty(HKLM, 'Software\\Empire Earth Community');\n", ""),
          "has no RegDeleteKeyIfEmpty(HKLM, 'Software\\Empire Earth Community')"),
-        ("suite code: the desktop shortcut with --product=EE",
-         code_case("'{autodesktop}', 'Empire Earth Community', '{app}\\{#LauncherExe}', '', ''", "'{autodesktop}', 'Empire Earth Community', '{app}\\{#LauncherExe}', '--product=EE', ''"),
+        ("suite code: desktop shortcut with --product=EE",
+         code_case("'{autodesktop}', 'Empire Earth Community', '{app}\\{#LauncherExe}', ''",
+                   "'{autodesktop}', 'Empire Earth Community', '{app}\\{#LauncherExe}', '--product=EE'"),
          "passes --product=EE: the suite creates no shortcut with --product="),
-        ("suite code: game shortcut of EE with the product NeoEE",
-         code_case("SuiteGameShortcut('{autodesktop}', 'Empire Earth', 'EE',", "SuiteGameShortcut('{autodesktop}', 'Empire Earth', 'NeoEE',"),
-         "no SuiteGameShortcut for {autodesktop}\\Empire Earth of EE"),
-        ("suite code: game shortcut to another program",
-         code_case("SuiteGameShortcut('{autodesktop}', 'Empire Earth', 'EE', '\\Empire Earth\\Empire Earth.exe')",
-                   "SuiteGameShortcut('{autodesktop}', 'Empire Earth', 'EE', '\\Empire Earth\\EE-Diagnostic.exe')"),
-         "SuiteGameShortcut {autodesktop}\\Empire Earth of EE with \\Empire Earth\\EE-Diagnostic.exe is not a row"),
-        ("suite code: no game shortcut for Neo Empire Earth in the start menu",
-         code_case("SuiteGameShortcut('{autoprograms}\\Empire Earth Community', 'Neo Empire Earth'", "SuiteGameShortcut('{autoprograms}\\Empire Earth Community', 'NeoEE'"),
-         "no SuiteGameShortcut for {autoprograms}\\Empire Earth Community\\Neo Empire Earth of NeoEE"),
-        ("suite code: a game shortcut name that starts the launcher",
-         code_case("SuiteShortcut('{autoprograms}\\Empire Earth Community', 'Empire Earth Launcher', ", "SuiteShortcut('{autoprograms}\\Empire Earth Community', 'Empire Earth', "),
-         "has the name of a game shortcut and is no SuiteGameShortcut"),
-        ("suite code: SuiteShortcut with five arguments missing",
-         code_case("'{app}\\{#LauncherExe}', '', '');\nend;", "'{app}\\{#LauncherExe}', '');\nend;"),
-         "SuiteShortcut has 4 arguments, this check reads five"),
-        ("suite code: SuiteGameShortcut with three arguments",
-         code_case("SuiteGameShortcut('{autodesktop}', 'Empire Earth', 'EE', '\\Empire Earth\\Empire Earth.exe')", "SuiteGameShortcut('{autodesktop}', 'Empire Earth', 'EE')"),
-         "SuiteGameShortcut has 3 arguments, this check reads four"),
+        ("suite code: shortcut without a fallback",
+         code_case("'NeoEE,EE', '\\Empire Earth\\Empire Earth.exe');\n  SuiteShortcut('{autoprograms}\\Empire Earth Community', 'Empire", "'NeoEE,EE', '');\n  SuiteShortcut('{autoprograms}\\Empire Earth Community', 'Empire"),
+         "no fallback for {autodesktop}\\Empire Earth Community without .NET Framework 4.8"),
+        ("suite code: the products of the fallback in the wrong order",
+         code_case("'NeoEE,EE'", "'EE,NeoEE'", count=2),
+         "{code:ProductRoot|NeoEE,EE}\\Empire Earth\\Empire Earth.exe (the products in the order of the column Product)"),
+        ("suite code: fallback to another program",
+         code_case("'{autodesktop}', 'Empire Earth Community', '{app}\\{#LauncherExe}', '', 'NeoEE,EE', '\\Empire Earth\\Empire Earth.exe'",
+                   "'{autodesktop}', 'Empire Earth Community', '{app}\\{#LauncherExe}', '', 'NeoEE,EE', '\\Empire Earth\\EE-Diagnostic.exe'"),
+         "contract 1.7 allows the launcher"),
+        ("suite code: the shortcut to the Mod Creator instead of the launcher",
+         code_case("'{autodesktop}', 'Empire Earth Community', '{app}\\{#LauncherExe}'", "'{autodesktop}', 'Empire Earth Community', '{app}\\Mod Creator\\Mod Creator.exe'"),
+         "contract 1.7 allows the launcher"),
+        ("suite code: no shortcut in the start menu",
+         code_case("  SuiteShortcut('{autoprograms}\\Empire Earth Community', 'Empire Earth Community', '{app}\\{#LauncherExe}', '', 'NeoEE,EE', '\\Empire Earth\\Empire Earth.exe');\n", ""),
+         "no shortcut {autoprograms}\\Empire Earth Community\\Empire Earth Community that starts the launcher"),
+        ("suite code: the desktop shortcut Empire Earth of suite 1.0.0 still created",
+         code_case("  SuiteShortcut('{autoprograms}\\Empire Earth Community', 'Mod Creator'",
+                   "  SuiteShortcut('{autodesktop}', 'Empire Earth', '{app}\\{#LauncherExe}', '', 'EE', '\\Empire Earth\\Empire Earth.exe');\n  SuiteShortcut('{autoprograms}\\Empire Earth Community', 'Mod Creator'"),
+         "{autodesktop}\\Empire Earth has the name of a shortcut of suite 1.0.0"),
+        ("suite code: the start menu shortcut Diagnostic of suite 1.0.0 still created",
+         code_case("  SuiteShortcut('{autoprograms}\\Empire Earth Community', 'Mod Creator'",
+                   "  SuiteShortcut('{autoprograms}\\Empire Earth Community', 'Empire Earth Diagnostic', '<root>\\Tools\\Diagnostic\\EE-Diagnostic.exe', '{{#EE_AppID}}_is1', 'EE', '');\n  SuiteShortcut('{autoprograms}\\Empire Earth Community', 'Mod Creator'"),
+         "{autoprograms}\\Empire Earth Community\\Empire Earth Diagnostic has the name of a shortcut of suite 1.0.0"),
+        ("suite code: shortcut with six arguments missing",
+         code_case("'{app}\\Mod Creator\\Mod Creator.exe', '', '', '');", "'{app}\\Mod Creator\\Mod Creator.exe', '', '');"),
+         "SuiteShortcut has 5 arguments, this check reads six"),
         ("suite code: shortcut name from a variable",
          code_case("'{autodesktop}', 'Empire Earth Community', '{app}", "'{autodesktop}', SuiteName, '{app}"),
          "this check reads only string literals there"),
@@ -2998,6 +3079,25 @@ end;
          code_case("  RegDeleteKeyIfEmpty(HKLM, 'Software\\Empire Earth Community');",
                    "  RegDeleteKeyIfEmpty(HKLM, 'Software\\Empire Earth Community');\n  LoadDLL('authtools.dll');"),
          "names a protected key or the CD key registration"),
+        # 4.3: the download pages of the setup (utils.iss, OpenUpdateDownloadPage)
+        ("download pages: SetupURL changed in utils.iss",
+         replace(utils, "SetupURL = 'https://' + DomainMain + '/download/';", "SetupURL = 'https://' + DomainMain + '/downloads/';"),
+         "the page of foreign is https://empireearth.eu/download/ in the contract, https://empireearth.eu/downloads/ in utils.iss (SetupURL)"),
+        ("download pages: page of NeoEE of the contract changed",
+         replace(contract, "| `https://empireearth.eu/download/neo/` |", "| `https://empireearth.eu/download/NeoEE/` |"),
+         "the page of NeoEE is https://empireearth.eu/download/NeoEE/ in the contract, https://empireearth.eu/download/neo/ in utils.iss (SetupURLNeoEE)"),
+        ("download pages: row of the page of NeoEE missing in the contract",
+         replace(contract, "| product `NeoEE`, kind `community` or `community-legacy` | `https://empireearth.eu/download/neo/` |\n", ""),
+         "(4.3): the table has 2 rows, expected 3"),
+        ("download pages: ProductDownloadPage returns the page of EE for NeoEE",
+         replace(utils, "    Result := SetupURLNeoEE\n", "    Result := SetupURLEE\n"),
+         "ProductDownloadPage does not return SetupURLNeoEE (contract 4.3)"),
+        ("download pages: OpenUpdateDownloadPage asks the update API for the URL",
+         replace(main_script, "Url := ProductDownloadPage('{#InstallType}');", "if not QueryUpdateApi('', Url) then\n    Url := SetupURL;"),
+         "OpenUpdateDownloadPage does not open ProductDownloadPage('{#InstallType}')"),
+        ("download pages: QueryUpdateApi('') in the script",
+         replace(main_script, "Url := ProductDownloadPage('{#InstallType}');", "Url := ProductDownloadPage('{#InstallType}');\n  QueryUpdateApi('', Url);"),
+         "the update API is asked for a download URL (QueryUpdateApi('')"),
     ]
     passing = [
         ("ISPP function in an unrelated [Registry] entry",
@@ -3017,9 +3117,9 @@ end;
                  'external skipifsourcedoesntexist; Components: Language\\Update and game;')),
         ("suite: suite/suite.iss absent, suite rules skipped", remove(suite), SUITE_SKIPPED),
         ("suite: minimal suite/suite.iss as the contract describes it", fixture,
-         "suite: SetupMutex and AppMutex (4 names), record with 8 values, 5 suite and game shortcuts"),
+         "suite: SetupMutex and AppMutex (4 names), record with 8 values, 2 launcher shortcuts without --product=, none of suite 1.0.0"),
         ("suite code: record and shortcuts in code as the contract describes them", code_fixture,
-         "record with 8 values, 5 suite and game shortcuts, the uninstall key marker, no protected key in"),
+         "record with 8 values, 2 launcher shortcuts without --product=, none of suite 1.0.0, the uninstall key marker, no protected key in"),
         ("suite code: a protected key named in a comment only",
          code_case("// SuiteShortcut('{autodesktop}'", "// never touches Software\\Sierra\\CDKeys or authtools.dll\n// SuiteShortcut('{autodesktop}'"),
          "no protected key in"),
@@ -3033,6 +3133,7 @@ end;
          both(fixture,
               replace(suite, "ArchitecturesInstallIn64BitMode=x64 arm64\n", ""),
               replace(suite, "Root: HKLM; Subkey: \"{#SuiteKey}\"", "Root: HKLM64; Subkey: \"{#SuiteKey}\"", count=9),
+              replace(suite, 'Name: "{group}\\Empire Earth Community"; Filename: "{app}', 'Name: "{autoprograms}\\Empire Earth Community\\Empire Earth Community"; Filename: "{app}'),
               replace(suite, "AppMutex=StainlessSteelStudiosPresentsEmpireEarth,MadDocSoftwarePresentsEmpireEarthExpansion,EmpireEarthCommunityLauncher",
                       "AppMutex=EmpireEarthCommunityLauncher, MadDocSoftwarePresentsEmpireEarthExpansion, StainlessSteelStudiosPresentsEmpireEarth")),
          "record with 8 values"),

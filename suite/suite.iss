@@ -274,7 +274,7 @@ Name: "fr"; MessagesFile: "compiler:Languages\french.isl"
 Source: "..\data\Empire Earth Base\Empire Earth\EULA_DSML.txt"; DestName: "EULA_DSML.txt"; Flags: dontcopy
 Source: "..\data\NeoEE Base\shared\neoee_rules.rtf"; DestName: "neoee_rules.rtf"; Flags: dontcopy
 ; The launcher, the Mod Creator and the license texts need .NET Framework 4.8: without it only the games
-; are installed, and the game shortcuts start the game programs (contract 1.7 point 8). They lie outside
+; are installed, and the shortcut "Empire Earth Community" starts the game program (contract 1.7 point 8). They lie outside
 ; both product roots, so no integrity manifest lists them (contract 2.3 unchanged).
 Source: "{#LauncherDir}\*"; DestDir: "{app}"; Excludes: "*.pdb"; Flags: ignoreversion recursesubdirs createallsubdirs; Check: IsDotNet48
 Source: "{#ModCreatorDir}\*"; DestDir: "{app}\Mod Creator"; Excludes: "*.pdb"; Flags: ignoreversion recursesubdirs createallsubdirs; Check: IsDotNet48
@@ -513,11 +513,11 @@ begin
   else
     Log('Free space: not readable, not checked');
 
-  // 5. Without .NET Framework 4.8 the games are installed and the shortcuts start them directly
+  // 5. Without .NET Framework 4.8 the games are installed and the one shortcut starts NeoEE, else EE, directly
   if IsDotNet48 then
     Log('.NET Framework 4.8 or later: found, the launcher is installed')
   else
-    Log('.NET Framework 4.8 or later: not found, the launcher is not installed and the game shortcuts start the game programs');
+    Log('.NET Framework 4.8 or later: not found, the launcher is not installed and the shortcut starts the game program');
 end;
 
 // The steps of the installation. The product runner (suite_run.iss) runs the selected product setups at
