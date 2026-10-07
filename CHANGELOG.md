@@ -29,8 +29,12 @@ setup version stays 1.7.2 until the release.
   Released on 2026-10-07 (tag `suite-v1.1.0`, together with launcher 1.1.0), as an exception to that criterion by decision of
   the maintainer: after session 1 of the laptop test only (TP-94 (c), TP-27 (a), TP-25 (a), (b), (c) and (e), TP-26 (a), TP-98 (a);
   the mouse works right after the start without Alt+Tab), without session 2. TP-93, TP-95, TP-97, TP-98 (b) to (d), TP-99 (a) to (e)
-  (including the cancel of a repair) and TP-25 (d) ran only in CI (job `suite-e2e`, S1 to S14, green) and not on real hardware.
-  They are to be run on hardware before or with 1.1.1; a problem found there is fixed in 1.1.1.
+  (including the cancel of a repair) and TP-25 (d) were not run on real hardware. The job `suite-e2e` (S1 to S14, windows-latest,
+  placeholder products, silent, English, green on `2b764e4` and `75923f3`) exercises install, adoption, repair, uninstall and cancel,
+  which are the paths of TP-93, TP-95, TP-97 and TP-99, but not the visible windows of the real run. No test at all covers
+  TP-98 (b) to (d) (the window of the suite in English, with "Advanced", in German and French at 100 % and 150 % scaling) or
+  TP-25 (d) (API level 11 through "Advanced"). The cases are to be run on hardware before or with 1.1.1; a problem found there is
+  fixed in 1.1.1.
 - Build switches can be set on the command line instead of editing the script:
   `ISCC /DInstallType=NeoEE /DInstallMode=Portable /DEE_AppID=<GUID> /DNeoEE_AppID=<GUID> setup_is6.iss`
   (also `SignSetup`, `CertFileName`, `CertHashSHA1`, `TestID`); invalid values stop the build

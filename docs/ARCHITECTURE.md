@@ -412,7 +412,8 @@ Windows tests with real data are the cases TP-90 to TP-99 of the test plan (Bloc
 1.0.0 are tagged only after TP-93 and TP-95 pass, the suite 1.1.0 only after TP-93, TP-94 (c), TP-95, TP-97, TP-98, TP-99 (all variants),
 TP-25 (a) to (d) and TP-27 (a) pass and the job `suite-e2e` (S1 to S14) was green on windows-latest. Suite 1.1.0 was released
 on 2026-10-07 as an exception, after session 1 of the laptop test only; TP-93, TP-95, TP-97, TP-98 (b) to (d), TP-99 and
-TP-25 (d) ran only in CI (test plan, section 8 Block 9).
+TP-25 (d) were not run on real hardware. The CI scenarios exercise the paths of TP-93, TP-95, TP-97 and TP-99 (silent, English);
+nothing covers TP-98 (b) to (d) or TP-25 (d) (test plan, section 8 Block 9).
 
 - **Package:** `Empire Earth Community Setup.exe` plus `.bin` slices of at most 50,000,000 bytes
   (`DiskSpanning`). It embeds the EE and NeoEE Regular setups byte for byte (official AppIds; SHA-256

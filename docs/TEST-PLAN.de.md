@@ -3338,11 +3338,14 @@ auf dem Desktop. Es gilt:
   `suite-v1.1.0` auf dem Commit `2b764e4` (dem Build-Commit des Pakets) freigegeben, nach der Sitzung 1 der Testanleitung
   1.1.0 auf dem Laptop (Windows 11, 1920x1200, der Maintainer selbst) und auf seine Entscheidung ohne Sitzung 2. Sitzung 1
   (Teil 0 bis 3: Vorbereitung, Update von 1.0.0 auf 1.1.0, Spielen, Launcher-Seiten) deckte von diesem Kriterium
-  TP-94 (c), TP-27 (a), TP-25 (a), (b), (c) und (e) und TP-98 (a) ab (dazu TP-26 (a)); sein Urteil ist „bestanden, die Maus geht sofort
+  TP-94 (c), TP-27 (a), TP-25 (a) bis (c) und TP-98 (a) ab (dazu TP-25 (e) und TP-26 (a)); sein Urteil ist „bestanden, die Maus geht sofort
   nach dem Start ohne Alt+Tab“, einzelne Schritte wurden nicht gemeldet. **Nicht auf echter Hardware gelaufen** sind TP-93, TP-95,
   TP-97, TP-98 (b) bis (d), TP-99 (a) bis (e) (auch der Abbruch einer Reparatur und der Abbruch des zweiten Spiels)
-  und TP-25 (d); sie liefen für 1.1.0 nur in CI (Job `suite-e2e`, S1 bis S14 auf windows-latest mit
-  Platzhalter-Produkten, grün auf `2b764e4` und `75923f3`). Sie sind vor oder mit 1.1.1 auf der Hardware nachzuholen; ein
+  und TP-25 (d). Der CI-Job `suite-e2e` (S1 bis S14 auf windows-latest mit Platzhalter-Produkten, still, Englisch, grün
+  auf `2b764e4` und `75923f3`) übt davon die Wege von TP-93, TP-95, TP-97 und TP-99 (Installation, Übernahme, Reparatur,
+  Deinstallation, Abbruch), aber nicht die sichtbaren Fenster des echten Laufs; für TP-98 (b) bis (d) (Fenster in Englisch, mit
+  „Erweitert“, in Deutsch und Französisch bei 100 % und 150 %) und TP-25 (d) (API-Level 11 über „Erweitert“) gibt es kein
+  CI-Szenario, sie liefen gar nicht. Sie sind vor oder mit 1.1.1 auf der Hardware nachzuholen; ein
   Befund dort wird in 1.1.1 behoben. Das Kriterium oben bleibt die Regel für die nächste Freigabe; dies ist eine datierte
   Ausnahme, kein bestandener Fall.
 
