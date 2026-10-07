@@ -530,35 +530,40 @@ begin
   CheckBool('SuiteIsUsableRoot parent folder', SuiteIsUsableRoot('C:\Games\..\Windows'), False);
   CheckBool('SuiteIsUsableRoot network path', SuiteIsUsableRoot('\\server\share\EE'), False);
 
-  // the exact folders of the user data of a product (5 values, nothing else)
-  Check('SuiteDataFolderCount', IntToStr(SuiteDataFolderCount), '4');
+  // the exact folders of the user data of a product (6 values, nothing else)
+  Check('SuiteDataFolderCount', IntToStr(SuiteDataFolderCount), '6');
   Check('SuiteDataFolder 1', SuiteDataFolder('C:\Program Files (x86)\Empire Earth', 1), 'C:\Program Files (x86)\Empire Earth\Empire Earth\Users');
   Check('SuiteDataFolder 2', SuiteDataFolder('C:\Program Files (x86)\Empire Earth', 2), 'C:\Program Files (x86)\Empire Earth\Empire Earth\Data\Saved Games');
   Check('SuiteDataFolder 3', SuiteDataFolder('C:\Program Files (x86)\Empire Earth', 3),
     'C:\Program Files (x86)\Empire Earth\Empire Earth - The Art of Conquest\Users');
   Check('SuiteDataFolder 4', SuiteDataFolder('C:\Program Files (x86)\Empire Earth', 4),
     'C:\Program Files (x86)\Empire Earth\Empire Earth - The Art of Conquest\Data\Saved Games');
+  Check('SuiteDataFolder 5', SuiteDataFolder('C:\Program Files (x86)\Empire Earth', 5), 'C:\Program Files (x86)\Empire Earth\Empire Earth\Data\dxm\mods');
+  Check('SuiteDataFolder 6', SuiteDataFolder('C:\Program Files (x86)\Empire Earth', 6),
+    'C:\Program Files (x86)\Empire Earth\Empire Earth - The Art of Conquest\Data\dxm\mods');
   Check('SuiteDataFolder trailing backslash', SuiteDataFolder('D:\EE\', 1), 'D:\EE\Empire Earth\Users');
   Check('SuiteDataFolder index 0', SuiteDataFolder('D:\EE', 0), '');
-  Check('SuiteDataFolder index 5', SuiteDataFolder('D:\EE', SuiteDataFolderCount + 1), '');
+  Check('SuiteDataFolder index 7', SuiteDataFolder('D:\EE', SuiteDataFolderCount + 1), '');
   Check('SuiteDataFolder drive root', SuiteDataFolder('D:\', 1), '');
   Check('SuiteDataFolder empty root', SuiteDataFolder('', 2), '');
   Check('SuiteDataFolder parent folder', SuiteDataFolder('D:\EE\..\..', 1), '');
   Seen := '';
   for I := 1 to SuiteDataFolderCount do
     Seen := Seen + SuiteDataFolder('D:\EE', I) + '|';
-  Check('SuiteDataFolder all different', IntToStr(Pos('D:\EE\Empire Earth\Users|D:\EE\Empire Earth\Data\Saved Games|D:\EE\Empire Earth - The Art of Conquest\Users|D:\EE\Empire Earth - The Art of Conquest\Data\Saved Games|', Seen)), '1');
+  Check('SuiteDataFolder all different', IntToStr(Pos('D:\EE\Empire Earth\Users|D:\EE\Empire Earth\Data\Saved Games|D:\EE\Empire Earth - The Art of Conquest\Users|D:\EE\Empire Earth - The Art of Conquest\Data\Saved Games|D:\EE\Empire Earth\Data\dxm\mods|D:\EE\Empire Earth - The Art of Conquest\Data\dxm\mods|', Seen)), '1');
 
   // the folders removed only if empty, from the inside out, the root last
-  Check('SuiteEmptyFolderCount', IntToStr(SuiteEmptyFolderCount), '5');
-  Check('SuiteEmptyFolder 1', SuiteEmptyFolder('D:\EE', 1), 'D:\EE\Empire Earth\Data');
-  Check('SuiteEmptyFolder 2', SuiteEmptyFolder('D:\EE', 2), 'D:\EE\Empire Earth');
-  Check('SuiteEmptyFolder 3', SuiteEmptyFolder('D:\EE', 3), 'D:\EE\Empire Earth - The Art of Conquest\Data');
-  Check('SuiteEmptyFolder 4', SuiteEmptyFolder('D:\EE', 4), 'D:\EE\Empire Earth - The Art of Conquest');
-  Check('SuiteEmptyFolder 5', SuiteEmptyFolder('D:\EE\', 5), 'D:\EE');
-  Check('SuiteEmptyFolder index 6', SuiteEmptyFolder('D:\EE', SuiteEmptyFolderCount + 1), '');
-  Check('SuiteEmptyFolder drive root', SuiteEmptyFolder('D:\', 5), '');
-  Check('SuiteEmptyFolder empty root', SuiteEmptyFolder('', 5), '');
+  Check('SuiteEmptyFolderCount', IntToStr(SuiteEmptyFolderCount), '7');
+  Check('SuiteEmptyFolder 1', SuiteEmptyFolder('D:\EE', 1), 'D:\EE\Empire Earth\Data\dxm');
+  Check('SuiteEmptyFolder 2', SuiteEmptyFolder('D:\EE', 2), 'D:\EE\Empire Earth\Data');
+  Check('SuiteEmptyFolder 3', SuiteEmptyFolder('D:\EE', 3), 'D:\EE\Empire Earth');
+  Check('SuiteEmptyFolder 4', SuiteEmptyFolder('D:\EE', 4), 'D:\EE\Empire Earth - The Art of Conquest\Data\dxm');
+  Check('SuiteEmptyFolder 5', SuiteEmptyFolder('D:\EE', 5), 'D:\EE\Empire Earth - The Art of Conquest\Data');
+  Check('SuiteEmptyFolder 6', SuiteEmptyFolder('D:\EE', 6), 'D:\EE\Empire Earth - The Art of Conquest');
+  Check('SuiteEmptyFolder 7', SuiteEmptyFolder('D:\EE\', 7), 'D:\EE');
+  Check('SuiteEmptyFolder index 8', SuiteEmptyFolder('D:\EE', SuiteEmptyFolderCount + 1), '');
+  Check('SuiteEmptyFolder drive root', SuiteEmptyFolder('D:\', 7), '');
+  Check('SuiteEmptyFolder empty root', SuiteEmptyFolder('', 7), '');
 
   // the data folder of the launcher
   Check('SuiteLauncherDataDir', SuiteLauncherDataDir('C:\Users\Anna\AppData\Local'), 'C:\Users\Anna\AppData\Local\Empire Earth Launcher');

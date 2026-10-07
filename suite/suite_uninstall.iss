@@ -256,10 +256,10 @@ begin
         Result := True;
 end;
 
-// The folders with user data that exist: the profiles and saved games below the roots of the products that
-// are gone, the backups and the Mod Creator folder of the launcher. Only the folders of SuiteDataFolder and
-// SuiteLauncherDataFolder, never more, and none that is (or lies below) a link, or that belongs to a
-// product that stays installed.
+// The folders with user data that exist: the profiles, saved games and self-made mods below the roots of the
+// products that are gone, the backups and the Mod Creator folder of the launcher. Only the folders of
+// SuiteDataFolder and SuiteLauncherDataFolder, never more, and none that is (or lies below) a link, or that
+// belongs to a product that stays installed.
 function SuiteExistingDataFolders(const LocalAppData: String): TArrayOfString;
 var
   I, J, Count: Integer;

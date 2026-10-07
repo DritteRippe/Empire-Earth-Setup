@@ -1702,8 +1702,8 @@ const
   SuiteRemoveNotStarted = 2;       // the uninstaller of the product could not be started (or is no uninstaller)
   SuiteRemoveTimedOut = 3;         // it did not finish in time
   // The exact folders below a product root and below the launcher's data folder (see SuiteDataFolder, ...)
-  SuiteDataFolderCount = 4;
-  SuiteEmptyFolderCount = 5;
+  SuiteDataFolderCount = 6;
+  SuiteEmptyFolderCount = 7;
   SuiteLauncherFileCount = 2;
   SuiteLauncherFolderCount = 2;
   SuiteGameFolder = 'Empire Earth';
@@ -1847,8 +1847,10 @@ begin
 end;
 
 // The folders of the user data of a product: the profiles (Users) and the saved games of Empire Earth and of
-// The Art of Conquest. Index 1 to SuiteDataFolderCount; '' for another index or an unusable root. The
-// uninstaller deletes these folders (with their content) only after the explicit answer "Delete", never more.
+// The Art of Conquest, and the mods players made (Data\dxm\mods: the product setups remove the presets they
+// installed there and leave every other folder, setup_is6.iss [UninstallDelete]). Index 1 to
+// SuiteDataFolderCount; '' for another index or an unusable root. The uninstaller deletes these folders (with
+// their content) only after the explicit answer "Delete", never more.
 function SuiteDataFolder(const Root: String; Index: Integer): String;
 var
   R: String;
@@ -1862,12 +1864,15 @@ begin
     2: Result := R + '\' + SuiteGameFolder + '\Data\Saved Games';
     3: Result := R + '\' + SuiteAoCFolder + '\Users';
     4: Result := R + '\' + SuiteAoCFolder + '\Data\Saved Games';
+    5: Result := R + '\' + SuiteGameFolder + '\Data\dxm\mods';
+    6: Result := R + '\' + SuiteAoCFolder + '\Data\dxm\mods';
   end;
 end;
 
 // The folders that the uninstaller removes with RemoveDir (which never removes a folder with content) after
-// the product is gone, from the inside out: Data and the game folder of Empire Earth and of The Art of
-// Conquest, then the install root. Index 1 to SuiteEmptyFolderCount; '' otherwise.
+// the product is gone, from the inside out: Data\dxm (what is left of it once the mods were deleted), Data and
+// the game folder of Empire Earth and of The Art of Conquest, then the install root. Index 1 to
+// SuiteEmptyFolderCount; '' otherwise.
 function SuiteEmptyFolder(const Root: String; Index: Integer): String;
 var
   R: String;
@@ -1877,11 +1882,13 @@ begin
     Exit;
   R := RemoveBackslash(Trim(Root));
   case Index of
-    1: Result := R + '\' + SuiteGameFolder + '\Data';
-    2: Result := R + '\' + SuiteGameFolder;
-    3: Result := R + '\' + SuiteAoCFolder + '\Data';
-    4: Result := R + '\' + SuiteAoCFolder;
-    5: Result := R;
+    1: Result := R + '\' + SuiteGameFolder + '\Data\dxm';
+    2: Result := R + '\' + SuiteGameFolder + '\Data';
+    3: Result := R + '\' + SuiteGameFolder;
+    4: Result := R + '\' + SuiteAoCFolder + '\Data\dxm';
+    5: Result := R + '\' + SuiteAoCFolder + '\Data';
+    6: Result := R + '\' + SuiteAoCFolder;
+    7: Result := R;
   end;
 end;
 
