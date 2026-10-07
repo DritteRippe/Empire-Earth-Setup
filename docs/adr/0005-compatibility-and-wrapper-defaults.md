@@ -208,7 +208,7 @@ together with a working lobby and Alt+Tab.
    | `[GeneralExt]` | `FullscreenAttributes` | `fake` |
 
    Fake fullscreen trades the bars at 1080 (gone at 1200, contract 3.3 revision 6) and the dead mouse at the start (no
-   dgVoodoo setting fixes it; the launcher's activation signal, launcher ADR 0010 amendment A1b, does) for a working lobby,
+   dgVoodoo setting fixes it; the launcher's activation signal, launcher ADR 0010 amendment A1b, is expected to; TP-25 (b) checks it) for a working lobby,
    editor and Alt+Tab. K1 is preferred over K2 because it needs no Alt+Enter-enabled restyling and no display mode change,
    which K2 would need on every screen larger than the game.
 3. **The five configurations are in the repository** (`config/dgVoodoo/dgVoodoo_<LEVEL>.conf`, byte for byte as tested,
@@ -231,7 +231,7 @@ together with a working lobby and Alt+Tab.
 
 - The rows of the matrix above (A, B, D to H, K1, K2, stock, direct start; test configurations in the maintainers'
   scratch folder, not committed), measured by hand on one laptop.
-- CI: `ci/dgvoodoo_pins.ps1` and its 47 changed copies that must fail, the tests of `ci/build_helpers.ps1`, the end-to-end
+- CI: `ci/dgvoodoo_pins.ps1` and its 53 self-test cases (50 changed copies or files that must fail), the tests of `ci/build_helpers.ps1`, the end-to-end
   step D5 (files and configuration of a level, byte for byte). The behaviour on the laptop is the test case TP-25.
 
 ### Consequences

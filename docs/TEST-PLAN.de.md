@@ -1509,8 +1509,10 @@ Gemeinsam für alle Fälle dieses Blocks:
      „Kompatibilitätseinstellungen aktivieren (optional unter Windows 7: …)“.
 - **Erwartetes Ergebnis:**
   - Schritt 2, alle Varianten: `Game Window Width` und `Game Window Height` sind die physische
-    Auflösung, begrenzt auf 1024 bis 1920 bzw. 768 bis 1080 (bei 1920 × 1080: `0x780` und `0x438`,
-    nicht die logischen 1280 × 720). Logische Werte sind ein Befund zu Vertrag O4.
+    Auflösung, begrenzt auf 1024 bis 1920 bzw. 768 bis 1200; auf einem Bildschirm breiter als 1920 ist die
+    Höhe zusätzlich höchstens das Größere von 1080 und Höhe × 1920 / Breite (Vertrag 3.3, Revision 6). Bei
+    1920 × 1080: `0x780` und `0x438`, nicht die logischen 1280 × 720; bei 1920 × 1200: `0x780` und `0x4b0`.
+    Logische Werte sind ein Befund zu Vertrag O4.
   - Kompatibilitätswerte: (a) `~ DWM8And16BitMitigation HIGHDPIAWARE HeapClearAllocation WIN7RTM`,
     (b) `~ WIN7RTM`, (c) keiner, (d) `~ DWM8And16BitMitigation HIGHDPIAWARE HeapClearAllocation`.
   - Schritt 3 ist ein Befund, kein Bestanden/Nicht bestanden: je Variante und Spiel „passt“, „zu
@@ -1560,7 +1562,7 @@ Gemeinsam für alle Fälle dieses Blocks:
   6. Schritte 2 bis 4 mit NeoEE; Schritt 2 einmal mit „Empire Earth – The Art of Conquest“.
   7. *(d) Andere Stufe.* Suite starten, „Erweitert: Das Setup jedes Spiels selbst durchgehen“, im EE-Setup
      „Benutzerdefinierte Installationseinstellungen“ und unter „DirectX-Wrapper“ „DirectX 11 API-Level 11 v2.87.5
-     [Empfohlen]“; Schritt 1 (Konfiguration `dgVoodoo_DX11_LVL11.conf`) und Schritt 2.
+     [Allgemein empfohlen]“; Schritt 1 (Konfiguration `dgVoodoo_DX11_LVL11.conf`) und Schritt 2.
   8. *(e) Update über Suite 1.0.0 (optional, P2).* Wiederherstellungspunkt mit Suite 1.0.0 (dgVoodoo 2.82.1) laden, die Suite
      1.1.0 starten (Update ohne „Erweitert“), danach Schritt 1 und Schritt 2.
 - **Erwartetes Ergebnis:**
@@ -2148,8 +2150,9 @@ Befehle unten lassen den abschließenden `\` deshalb weg.
   §8 Nr. 6 (t=3863 p=26167: Netbook mit 1024 × 600, Absturz nach dem Intro; t=5831 p=39111:
   2560 × 1600 startet nicht)
 - **Ziel:** Unter 768 Pixeln Bildschirmhöhe zeigt das Setup den Hinweis `LowScreenResolution` (nicht
-  im Silent-Modus), die Fenstergröße bleibt auf 1024 bis 1920 mal 768 bis 1080 begrenzt, und jedes
-  Log nennt Bildschirmgröße, DPI und Spielfenster.
+  im Silent-Modus), die Fenstergröße bleibt auf 1024 bis 1920 mal 768 bis 1200 begrenzt (auf einem Bildschirm
+  breiter als 1920 ist die Höhe zusätzlich höchstens das Größere von 1080 und Höhe × 1920 / Breite,
+  Vertrag 3.3, Revision 6), und jedes Log nennt Bildschirmgröße, DPI und Spielfenster.
 - **Build-Art:** A oder B (Schritt 6 nur B)
 - **Ausgangszustand:** kein Empire Earth installiert; eine VM, deren Auflösung sich frei einstellen
   lässt. 1024 × 600 bietet Windows in *Einstellungen › System › Anzeige* meist nicht an:
@@ -2158,8 +2161,8 @@ Befehle unten lassen den abschließenden `\` deshalb weg.
   (VM aus); sonst 800 × 600.
 - **Snapshot:** `S-Basis` (oder `S-Sandbox` für (a) bis (c)); `Laptop` für (d) mit Weg B
 - **Varianten:** (a) EE-admin bei 1024 × 600 (oder 800 × 600), (b) EE-admin bei 1366 × 768, (c)
-  EE-user still bei 1024 × 600, (d) EE-admin auf einem Bildschirm über 1920 × 1080 oder mit 150 %
-  Skalierung. NeoEE und portable nutzen denselben Code (`environment.iss`) und werden nicht wiederholt.
+  EE-user still bei 1024 × 600, (d) EE-admin auf einem Bildschirm über 1920 × 1080 (2560 × 1440 in einer VM, der
+  Laptop mit 1920 × 1200) oder mit 150 % Skalierung. NeoEE und portable nutzen denselben Code (`environment.iss`) und werden nicht wiederholt.
 - **Schritte:**
   1. (a) Auflösung 1024 × 600 einstellen. Setup mit
      `/LOG="C:\EE-Test\logs\TP-60a_EE-admin.log"` starten, Sprache Deutsch. Nach der Rechtsfrage und
@@ -2175,7 +2178,7 @@ Befehle unten lassen den abschließenden `\` deshalb weg.
      findstr /c:"Screen:" /c:"lower than" /c:"LowScreenResolution" C:\EE-Test\logs\TP-60a_EE-admin.log
      ```
 
-     (hexadezimal: `0x400` = 1024, `0x300` = 768, `0x556` = 1366, `0x780` = 1920, `0x438` = 1080).
+     (hexadezimal: `0x400` = 1024, `0x300` = 768, `0x556` = 1366, `0x780` = 1920, `0x438` = 1080, `0x4b0` = 1200).
   3. (b) Snapshot zurücksetzen, Auflösung 1366 × 768, Setup mit `TP-60b` im Log-Namen, Abfragen
      wie in Schritt 2.
   4. (c) Snapshot zurücksetzen, 1024 × 600:
@@ -2185,8 +2188,8 @@ Befehle unten lassen den abschließenden `\` deshalb weg.
      [TP-24](#tp-24-150--anzeigeskalierung-mit-und-ohne-aufgabe-compatibility)): Setup mit `TP-60d`,
      Schritt 2.
   6. Nur Weg B: nach (a) Empire Earth starten und notieren, ob das Hauptmenü passt oder abgeschnitten
-     ist und ob das Spiel nach dem Intro abstürzt; nach (d) prüfen, ob das Spiel mit 1920 × 1080
-     startet, dann im Spiel eine höhere Auflösung wählen (falls angeboten) und notieren, ob es
+     ist und ob das Spiel nach dem Intro abstürzt; nach (d) prüfen, ob das Spiel mit dem berechneten Fenster
+     startet (2560 × 1440: 1920 × 1080, Laptop mit 1920 × 1200: 1920 × 1200), dann im Spiel eine höhere Auflösung wählen (falls angeboten) und notieren, ob es
      abstürzt (Forum §8 Nr. 6: die Begrenzung schützt nur den ersten Start). Beides sind Befunde.
 - **Erwartetes Ergebnis:**
   - (a) Hinweis (Infosymbol): „Ihr Bildschirm hat 1024 x 600 Pixel. Die Menüs von Empire Earth
@@ -2196,7 +2199,8 @@ Befehle unten lassen den abschließenden `\` deshalb weg.
     `Game Window Height` `0x300`, für EE und AoC. Bei 800 × 600 dieselben Werte.
   - (b) Kein Hinweis; `0x556` und `0x300`.
   - (c) Kein Fenster, Installation vollständig, Werte wie (a).
-  - (d) `0x780` und `0x438`; bei 150 % ist die Breite die physische (siehe TP-24).
+  - (d) Bei 2560 × 1440 `0x780` und `0x438` (die Höhe ist durch die Breite begrenzt: 1440 × 1920 / 2560 = 1080);
+    auf dem Laptop mit 1920 × 1200 `0x780` und `0x4b0`; bei 150 % ist die Breite die physische (siehe TP-24).
   - Jedes Log hat genau eine Zeile `Screen: …`, deren Spielfenster den Registry-Werten entspricht.
 - **Log-Hinweis:** (a) `Screen: 1024 x 600 pixels (primary screen, SM_CXSCREEN x SM_CYSCREEN), 96 DPI
   (LOGPIXELSX, 100 % scaling), game window 1024 x 768` und `The screen is lower than 768 pixels
