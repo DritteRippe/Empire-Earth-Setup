@@ -24,7 +24,7 @@ setup version stays 1.7.2 until the release.
 - Suite installer 1.1.0: `SuiteVersion` of `suite/suite.iss` is 1.1.0 (the suite has no changelog of its own; its entries are
   the ones of this file that name the suite). It packages launcher 1.1.0 (`LAUNCHER_COMMIT` of
   `.github/workflows/e2e-realdata.yml`); `MySetupVersion` of the product setups stays 1.7.2 until setup v2 is released.
-  The suite is tagged 1.1.0 only after TP-93, TP-94 (c), TP-95, TP-97, TP-98 and TP-99 (all variants) pass and the job
+  The suite is tagged 1.1.0 only after TP-93, TP-94 (c), TP-95, TP-97, TP-98, TP-99 (all variants), TP-25 (a) to (d) and TP-27 (a) pass and the job
   `suite-e2e` (S1 to S14) was green on windows-latest for that commit (README, test plan section 8 Block 9).
 - Build switches can be set on the command line instead of editing the script:
   `ISCC /DInstallType=NeoEE /DInstallMode=Portable /DEE_AppID=<GUID> /DNeoEE_AppID=<GUID> setup_is6.iss`
