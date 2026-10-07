@@ -448,6 +448,13 @@ def self_test(source_root):
                 change(root)
         return apply
 
+    # Ids that no document names (taken from the repository, so that a work package that adds a test case
+    # does not collide with the synthetic ones): s[0] to s[2] are named without a definition, s[3] to s[8] are
+    # defined by appended cases, s[9] is named by a forum row
+    named = set()
+    for _, path in markdown_files(source_root):
+        named.update(re.findall(r"TP-(\d\d)(?!\d)", path.read_text(encoding="utf-8")))
+    s = [f"TP-{number:02d}" for number in range(98, 9, -1) if f"{number:02d}" not in named][:10]
     adr = "docs/adr/0006-strict-tls-and-server-certificates.md"
     cases = [
         ("unmodified copy", None, None),
@@ -463,23 +470,23 @@ def self_test(source_root):
          "forum test case 12 has no test case id"),
         ("forum test case with a wrong package in 'Stand'",
          replace_row(3, "| 3 | Grafikmatrix | TP-21 | geplant: S-WP5 |"), "forum test case 3: 'Stand'"),
-        ("forum test case naming an undefined id", replace_row(10, "| 10 | Firewall | TP-19 | geplant: S-WP3 |"),
-         "TP-19 is not defined"),
-        ("undefined id in the README", append("README.md", "\nSee TP-87.\n"), "README.md:"),
-        ("undefined id in ARCHITECTURE", append("docs/ARCHITECTURE.md", "\nSee TP-88.\n"),
+        ("forum test case naming an undefined id", replace_row(10, f"| 10 | Firewall | {s[9]} | geplant: S-WP3 |"),
+         f"{s[9]} is not defined"),
+        ("undefined id in the README", append("README.md", f"\nSee {s[0]}.\n"), "README.md:"),
+        ("undefined id in ARCHITECTURE", append("docs/ARCHITECTURE.md", f"\nSee {s[1]}.\n"),
          "docs/ARCHITECTURE.md:"),
-        ("undefined id in an ADR", append(adr, "\nSee TP-89.\n"), "TP-89 is not defined"),
+        ("undefined id in an ADR", append(adr, f"\nSee {s[2]}.\n"), f"{s[2]} is not defined"),
         ("malformed id in the CHANGELOG", append("CHANGELOG.md", "\nSee TP-100.\n"),
          "malformed test case id 'TP-100'"),
         ("worked-out case without 'Log-Hinweis'", edit(TEST_PLAN, "- **Log-Hinweis:** kein Setup-Log.", "Kein Setup-Log."),
          "TP-00: field 'Log-Hinweis' is missing"),
         # Appended cases, so that these two do not depend on which cases are still planned
         ("invalid status",
-         append(TEST_PLAN, "\n#### TP-81: x\n\n- **Status:** später\n- **Priorität:** P2\n- **Bezug:** x\n- **Ziel:** y\n"),
-         "TP-81: status 'später' is not 'ausgearbeitet'"),
+         append(TEST_PLAN, f"\n#### {s[3]}: x\n\n- **Status:** später\n- **Priorität:** P2\n- **Bezug:** x\n- **Ziel:** y\n"),
+         f"{s[3]}: status 'später' is not 'ausgearbeitet'"),
         ("planned case with a misspelled field instead of 'Ziel'",
-         append(TEST_PLAN, "\n#### TP-82: x\n\n- **Status:** geplant: S-WP9\n- **Priorität:** P2\n- **Bezug:** x\n- **Zweck:** y\n"),
-         "TP-82: field 'Ziel' is missing"),
+         append(TEST_PLAN, f"\n#### {s[4]}: x\n\n- **Status:** geplant: S-WP9\n- **Priorität:** P2\n- **Bezug:** x\n- **Zweck:** y\n"),
+         f"{s[4]}: field 'Ziel' is missing"),
         # Priority (section 4): required for every case, P1 to P3 only
         ("worked-out case without 'Priorität'", edit(TEST_PLAN, "- **Status:** ausgearbeitet\n- **Priorität:** P1\n- **Bezug:** R16",
                                                     "- **Status:** ausgearbeitet\n- **Bezug:** R16"),
@@ -488,18 +495,18 @@ def self_test(source_root):
                                                    "- **Status:** ausgearbeitet\n- **Priorität:** P4\n- **Bezug:** R16"),
          "TP-00: priority 'P4' is not P1, P2 or P3"),
         ("priority with text instead of a remark in parentheses",
-         append(TEST_PLAN, "\n#### TP-83: x\n\n- **Status:** geplant: S-WP9\n- **Priorität:** P1 wichtig\n- **Bezug:** x\n- **Ziel:** y\n"),
-         "TP-83: priority 'P1 wichtig' is not P1, P2 or P3"),
+         append(TEST_PLAN, f"\n#### {s[5]}: x\n\n- **Status:** geplant: S-WP9\n- **Priorität:** P1 wichtig\n- **Bezug:** x\n- **Ziel:** y\n"),
+         f"{s[5]}: priority 'P1 wichtig' is not P1, P2 or P3"),
         ("planned case without 'Priorität'",
-         append(TEST_PLAN, "\n#### TP-84: x\n\n- **Status:** geplant: S-WP9\n- **Bezug:** x\n- **Ziel:** y\n"),
-         "TP-84: field 'Priorität' is missing"),
+         append(TEST_PLAN, f"\n#### {s[6]}: x\n\n- **Status:** geplant: S-WP9\n- **Bezug:** x\n- **Ziel:** y\n"),
+         f"{s[6]}: field 'Priorität' is missing"),
         ("priority with a remark in parentheses passes",
-         append(TEST_PLAN, "\n#### TP-85: x\n\n- **Status:** geplant: S-WP9\n- **Priorität:** P2 (P1 mit Weg B)\n- **Bezug:** x\n- **Ziel:** y\n"),
+         append(TEST_PLAN, f"\n#### {s[7]}: x\n\n- **Status:** geplant: S-WP9\n- **Priorität:** P2 (P1 mit Weg B)\n- **Bezug:** x\n- **Ziel:** y\n"),
          None),
         # P1 short run (section 7): exactly the P1 cases, minutes that add up, at most three hours
         ("P1 case missing in the short run",
-         append(TEST_PLAN, "\n#### TP-86: x\n\n- **Status:** geplant: S-WP9\n- **Priorität:** P1\n- **Bezug:** x\n- **Ziel:** y\n"),
-         "TP-86 has the priority P1 but is not in the short run table"),
+         append(TEST_PLAN, f"\n#### {s[8]}: x\n\n- **Status:** geplant: S-WP9\n- **Priorität:** P1\n- **Bezug:** x\n- **Ziel:** y\n"),
+         f"{s[8]} has the priority P1 but is not in the short run table"),
         ("P2 case in the short run", short_run_row("K1", lambda cells: cells[:3] + [cells[3] + ", TP-12"] + cells[4:]),
          "TP-12 is in the short run table but its priority is not P1"),
         ("short run sum does not match", short_run_row("Summe", lambda cells: add_minutes(cells, -1)),
