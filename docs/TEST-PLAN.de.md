@@ -13,7 +13,8 @@ Block 8 (Links in `Data` und `Users`, TP-80) aus S-WP11; S-WP9 hat die Build-Art
 über 1.7.2 ohne Daten der Maintainer, die Fälle TP-71 bis TP-79 von Block 7, die
 Windows-8.1-Variante von TP-22 und die Entscheidungsregeln in TP-23 und TP-71 ergänzt; S-WP12 hat
 TP-00 und Block 1 an die gepinnten Downloads von einem Server mit ungültigem Zertifikat angepasst
-(ADR 0012). Alle Fälle
+(ADR 0012); Lauf 5e (Setup 1.1.0) hat dgVoodoo 2.87.5 mit den Fensterschlüsseln (TP-25), das Spielfenster
+bis 1920x1200 (TP-26) und die Intro-Videos als Standard (TP-27) ergänzt. Alle Fälle
 sind ausgearbeitet; jeder hat eine Priorität (P1 bis P3, [Abschnitt 4](#4-vorlage-je-fall)).
 `ci/check_test_plan.py` prüft die Form dieses Dokuments (siehe
 [Abschnitt 11](#11-automatische-prüfung-dieses-dokuments)).
@@ -108,14 +109,14 @@ Nummer ihres Blocks. Ein neues Arbeitspaket mit eigenen Fällen bekommt den näc
 |---|---|---|---|
 | TP-00 | Vorabprüfung | S-WP2, S-WP12 | Zustand der beiden Dateiserver vor jedem Testtag mit Downloads, Stichprobe gegen die Pins |
 | TP-1x | Downloads | S-WP3, S-WP12 | eingebaute Downloads statt IDP und gepinnte Downloads trotz ungültigem Zertifikat: Hauptserver mit ungültigem Zertifikat, fremder Server unter seinem Namen (TP-10), offline (TP-11), Stopp-Knopf am ersten und am zweiten Server (TP-12, TP-13), Silent (TP-14), Koreanisch (TP-15), verworfener Download (TP-16), TLS 1.2 unter Windows 7 (TP-17) |
-| TP-2x | Kompatibilität und Grafik | S-WP4, S-WP10 | Windows 7 ohne Kompatibilitätswerte und mit der freiwilligen Aufgabe `compatibility_legacy` (TP-20), Bereinigung beim Update unter Windows 7, auch mit `compatibility_legacy` (TP-21), Windows 10/11 unverändert, optional Windows 8.1 (TP-22), Grafikmatrix mit und ohne DirectX-Wrapper und die Entscheidungsregel aus ADR 0010 (TP-23), 150 % Anzeigeskalierung mit und ohne `compatibility` bzw. `compatibility_legacy` (TP-24) |
+| TP-2x | Kompatibilität und Grafik | S-WP4, S-WP10, Run 5e | Windows 7 ohne Kompatibilitätswerte und mit der freiwilligen Aufgabe `compatibility_legacy` (TP-20), Bereinigung beim Update unter Windows 7, auch mit `compatibility_legacy` (TP-21), Windows 10/11 unverändert, optional Windows 8.1 (TP-22), Grafikmatrix mit und ohne DirectX-Wrapper und die Entscheidungsregel aus ADR 0010 (TP-23), 150 % Anzeigeskalierung mit und ohne `compatibility` bzw. `compatibility_legacy` (TP-24), dgVoodoo 2.87.5 mit den Fensterschlüsseln, Maus mit dem Aktivierungssignal des Launchers, Lobby, Editor, Alt+Tab, Benachrichtigung (TP-25), Spielfenster bis 1920x1200 und gleiche Form auf breiteren Bildschirmen (TP-26), Intro-Videos als Standard und einmal beim Update (TP-27) |
 | TP-3x | Build und Log | S-WP5 | SHA-256-Dateien der Setups und Setup-Log ohne `/LOG`, auch bei Over-the-Shoulder-Erhöhung (TP-30) |
 | TP-4x | Installationseintrag und `install.ini` | S-WP6 | Installationseintrag, `install.ini`, Defaults-Marker, `SetupBuild` und der Wert `Empire Earth Community: ContractVersion` im Uninstall-Schlüssel je Variante, auch bei schreibgeschützter oder geöffneter `install.ini` und nach dem Setup 1.7.2, Deinstallation (TP-40); Spieleinstellungen und Marker beim installierenden und bei einem zweiten Konto, Over-the-Shoulder-Erhöhung (TP-41) |
 | TP-5x | Integritätsmanifest | S-WP7 | `files.sha256` je Variante (Inhalt geprüft mit `Get-FileHash` bzw. `sha256sum -c`), von einem Virenscanner gelöschte Dateien mit Hinweis und `[MissingAfterInstall]`, eine gesperrte Datei, Dauer des Prüfens auf dem Laptop und auf HDD bzw. unter Windows 7 (TP-50) |
 | TP-6x | Umgebung | S-WP8 | Hinweis unter 768 Pixeln Höhe und Bildschirm, DPI und Spielfenster im Log (TP-60), fremde und alte Installationen: Schlüssel in HKLM, fremde Uninstall-Einträge, CD-Ordner, Wortlaut zu den CD-Keys (TP-61), EE und NeoEE in einem Ordner (TP-62), Installation in den Ordner einer GOG- oder CD-Installation (TP-63) |
 | TP-7x | Allgemeine Abläufe und Forumfälle | S-WP2, S-WP9 | Grundablauf mit Update über 1.7.2 (TP-70), Standardnutzer und VirtualStore (TP-71), Version und Mehrspieler (TP-72), Reparatur (TP-73), AoC ohne EE-Start (TP-74), EE und NeoEE getrennt, eines deinstalliert (TP-75), Firewall beim Hosten (TP-76), CD-Keys (TP-77), Deutsch (TP-78), laufendes Spiel (TP-79) |
 | TP-8x | Links in den für alle beschreibbaren Ordnern | S-WP11 | Ein Standardbenutzer ersetzt `Data\Movies` durch eine Junction; das Update als Administrator hält auf der Seite „Vorbereitung der Installation“ an, ändert nichts und läuft nach dem Entfernen des Links durch; still Exit-Code 7; ein Link im Spielerordner unter `Users` und eine feste Verknüpfung (Hardlink) dort halten ebenfalls an (TP-80); eigene Mods unter `Data\dxm\mods` bleiben bei Reparatur, Update, Versionswechsel von dreXmod und Deinstallation (TP-81) |
-| TP-9x | Suite „Empire Earth Community“ | Suite-Plan (WP10) | Fälle zum Paket mit Launcher auf dem Laptop mit echten Daten: das ZIP ohne und mit „Zulassen“ (TP-90, TP-91), Start aus der ZIP-Ansicht (TP-92), beide Spiele mit den Standardwerten und Spielstart von den Symbolen (TP-93), Reparatur (TP-94), Deinstallation mit „Behalten“ und „Löschen“ (TP-95), Pfad „Erweitert“ (TP-96), Update über ein vorhandenes Einzel-Setup (TP-97), Fortschrittsanzeige im Fenster der Suite (TP-98), Abbrechen in der Suite vor der Installation eines Spiels und nicht mehr danach (TP-99); TP-93 und TP-95 sind das Freigabekriterium für Launcher 1.0.0 und Suite 1.0.0, für Suite 1.1.0 kommen TP-94 (c), TP-97, TP-98 und TP-99 (mit der Variante e) und ein grüner Lauf des Jobs `suite-e2e` (S1 bis S13) auf windows-latest dazu, siehe Block 9 |
+| TP-9x | Suite „Empire Earth Community“ | Suite-Plan (WP10) | Fälle zum Paket mit Launcher auf dem Laptop mit echten Daten: das ZIP ohne und mit „Zulassen“ (TP-90, TP-91), Start aus der ZIP-Ansicht (TP-92), beide Spiele mit den Standardwerten und Spielstart von den Symbolen (TP-93), Reparatur (TP-94), Deinstallation mit „Behalten“ und „Löschen“ (TP-95), Pfad „Erweitert“ (TP-96), Update über ein vorhandenes Einzel-Setup (TP-97), Fortschrittsanzeige im Fenster der Suite (TP-98), Abbrechen in der Suite vor der Installation eines Spiels und nicht mehr danach (TP-99); TP-93 und TP-95 sind das Freigabekriterium für Launcher 1.0.0 und Suite 1.0.0, für Suite 1.1.0 kommen TP-94 (c), TP-97, TP-98, TP-99 (mit der Variante e), TP-25 (a) bis (d) und TP-27 (a) und ein grüner Lauf des Jobs `suite-e2e` (S1 bis S13) auf windows-latest dazu, siehe Block 9 |
 
 ## 4. Vorlage je Fall
 
@@ -522,11 +523,11 @@ Downloads, und `install.ini` nennt `language\en` statt `language\de`.
 | K6 | Sandbox, Netz | EE-portable: TP-70 (a), TP-40 (c), TP-50 (a); dann EE-admin still: TP-14 (a) | TP-14, TP-40, TP-50, TP-70 | 16 |
 | K7 | Sandbox, ohne Netz (`EE-Test-offline.wsb`) | EE-admin per Doppelklick ohne `/LOG`: TP-11 (a) und zugleich TP-30 (b) (das Log aus `%TEMP%` als `C:\EE-Test\logs\TP-11a_EE-admin.log` sichern); dann TP-14 (b) still, hier als Reparatur über diese Installation (die Downloads laufen ohne Netz bei einer Reparatur genauso ab) | TP-11, TP-14, TP-30 | 13 |
 | K8 | Sandbox, Netz | TP-61 (a) mit Installation, EE deinstallieren, (b) bis nach der Ordnerseite, (c) sichtbar und still; aufräumen | TP-61 | 23 |
-| K9 | Sandbox, Netz | das offizielle EE-Setup 1.7.2 installieren (Englisch, `S-172-EE` wie in [Abschnitt 5](#5-testumgebungen-und-snapshots)), die Werte für TP-22 (e) notieren, dann das A+-Setup aus `C:\EE-Test\setups\A+` als Update: TP-70 (b) EE-admin und TP-22 (e) | TP-22, TP-70 | 19 |
+| K9 | Sandbox, Netz | das offizielle EE-Setup 1.7.2 installieren (Englisch, `S-172-EE` wie in [Abschnitt 5](#5-testumgebungen-und-snapshots)), die Werte für TP-22 (e) notieren, dann das A+-Setup aus `C:\EE-Test\setups\A+` als Update: TP-70 (b) EE-admin und TP-22 (e) | TP-22, TP-70 | 20 |
 | K10 | Laptop, nur Weg B | TP-50 (d): EE-admin mit allen Komponenten, Dauer der Seite „Installierte Dateien werden geprüft“; auf derselben Installation den Spielstart von TP-70 (a) Schritt 6; deinstallieren. Ohne Daten: „nicht durchgeführt: keine Daten“ | TP-50, TP-70 | 15 |
-| Summe | | | | 170 |
+| Summe | | | | 171 |
 
-Ohne Daten der Maintainer entfällt K10; der Kurzdurchlauf dauert dann etwa 155 Minuten. Danach
+Ohne Daten der Maintainer entfällt K10; der Kurzdurchlauf dauert dann etwa 156 Minuten. Danach
 `out` (mit `out\aplus`), `C:\EE-Test\setups\A` und `C:\EE-Test\setups\A+` löschen (Regel 4); die
 Sandbox verwirft ihre Kopien beim Schließen selbst. Die Zeiten sind Schätzungen aus den Schritten
 der Fälle (ein Lauf mit dem Assistenten etwa 5 Minuten, eine Reparatur 4, ein Neustart der Sandbox
@@ -1415,8 +1416,7 @@ Gemeinsam für alle Fälle dieses Blocks:
      Dreimal wiederholen, danach dreimal vom Launcher aus („Spielen“) starten. Je Start eine Zeile:
      Maus ja/nein, Startweg. Reagiert die Maus nicht, einmal die Taskleistenschaltfläche des Spiels
      anklicken (statt zu minimieren) und notieren, ob sie danach reagiert. Die Auswertung steht im
-     Feld „Erwartetes Ergebnis“; geändert wird nichts (die Versuche mit der `dgVoodoo.conf` warten
-     auf die Tests mit dgVoodoo 2.87 und gehören nicht zu diesem Fall).
+     Feld „Erwartetes Ergebnis“; geändert wird nichts (die Fensterschlüssel von dgVoodoo 2.87.5 prüft TP-25).
   8. *Notiz: Selbst-Minimieren und „Nicht stören“ (nur Beobachtung).* Die Windows-Uhr öffnen, einen
      Timer auf eine Minute stellen, das Spiel starten (Menü genügt) und warten, bis die
      Benachrichtigung kommt. Notieren: Minimiert sich das Spiel? Welches Fenster hat den Vordergrund
@@ -1525,6 +1525,131 @@ Gemeinsam für alle Fälle dieses Blocks:
   1920 × 1080 also 1280 x 720), ist das ein Befund zu Vertrag O4. Bei (c) zusätzlich die Zeilen aus
   [TP-20](#tp-20-windows-7-neuinstallation-ohne-kompatibilitätswerte-und-mit-compatibility_legacy-nur-vm) (a),
   bei (d) die aus TP-20 (d).
+
+#### TP-25: dgVoodoo 2.87.5 mit den Fensterschlüsseln: Dateien, Maus mit dem Aktivierungssignal, Intro, Lobby, Editor, Alt+Tab, Benachrichtigung
+
+- **Status:** ausgearbeitet
+- **Priorität:** P2 (a bis d gehören zum Freigabekriterium von Suite 1.1.0 und Launcher 1.1.0, Block 9)
+- **Bezug:** ADR 0005 (Nachtrag 2026-10-07), ADR 0007 (Nachtrag 2026-10-07), Launcher-ADR 0010 (Nachtrag A1b),
+  Launcher-Testplan WP6-21; README „Known issues“; Laptop-Matrix der Läufe 5c und 5d (K1, K2)
+- **Ziel:** Mit der Suite 1.1.0 sind in beiden Spielordnern genau die gepinnten dgVoodoo-Dateien und die Konfiguration mit den
+  Fensterschlüsseln installiert, und auf dem Laptop gehen Maus (über den Launcher), Lobby, Editor und Alt+Tab.
+- **Build-Art:** B
+- **Ausgangszustand:** der Laptop (Windows 11, Intel, Bildschirm 1920x1200, Skalierung 100 %); EE (mit AoC) und NeoEE mit der
+  Suite 1.1.0 (Testbuild aus Weg B mit Launcher 1.1.0) und den Standardwerten neu installiert (TP-93), Grafikkarten-Vorauswahl
+  Intel = „DirectX 11 API-Level 10.1“. Für (e) zusätzlich ein Wiederherstellungspunkt mit der Suite 1.0.0.
+- **Snapshot:** `Laptop` (mit Wiederherstellungspunkt, Regel 1)
+- **Varianten:** EE-admin und NeoEE-admin über die Suite; (d) mit „DirectX 11 API-Level 11“ über „Erweitert“
+- **Schritte:**
+  1. *(a) Dateien.* PowerShell im Ordner der Arbeitskopie (Branch des Testbuilds):
+     `foreach ($p in 'Empire Earth','Neo Empire Earth') { foreach ($g in 'Empire Earth','Empire Earth - The Art of Conquest') { Get-FileHash "C:\Program Files (x86)\$p\$g\DDraw.dll","C:\Program Files (x86)\$p\$g\D3DImm.dll","C:\Program Files (x86)\$p\$g\dgVoodooCpl.exe","C:\Program Files (x86)\$p\$g\dgVoodoo.conf" | Format-Table Hash, Path -AutoSize } }`
+     und `Get-FileHash config\dgVoodoo\dgVoodoo_DX11_LVL10_1.conf`. Die Werte mit `pins\dgvoodoo.txt` vergleichen.
+     Außerdem `dir "%LOCALAPPDATA%\VirtualStore\Program Files (x86)\dgVoodoo.conf" /s /b` (Eingabeaufforderung).
+  2. *(b) Start über den Launcher.* Desktop-Symbol „Empire Earth Community“, Seite *Spielen*, „Empire Earth“, „Spielen“. Nichts
+     anfassen, bis das erste Logo (Sierra) erscheint; dann alle zwei Sekunden einmal links klicken, ohne die Maus zu bewegen,
+     bis ein Video übersprungen wird. Notieren, bei welchem Video (Sierra, SSSI, Empire Earth) der erste Klick wirkt. Im
+     Hauptmenü die Maus bewegen und einen Menüpunkt anklicken. Danach in `%LOCALAPPDATA%\Empire Earth Launcher\log.txt` die
+     Zeilen ab `Game started:` kopieren (siehe Launcher-Testplan WP6-21).
+  3. *(c) Lobby, Editor, Alt+Tab.* In die Mehrspieler-Lobby gehen (EE: „Mehrspieler“ › Online; NeoEE: mit Anmeldung),
+     herumklicken, wieder hinaus; geht die Maus im Menü noch? Den Szenario-Editor öffnen, etwas klicken, schließen. Dann
+     dreimal: Alt+Tab hinaus, 5 Sekunden warten, über die Taskleiste zurück: volle Größe, nichts verschoben, Maus geht?
+  4. *(c) Benachrichtigung.* In der Uhr-App einen Timer auf 1 Minute stellen, zurück ins Spiel (Hauptmenü), warten. Notieren:
+     nichts, ein Hinweis, oder minimiert sich das Spiel? Wenn es sich minimiert: über die Taskleiste zurück; volle Größe, Maus?
+  5. *(b) Direktstart (bekannte Grenze).* Spiel beenden, im Explorer `Empire Earth.exe` im EE-Ordner doppelklicken, bis zum
+     Hauptmenü nichts anfassen, Maus bewegen; dann Alt+Tab hinaus und zurück, Maus bewegen.
+  6. Schritte 2 bis 4 mit NeoEE; Schritt 2 einmal mit „Empire Earth – The Art of Conquest“.
+  7. *(d) Andere Stufe.* Suite starten, „Erweitert: Das Setup jedes Spiels selbst durchgehen“, im EE-Setup
+     „Benutzerdefinierte Installationseinstellungen“ und unter „DirectX-Wrapper“ „DirectX 11 API-Level 11 v2.87.5
+     [Empfohlen]“; Schritt 1 (Konfiguration `dgVoodoo_DX11_LVL11.conf`) und Schritt 2.
+  8. *(e) Update über Suite 1.0.0 (optional, P2).* Wiederherstellungspunkt mit Suite 1.0.0 (dgVoodoo 2.82.1) laden, die Suite
+     1.1.0 starten (Update ohne „Erweitert“), danach Schritt 1 und Schritt 2.
+- **Erwartetes Ergebnis:**
+  - (a) In allen vier Spielordnern: `DDraw.dll` `612a2440…`, `D3DImm.dll` `93c534f2…`, `dgVoodooCpl.exe` `87fb8781…` (wie
+    `pins\dgvoodoo.txt`), `dgVoodoo.conf` mit dem Hash von `config\dgVoodoo\dgVoodoo_DX11_LVL10_1.conf`. Keine Kopie im
+    VirtualStore („Datei nicht gefunden“). Rechtsklick auf `DDraw.dll` › Eigenschaften › Details: Produktversion 2.8.7.5.
+  - (b) Über den Launcher geht die Maus spätestens etwa 10 Sekunden nach dem ersten Bild des Spiels, ohne Alt+Tab; ein
+    Klick überspringt spätestens das Video „Empire Earth“ (das lange, 98 s). Im Hauptmenü geht die Maus. `log.txt` hat
+    genau eine Zeile `activation signal sent`. Beim Direktstart (Schritt 5) bleibt die Maus tot, bis Alt+Tab hinaus und
+    zurück: bekannte Grenze, kein Fehler (README „Known issues“).
+  - (c) Die Lobby minimiert das Spiel nicht und lässt sich bedienen, die Maus geht danach im Menü; der Editor läuft (4:3 mit
+    Rand links und rechts ist erwartet); Alt+Tab dreimal: jedes Mal volle Größe, nichts verschoben, Maus geht. Die
+    Benachrichtigung ist eine Beobachtung (TP-23 Schritt 8): minimiert sich das Spiel, muss es aus der Taskleiste in voller
+    Größe und mit Maus zurückkommen.
+  - (d) wie (a) mit `dgVoodoo_DX11_LVL11.conf`, (b) wie oben.
+  - (e) Nach dem Update sind die Dateien von (a) installiert, `Game Window Height` ist 1200 (TP-26) und die Intro-Videos
+    sind installiert (TP-27).
+  - Ein Befund in (b) oder (c) mit Grafikchip, Treiber, Wrapper-Stufe, den Launcher-Zeilen und dem Setup-Log an die
+    Maintainer; er hält die Freigabe auf, bis entschieden ist.
+- **Log-Hinweis:** Setup-Log: `Dest filename: C:\Program Files (x86)\Empire Earth\Empire Earth\DDraw.dll` usw. (je Spielordner
+  drei Dateien und `dgVoodoo.conf`), `Using Intel GPU settings: additional\directx_wrapper\dx11_lvl10_1`. Launcher-`log.txt`:
+  siehe WP6-21.
+
+#### TP-26: Spielfenster bis 1920x1200 und gleiche Form auf breiteren Bildschirmen
+
+- **Status:** ausgearbeitet
+- **Priorität:** P2
+- **Bezug:** Vertrag 3.3 (Revision 6), ADR 0007 (Nachtrag 2026-10-07), Forum §8 Nr. 6
+- **Ziel:** Das Setup schreibt auf einem 1920x1200-Bildschirm 1920x1200 und auf 16:9-Bildschirmen über 1920 Breite weiter
+  1920x1080, und das Spiel läuft in 1920x1200 stabil.
+- **Build-Art:** (a) B, (b) und (c) A oder B
+- **Ausgangszustand:** (a) der Laptop nach TP-25 (a); (b) derselbe Laptop; (c) eine VM, deren Anzeige sich auf 2560x1440 und
+  2560x1600 stellen lässt (Hyper-V „Erweiterte Sitzung“ aus, Anzeigeeinstellungen der VM)
+- **Snapshot:** (a), (b) `Laptop`; (c) `S-Basis`
+- **Varianten:** EE-admin
+- **Schritte:**
+  1. (a) `reg query "HKCU\Software\SSSI\Empire Earth" /v "Game Window Width"` und `/v "Game Window Height"`, ebenso
+     `HKCU\Software\Mad Doc Software\EE-AOC`. Im Setup-Log der Installation die Zeile `Screen: ...`. Empire Earth über den
+     Launcher starten: in den Optionen die Auflösung ablesen, schwarze Balken? Ein Zufallskarten-Spiel 20 Minuten spielen,
+     einmal speichern und laden, den Editor öffnen.
+  2. (b) Windows-Anzeige auf 1920x1080 stellen, das EE-Setup als Reparatur still ausführen
+     (`... /VERYSILENT /SUPPRESSMSGBOXES /LOG="C:\EE-Test\logs\TP-26b_EE-admin.log"`), Werte wie in 1 lesen, Anzeige zurück
+     auf 1920x1200 und noch einmal reparieren.
+  3. (c) In der VM die Anzeige auf 2560x1440 stellen, ein Testbuild (Weg A) installieren
+     (`/LOG="C:\EE-Test\logs\TP-26c_2560x1440.log"`), Werte lesen; dann 2560x1600 und reparieren (`..._2560x1600.log`).
+- **Erwartetes Ergebnis:**
+  - (a) Beide Spiele `0x780` und `0x4b0` (1920 und 1200); Log `Screen: 1920 x 1200 pixels ..., game window 1920 x 1200`. Das
+    Spiel zeigt 1920x1200 ohne Balken, 20 Minuten ohne Absturz, Laden und Speichern gehen; der Editor zeigt 4:3 mit
+    seitlichen Rändern (bekannt, akzeptiert).
+  - (b) Bei 1920x1080: `0x438` (1080) und `game window 1920 x 1080`; danach wieder 1200.
+  - (c) 2560x1440: `game window 1920 x 1080` (wie bis Revision 5); 2560x1600: `game window 1920 x 1200`.
+- **Log-Hinweis:** `Screen: <B> x <H> pixels (primary screen, SM_CXSCREEN x SM_CYSCREEN), <dpi> DPI (...), game window <b> x <h>`.
+
+#### TP-27: Intro-Videos als Standard: Erstinstallation, einmal beim Update, eine Abwahl bleibt
+
+- **Status:** ausgearbeitet
+- **Priorität:** P2 (a gehört zum Freigabekriterium von Suite 1.1.0, Block 9; der Fall „Update über 1.7.2“ ist im
+  Kurzdurchlauf über TP-70 (b) abgedeckt)
+- **Bezug:** Vertrag 1.1 (`ComponentDefaults`, Revision 6), ADR 0005 (Nachtrag 2026-10-07), ADR 0004 (Nachtrag)
+- **Ziel:** Neue Installationen der Typen „full“ und „compact“ und die Suite haben die Intro-Videos; eine benutzerdefinierte
+  Installation eines älteren Setups bekommt sie genau einmal; eine spätere Abwahl, ein ausdrückliches `/COMPONENTS` und der
+  Typ „raw“ bleiben unangetastet.
+- **Build-Art:** (a) B (über die Suite), (b) bis (e) A oder A+
+- **Ausgangszustand:** (a) wie TP-25; (b) `S-172-EE` (offizielles 1.7.2 mit „Empfohlene Einstellungen“, ohne Videos);
+  (c) nach (b); (d) `S-172-EE`; (e) `S-Basis`
+- **Snapshot:** (a) `Laptop`; (b) bis (d) `S-172-EE` bzw. die Sandbox mit 1.7.2; (e) `S-Basis`
+- **Varianten:** EE-admin
+- **Schritte:**
+  1. (a) `dir "C:\Program Files (x86)\Empire Earth\Empire Earth\Data\Movies"` und `...\Empire Earth - The Art of Conquest\Data\Movies`,
+     ebenso für `Neo Empire Earth`; `reg query "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{<AppId>}_is1" /v "Inno Setup: Selected Components" /reg:64`.
+  2. (b) Das Setup von Weg A+ als Update starten (`/LOG="C:\EE-Test\logs\TP-27b_EE-admin.log"`), „Aktuelle Installation
+     aktualisieren“, Englisch, installieren. Schritt 1 und
+     `reg query "HKLM\SOFTWARE\Empire Earth Community\Installations\EE" /v ComponentDefaults /reg:64`.
+  3. (c) Das Setup noch einmal, „Benutzerdefinierte Installationseinstellungen“, auf der Komponentenseite „Intro-Videos
+     installieren“ abwählen, installieren (`..._TP-27c1.log`). Dann still reparieren:
+     `<Setup> /VERYSILENT /SUPPRESSMSGBOXES /MERGETASKS="!dxwebsetup" /LOG="C:\EE-Test\logs\TP-27c2_EE-admin.log"`. Schritt 1.
+  4. (d) Auf `S-172-EE`: `<Setup> /VERYSILENT /SUPPRESSMSGBOXES /COMPONENTS="game,gameaoc,additional\drexmod\v3,language\en" /MERGETASKS="!dxwebsetup" /LOG="C:\EE-Test\logs\TP-27d_EE-admin.log"`. Schritt 1.
+  5. (e) Neuinstallation mit `/TYPE=raw` still, dann eine stille Reparatur ohne Schalter; Schritt 1 nach jedem Lauf.
+- **Erwartetes Ergebnis:**
+  - (a) In beiden Produkten: EE-Ordner `Data\Movies` mit `Sierra.bik`, `SSSI.bik`, `Empire Earth.bik`, AoC-Ordner mit
+    `Sierra.bik` und `MadDocSoftware.bik`; die Komponenten enthalten `additional\movies`.
+  - (b) Die Videos sind da, die Komponenten enthalten `additional\movies`, `ComponentDefaults` ist `0x1`; Log:
+    `Component defaults: additional\movies selected once (an installation of an older setup, setup type custom; ComponentDefaults 0 -> 1).`
+  - (c) Nach der Abwahl fehlt `Data\Movies` (bzw. ist leer); nach der stillen Reparatur bleibt es so; Log der Reparatur:
+    `Component defaults: nothing selected: already done by an earlier run (ComponentDefaults 1).`
+  - (d) Keine Videos; Log: `Component defaults: nothing selected: /TYPE or /COMPONENTS on the command line.`
+  - (e) Nach beiden Läufen keine Videos; Log der Reparatur: `Component defaults: nothing selected: the setup type raw installs no additional content.`
+- **Log-Hinweis:** die Zeilen `Component defaults: ...` oben; bei Deutsch zusätzlich der Download von
+  `Game/de/EE/Data/Movies/Empire Earth.bik`.
 
 ### Block 3: Build und Log (S-WP5)
 
@@ -2363,7 +2488,10 @@ nur, ob es den Schlüssel gibt, nie seine Werte (Regel 3).
     `0x1`, `InstallPath` ist der Ordner der Installation 1.7.2. Weg A+: danach startet das Spiel nicht
     mehr (Platzhalter, [6.4](#64-weg-a-placeholder-build-mit-den-offiziellen-appids)). Portable: kein
     Uninstall-Schlüssel, Ordner `Empire Earth Portable` bzw. `Neo Empire Earth Portable` neben dem
-    Setup.
+    Setup. Bei (b) zusätzlich: `reg query "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{<AppId>}_is1" /v "Inno Setup: Selected Components" /reg:64`
+    enthält `additional\movies` (die Intro-Videos, einmal ausgewählt, weil 1.7.2 sie benutzerdefiniert
+    ohne Videos installiert hatte) und `reg query "HKLM\SOFTWARE\Empire Earth Community\Installations\EE" /v ComponentDefaults /reg:64`
+    ist `0x1`.
   - Schritt 6: Beide Spiele erreichen das Hauptmenü ohne Fehlermeldung.
   - Schritt 7: Der Eintrag unter „Apps“ und der Uninstall-Schlüssel sind weg; im Spielordner
     bleiben höchstens Dateien, die das Spiel selbst angelegt hat; `Software\Sierra\CDKeys` ist
@@ -2373,7 +2501,7 @@ nur, ob es den Schlüssel gibt, nie seine Werte (Regel 3).
   `authtools.dll` die erwarteten Hinweise. Bei (b) zeigt Inno Setup, dass es die vorhandene
   Installation fortführt: `Will append to existing uninstall log: <Ordner der Installation
   1.7.2>\unins000.dat` (bei einer Erstinstallation `Creating new uninstall log: …`). Bei Problemen
-  beide Logs ins Protokoll.
+  beide Logs ins Protokoll. Bei (b): `Component defaults: additional\movies selected once (an installation of an older setup, setup type custom; ComponentDefaults 0 -> 1).`
 
 #### TP-71: Als Administrator installieren, als Standardbenutzer spielen
 
@@ -3187,7 +3315,7 @@ auf dem Desktop. Es gilt:
   bleibt; ein ausgelassener Fall steht mit Grund im Protokoll. Jeder Befund wird als Issue
   festgehalten, mit dem Auszug aus dem Log.
 - **Freigabekriterium der Suite 1.1.0:** Die Suite wird als 1.1.0 erst getaggt, wenn **TP-93, TP-94 (c), TP-95, TP-97,
-  TP-98 und TP-99** bestanden haben, TP-99 mit allen Varianten (a bis e, auch dem Abbruch einer Reparatur und dem
+  TP-98, TP-99, TP-25 (a) bis (d) und TP-27 (a)** bestanden haben, TP-99 mit allen Varianten (a bis e, auch dem Abbruch einer Reparatur und dem
   Abbruch des zweiten Spiels) und TP-98 mit der Darstellung bei 100 % und 150 % in Deutsch und Französisch,
   **und** der Job `suite-e2e` für diesen Commit auf windows-latest grün war, mit S8, S9 (Verknüpfungen der Suite 1.0.0
   bei Reparatur und Deinstallation) sowie S11, S12 und S13. TP-94 (c) (Update von Suite 1.0.0) und TP-97 (Update über
@@ -3816,7 +3944,7 @@ echtes Windows“). „Launcher“ heißt: Der Fall prüft den Launcher und geh�
 | 3 | Grafikmatrix mit und ohne Wrapper | TP-23 | ausgearbeitet |
 | 4 | Farbtiefe 16 Bit, Reparatur stellt 32 Bit her | TP-73 (a: Registry, d: Einfrieren mit Weg B); Launcher: „Reset the Game“ (R4) | ausgearbeitet |
 | 5 | Kompatibilitätsflags, Windows 7 | TP-20, TP-21 (Windows 7), TP-22 (alle Aufgaben, ohne `compatibility_windows`, ohne beide) | ausgearbeitet |
-| 6 | Auflösungsgrenzen, 1024x600 | TP-60 | ausgearbeitet |
+| 6 | Auflösungsgrenzen, 1024x600 | TP-60, TP-26 (Spielfenster bis 1920x1200) | ausgearbeitet |
 | 7 | AoC ohne vorherigen EE-Start | TP-74 | ausgearbeitet |
 | 8 | Alt-Installation (CD, GOG) vorhanden | TP-61; Launcher: welche Installation er erkennt (Vertrag 1.4) | ausgearbeitet |
 | 9 | EE und NeoEE parallel, eines deinstallieren | TP-62 (gleicher Ordner), TP-75 (getrennte Ordner) | ausgearbeitet |
@@ -3891,7 +4019,7 @@ Requests aus Forks (README, „When it runs“):
 | A | EE-admin, Deutsch, Typ „full“; der Hauptserver ist per `hosts` gesperrt, der Spiegel nur während dieses Setups frei (der einzige Lauf mit Downloads; seit der Spiegel keinen DNS-Eintrag mehr hat, meldet die Download-Prüfung `SERVER`); Launcher-Prüfung für das installierende und ein frisches Konto; Deinstallation |
 | B | NeoEE-user, Englisch, ohne CD-Key-Aufgabe; Reparatur mit einer Junction in `Data`; Deinstallation |
 | E | EE-admin in einen eigenen Ordner neben Spuren einer fremden Installation (alter NeoEE-Schlüssel in HKLM, `C:\Sierra\Empire Earth`, ein GOG-Uninstall-Eintrag auf den gewählten Ordner, zwei Einträge, die nicht zählen dürfen) |
-| D | auf E: Junction in `Data` und feste Verknüpfung in `Users` (Exitcode 7, nichts geändert), dann Update ohne DirectX-Wrapper; Deinstallation |
+| D | auf E: Junction in `Data` und feste Verknüpfung in `Users` (Exitcode 7, nichts geändert), dann Update ohne DirectX-Wrapper, der Wechsel auf dreXmod 2 und zurück mit dem dgVoodoo-Level „DirectX 11 API-Level 11“ (D5: die drei gepinnten Dateien und die Konfiguration aus `config/dgVoodoo`); Deinstallation |
 | C | offizielles Setup 1.7.2, v2 darüber, 1.7.2 noch einmal, v2 noch einmal, Schäden aus Sicht des Launchers, Reparatur, Deinstallation |
 
 Nach jedem Lauf prüft er den Vertrag (K1 bis K15: Installationseintrag, `install.ini`,
@@ -3913,7 +4041,7 @@ einzigen Administratorkonto und ohne Bildschirm für den Assistenten.
 | Fall | Abdeckung | Wo im Test | Bleibt beim Tester |
 |---|---|---|---|
 | TP-00 | teilweise | A: HEAD-Anfragen an den Spiegel (`/localized/` und `Game/de/EE/Data/data.ssa`) direkt vor dem Setup, Ergebnis als Zeile `install/TP-00` | der Hauptserver und sein Zertifikat, die Stichprobe gegen die Pins; der Zustand der Server aus Sicht des Testrechners |
-| TP-10 | nur bei erreichbarem Spiegel | A, DL: Hauptserver per `hosts` gesperrt (nicht erreichbar, auch ohne Zertifikatsprüfung), alle Downloads vom Spiegel, 20 gepinnte Dateien registriert, keine ungepinnte, jede Datei mit ihrem Pin und im Manifest mit demselben Hash. Ohne Spiegel (Stand 2026-10-03) nichts davon | der ganze Fall: die gepinnten Downloads vom Hauptserver mit ungültigem Zertifikat (a), der fremde Server (b), NeoEE-admin (`Mods/NeoEE/`), die Download-Seite |
+| TP-10 | nur bei erreichbarem Spiegel | A, DL: Hauptserver per `hosts` gesperrt (nicht erreichbar, auch ohne Zertifikatsprüfung), alle Downloads vom Spiegel, 21 gepinnte Dateien registriert, keine ungepinnte, jede Datei mit ihrem Pin und im Manifest mit demselben Hash. Ohne Spiegel (Stand 2026-10-03) nichts davon | der ganze Fall: die gepinnten Downloads vom Hauptserver mit ungültigem Zertifikat (a), der fremde Server (b), NeoEE-admin (`Mods/NeoEE/`), die Download-Seite |
 | TP-11 | nur bei Spiegelausfall | A, DL: antwortet der Spiegel nicht, erwartet die Prüfung den Zweig ohne Server (`Unable to reach the online files server! …`) und meldet `SERVER` statt eines Fehlers | der ganze Fall |
 | TP-12, TP-13 | nein | | Stopp-Knopf der Download-Seite (interaktiv) |
 | TP-14 | teilweise | A ist Teil a: `/VERYSILENT /SUPPRESSMSGBOXES /ALLUSERS /LANG=de` endet ohne Bedienung innerhalb des Zeitlimits mit Exitcode 0 und `Installation process succeeded.` (K14), Downloads wie TP-10 | b bis d und EE-portable |
@@ -3922,6 +4050,9 @@ einzigen Administratorkonto und ohne Bildschirm für den Assistenten.
 | TP-17, TP-20, TP-21 | nein | | Windows 7 |
 | TP-22 | teilweise | K8 in A (Teil a), C nach dem Update über 1.7.2 (Teil e) und B (NeoEE-user statt d) | b, c und Windows 8.1 (f), der Spielstart |
 | TP-23, TP-24 | nein | K6 und K10 prüfen nur, dass GPU-Präferenz und Wrapper der Wahl der GPU-Seite folgen | Grafikmatrix mit den Beobachtungen zu Maus, Selbst-Minimieren, VirtualStore und Speicher (TP-23, Schritte 7 bis 10), Anzeigeskalierung |
+| TP-25 | teilweise | K10 in D5 (dgVoodoo-Level, die drei Dateien mit den Pins von `pins/dgvoodoo.txt` über die Karte, `dgVoodoo.conf` byte für byte wie `config/dgVoodoo`); CI `ci/dgvoodoo_pins.ps1` prüft die Fensterschlüssel | Maus, Lobby, Editor, Alt+Tab, Benachrichtigung (braucht Grafikkarte und Bedienung), alle Stufen außer „API-Level 11“ |
+| TP-26 | teilweise | K5: das Spielfenster der Zeile `Screen:` gleich `GameWindowHeight` (Regel des Vertrags 3.3) für die Auflösung des Runners | echte Bildschirme von 1920x1200 und 2560x1600, das Spiel in 1920x1200 |
+| TP-27 | teilweise | A, B, E: die Intro-Videos bei „full“ und „compact“ (K2, K10); D3 bis D5: kein Standard-Zusatz nach `/COMPONENTS`; C: einmal beim Update über 1.7.2 (Logzeile, Komponenten), danach nicht mehr (C4, C6), `ComponentDefaults` im Eintrag (K1) | b bis e über den Assistenten (die Abwahl der Videos, `/TYPE=raw`), der Spielstart mit Intro |
 | TP-30 | nein | | SHA-256-Datei der Setups, Log ohne `/LOG` (der Test startet jedes Setup mit `/LOG`) |
 | TP-40 | teilweise | K1 bis K3 und K7 in A und E (Teil a) und B (NeoEE-user); C: 1.7.2 über v2 entfernt die Vertragsversion aus dem Uninstall-Schlüssel, Eintrag und `install.ini` bleiben (Teil f), v2 stellt sie wieder her | b, c, d (NeoEE-admin neben EE-admin), e |
 | TP-41 | teilweise | K5 für das installierende Konto; L: das frische Konto, wie es der Launcher sieht (simuliert durch Löschen der Spieleinstellungen) | ein echtes zweites Konto, Over-the-Shoulder-Erhöhung |
