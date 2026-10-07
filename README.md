@@ -43,7 +43,7 @@ This fork builds on the Empire Earth Community Setup by [EE-modders](https://git
 - The hidden setup data folder `{app}\<AppId>` is now `_setupdata_EE` or `_setupdata_NeoEE`; updates remove the old one.
 
 ### Status
-Not released. The setup version stays 1.7.2 until v2 is released; there is no v2 tag, and the manual Windows tests are written but not yet recorded as passed. The suite installer gets its 1.0.0 tag only after its Windows tests pass.
+Not released. The setup version stays 1.7.2 until v2 is released; there is no v2 tag, and the manual Windows tests are written but not yet recorded as passed. The suite installer "Empire Earth Community" is version 1.1.0 (`SuiteVersion` in `suite/suite.iss`; suite 1.0.0 is the tag `suite-v1.0.0`); it gets its 1.1.0 tag only after its Windows tests pass (criteria in [Empire Earth Community suite installer](#empire-earth-community-suite-installer)).
 
 ## Features
 🎮 Empire Earth & The Art of Conquest\
