@@ -504,26 +504,33 @@ class WorkflowTests(unittest.TestCase):
         self.assertIsNotNone(match, name)
         return int(match.group(1))
 
-    def test_only_branches_of_this_repository_with_the_label_run(self):
-        job_if = re.search(r"(?m)^    if: (.+)$", self.text).group(1)
-        self.assertTrue(job_if.startswith("github.event_name == 'workflow_dispatch' || ("), job_if)
-        self.assertIn("github.event.pull_request.head.repo.full_name == github.repository", job_if)
-        self.assertIn("contains(github.event.pull_request.labels.*.name, 'e2e')", job_if)
-        self.assertIn("(github.event.action != 'labeled' || github.event.label.name == 'e2e')", job_if)
-        # The same condition decides the concurrency group: a run that does not qualify never cancels one
-        group = re.search(r"(?m)^  group: >-\n    e2e-realdata-\$\{\{ \((.+)\) && \(github\.head_ref \|\| github\.ref_name\) "
-                          r"\|\| github\.run_id \}\}$", self.text)
-        self.assertIsNotNone(group)
-        self.assertEqual(group.group(1), job_if)
-        self.assertRegex(self.text, r"(?m)^    types: \[opened, synchronize, reopened, labeled\]$")
-        self.assertNotIn("pull_request_target", self.text)
+    def test_the_job_runs_by_hand_only(self):
+        # ADR 0011, amendment 2026-10-07: r2.empireearth.eu answers GitHub runners with HTTP 403, so a check on pull
+        # requests would always be red. The only trigger is workflow_dispatch with the input launcher_commit
+        triggers = self.text.split("\non:\n", 1)[1].split("\npermissions:", 1)[0]
+        self.assertEqual(re.findall(r"(?m)^  ([\w_]+):$", triggers), ["workflow_dispatch"])
+        self.assertEqual(re.findall(r"(?m)^      ([\w_]+):$", triggers), ["launcher_commit"])
+        for name in ("pull_request", "pull_request_target", "push", "schedule", "workflow_run", "workflow_call"):
+            self.assertNotRegex(triggers, r"(?m)^\s*%s:" % name, name)
+        self.assertNotIn("paths:", self.text)
         self.assertNotIn("'ci/**'", self.text)
-        # One job: another one would run without the gate
+        self.assertNotIn("'config/**'", self.text)
+        # Nothing of the pull request gate is left to decide: no job condition, no label, no fork check
+        self.assertNotRegex(self.text, r"(?m)^    if:")
+        for gone in ("github.event.pull_request", "github.event.label", "github.event.action", "github.head_ref"):
+            self.assertNotIn(gone, self.text)
+        # One run per ref: a newer dispatch on the same branch cancels the older one
+        self.assertRegex(self.text, r"(?m)^concurrency:\n  group: e2e-realdata-\$\{\{ github\.ref_name \}\}\n  cancel-in-progress: true$")
+        # The header says why and where the way back is recorded
+        header = self.text.split("\nname: E2E real data\n", 1)[0]
+        for phrase in ("by hand only", "HTTP 403", "r2.empireearth.eu", "label e2e", "ADR 0011"):
+            self.assertIn(phrase, header)
+        # One job: another one would run without a gate
         self.assertEqual(re.findall(r"(?m)^  ([\w-]+):$", self.text.split("\njobs:\n", 1)[1]), ["e2e"])
 
     def test_the_launcher_is_a_pinned_commit_on_its_branch(self):
         self.assertRegex(self.text, r"(?m)^  LAUNCHER_COMMIT: [0-9a-f]{40}$")
-        self.assertRegex(self.text, r"(?m)^  LAUNCHER_BRANCH: \S+$")
+        self.assertRegex(self.text, r"(?m)^  LAUNCHER_BRANCH: main$")
         self.assertNotIn("launcher_ref", self.text)
         self.assertIn("ref: ${{ steps.launcher.outputs.commit }}", self.text)
         self.assertIn("-cnotmatch '^[0-9a-f]{40}$'", self.text)
@@ -545,7 +552,6 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn("DGVOODOO_SIZE: ${{ steps.dgvoodoo.outputs.size }}", self.text)
         self.assertIn("--proto '=https' --proto-redir '=https'", self.text.split("Download the dgVoodoo archive (cache miss)", 1)[1].split("- name:", 1)[0])
         self.assertIn('--download "$env:DGVOODOO_NAME=$env:E2E_ROOT\\dgvoodoo"', self.text)
-        self.assertIn("      - 'config/**'", self.text)
         # the origin of the three files in the map is the name the workflow passes
         version = re.search(r"(?m)^Version (\S+)$", pin_text).group(1)
         origins = {r["origin"] for r in place_assets.read_map(MAP) if r["path"].startswith("data\\Add-on\\DirectX_Wrapper\\dgVoodoo_bin\\")}

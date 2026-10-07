@@ -162,3 +162,24 @@ by `ci/e2e/place_assets.py --download`), so `guard_upload.py` refuses them in th
 not assets any more (`config/dgVoodoo`, tracked). Step D5 of scenario D installs a dgVoodoo level over the installation and
 check K10 compares the three files and the configuration with the pins and the repository. The URL of the archive in the pin
 list is unverified until the first run (the job stops if the download does not have the pinned SHA-256).
+
+## Amendment 2026-10-07 (the job runs by hand only until GitHub runners can download again)
+
+Decision 1 is changed in one point: the workflow no longer runs for pull requests. Its only trigger is `workflow_dispatch`
+(input `launcher_commit`). `r2.empireearth.eu`, the source of the two official setups, answers GitHub runners with HTTP 403;
+that is an external block, not a bug of the job, and the check failed on every run. A check that is always red trains
+people to ignore red checks, so it stays manual until the server lets GitHub runners download again. Gone with the
+trigger: the `paths` filter, the job condition (same repository, label `e2e`, the event `labeled`) and the expression of the
+concurrency group that repeated it; the group is now `e2e-realdata-<ref name>` (a newer dispatch on a branch cancels the
+older one). Unchanged: the launcher commit must be a full commit on `LAUNCHER_BRANCH`, `guard_upload.py`, the hosts block,
+game data never leaving the runner, the approval of outside pull requests (a pull request from a fork brings its own copy of
+the workflow file and could add a trigger). `LAUNCHER_BRANCH` is `main` (the launcher fork has one main line `main`;
+`LAUNCHER_COMMIT` is still `5d256c8d98fb1d7e7509ad095c1cb1d3becbdc72`, which lies on it).
+
+**Way back:** when downloads from `r2.empireearth.eu` work on GitHub runners again, restore the trigger `pull_request`
+(types `opened`, `synchronize`, `reopened`, `labeled`, with the former `paths` list: `**/*.iss`, `internal/lib/**`,
+`internal/unofficial_isl/**`, `ci/build.ps1`, `ci/build_helpers.ps1`, `ci/e2e/**`, `config/**`, `pins/**` and the workflow
+file), the job condition of decision 1 and the concurrency group that uses it, and change `WorkflowTests` in
+`ci/e2e/tests/test_e2e_tools.py` back to those rules. The old text of the workflow is in the git history (the commit before
+this amendment). Decision 1 as written above is the state to return to; the consequences about frequency, labels and caches
+describe that state too, not today's.

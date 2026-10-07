@@ -461,11 +461,10 @@ setup version stays 1.7.2 until the release.
   After its review: every program the scenarios start has a time limit and each phase a budget
   below its step limit (a hang is stopped with its child processes, recorded as a failure, and the
   scenario still uninstalls), and each scenario reports and removes what earlier ones left (also
-  files, compatibility, GPU and firewall entries and shortcuts). The job runs by hand and for pull
-  requests from branches of the repository with the label `e2e` that change the setup sources or
-  `ci/e2e` (never for forks; the repository must require approval of workflow runs for all external
-  contributors), and the launcher checks come from a pinned full commit that must be on the
-  launcher branch. README: when it runs, the approval setting, the pin, the caches.
+  files, compatibility, GPU and firewall entries and shortcuts). The job runs by hand only (see Changed;
+  the repository must require approval of workflow runs for all external contributors), and the
+  launcher checks come from a pinned full commit that must be on the launcher branch. README: when it
+  runs, the approval setting, the pin, the caches.
 
 - `pins/online-files.txt`: the SHA-256 and size of every online localized file both setups can
   download, by its server path (230 paths, hashes only, no game data), compiled into every setup
@@ -496,6 +495,14 @@ setup version stays 1.7.2 until the release.
   (step D5).
 
 ### Changed
+- The real-data end-to-end test (`.github/workflows/e2e-realdata.yml`) runs by hand only (`workflow_dispatch`, input
+  `launcher_commit`), not for pull requests: `r2.empireearth.eu` answers GitHub runners with HTTP 403 (an external block),
+  so the check failed on every run, and a check that is always red trains people to ignore red checks. The `pull_request`
+  trigger, the `paths` filter and the job condition with the label and fork checks are gone, the concurrency group is one
+  per ref; the launcher commit check, `guard_upload.py`, the hosts block and the rule that game data never leaves the runner
+  are unchanged, `LAUNCHER_BRANCH` is `main`. `ci/e2e/tests/test_e2e_tools.py` checks the new rules (manual only, no other
+  trigger, no job condition, the group per ref). To be switched back to pull requests with the label `e2e` when downloads
+  work again: README "End-to-end test on Windows", ADR 0011 (amendment 2026-10-07).
 - DirectX wrapper: dgVoodoo 2.87.5 instead of 2.82.1 (x86 `DDraw.dll` and `D3DImm.dll`; the control panel
   `dgVoodooCpl.exe`, x64 only since dgVoodoo 2.86.3, only on 64-bit Windows). The five configurations of the dgVoodoo
   levels have new window settings: fake fullscreen (`FullscreenAttributes = fake`), Alt+Enter off

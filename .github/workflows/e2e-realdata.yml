@@ -16,13 +16,17 @@
 # folder (logs, NUnit results, report), and ci/e2e/guard_upload.py refuses it unless it holds small
 # text files only, none of them a file of the map.
 #
-# When it runs (README.md, "End-to-end test on Windows"; ADR 0011): by hand, or for a pull request
-# from a branch of THIS repository that carries the label e2e and changes what the job tests. A pull
-# request from a fork never runs it (its workflow file and scripts would come from the fork and run
-# next to the game data); the repository setting "Require approval for all external contributors"
-# (Settings > Actions > General) is mandatory as well, because such a pull request could remove
-# this condition. Every run takes about two hours and downloads the localized files of one language
-# from the community mirror, so pushes to a pull request without the label start nothing.
+# When it runs (README.md, "End-to-end test on Windows"; ADR 0011, amendment 2026-10-07): by hand only
+# (Actions > E2E real data > Run workflow), not for pull requests. r2.empireearth.eu, where the two
+# official setups come from, answers GitHub runners with HTTP 403 (an external block, not a bug in the
+# job), so a check on pull requests would be red on every run, and a check that is always red trains
+# people to ignore red checks. When the server lets GitHub runners download again, switch the job back
+# to pull requests from branches of this repository with the label e2e (the trigger, the paths filter
+# and the conditions of the old version are in the git history of this file and described in ADR 0011,
+# decision 1 and the amendment, which also records this plan). Every run takes about two hours and
+# downloads the localized files of one language from the community mirror. The repository setting
+# "Require approval for all external contributors" (Settings > Actions > General) stays mandatory: a
+# pull request from a fork brings its own copy of this file and could add a trigger to it.
 name: E2E real data
 
 on:
@@ -32,29 +36,13 @@ on:
         description: Full commit (40 hex digits) on LAUNCHER_BRANCH of the launcher fork whose checks run; empty for LAUNCHER_COMMIT
         required: false
         default: ''
-  pull_request:
-    types: [opened, synchronize, reopened, labeled]
-    paths:
-      - '**/*.iss'
-      - 'internal/lib/**'
-      - 'internal/unofficial_isl/**'
-      - 'ci/build.ps1'
-      - 'ci/build_helpers.ps1'
-      - 'ci/e2e/**'
-      - 'config/**'
-      - 'pins/**'
-      - '.github/workflows/e2e-realdata.yml'
 
 permissions:
   contents: read
 
-# One run per branch: a dispatch on a branch and its pull request share the group, a newer run
-# cancels the older one. A run whose job does not qualify (same condition as jobs.e2e.if, which
-# ci/e2e/tests/test_e2e_tools.py compares) gets a group of its own, so that adding another label or
-# pushing to a pull request without the label never cancels a running test.
+# One run per ref: a newer dispatch on the same branch cancels the older one.
 concurrency:
-  group: >-
-    e2e-realdata-${{ (github.event_name == 'workflow_dispatch' || (github.event.pull_request.head.repo.full_name == github.repository && contains(github.event.pull_request.labels.*.name, 'e2e') && (github.event.action != 'labeled' || github.event.label.name == 'e2e'))) && (github.head_ref || github.ref_name) || github.run_id }}
+  group: e2e-realdata-${{ github.ref_name }}
   cancel-in-progress: true
 
 env:
@@ -67,7 +55,7 @@ env:
   LAUNCHER_REPOSITORY: DritteRippe/empire-earth-launcher
   # The launcher code runs as administrator next to the game data: a full commit, reviewed and moved
   # on purpose by a commit here (never a branch), and it must lie on LAUNCHER_BRANCH (ADR 0011)
-  LAUNCHER_BRANCH: v2
+  LAUNCHER_BRANCH: main
   LAUNCHER_COMMIT: 5d256c8d98fb1d7e7509ad095c1cb1d3becbdc72
   # The real AppIds of the official setups (an update over 1.7.2 needs them)
   EE_APPID: 4C0B46D8-E7EB-4B95-97D4-A578D9B914C6
@@ -78,9 +66,6 @@ env:
 jobs:
   e2e:
     name: Install, check and uninstall the real-data setups
-    # By hand, or a pull request from a branch of this repository with the label e2e (for the event
-    # "labeled" only when that label was added); the same condition is in concurrency.group
-    if: github.event_name == 'workflow_dispatch' || (github.event.pull_request.head.repo.full_name == github.repository && contains(github.event.pull_request.labels.*.name, 'e2e') && (github.event.action != 'labeled' || github.event.label.name == 'e2e'))
     runs-on: windows-latest
     # The scenario steps have their own limits (sum 275 minutes) and the scripts stop their programs
     # before those (run_e2e.ps1 -BudgetMinutes); at least 45 minutes remain for the preparation and the
