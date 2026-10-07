@@ -503,6 +503,12 @@ try {
     'dgVoodooCpl.exe without Check: IsWin64' = @($dgSetupText.Replace('dx7; Check: IsWin64; AfterInstall', 'dx7; AfterInstall'), 'dgVoodooCpl.exe (x64 only) needs Check: IsWin64')
     'the configuration of dx11_lvl10_1 from the old folder' = @($dgSetupText.Replace('Source: "config\dgVoodoo\dgVoodoo_DX11_LVL10_1.conf"', 'Source: "data\Add-on\DirectX_Wrapper\dgVoodoo_conf\dgVoodoo_DX11_LVL10_1.conf"'), 'dgVoodoo_conf')
     'the configuration of dx11_lvl10 for another component' = @($dgSetupText.Replace('Components: additional\directx_wrapper\dx11_lvl10 and', 'Components: additional\directx_wrapper\dx11_lvl11 and'), 'must be installed with the component additional\directx_wrapper\dx11_lvl10')
+    'DestDir {#EEDir} on a configuration' = @(($dgSetupText -replace '(dgVoodoo_DX11_LVL11\.conf"; DestDir: ")\{app\}\\\{#AddOnDir\}', '${1}{app}\{#EEDir}'), 'needs DestDir')
+    'DestDir {#EEDir} on D3DImm.dll' = @(($dgSetupText -replace '(dgVoodoo_bin\\D3DImm\.dll"; DestDir: ")\{app\}\\\{#AddOnDir\}', '${1}{app}\{#EEDir}'), 'needs DestDir')
+    '{#AddOnComp} replaced by game on a configuration' = @(($dgSetupText -replace '(dgVoodoo_DX12_LVL12\.conf"[^\r\n]*?dx12_lvl12 and )\{#AddOnComp\}', '${1}game'), 'configuration of dx12_lvl12 must be installed')
+    '{#AddOnComp} replaced by game on a DLL' = @(($dgSetupText -replace '(dgVoodoo_bin\\D3DImm\.dll"[^\r\n]*?directx_wrapper and )\{#AddOnComp\}', '${1}game'), 'D3DImm.dll must be installed with')
+    'and not dx9 removed from a DLL' = @(($dgSetupText -replace '(dgVoodoo_bin\\DDraw\.dll"[^\r\n]*?) and not additional\\directx_wrapper\\dx9', '$1'), 'DDraw.dll must be installed with')
+    'and not dx7 removed from a DLL' = @(($dgSetupText -replace '(dgVoodoo_bin\\dgVoodooCpl\.exe"[^\r\n]*?) and not additional\\directx_wrapper\\dx7', '$1'), 'dgVoodooCpl.exe must be installed with')
     'DestName dgVoodoo.ini' = @(($dgSetupText -replace '(dgVoodoo_DX12_LVL11\.conf"; DestDir: "[^"]*"; DestName: ")dgVoodoo\.conf', '${1}dgVoodoo.ini'), 'DestName')
     'GameAddOnFiles not called for EEDir' = @(($dgSetupText -replace '(?m)^(#expr AddOnDir = EEDir[^\r\n]*\r?\n)#call GameAddOnFiles\r?\n', '$1'), 'EEDir')
   }
