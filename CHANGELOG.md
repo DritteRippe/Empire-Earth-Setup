@@ -24,8 +24,13 @@ setup version stays 1.7.2 until the release.
 - Suite installer 1.1.0: `SuiteVersion` of `suite/suite.iss` is 1.1.0 (the suite has no changelog of its own; its entries are
   the ones of this file that name the suite). It packages launcher 1.1.0 (`LAUNCHER_COMMIT` of
   `.github/workflows/e2e-realdata.yml`); `MySetupVersion` of the product setups stays 1.7.2 until setup v2 is released.
-  The suite is tagged 1.1.0 only after TP-93, TP-94 (c), TP-95, TP-97, TP-98, TP-99 (all variants), TP-25 (a) to (d) and TP-27 (a) pass and the job
-  `suite-e2e` (S1 to S14) was green on windows-latest for that commit (README, test plan section 8 Block 9).
+  The criterion for tagging a suite 1.1.0 was TP-93, TP-94 (c), TP-95, TP-97, TP-98, TP-99 (all variants), TP-25 (a) to (d) and TP-27 (a) plus a green job
+  `suite-e2e` (S1 to S14) on windows-latest for that commit (README, test plan section 8 Block 9).
+  Released on 2026-10-07 (tag `suite-v1.1.0`, together with launcher 1.1.0), as an exception to that criterion by decision of
+  the maintainer: after session 1 of the laptop test only (TP-94 (c), TP-27 (a), TP-25 (a), (b), (c) and (e), TP-26 (a), TP-98 (a);
+  the mouse works right after the start without Alt+Tab), without session 2. TP-93, TP-95, TP-97, TP-98 (b) to (d), TP-99 (a) to (e)
+  (including the cancel of a repair) and TP-25 (d) ran only in CI (job `suite-e2e`, S1 to S14, green) and not on real hardware.
+  They are to be run on hardware before or with 1.1.1; a problem found there is fixed in 1.1.1.
 - Build switches can be set on the command line instead of editing the script:
   `ISCC /DInstallType=NeoEE /DInstallMode=Portable /DEE_AppID=<GUID> /DNeoEE_AppID=<GUID> setup_is6.iss`
   (also `SignSetup`, `CertFileName`, `CertHashSHA1`, `TestID`); invalid values stop the build

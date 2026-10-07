@@ -3334,6 +3334,17 @@ auf dem Desktop. Es gilt:
   für die API) lief bis dahin nur als Unit-Test und unter Wine, die Fenster-Layouts nur im Compiler; der erste
   Lauf auf Windows ist dieser Job, danach der Laptop. Ein ausgelassener Teil steht mit Grund im Protokoll, aber
   ein roter oder fehlender Lauf von S8, S9 und S11 bis S14 verhindert den Tag.
+- **Ausnahme bei der Freigabe der Suite 1.1.0 (2026-10-07):** Die Suite 1.1.0 wurde am 2026-10-07 mit dem Tag
+  `suite-v1.1.0` auf dem Commit `2b764e4` (dem Build-Commit des Pakets) freigegeben, nach der Sitzung 1 der Testanleitung
+  1.1.0 auf dem Laptop (Windows 11, 1920x1200, der Maintainer selbst) und auf seine Entscheidung ohne Sitzung 2. Sitzung 1
+  (Teil 0 bis 3: Vorbereitung, Update von 1.0.0 auf 1.1.0, Spielen, Launcher-Seiten) deckte von diesem Kriterium
+  TP-94 (c), TP-27 (a), TP-25 (a), (b), (c) und (e) und TP-98 (a) ab (dazu TP-26 (a)); sein Urteil ist „bestanden, die Maus geht sofort
+  nach dem Start ohne Alt+Tab“, einzelne Schritte wurden nicht gemeldet. **Nicht auf echter Hardware gelaufen** sind TP-93, TP-95,
+  TP-97, TP-98 (b) bis (d), TP-99 (a) bis (e) (auch der Abbruch einer Reparatur und der Abbruch des zweiten Spiels)
+  und TP-25 (d); sie liefen für 1.1.0 nur in CI (Job `suite-e2e`, S1 bis S14 auf windows-latest mit
+  Platzhalter-Produkten, grün auf `2b764e4` und `75923f3`). Sie sind vor oder mit 1.1.1 auf der Hardware nachzuholen; ein
+  Befund dort wird in 1.1.1 behoben. Das Kriterium oben bleibt die Regel für die nächste Freigabe; dies ist eine datierte
+  Ausnahme, kein bestandener Fall.
 
 #### TP-90: Paket-ZIP ohne „Zulassen“: genau eine SmartScreen-Warnung
 
