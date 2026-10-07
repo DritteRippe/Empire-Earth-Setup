@@ -746,8 +746,10 @@ const
   SuiteTailToEndMax = 64;
   // What SuiteStopDecision finds
   SuiteStopGo = 0;                 // stop the product setup (before it is stopped), or: it was cancelled before it installed anything
-  SuiteStopTooLate = 1;            // the log shows the install step, or the state is not certain: the product setup is not stopped
+  SuiteStopTooLate = 1;            // the log shows the install step (or the start of its line): the product setup is not stopped
   SuiteStopIncomplete = 2;         // it was stopped, but the log shows the install step now: the game may be only partly installed
+  SuiteStopUnclear = 3;            // not certain (not everything frozen, the log not read, a line with only its time stamp, the stop
+                                   // did not happen): the product setup is not stopped and runs on, the decision can be made again
   // A line without a line end that grows beyond this is dropped (no log line is that long)
   SuiteTailCarryMax = 65536;
 
@@ -1262,15 +1264,17 @@ end;
 // SuitePhaseInstall with the line of the install step or any later one) and the last line without a line end (TailCarry);
 // Safe says that the state is certain: before the stop every process of the job is frozen and the log was read to its
 // end, after it the log was read to its end. Terminated says that the product setup was stopped already.
-//   before the stop: SuiteStopGo (nothing says it started to install: stop it), or SuiteStopTooLate (the log shows the
-//   install step or may be about to, or the state is not certain: it is not stopped, it finishes)
+//   before the stop: SuiteStopGo (nothing says it started to install: stop it), SuiteStopTooLate (the log shows the
+//   install step, or its line is partly there: it is not stopped, it finishes) or SuiteStopUnclear (the state is not
+//   certain, or the last line has only its time stamp: it is not stopped either, but it may not be installing, so the
+//   caller does not say that it is and decides again a moment later)
 //   after the stop: SuiteStopGo (the log still shows nothing: it was cancelled before it installed anything), or
 //   SuiteStopIncomplete (the log shows the install step now, or could not be read: the game may be only partly installed)
 function SuiteStopDecision(const P: TSuiteProgress; Safe, Terminated: Boolean): Integer;
 var
   Installing: Boolean;
 begin
-  Installing := SuiteProgressInstalling(P) or SuitePartialLineIsInstall(P.TailCarry, not Terminated);
+  Installing := SuiteProgressInstalling(P) or SuitePartialLineIsInstall(P.TailCarry, False);
   if Terminated then
   begin
     if Installing or not Safe then
@@ -1278,10 +1282,20 @@ begin
     else
       Result := SuiteStopGo;
   end
-  else if Installing or not Safe then
+  else if Installing then
     Result := SuiteStopTooLate
+  else if not Safe or SuitePartialLineIsInstall(P.TailCarry, True) then
+    Result := SuiteStopUnclear
   else
     Result := SuiteStopGo;
+end;
+
+// True if the result of SuiteStopBeforeInstall says that the product setup was stopped (also when the log showed afterwards
+// that it had started to install). Every other result means that it runs on: a caller stops nothing, and ends nothing, on
+// a result it does not know.
+function SuiteStopDone(Decision: Integer): Boolean;
+begin
+  Result := (Decision = SuiteStopGo) or (Decision = SuiteStopIncomplete);
 end;
 
 // The part of the download block that is done, in thousandths: finished files and the part of the current one,
@@ -1557,6 +1571,7 @@ const
   SuiteProductCapMs = 5400000;     // 90 minutes
   SuiteKillWaitMs = 5000;          // how long the suite waits for the product setup to be gone after it was stopped
   SuiteKillCode = 6;               // the exit code the stopped processes get (Inno Setup's code for a killed setup)
+  SuiteCancelTriesMax = 5;         // how often a confirmed cancel is decided again (one wait slice apart) while the state is unclear
 
   // The values of the Windows functions below
   SuiteCreateSuspended = $00000004;
@@ -1651,6 +1666,8 @@ function SuiteOpenProcess(dwDesiredAccess: DWORD; bInheritHandle: BOOL; dwProces
   external 'OpenProcess@kernel32.dll stdcall';
 function SuiteIsProcessInJob(hProcess, hJob: THandle; var pbResult: Longint): Longint;
   external 'IsProcessInJob@kernel32.dll stdcall';
+function SuiteGetProcessId(hProcess: THandle): DWORD;
+  external 'GetProcessId@kernel32.dll stdcall';
 function SuiteSuspendProcess(hProcess: THandle): Longint;
   external 'NtSuspendProcess@ntdll.dll stdcall';
 function SuiteResumeProcess(hProcess: THandle): Longint;
@@ -1708,17 +1725,24 @@ end;
 
 // Stops the product setup and everything it started: the whole job, or without a job only the process (the start
 // failed before the real setup could exist). The only place that stops a program (ci/check_suite.py): the runner
-// calls it for the cancel the user confirmed and for the time limits, and only with a job.
-procedure SuiteKillProduct(Proc, Job: THandle);
+// calls it for the cancel the user confirmed and for the time limits, and only with a job. True if Windows took the
+// order; a caller that must know that the program is gone waits for it (SuiteWaitEnd) and does not go on without.
+function SuiteKillProduct(Proc, Job: THandle): Boolean;
 begin
   if Job <> 0 then
-    SuiteTerminateJob(Job, SuiteKillCode)
+    Result := SuiteTerminateJob(Job, SuiteKillCode)
   else
-    SuiteTerminateProcess(Proc, SuiteKillCode);
+    Result := SuiteTerminateProcess(Proc, SuiteKillCode);
 end;
 
-// Freezes every process of the job of the product setup, so that nothing in it can run, write to the log or start another
-// process while the suite looks at the log once more (the decision to stop it, ADR 0013 amendment of the race of Cancel).
+// Freezes every process of the job of the product setup, so that the suite can look at the log of a setup that does not move
+// on while it looks (the decision to stop it, ADR 0013 amendment of the race of Cancel). The freeze is not an instant:
+// NtSuspendProcess returns before every thread has actually stopped, and a thread that is in a system call finishes that one
+// call. That is enough because of how Inno Setup writes its log (Logging.pas Log, FileClass.pas: the time stamp, the text
+// and the line end are separate WriteFile calls and there is no buffer): the setup has to finish the call that writes the
+// text of "Install step: ..." and to make another call before it changes anything. A freeze that takes effect after the
+// change finds the text in the log, and a freeze that catches the setup inside the call of the text leaves only the time
+// stamp or a part of the text, which the decision counts as unclear (SuitePartialLineIsInstall).
 // NtSuspendProcess of ntdll (undocumented, but there since Windows NT and used by every process tool) suspends all threads
 // of a process in one call under the lock of its thread list, so a thread created at that moment is not missed; a walk
 // over the threads (Toolhelp snapshot, SuspendThread each) would leave threads out that start between the snapshot and the
@@ -1726,17 +1750,20 @@ end;
 // by one not yet frozen shows up in the next look at the job: the job is looked at again until a look finds no process that
 // is not frozen (a frozen process starts none). Every process is opened by the id the job gave and must be in the job
 // (IsProcessInJob), so that an id that was reused by another program meanwhile is never suspended. A process that ended
-// meanwhile is no failure. Frozen holds what was frozen; Why says what failed. Result False: not everything could be
-// frozen (no job, the job cannot be read, a process cannot be suspended, the job keeps growing): the caller resumes what
-// was frozen (SuiteResumeFrozen) and does not stop the product setup. The only place that suspends a process
+// meanwhile is no failure, but an empty or wrong list must not look like a success: Proc is the loader, the process the job
+// was made for, and when the look finds nothing new it must either have ended or be among the frozen processes (an id the
+// open call rejects with ERROR_INVALID_PARAMETER counts as "ended", so a list with wrong ids would end here with nothing
+// frozen). Frozen holds what was frozen; Why says what failed. Result False: not everything could be frozen (no job, the job
+// cannot be read, a process cannot be suspended, the job keeps growing, the loader is running but not frozen): the caller
+// resumes what was frozen (SuiteResumeFrozen) and does not stop the product setup. The only place that suspends a process
 // (ci/check_suite.py).
-function SuiteFreezeJob(Job: THandle; var Frozen: array of TSuiteFrozenProcess; var Why: String): Boolean;
+function SuiteFreezeJob(Job, Proc: THandle; var Frozen: array of TSuiteFrozenProcess; var Why: String): Boolean;
 var
   List: TSuiteJobProcessList;
   Pass, I, J, Count, Added: Integer;
   Known: Boolean;
   InJob: Longint;
-  Pid: DWORD;
+  Pid, LoaderPid: DWORD;
   H: THandle;
 begin
   Result := False;
@@ -1812,7 +1839,20 @@ begin
       end;
       if Added = 0 then
       begin
-        Result := True;
+        if SuiteWaitObject(Proc, 0) = SuiteWaitObject0 then
+          Result := True
+        else
+        begin
+          LoaderPid := SuiteGetProcessId(Proc);
+          Known := False;
+          for J := 0 to Count - 1 do
+            if Frozen[J].Pid = LoaderPid then
+              Known := True;
+          Result := Known and (LoaderPid <> 0);
+          if not Result then
+            Why := 'the loader of the product setup (process ' + IntToStr(LoaderPid) + ') runs, but is not among the ' +
+              IntToStr(Count) + ' processes the job named';
+        end;
         Exit;
       end;
     end;

@@ -559,13 +559,21 @@ begin
   SuiteNoteLogRead(Product, Phase);
 end;
 
-// Stops the product setup and its job, waits up to SuiteKillWaitMs for it to be gone, and logs what became of it
-procedure SuiteStopProduct(const Product, Why: String);
+// Stops the product setup and its job, waits up to SuiteKillWaitMs for it to be gone, and logs what became of it. True only
+// if the order was taken and the setup is gone; a caller that goes on as if it was stopped (SuiteStopBeforeInstall closes the
+// handles of the frozen processes and claims "cancelled before it installed anything") must have that confirmed, because a
+// product setup that stays frozen is hidden (/VERYSILENT), holds its mutex and never ends.
+function SuiteStopProduct(const Product, Why: String): Boolean;
 begin
+  Result := False;
   Log('Product ' + Product + ': ' + Why + ', stopping its setup and everything it started');
-  SuiteKillProduct(SuiteChildProc, SuiteChildJob);
-  if SuiteWaitEnd(SuiteChildProc, SuiteKillWaitMs) then
-    Log('Product ' + Product + ': its setup is gone')
+  if not SuiteKillProduct(SuiteChildProc, SuiteChildJob) then
+    Log('Product ' + Product + ': Windows did not stop its setup (' + SysErrorMessage(DLLGetLastError) + ')')
+  else if SuiteWaitEnd(SuiteChildProc, SuiteKillWaitMs) then
+  begin
+    Log('Product ' + Product + ': its setup is gone');
+    Result := True;
+  end
   else
     Log('Product ' + Product + ': its setup did not end within ' + IntToStr(SuiteKillWaitMs) + ' ms after it was stopped');
 end;
@@ -573,17 +581,22 @@ end;
 // The one way to stop a product setup that has not started to install (the confirmed Cancel, the answer "stop" of the stall
 // question, the cap; ADR 0013, amendment of the race of Cancel). The decision "it has not started to install" is taken from a
 // log read before and was wrong by a few milliseconds: the product setup logged the install step and deleted its install
-// state while the suite was still deciding. So the processes of the job are frozen first, nothing can run or write to the
-// log any more, then the log is read to its end (with the line without a line end), and only then the suite decides
-// (SuiteStopDecision):
+// state while the suite was still deciding. So the processes of the job are frozen first, then the log is read to its end
+// (with the line without a line end), and only then the suite decides (SuiteStopDecision). The freeze is no instant: a thread
+// that is in a system call finishes it. That cannot hurt, because Inno Setup writes the time stamp, the text and the line end
+// of a log line in separate calls without a buffer (Logging.pas) and has to finish the call of the text before it changes
+// anything: what is in the log after the freeze is the text, or only a time stamp or a part of the text, and the latter two
+// count as unclear (the setup is not stopped). A line that shows up after the stop is caught by the read after it.
 //   no sign of the install step and everything frozen: the job is terminated (frozen processes can be), the log is read one
 //     last time, and if the line is there now (a line the suite missed) the result is SuiteStopIncomplete, not "before it
-//     installed anything"
-//   the install step line, or any doubt (a process that cannot be frozen, a log that cannot be read): nothing is stopped,
-//     the processes run again and the result is SuiteStopTooLate; a product setup that could not be frozen is never killed
-// Result: SuiteStopGo (stopped, it had changed nothing), SuiteStopTooLate (running, not stopped) or SuiteStopIncomplete
-// (stopped, the game may be only partly installed). The processes are resumed in every case but the termination, also
-// when something fails in between.
+//     installed anything". The termination is confirmed first (SuiteStopProduct): if it did not happen, the processes are
+//     resumed and the result is SuiteStopUnclear
+//   the install step line, or the start of it: nothing is stopped, the processes run again, the result is SuiteStopTooLate
+//   any doubt (a process that cannot be frozen, a log that cannot be read, a line with only its time stamp): nothing is
+//     stopped, the processes run again, the result is SuiteStopUnclear; a product setup that could not be frozen is never killed
+// Result: SuiteStopGo (stopped, it had changed nothing), SuiteStopTooLate (running, installing), SuiteStopUnclear (running,
+// not known) or SuiteStopIncomplete (stopped, the game may be only partly installed). The processes are resumed in every case
+// but a confirmed termination, also when something fails in between.
 function SuiteStopBeforeInstall(const Product, LogFile, Why: String; var Phase: Integer): Integer;
 var
   Frozen: array of TSuiteFrozenProcess;
@@ -591,10 +604,10 @@ var
   FreezeOk, ReadOk, Killed: Boolean;
   Count, Stuck: Integer;
 begin
-  Result := SuiteStopTooLate;
+  Result := SuiteStopUnclear;
   Killed := False;
   Log('Product ' + Product + ': freezing its setup and everything it started, to look at its log once more before it is stopped');
-  FreezeOk := SuiteFreezeJob(SuiteChildJob, Frozen, Reason);
+  FreezeOk := SuiteFreezeJob(SuiteChildJob, SuiteChildProc, Frozen, Reason);
   try
     if FreezeOk then
       Log('Product ' + Product + ': ' + IntToStr(GetArrayLength(Frozen)) + ' processes frozen')
@@ -607,17 +620,25 @@ begin
     Result := SuiteStopDecision(SuiteChildProgress, FreezeOk and ReadOk, False);
     if Result = SuiteStopGo then
     begin
-      SuiteStopProduct(Product, Why);
-      Killed := True;
-      SuiteForgetFrozen(Frozen);
-      // it cannot write any more: the last look at its log, with the last line that has no line end
-      ReadOk := not SuiteAdvanced and SuiteTailLogToEnd(LogFile, SuiteChildProgress);
-      SuiteNoteLogRead(Product, Phase);
-      Result := SuiteStopDecision(SuiteChildProgress, ReadOk, True);
-      if Result = SuiteStopIncomplete then
+      if SuiteStopProduct(Product, Why) then
       begin
-        SuiteRaisePhase(SuiteChildProgress, SuitePhaseInstall);
-        Log('Product ' + Product + ': its log shows the install step (or could not be read) after its setup was stopped, it may be incomplete');
+        Killed := True;
+        SuiteForgetFrozen(Frozen);
+        // it cannot write any more: the last look at its log, with the last line that has no line end
+        ReadOk := not SuiteAdvanced and SuiteTailLogToEnd(LogFile, SuiteChildProgress);
+        SuiteNoteLogRead(Product, Phase);
+        Result := SuiteStopDecision(SuiteChildProgress, ReadOk, True);
+        if Result = SuiteStopIncomplete then
+        begin
+          SuiteRaisePhase(SuiteChildProgress, SuitePhaseInstall);
+          Log('Product ' + Product + ': its log shows the install step (or could not be read) after its setup was stopped, it may be incomplete');
+        end;
+      end
+      else
+      begin
+        // not gone: it is not frozen forever (hidden, holding its mutex), it runs on and the decision can be made again
+        Result := SuiteStopUnclear;
+        Log('Product ' + Product + ': its setup was not stopped, it runs on');
       end;
     end
     else if SuiteProgressInstalling(SuiteChildProgress) then
@@ -695,13 +716,15 @@ end;
 
 // /TestCancelAtInstall (CI scenario S14): True if the log of the product setup shows the install step now. It reads a copy
 // of the progress (the record is copied by value), so SuiteChildProgress, which the Cancel button and the first look of the
-// decision use, does not know the line yet.
+// decision use, does not know the line yet. The copy starts where the progress of the suite stands and is read to the end of
+// the log (one call of SuiteTailLog reads one chunk of 256 KB: a log that is longer before the install step would never show
+// the line).
 function SuiteTestLogShowsInstall(const LogFile: String): Boolean;
 var
   Peek: TSuiteProgress;
 begin
   Peek := SuiteChildProgress;
-  SuiteTailLog(LogFile, Peek);
+  SuiteTailLogToEnd(LogFile, Peek);
   Result := SuiteProgressInstalling(Peek);
 end;
 
@@ -718,7 +741,7 @@ end;
 function SuiteWaitForProduct(const Product, LogFile: String; var Code: Integer): Integer;
 var
   Started, LastTail, LastGrowth, Tick: DWORD;
-  Phase, Mode, Shown, Waited, Offset: Integer;
+  Phase, Mode, Shown, Waited, Offset, Decision, CancelTries: Integer;
   StallDone, CapDone, AtInstallArmed: Boolean;
 begin
   Code := -1;
@@ -730,6 +753,7 @@ begin
   CapDone := False;
   Phase := SuiteChildProgress.Phase;
   Shown := -1;
+  CancelTries := 0;
   repeat
     Mode := SuiteCancelMode(SuiteAdvanced, SuiteChildJob <> 0, SuiteProgressInstalling(SuiteChildProgress));
     if Mode <> Shown then
@@ -796,7 +820,8 @@ begin
       SuiteCancelRequested := False;
       LastTail := Tick;
       Offset := SuiteChildProgress.TailOffset;
-      case SuiteStopBeforeInstall(Product, LogFile, 'cancelled by the user before it installed anything', Phase) of
+      Decision := SuiteStopBeforeInstall(Product, LogFile, 'cancelled by the user before it installed anything', Phase);
+      case Decision of
         SuiteStopGo:
           begin
             Result := SuiteEndCancelled;
@@ -811,12 +836,34 @@ begin
         begin
           if SuiteChildProgress.TailOffset <> Offset then
             LastGrowth := Tick;
-          if SuiteProgressInstalling(SuiteChildProgress) then
-            Log('Product ' + Product + ': the cancel came too late, its setup has started to install the game files')
+          if Decision = SuiteStopUnclear then
+          begin
+            // not known (not everything frozen, the log not read, a line with only its time stamp, the stop did not happen):
+            // the setup is not installing as far as anybody can tell, so "it is being installed" would be untrue and the
+            // "Yes" of the user is not dropped: the request stays and the decision is made again after the next wait slice
+            // (a line that is being written is complete within milliseconds), a few times
+            CancelTries := CancelTries + 1;
+            if CancelTries < SuiteCancelTriesMax then
+            begin
+              Log('Product ' + Product + ': the state of its setup is not certain, the cancel stays requested (try ' + IntToStr(CancelTries) +
+                ' of ' + IntToStr(SuiteCancelTriesMax) + ')');
+              SuiteCancelRequested := True;
+            end
+            else
+            begin
+              CancelTries := 0;
+              Log('Product ' + Product + ': the cancel was not carried out, its setup could not be stopped safely');
+              if not SuiteSilent then
+                SuppressibleMsgBox(CustomMessage('SuiteCancelRetry'), mbInformation, MB_OK, IDOK);
+            end;
+          end
           else
-            Log('Product ' + Product + ': the cancel came too late, its setup could not be stopped safely');
-          if not SuiteSilent then
-            SuppressibleMsgBox(CustomMessage('SuiteCancelNotNow'), mbInformation, MB_OK, IDOK);
+          begin
+            CancelTries := 0;
+            Log('Product ' + Product + ': the cancel came too late, its setup has started to install the game files');
+            if not SuiteSilent then
+              SuppressibleMsgBox(CustomMessage('SuiteCancelNotNow'), mbInformation, MB_OK, IDOK);
+          end;
         end;
       end;
     end;
@@ -836,16 +883,13 @@ begin
                 Result := SuiteEndTimedOut;
                 Exit;
               end;
-              case SuiteStopBeforeInstall(Product, LogFile, 'stopped by the user after it showed no sign of life', Phase) of
-                SuiteStopTooLate:
-                  Log('Product ' + Product + ': the stall question was answered with stop, but its setup is not stopped: it has started to install ' +
-                    'or cannot be stopped safely, waiting on');
-              else
-                begin
-                  Result := SuiteEndTimedOut;
-                  Exit;
-                end;
+              if SuiteStopDone(SuiteStopBeforeInstall(Product, LogFile, 'stopped by the user after it showed no sign of life', Phase)) then
+              begin
+                Result := SuiteEndTimedOut;
+                Exit;
               end;
+              Log('Product ' + Product + ': the stall question was answered with stop, but its setup is not stopped: it has started to install ' +
+                'or cannot be stopped safely, waiting on');
             end;
         end;
       SuiteTimeoutCap:
@@ -859,17 +903,14 @@ begin
               ' minutes and has started to install, it is not stopped for its time, waiting on')
           else if SuiteChildJob <> 0 then
           begin
-            case SuiteStopBeforeInstall(Product, LogFile, 'runs for more than ' + IntToStr(SuiteProductCapMs div 60000) +
-                ' minutes before it installed anything', Phase) of
-              SuiteStopTooLate:
-                Log('Product ' + Product + ': runs for more than ' + IntToStr(SuiteProductCapMs div 60000) +
-                  ' minutes, but it has started to install or cannot be stopped safely, it is not stopped for its time, waiting on');
-            else
-              begin
-                Result := SuiteEndTimedOut;
-                Exit;
-              end;
+            if SuiteStopDone(SuiteStopBeforeInstall(Product, LogFile, 'runs for more than ' + IntToStr(SuiteProductCapMs div 60000) +
+                ' minutes before it installed anything', Phase)) then
+            begin
+              Result := SuiteEndTimedOut;
+              Exit;
             end;
+            Log('Product ' + Product + ': runs for more than ' + IntToStr(SuiteProductCapMs div 60000) +
+              ' minutes, but it has started to install or cannot be stopped safely, it is not stopped for its time, waiting on');
           end
           else
             Log('Product ' + Product + ': runs for more than ' + IntToStr(SuiteProductCapMs div 60000) +

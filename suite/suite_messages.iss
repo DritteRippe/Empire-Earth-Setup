@@ -285,6 +285,11 @@ fr.SuiteCancelQuestionInstalledKept=Voulez-vous arrêter la réparation ou la mi
 SuiteCancelNotNow=Cancel is no longer possible: the game is being installed.
 de.SuiteCancelNotNow=Abbrechen ist nicht mehr möglich: Das Spiel wird gerade installiert.
 fr.SuiteCancelNotNow=L'annulation n'est plus possible : le jeu est en cours d'installation.
+; The confirmed Cancel could not be carried out: the setup of the game could not be frozen, its log not read, or the stop did not
+; happen, in several tries in a row. It is not being installed as far as the suite knows, so the text of the line above would be untrue.
+SuiteCancelRetry=The setup of the game could not be stopped safely right now. The installation goes on unchanged.%n%nClick Cancel again in a moment if you still want to stop it.
+de.SuiteCancelRetry=Das Setup des Spiels ließ sich gerade nicht sicher beenden. Die Installation läuft unverändert weiter.%n%nKlicke in einem Moment erneut auf "Abbrechen", wenn du sie noch beenden möchtest.
+fr.SuiteCancelRetry=Le programme d'installation du jeu n'a pas pu être arrêté en toute sécurité pour le moment. L'installation continue sans changement.%n%nCliquez de nouveau sur « Annuler » dans un instant si vous voulez toujours l'arrêter.
 SuiteCancelOwnSetup=To cancel, use the Cancel button in the setup window of the game.
 de.SuiteCancelOwnSetup=Zum Abbrechen verwende den Button "Abbrechen" im Setup-Fenster des Spiels.
 fr.SuiteCancelOwnSetup=Pour annuler, utilisez le bouton « Annuler » dans la fenêtre du programme d'installation du jeu.

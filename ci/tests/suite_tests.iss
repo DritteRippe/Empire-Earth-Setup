@@ -1266,7 +1266,12 @@ begin
   Marker := 'Install step: the game folder is changed from here on';
   Stamp := SuiteTestLine('');
   SetArrayLength(Nothing, 0);
-  Check('the three results are different', IntToStr(SuiteStopGo) + IntToStr(SuiteStopTooLate) + IntToStr(SuiteStopIncomplete), '012');
+  Check('the four results are different', IntToStr(SuiteStopGo) + IntToStr(SuiteStopTooLate) + IntToStr(SuiteStopIncomplete) + IntToStr(SuiteStopUnclear), '0123');
+  CheckBool('SuiteStopDone: stopped', SuiteStopDone(SuiteStopGo), True);
+  CheckBool('SuiteStopDone: stopped, the game may be incomplete', SuiteStopDone(SuiteStopIncomplete), True);
+  CheckBool('SuiteStopDone: it installs', SuiteStopDone(SuiteStopTooLate), False);
+  CheckBool('SuiteStopDone: not known', SuiteStopDone(SuiteStopUnclear), False);
+  CheckBool('SuiteStopDone: a result nobody knows is no stop', SuiteStopDone(99), False);
 
   // before the stop: nothing new, or lines that are no sign of the install step, and everything frozen: stop it
   Check('stop: nothing new in the log', IntToStr(SuiteTestStopDecision(Nothing, '', True, False)), IntToStr(SuiteStopGo));
@@ -1283,7 +1288,7 @@ begin
   Check('too late: a later phase', IntToStr(SuiteTestStopDecision(['Installation process succeeded.'], '', True, False)), IntToStr(SuiteStopTooLate));
   Check('too late: the end of the log', IntToStr(SuiteTestStopDecision(['Log closed.'], '', True, False)), IntToStr(SuiteStopTooLate));
   // the state is not certain (a process that cannot be frozen, a log that cannot be read): never stop it
-  Check('too late: not everything is frozen, no sign of the install step', IntToStr(SuiteTestStopDecision(Nothing, '', False, False)), IntToStr(SuiteStopTooLate));
+  Check('unclear: not everything is frozen, no sign of the install step (it is not said to install)', IntToStr(SuiteTestStopDecision(Nothing, '', False, False)), IntToStr(SuiteStopUnclear));
   Check('too late: not everything is frozen, and the marker', IntToStr(SuiteTestStopDecision([Marker], '', False, False)), IntToStr(SuiteStopTooLate));
   // it was known already before the freeze
   SuiteProgressInit(P, 'EE');
@@ -1297,8 +1302,10 @@ begin
   Check('too late: the marker line is cut after "Install"', IntToStr(SuiteTestStopDecision(Nothing, Stamp + 'Install', True, False)), IntToStr(SuiteStopTooLate));
   Check('too late: the marker line is cut after its first letter', IntToStr(SuiteTestStopDecision(Nothing, Stamp + 'I', True, False)), IntToStr(SuiteStopTooLate));
   Check('too late: the line of Inno Setup is cut', IntToStr(SuiteTestStopDecision(Nothing, Stamp + 'Starting the installa', True, False)), IntToStr(SuiteStopTooLate));
-  Check('too late: only the time stamp of the line is written', IntToStr(SuiteTestStopDecision(Nothing, Stamp, True, False)), IntToStr(SuiteStopTooLate));
-  Check('too late: only a part of the time stamp is written', IntToStr(SuiteTestStopDecision(Nothing, '2026-10-06 21:3', True, False)), IntToStr(SuiteStopTooLate));
+  Check('unclear: only the time stamp of the line is written (it resolves within milliseconds)', IntToStr(SuiteTestStopDecision(Nothing, Stamp, True, False)), IntToStr(SuiteStopUnclear));
+  Check('unclear: only a part of the time stamp is written', IntToStr(SuiteTestStopDecision(Nothing, '2026-10-06 21:3', True, False)), IntToStr(SuiteStopUnclear));
+  Check('unclear: only the time stamp, and the log could not be read', IntToStr(SuiteTestStopDecision(Nothing, Stamp, False, False)), IntToStr(SuiteStopUnclear));
+  Check('too late: a text of the marker is certain, also when the log could not be read to its end', IntToStr(SuiteTestStopDecision(Nothing, Stamp + 'Install', False, False)), IntToStr(SuiteStopTooLate));
   Check('stop: the last line without a line end is another line',
     IntToStr(SuiteTestStopDecision(Nothing, Stamp + 'Online file downloaded, x', True, False)), IntToStr(SuiteStopGo));
   Check('stop: the last line without a line end starts like the marker and goes another way',
@@ -1359,7 +1366,7 @@ begin
   SuiteProgressInit(P, 'EE');
   CheckBool('SuiteTailLog of a log that cannot be opened: nothing new', SuiteTailLog(LogFile, P), False);
   CheckBool('SuiteTailLogToEnd of a log that cannot be opened: not certain', SuiteTailLogToEnd(LogFile, P), False);
-  Check('the decision for a log that could not be read: too late', IntToStr(SuiteStopDecision(P, False, False)), IntToStr(SuiteStopTooLate));
+  Check('the decision for a log that could not be read: unclear', IntToStr(SuiteStopDecision(P, False, False)), IntToStr(SuiteStopUnclear));
   CloseHandle(Handle);
   DeleteFile(LogFile);
   RemoveDir(Dir);
@@ -1561,14 +1568,19 @@ end;
 // The freeze of the processes of a job (SuiteFreezeJob), the step before every stop of a product setup: programs that ended
 // or that cannot be frozen, and the setup of this test that writes a byte every 25 ms (/ProcTickDir, InitializeSetup of
 // unit_tests.iss), as a loader with a real setup like a product setup. Frozen, nothing is written; resumed, it goes on;
-// terminated while frozen, it ends with SuiteKillCode. Nothing here starts a setup of the suite.
+// terminated while frozen, it ends with SuiteKillCode. A freeze that finds nothing new is a success only if the loader has
+// ended or is among the frozen processes: a loader that runs outside the job, or a job without processes, is none (a wrong
+// or empty list of the job must not look like a freeze). A 64-bit program is frozen, resumed and stopped by this 32-bit
+// setup (on 64-bit Windows). Nothing here starts a setup of the suite.
 procedure TestSuiteFreeze;
 var
-  Dir, Why, Ticks: String;
-  Proc, Job: THandle;
+  Dir, Dir2, Why, Ticks: String;
+  Proc, Job, Proc2, Job2, Job3: THandle;
   Frozen: array of TSuiteFrozenProcess;
   Err, Code, I, Stuck: Integer;
   Size1, Size2, Size3: Int64;
+  Loader: DWORD;
+  Found: Boolean;
 begin
   Dir := ExpandConstant('{tmp}\suite_freeze');
   ForceDirectories(Dir);
@@ -1576,7 +1588,7 @@ begin
 
   // no job: nothing can be frozen, and the reason is told
   Why := '';
-  CheckBool('SuiteFreezeJob without a job', SuiteFreezeJob(0, Frozen, Why), False);
+  CheckBool('SuiteFreezeJob without a job', SuiteFreezeJob(0, 0, Frozen, Why), False);
   CheckBool('SuiteFreezeJob without a job: a reason', Why <> '', True);
   Check('SuiteFreezeJob without a job: nothing frozen', IntToStr(GetArrayLength(Frozen)), '0');
 
@@ -1588,7 +1600,7 @@ begin
   else
   begin
     Why := 'x';
-    CheckBool('SuiteFreezeJob of a job whose program ended', SuiteFreezeJob(Job, Frozen, Why), True);
+    CheckBool('SuiteFreezeJob of a job whose program ended', SuiteFreezeJob(Job, Proc, Frozen, Why), True);
     Check('SuiteFreezeJob of a job whose program ended: no reason', Why, '');
     // what is still in the job (Wine keeps a console helper there for a moment) is frozen and runs again
     Check('SuiteResumeFrozen of what was frozen', IntToStr(SuiteResumeFrozen(Frozen)), '0');
@@ -1615,11 +1627,20 @@ begin
     end;
     CheckBool('the real setup it starts is writing', Size1 > 4, True);
     Why := '';
-    CheckBool('SuiteFreezeJob freezes the loader and the real setup', SuiteFreezeJob(Job, Frozen, Why), True);
+    CheckBool('SuiteFreezeJob freezes the loader and the real setup', SuiteFreezeJob(Job, Proc, Frozen, Why), True);
     Check('SuiteFreezeJob: no reason', Why, '');
     CheckBool('SuiteFreezeJob froze the processes of the job (the loader and the real setup)', GetArrayLength(Frozen) >= 2, True);
     CheckBool('a frozen process is still there', SuiteWaitObject(Proc, 0) = SuiteWaitTimeout, True);
-    // the writes of a process that was running a moment ago stop at once: three looks at the size 300 ms apart are the same
+    // the loader is among the frozen processes (this is what makes a freeze a freeze, see below)
+    Loader := SuiteGetProcessId(Proc);
+    Found := False;
+    for I := 0 to GetArrayLength(Frozen) - 1 do
+      if Frozen[I].Pid = Loader then
+        Found := True;
+    CheckBool('the loader (GetProcessId of the process the job was made for) is among the frozen processes', Found and (Loader <> 0), True);
+    // NtSuspendProcess returns before every thread has stopped: a write that was in progress finishes, so the first size is
+    // taken after a moment (a write that was running a moment ago stops at once after that: three looks 300 ms apart are the same)
+    Sleep(50);
     Size1 := 0;
     Size2 := 0;
     Size3 := 0;
@@ -1641,10 +1662,45 @@ begin
       I := I + 1;
     end;
     CheckBool('resumed: the real setup writes again', Size3 > Size2, True);
+    // a freeze that finds nothing new proves nothing if the loader is not among the frozen processes: a second program that
+    // runs outside this job stands for a loader the job does not know (a wrong list), an empty job for a list with no process
+    Dir2 := Dir + '\second';
+    ForceDirectories(Dir2);
+    CheckBool('SuiteStartProduct starts a second program, outside the job', SuiteStartProduct(ExpandConstant('{srcexe}'),
+      '/VERYSILENT /SUPPRESSMSGBOXES /ProcSleepDir="' + Dir2 + '"', Dir2, Proc2, Job2, Err), True);
+    if Job2 = 0 then
+      Skip('SuiteFreezeJob with a loader outside the job', 'the second process could not be put in a job object')
+    else
+    begin
+      Why := '';
+      CheckBool('SuiteFreezeJob: the loader runs outside the job, no freeze', SuiteFreezeJob(Job, Proc2, Frozen, Why), False);
+      CheckBool('SuiteFreezeJob: the reason names the loader', Pos('loader', Why) > 0, True);
+      CheckBool('SuiteFreezeJob: what it froze is handed back to be resumed', GetArrayLength(Frozen) >= 2, True);
+      Check('SuiteResumeFrozen after the failed freeze', IntToStr(SuiteResumeFrozen(Frozen)), '0');
+      Job3 := SuiteCreateJob(0, 0);
+      CheckBool('an empty job object is created', Job3 <> 0, True);
+      Why := '';
+      CheckBool('SuiteFreezeJob: an empty job and a loader that runs, no freeze', SuiteFreezeJob(Job3, Proc, Frozen, Why), False);
+      Check('SuiteFreezeJob: an empty job, nothing frozen', IntToStr(GetArrayLength(Frozen)), '0');
+      CheckBool('SuiteFreezeJob: an empty job, a reason', Why <> '', True);
+      SuiteCloseHandle(Job3);
+      // a job that was closed takes no order to stop its programs, and SuiteKillProduct tells (its caller must not go on)
+      Job3 := SuiteCreateJob(0, 0);
+      SuiteCloseHandle(Job3);
+      CheckBool('SuiteKillProduct of a job that is closed: not taken', SuiteKillProduct(0, Job3), False);
+      SuiteKillProduct(Proc2, Job2);
+      SuiteWaitEnd(Proc2, SuiteKillWaitMs);
+      SuiteCloseHandle(Job2);
+    end;
+    if Proc2 <> 0 then
+      SuiteCloseHandle(Proc2);
+    DeleteFile(Dir2 + '\started.txt');
+    DeleteFile(Dir2 + '\survived.txt');
+    RemoveDir(Dir2);
     // frozen again, the whole job is terminated like the runner does after its decision
     Why := '';
-    CheckBool('SuiteFreezeJob freezes again', SuiteFreezeJob(Job, Frozen, Why), True);
-    SuiteKillProduct(Proc, Job);
+    CheckBool('SuiteFreezeJob freezes again', SuiteFreezeJob(Job, Proc, Frozen, Why), True);
+    CheckBool('SuiteKillProduct takes the order', SuiteKillProduct(Proc, Job), True);
     SuiteForgetFrozen(Frozen);
     CheckBool('SuiteWaitEnd sees the terminated frozen program end', SuiteWaitEnd(Proc, SuiteKillWaitMs), True);
     Code := -1;
@@ -1660,5 +1716,36 @@ begin
   if Job <> 0 then
     SuiteCloseHandle(Job);
   DeleteFile(Ticks);
+
+  // a 64-bit program, frozen, resumed and stopped by this 32-bit setup: the suite is a 32-bit program, and the helper of
+  // Inno Setup, which the product setup starts at its install step, is a 64-bit one (this proves it can be handled)
+  if not IsWin64 then
+    Skip('SuiteFreezeJob of a 64-bit program', 'Windows is not 64-bit')
+  else
+  begin
+    CheckBool('SuiteStartProduct starts a 64-bit program', SuiteStartProduct(ExpandConstant('{sysnative}\cmd.exe'),
+      '/c ping -n 30 127.0.0.1', Dir, Proc, Job, Err), True);
+    if Job = 0 then
+      Skip('SuiteFreezeJob of a 64-bit program', 'the process could not be put in a job object')
+    else
+    begin
+      Why := '';
+      CheckBool('SuiteFreezeJob freezes a 64-bit program', SuiteFreezeJob(Job, Proc, Frozen, Why), True);
+      Check('SuiteFreezeJob of a 64-bit program: no reason', Why, '');
+      CheckBool('SuiteFreezeJob of a 64-bit program: the loader is frozen', GetArrayLength(Frozen) >= 1, True);
+      CheckBool('a frozen 64-bit program is still there', SuiteWaitObject(Proc, 0) = SuiteWaitTimeout, True);
+      Check('SuiteResumeFrozen resumes a 64-bit program', IntToStr(SuiteResumeFrozen(Frozen)), '0');
+      CheckBool('a resumed 64-bit program is still there', SuiteWaitObject(Proc, 0) = SuiteWaitTimeout, True);
+      Why := '';
+      CheckBool('SuiteFreezeJob freezes a 64-bit program again', SuiteFreezeJob(Job, Proc, Frozen, Why), True);
+      CheckBool('SuiteKillProduct stops a frozen 64-bit program', SuiteKillProduct(Proc, Job), True);
+      SuiteForgetFrozen(Frozen);
+      CheckBool('SuiteWaitEnd sees the terminated 64-bit program end', SuiteWaitEnd(Proc, SuiteKillWaitMs), True);
+    end;
+    if Proc <> 0 then
+      SuiteCloseHandle(Proc);
+    if Job <> 0 then
+      SuiteCloseHandle(Job);
+  end;
   RemoveDir(Dir);
 end;

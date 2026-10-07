@@ -1014,6 +1014,9 @@ function Get-E2ECancelStopPatterns([string]$Id, [string]$Request) {
 function Get-E2ECancelStopNotMatches([string]$Id) {
   return @(
     "^Product ${Id}: the cancel came too late",
+    "^Product ${Id}: the cancel was not carried out",
+    "^Product ${Id}: Windows did not stop its setup",
+    "^Product ${Id}: its setup was not stopped",
     "^Product ${Id}: its setup did not end",
     "^Product ${Id}: its log shows the install step",
     "^Product ${Id}: the last line of its log may be the install step",
