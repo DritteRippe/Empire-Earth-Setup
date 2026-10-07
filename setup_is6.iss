@@ -296,9 +296,9 @@
 #define AoCExe AoCDir + "\EE-AOC.exe"
 #define RmsSubDir "Data\Random Map Scripts"
 
-; dgVoodoo version of the DirectX 11/12 wrappers (data\Add-on\DirectX_Wrapper\dgVoodoo_bin), shown
-; in the component descriptions
-#define DgVoodooVersion "v2.82.1"
+; dgVoodoo version of the DirectX 11/12 wrappers (data\Add-on\DirectX_Wrapper\dgVoodoo_bin, pinned in
+; pins\dgvoodoo.txt, whose Version line must be the same), shown in the component descriptions
+#define DgVoodooVersion "v2.87.5"
 
 ; Game languages, in the order of the language page. Each one is the component language\<name>,
 ; described by the custom message LIQP_<name> (messages.iss); a name that is also in [Languages]
@@ -648,8 +648,12 @@ Source: "data\Add-on\DLLs\dreXmod\3_privacy\*"; DestDir: "{app}\{#AddOnDir}"; Fl
 Source: "data\Add-on\RMS\Omega\{#AddOnOmega}\*"; DestDir: "{app}\{#AddOnDir}\{#RmsSubDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\rms\omega and {#AddOnComp}; AfterInstall: RecordInstalledFile
 Source: "data\Add-on\RMS\NeoExtra\*"; DestDir: "{app}\{#AddOnDir}\{#RmsSubDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\rms\neoextra and {#AddOnComp}; AfterInstall: RecordInstalledFile
   #endif
-; dgVoodoo binaries (DirectX 11/12 wrapper) or DDraw.dll (GOG for dx9, DDrawCompat for dx7)
-Source: "data\Add-on\DirectX_Wrapper\dgVoodoo_bin\*"; DestDir: "{app}\{#AddOnDir}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper and {#AddOnComp} and not additional\directx_wrapper\dx9 and not additional\directx_wrapper\dx7; AfterInstall: RecordInstalledFile
+; dgVoodoo 2.87.5 (DirectX 11/12 wrapper, pinned in pins\dgvoodoo.txt): the 32-bit DirectDraw and Direct3D DLLs for every
+; dgVoodoo level, its control panel only on 64-bit Windows (dgVoodoo has had no 32-bit control panel since 2.86.3); or
+; DDraw.dll (GOG for dx9, DDrawCompat for dx7)
+Source: "data\Add-on\DirectX_Wrapper\dgVoodoo_bin\DDraw.dll"; DestDir: "{app}\{#AddOnDir}"; Flags: ignoreversion; Components: additional\directx_wrapper and {#AddOnComp} and not additional\directx_wrapper\dx9 and not additional\directx_wrapper\dx7; AfterInstall: RecordInstalledFile
+Source: "data\Add-on\DirectX_Wrapper\dgVoodoo_bin\D3DImm.dll"; DestDir: "{app}\{#AddOnDir}"; Flags: ignoreversion; Components: additional\directx_wrapper and {#AddOnComp} and not additional\directx_wrapper\dx9 and not additional\directx_wrapper\dx7; AfterInstall: RecordInstalledFile
+Source: "data\Add-on\DirectX_Wrapper\dgVoodoo_bin\dgVoodooCpl.exe"; DestDir: "{app}\{#AddOnDir}"; Flags: ignoreversion; Components: additional\directx_wrapper and {#AddOnComp} and not additional\directx_wrapper\dx9 and not additional\directx_wrapper\dx7; Check: IsWin64; AfterInstall: RecordInstalledFile
 Source: "data\Add-on\DirectX_Wrapper\GOG\DDraw.dll"; DestDir: "{app}\{#AddOnDir}"; DestName: "DDraw.dll"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper\dx9 and {#AddOnComp}; AfterInstall: RecordInstalledFile
 Source: "data\Add-on\DirectX_Wrapper\DDrawCompat\DDraw.dll"; DestDir: "{app}\{#AddOnDir}"; DestName: "DDraw.dll"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: additional\directx_wrapper\dx7 and {#AddOnComp}; AfterInstall: RecordInstalledFile
 ; dgVoodoo configuration of the selected API level, kept in the repository (config\dgVoodoo, ADR 0005): fake fullscreen,

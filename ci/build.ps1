@@ -18,6 +18,11 @@
        test build): data\localized-text is then not the data of the file servers. So does a file
        that both pin with the same SHA-256 when its size in pins\online-files.txt is not the size
        of the file in data\localized-text: the setups would reject the right file.
+    3b. Compare the dgVoodoo files of data\Add-on\DirectX_Wrapper\dgVoodoo_bin with pins\dgvoodoo.txt
+       (ADR 0005, amendment 2026-10-07): a release build ships exactly the pinned dgVoodoo and stops
+       otherwise (also if a file is a placeholder); a test build may test another one and warns.
+       Not with -Placeholders. The configurations are in the repository (config\dgVoodoo), checked by
+       ci\dgvoodoo_pins.ps1.
     4. Compile every variant with ISCC /DInstallType /DInstallMode /DEE_AppID /DNeoEE_AppID
        [/DTestID] [/DSetupBuild] into its own output folder and check that the file name proves the
        variant took effect.
@@ -210,7 +215,7 @@ function Show-LogErrors([string]$LogFile) {
 # Write-DownloadHashes, ConvertTo-DerCertificateFile, ConvertTo-Thumbprint, Get-TestIdDefine,
 # Get-SetupBuild, Assert-SetupBuild, Get-SetupBuildDefine, Get-GitShortCommit, Write-FileSha256,
 # Get-OnlineFiles, Get-UnpinnedOnlineFiles, Read-OnlinePins, Test-OnlinePinCoverage,
-# Test-PinConsistency
+# Test-PinConsistency, Read-DgVoodooPins, Test-DgVoodooFiles
 . (Join-Path $PSScriptRoot 'build_helpers.ps1')
 
 $LocalizedFolder = Join-Path $Root 'data\localized-text'
@@ -382,6 +387,26 @@ try {
     Write-Host 'Pins: data\localized-text holds placeholders, not compared with pins\online-files.txt.'
   } elseif ((Show-PinConflicts $onlineFiles $onlinePins $buildKind) -gt 0 -and $release) {
     throw 'Release build: data\localized-text and pins\online-files.txt pin different files or sizes (listed above).'
+  }
+
+  # The dgVoodoo files of data\ against pins\dgvoodoo.txt (ADR 0005, amendment 2026-10-07): a release ships exactly the
+  # pinned dgVoodoo; a test build may test another one (warning). The configurations are in the repository and checked
+  # by ci\dgvoodoo_pins.ps1.
+  $dgPins = Read-DgVoodooPins (Join-Path $Root $DgVoodooPinFile)
+  if ($Placeholders) {
+    Write-Host 'dgVoodoo: data holds placeholders, not compared with pins\dgvoodoo.txt.'
+  } else {
+    $dgResult = @(Test-DgVoodooFiles (Join-Path $Root $DgVoodooFilesFolder) $dgPins)
+    if ($dgResult.Count -gt 0) {
+      foreach ($item in $dgResult) { Write-Host "    $($item.Problem)" }
+      if ($release) { throw 'Release build: the dgVoodoo files of data\ are not those of pins\dgvoodoo.txt (listed above).' }
+      Write-Warning "Test build: $($dgResult.Count) dgVoodoo file(s) of data\ are not those of pins\dgvoodoo.txt (listed above); the build tests another dgVoodoo."
+    } else {
+      Write-Host "dgVoodoo: $($dgPins.Files.Count) file(s) of $($dgPins.Version) match pins\dgvoodoo.txt."
+    }
+  }
+  if (Test-Path -LiteralPath (Join-Path $Root 'data\Add-on\DirectX_Wrapper\dgVoodoo_conf')) {
+    Write-Warning 'data\Add-on\DirectX_Wrapper\dgVoodoo_conf is no longer read: the configurations are in config\dgVoodoo. Delete the folder from the data.'
   }
 
   # Pass 2: the real compile, one output folder per variant.

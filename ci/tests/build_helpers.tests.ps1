@@ -438,6 +438,143 @@ try {
     CheckThrows "Get-OnlineFiles refuses $name" { Get-OnlineFiles $variantRoot 'EE' }
   }
 
+  # --- dgVoodoo (pins\dgvoodoo.txt, config\dgVoodoo): the reader of the pins, the checks of the script and of the
+  # configurations, and the comparison of the files with the pins, on made-up files in a temporary folder
+  # (the real dgVoodoo files are not in the repository). ci\dgvoodoo_pins.ps1 -SelfTest runs the mutants of the
+  # real repository.
+  $dgPinFile = Join-Path (Join-Path $repoRoot 'pins') 'dgvoodoo.txt'
+  $dgPins = Read-DgVoodooPins $dgPinFile
+  Check 'Read-DgVoodooPins: version' $dgPins.Version 'v2.87.5'
+  Check 'Read-DgVoodooPins: archive' "$($dgPins.Archive.Size) $($dgPins.Archive.Url)" '9268078 https://github.com/dege-diosg/dgVoodoo2/releases/download/v2.87.5/dgVoodoo2_87_5.zip'
+  Check 'Read-DgVoodooPins: files in ordinal order' (($dgPins.Files | ForEach-Object { $_.Name }) -join ',') 'D3DImm.dll,DDraw.dll,dgVoodooCpl.exe'
+  Check 'Read-DgVoodooPins: DDraw.dll' "$($dgPins.Files[1].Size) $($dgPins.Files[1].ArchivePath) $($dgPins.Files[1].Sha256)" '255488 MS/x86/DDraw.dll 612a24408a090a3c6f3886557fa18034ee742e94ad0a40ebdf854d2816176c2e'
+  Check 'Get-DgVoodooConfVersion v2.87.5' (Get-DgVoodooConfVersion 'v2.87.5') '0x287'
+  Check 'Get-DgVoodooConfVersion v2.82.1' (Get-DgVoodooConfVersion 'v2.82.1') '0x282'
+  Check 'Get-DgVoodooConfVersion v3.05.0' (Get-DgVoodooConfVersion 'v3.05.0') '0x305'
+  CheckThrows 'Get-DgVoodooConfVersion refuses v2.8.1' { Get-DgVoodooConfVersion 'v2.8.1' }
+  CheckThrows 'Get-DgVoodooConfVersion refuses 2.87.5' { Get-DgVoodooConfVersion '2.87.5' }
+  CheckThrows 'Read-DgVoodooPins refuses a missing file' { Read-DgVoodooPins (Join-Path $temp 'no-dgvoodoo.txt') }
+  $dgText = [System.IO.File]::ReadAllText($dgPinFile)
+  $dgDdraw = @($dgText -split "`n" | Where-Object { $_ -like 'File * DDraw.dll *' })[0]
+  $dgD3dimm = @($dgText -split "`n" | Where-Object { $_ -like 'File * D3DImm.dll *' })[0]
+  $dgBadPins = [ordered]@{
+    'a BOM' = [string][char]0xFEFF + $dgText
+    'CRLF line ends' = $dgText.Replace("`n", "`r`n")
+    'no LF at the end' = $dgText.TrimEnd("`n")
+    'an empty line' = $dgText.Replace("Version v2.87.5`n", "Version v2.87.5`n`n")
+    'an unknown line' = $dgText.Replace("Version v2.87.5`n", "Version v2.87.5`nFoo bar`n")
+    'Version without a number' = $dgText.Replace('Version v2.87.5', 'Version 2.87.5')
+    'a second Version' = $dgText.Replace("Version v2.87.5`n", "Version v2.87.5`nVersion v2.87.5`n")
+    'Version after Archive' = $dgText.Replace("Version v2.87.5`n", '') + "Version v2.87.5`n"
+    'Archive missing' = ($dgText -replace '(?m)^Archive [^\n]*\n', '')
+    'a second Archive' = ($dgText -replace '(?m)^(Archive [^\n]*\n)', '$1$1')
+    'Archive with http://' = $dgText.Replace(' https://github.com', ' http://github.com')
+    'Archive with a double space' = $dgText.Replace('Archive 5ffde', 'Archive  5ffde')
+    'no File line' = ($dgText -replace '(?m)^File [^\n]*\n', '')
+    'a File line before Archive' = ($dgText -replace '(?m)^(Archive [^\n]*\n)', '').Replace("Version v2.87.5`n", "Version v2.87.5`n$dgDdraw`n")
+    'uppercase hex digits' = $dgText.Replace($dgDdraw, 'File ' + $dgDdraw.Substring(5, 64).ToUpperInvariant() + $dgDdraw.Substring(69))
+    'a short hash' = $dgText.Replace($dgDdraw, 'File ' + $dgDdraw.Substring(6))
+    'a size of 0' = $dgText.Replace($dgDdraw, ($dgDdraw -replace '^(File \S+) \d+ ', '$1 0 '))
+    'a size with a leading zero' = $dgText.Replace($dgDdraw, ($dgDdraw -replace '^(File \S+) (\d+) ', '$1 0$2 '))
+    'a file name with a slash' = $dgText.Replace(' DDraw.dll MS', ' x/DDraw.dll MS')
+    'a path in the archive with ..' = $dgText.Replace(' MS/x86/DDraw.dll', ' ../x86/DDraw.dll')
+    'a File line with four fields' = $dgText.Replace(' MS/x86/DDraw.dll', '')
+    'two File lines swapped (order)' = $dgText.Replace("$dgD3dimm`n$dgDdraw`n", "$dgDdraw`n$dgD3dimm`n")
+    'a File pinned twice' = $dgText.Replace("$dgDdraw`n", "$dgDdraw`n$dgDdraw`n")
+  }
+  foreach ($name in $dgBadPins.Keys) {
+    $file = Join-Path $temp 'bad-dgvoodoo.txt'
+    [System.IO.File]::WriteAllBytes($file, [System.Text.UTF8Encoding]::new($false).GetBytes($dgBadPins[$name]))
+    CheckThrows "Read-DgVoodooPins refuses $name" { Read-DgVoodooPins $file }
+  }
+
+  # The script and the configurations of the repository are fine; a copy with a defect is not
+  Check 'Get-DgVoodooScriptProblems: the repository' @(Get-DgVoodooScriptProblems $repoRoot $dgPins).Count 0
+  Check 'Get-DgVoodooConfProblems: the repository' @(Get-DgVoodooConfProblems $repoRoot $dgPins).Count 0
+  $dgCopy = Join-Path $temp 'dg-repo'
+  New-Item -ItemType Directory -Path (Join-Path $dgCopy 'config') -Force | Out-Null
+  Copy-Item -LiteralPath (Join-Path $repoRoot 'config\dgVoodoo') -Destination (Join-Path $dgCopy 'config') -Recurse
+  $dgSetup = Join-Path $dgCopy 'setup_is6.iss'
+  $dgSetupText = [System.IO.File]::ReadAllText((Join-Path $repoRoot 'setup_is6.iss'))
+  $dgSetupCases = [ordered]@{
+    'DgVoodooVersion of another version' = @($dgSetupText.Replace('#define DgVoodooVersion "v2.87.5"', '#define DgVoodooVersion "v2.87.4"'), 'DgVoodooVersion')
+    'the wildcard in dgVoodoo_bin' = @($dgSetupText.Replace('dgVoodoo_bin\D3DImm.dll"', 'dgVoodoo_bin\*"'), 'wildcard')
+    'an unpinned file in dgVoodoo_bin' = @($dgSetupText.Replace('dgVoodoo_bin\D3DImm.dll"', 'dgVoodoo_bin\D3D9.dll"'), 'D3D9.dll is installed')
+    'dgVoodooCpl.exe without Check: IsWin64' = @($dgSetupText.Replace('dx7; Check: IsWin64; AfterInstall', 'dx7; AfterInstall'), 'dgVoodooCpl.exe (x64 only) needs Check: IsWin64')
+    'the configuration of dx11_lvl10_1 from the old folder' = @($dgSetupText.Replace('Source: "config\dgVoodoo\dgVoodoo_DX11_LVL10_1.conf"', 'Source: "data\Add-on\DirectX_Wrapper\dgVoodoo_conf\dgVoodoo_DX11_LVL10_1.conf"'), 'dgVoodoo_conf')
+    'the configuration of dx11_lvl10 for another component' = @($dgSetupText.Replace('Components: additional\directx_wrapper\dx11_lvl10 and', 'Components: additional\directx_wrapper\dx11_lvl11 and'), 'must be installed with the component additional\directx_wrapper\dx11_lvl10')
+    'DestName dgVoodoo.ini' = @(($dgSetupText -replace '(dgVoodoo_DX12_LVL11\.conf"; DestDir: "[^"]*"; DestName: ")dgVoodoo\.conf', '${1}dgVoodoo.ini'), 'DestName')
+    'GameAddOnFiles not called for EEDir' = @(($dgSetupText -replace '(?m)^(#expr AddOnDir = EEDir[^\r\n]*\r?\n)#call GameAddOnFiles\r?\n', '$1'), 'EEDir')
+  }
+  foreach ($name in $dgSetupCases.Keys) {
+    [System.IO.File]::WriteAllText($dgSetup, $dgSetupCases[$name][0], [System.Text.UTF8Encoding]::new($true))
+    if ($dgSetupCases[$name][0] -ceq $dgSetupText) { throw "dgVoodoo test: the case '$name' changed nothing" }
+    $problems = @(Get-DgVoodooScriptProblems $dgCopy $dgPins)
+    Check "Get-DgVoodooScriptProblems: $name" ($problems.Count -gt 0 -and @($problems | Where-Object { $_.Contains($dgSetupCases[$name][1]) }).Count -gt 0) $true
+  }
+  [System.IO.File]::WriteAllText($dgSetup, $dgSetupText, [System.Text.UTF8Encoding]::new($true))
+  Check 'Get-DgVoodooScriptProblems: the unchanged copy' @(Get-DgVoodooScriptProblems $dgCopy $dgPins).Count 0
+  $dgConf = Join-Path $dgCopy 'config\dgVoodoo\dgVoodoo_DX12_LVL12.conf'
+  $dgConfText = [System.Text.Encoding]::GetEncoding(28591).GetString([System.IO.File]::ReadAllBytes($dgConf))
+  $dgConfCases = [ordered]@{
+    'LF line ends' = @($dgConfText.Replace("`r`n", "`n"), 'CRLF')
+    'no final CRLF' = @($dgConfText.Substring(0, $dgConfText.Length - 2), 'does not end with CRLF')
+    'DeferredScreenModeSwitch = true' = @(($dgConfText -replace '(DeferredScreenModeSwitch\s*= )false', '${1}true'), 'DeferredScreenModeSwitch = true')
+    'Alt+Enter on' = @(($dgConfText -replace '(DisableAltEnterToToggleScreenMode\s*= )true', '${1}false'), 'DisableAltEnterToToggleScreenMode = false')
+    'FullscreenAttributes removed' = @(($dgConfText -replace '(?m)^FullscreenAttributes[^\r\n]*\r\n', ''), 'FullscreenAttributes is missing')
+    'FullscreenAttributes = fake, AlwaysOnTop' = @(($dgConfText -replace '(FullscreenAttributes\s*= )fake', '${1}fake, AlwaysOnTop'), 'FullscreenAttributes = fake, AlwaysOnTop')
+    'Version = 0x282' = @(($dgConfText -replace '(Version\s*= )0x287', '${1}0x282'), 'Version = 0x282')
+    'OutputAPI of another level' = @(($dgConfText -replace '(OutputAPI\s*= )d3d12_fl12_0', '${1}d3d12_fl11_0'), 'OutputAPI = d3d12_fl11_0')
+    'VRAM = 128' = @(($dgConfText -replace '(VRAM\s*= )256', '${1}128'), 'VRAM = 128')
+    'a key twice' = @(($dgConfText -replace '(?m)^(VideoCard[^\r\n]*\r\n)', '$1$1'), 'set twice')
+    'WindowedAttributes changed' = @($dgConfText.Replace('FullscreenSize', 'Fullscreen'), 'differs from')
+    'a non-ASCII character' = @($dgConfText.Replace('; Antialiasing', '; ' + [char]0xE9 + ' Antialiasing'), 'non-ASCII')
+  }
+  foreach ($name in $dgConfCases.Keys) {
+    if ($dgConfCases[$name][0] -ceq $dgConfText) { throw "dgVoodoo test: the case '$name' changed nothing" }
+    [System.IO.File]::WriteAllBytes($dgConf, [System.Text.Encoding]::GetEncoding(28591).GetBytes($dgConfCases[$name][0]))
+    $problems = @(Get-DgVoodooConfProblems $dgCopy $dgPins)
+    Check "Get-DgVoodooConfProblems: $name" ($problems.Count -gt 0 -and @($problems | Where-Object { $_.Contains($dgConfCases[$name][1]) }).Count -gt 0) $true
+  }
+  [System.IO.File]::WriteAllBytes($dgConf, [System.Text.Encoding]::GetEncoding(28591).GetBytes($dgConfText))
+  Check 'Get-DgVoodooConfProblems: the unchanged copy' @(Get-DgVoodooConfProblems $dgCopy $dgPins).Count 0
+  Remove-Item -LiteralPath $dgConf
+  Check 'Get-DgVoodooConfProblems: a missing configuration' @(Get-DgVoodooConfProblems $dgCopy $dgPins | Where-Object { $_ -like '*dgVoodoo_DX12_LVL12.conf: missing*' }).Count 1
+
+  # Test-DgVoodooFiles: made-up files and the pins that match them
+  $dgFiles = Join-Path $temp 'dg-files'
+  New-Item -ItemType Directory -Path $dgFiles | Out-Null
+  $dgMade = [ordered]@{ 'D3DImm.dll' = [byte[]](1..40); 'DDraw.dll' = [byte[]](50..120); 'dgVoodooCpl.exe' = [byte[]](130..255) }
+  $dgMadePinText = $dgText
+  foreach ($name in $dgMade.Keys) {
+    [System.IO.File]::WriteAllBytes((Join-Path $dgFiles $name), $dgMade[$name])
+    $line = @($dgMadePinText -split "`n" | Where-Object { $_ -like "File * $name *" })[0]
+    $hash = (Get-FileHash -LiteralPath (Join-Path $dgFiles $name) -Algorithm SHA256).Hash.ToLowerInvariant()
+    $dgMadePinText = $dgMadePinText.Replace($line, "File $hash $($dgMade[$name].Length) $name $(($line -split ' ')[4])")
+  }
+  $dgMadePinFile = Join-Path $temp 'made-dgvoodoo.txt'
+  [System.IO.File]::WriteAllBytes($dgMadePinFile, [System.Text.UTF8Encoding]::new($false).GetBytes($dgMadePinText))
+  $dgMadePins = Read-DgVoodooPins $dgMadePinFile
+  Check 'Test-DgVoodooFiles: the pinned files' @(Test-DgVoodooFiles $dgFiles $dgMadePins).Count 0
+  [System.IO.File]::WriteAllBytes((Join-Path $dgFiles 'DDraw.dll'), [byte[]]($dgMade['DDraw.dll'] + [byte]1))
+  $found = @(Test-DgVoodooFiles $dgFiles $dgMadePins)
+  Check 'Test-DgVoodooFiles: a file one byte longer' "$($found.Count) $($found[0].Name) $($found[0].Placeholder)" '1 DDraw.dll False'
+  Check 'Test-DgVoodooFiles: a file one byte longer, message' $found[0].Problem 'DDraw.dll: 72 bytes, but pins\dgvoodoo.txt pins 71 bytes.'
+  [System.IO.File]::WriteAllBytes((Join-Path $dgFiles 'DDraw.dll'), $dgMade['DDraw.dll'])
+  $other = [byte[]]$dgMade['D3DImm.dll'].Clone()
+  $other[3] = 99
+  [System.IO.File]::WriteAllBytes((Join-Path $dgFiles 'D3DImm.dll'), $other)
+  $found = @(Test-DgVoodooFiles $dgFiles $dgMadePins)
+  Check 'Test-DgVoodooFiles: another content of the same size' "$($found.Count) $($found[0].Name) $($found[0].Placeholder) $($found[0].Problem.Contains('SHA-256'))" '1 D3DImm.dll False True'
+  [System.IO.File]::WriteAllBytes((Join-Path $dgFiles 'D3DImm.dll'), $dgMade['D3DImm.dll'])
+  Remove-Item -LiteralPath (Join-Path $dgFiles 'dgVoodooCpl.exe')
+  $found = @(Test-DgVoodooFiles $dgFiles $dgMadePins)
+  Check 'Test-DgVoodooFiles: a missing file' "$($found.Count) $($found[0].Name) $($found[0].Placeholder)" '1 dgVoodooCpl.exe False'
+  [System.IO.File]::WriteAllText((Join-Path $dgFiles 'dgVoodooCpl.exe'), "placeholder generated by ci/make_placeholder_assets.py - not a real asset`n")
+  $found = @(Test-DgVoodooFiles $dgFiles $dgMadePins)
+  Check 'Test-DgVoodooFiles: a placeholder' "$($found.Count) $($found[0].Name) $($found[0].Placeholder)" '1 dgVoodooCpl.exe True'
+  Check 'Test-DgVoodooFiles: a missing folder' @(Test-DgVoodooFiles (Join-Path $temp 'no-such-folder') $dgMadePins).Count 3
+
   # --- ci\build.ps1 -TestID: dry run of a copy of the script with a fake ISCC. The fake records
   # its arguments, answers the version probe, writes the resolved script of pass 1 and an empty
   # setup in pass 2, so the script runs completely without Inno Setup and game data.
@@ -456,6 +593,16 @@ try {
   New-Item -ItemType Directory -Path (Join-Path $repo 'pins') | Out-Null
   $repoPins = Join-Path (Join-Path $repo 'pins') 'online-files.txt'
   Copy-Item -LiteralPath $realList -Destination $repoPins
+  # The dgVoodoo files of the copy: made-up files and the pin list that matches them (the real files are not in the
+  # repository); the release build compares them (pins\dgvoodoo.txt)
+  $repoDgPins = Join-Path (Join-Path $repo 'pins') 'dgvoodoo.txt'
+  Copy-Item -LiteralPath $dgMadePinFile -Destination $repoDgPins
+  $repoDgFolder = Join-Path $repo 'data\Add-on\DirectX_Wrapper\dgVoodoo_bin'
+  function New-DryDgVoodooFiles {
+    New-Item -ItemType Directory -Path $repoDgFolder -Force | Out-Null
+    foreach ($name in $dgMade.Keys) { [System.IO.File]::WriteAllBytes((Join-Path $repoDgFolder $name), $dgMade[$name]) }
+  }
+  New-DryDgVoodooFiles
   # The copy is a Git checkout (if Git exists), so that test builds get test<TestID>-<commit>; the
   # dry runs are no CI runs unless a case says so
   $repoCommit = ''
@@ -530,6 +677,7 @@ exit 0
   Check 'dry run without -TestID, not in CI: no SetupBuild printed' @($buildOutput | Where-Object { $_ -like 'SetupBuild: none*' }).Count 1
   Check 'dry run release: the pins are counted' @($buildOutput | Where-Object { $_ -ceq 'Pins: 230 online file(s) in pins\online-files.txt.' }).Count 1
   Check 'dry run release: the hash list agrees' @($buildOutput | Where-Object { $_ -like 'Pins: data\localized-text and pins\online-files.txt agree*' }).Count 1
+  Check 'dry run release: the dgVoodoo files are the pinned ones' @($buildOutput | Where-Object { $_ -ceq 'dgVoodoo: 3 file(s) of v2.87.5 match pins\dgvoodoo.txt.' }).Count 1
 
   # ... and in CI (GitHub Actions) a release build gets the short commit as SetupBuild
   Remove-Item -LiteralPath $calls
@@ -557,6 +705,31 @@ exit 0
     }
     return [pscustomobject]@{ Output = $output.ToArray(); Error = $message }
   }
+
+  # A dgVoodoo file of data\ that is not the pinned one (ADR 0005): a release build stops before ISCC compiles, a
+  # test build warns and compiles; a placeholder counts as another file; the old folder dgVoodoo_conf is only a warning
+  $dgBuildDdraw = Join-Path $repoDgFolder 'DDraw.dll'
+  [System.IO.File]::WriteAllBytes($dgBuildDdraw, [byte[]]($dgMade['DDraw.dll'] + [byte]1))
+  Remove-Item -LiteralPath $calls
+  $run = Invoke-DryBuild ($common + @{ TestID = 0 })
+  Check 'dry run release, other dgVoodoo file: stops' $run.Error 'Release build: the dgVoodoo files of data\ are not those of pins\dgvoodoo.txt (listed above).'
+  Check 'dry run release, other dgVoodoo file: names it' @($run.Output | Where-Object { $_ -ceq '    DDraw.dll: 72 bytes, but pins\dgvoodoo.txt pins 71 bytes.' }).Count 1
+  Check 'dry run release, other dgVoodoo file: no compile' @(Get-Content -LiteralPath $calls | Where-Object { $_ -like '*/DInstallType=*' -and $_ -notlike '*/O- *' }).Count 0
+  $run = Invoke-DryBuild ($common + @{ TestID = 1 })
+  Check 'dry run test build, other dgVoodoo file: no stop' $run.Error ''
+  Check 'dry run test build, other dgVoodoo file: warning' @($run.Output | Where-Object { $_ -like 'Test build: 1 dgVoodoo file(s) of data\ are not those of pins\dgvoodoo.txt (listed above)*' }).Count 1
+  Check 'dry run test build, other dgVoodoo file: compiled' @(Get-Content -LiteralPath $calls | Where-Object { $_ -like '*/DInstallType=*' -and $_ -notlike '*/O- *' }).Count 2
+  [System.IO.File]::WriteAllText($dgBuildDdraw, "placeholder generated by ci/make_placeholder_assets.py - not a real asset`n")
+  $run = Invoke-DryBuild ($common + @{ TestID = 0 })
+  Check 'dry run release, dgVoodoo placeholder: stops' $run.Error 'Release build: the dgVoodoo files of data\ are not those of pins\dgvoodoo.txt (listed above).'
+  Check 'dry run release, dgVoodoo placeholder: names it' @($run.Output | Where-Object { $_ -like '    DDraw.dll: is a placeholder*' }).Count 1
+  [System.IO.File]::WriteAllBytes($dgBuildDdraw, $dgMade['DDraw.dll'])
+  $oldConf = Join-Path $repo 'data\Add-on\DirectX_Wrapper\dgVoodoo_conf'
+  New-Item -ItemType Directory -Path $oldConf | Out-Null
+  $run = Invoke-DryBuild ($common + @{ TestID = 0 })
+  Check 'dry run release, old dgVoodoo_conf folder: no stop' $run.Error ''
+  Check 'dry run release, old dgVoodoo_conf folder: warning' @($run.Output | Where-Object { $_ -like 'data\Add-on\DirectX_Wrapper\dgVoodoo_conf is no longer read*' }).Count 1
+  Remove-Item -LiteralPath $oldConf
 
   # A file in data\localized-text that pins another file than pins\online-files.txt (the hash list
   # of the same run counts): a release build stops before ISCC compiles, a test build warns
@@ -609,7 +782,9 @@ exit 0
   Check 'dry run -Placeholders: exit code' $LASTEXITCODE 0
   Check 'dry run -Placeholders: not compared' @($buildOutput | Where-Object { $_ -like 'Pins: data\localized-text holds placeholders, not compared*' }).Count 1
   Check 'dry run -Placeholders: no list' @($buildOutput | Where-Object { $_ -like '    *' -or $_ -like 'Release build:*' }).Count 0
+  Check 'dry run -Placeholders: dgVoodoo not compared' @($buildOutput | Where-Object { $_ -ceq 'dgVoodoo: data holds placeholders, not compared with pins\dgvoodoo.txt.' }).Count 1
   Remove-Item -LiteralPath (Join-Path $repo 'data') -Recurse -Force
+  New-DryDgVoodooFiles
 
   # An online file without a pin in pins\online-files.txt stops a release build, also the
   # placeholder build of CI; a test build warns and names the files without any pin. A pin of a

@@ -102,6 +102,17 @@ jobs:
         shell: pwsh
         run: ./ci/online_pins.ps1 -SelfTest
 
+      # pins/dgvoodoo.txt and config/dgVoodoo (ADR 0005, amendment 2026-10-07): the pins, the [Files] entries of the
+      # dgVoodoo levels in both game folders, and the window keys of the five configurations (fake fullscreen, Alt+Enter
+      # off, no deferred screen mode switch, dgVoodoo 2.87); then the self-test (changed copies must fail)
+      - name: Check the dgVoodoo pins and configurations
+        shell: pwsh
+        run: ./ci/dgvoodoo_pins.ps1
+
+      - name: Check the dgVoodoo pins and configurations (self-test)
+        shell: pwsh
+        run: ./ci/dgvoodoo_pins.ps1 -SelfTest
+
       # Certificate errors may only be ignored for pinned online files (ADR 0012): the flags in one
       # function, called once, only for the probe and the download of pinned files; then the
       # self-test (changed copies of the scripts must fail)
@@ -119,8 +130,8 @@ jobs:
         run: ./ci/run_unit_tests.ps1
 
       # Helpers of the build script: hash list, DER copy of the signing certificate, SHA-256 files
-      # of the setups, the online files without a pin (read from setup_is6.iss), dry runs of
-      # ci/build.ps1 with a fake ISCC
+      # of the setups, the online files without a pin (read from setup_is6.iss), the dgVoodoo pins
+      # and configurations, dry runs of ci/build.ps1 with a fake ISCC
       - name: Build script tests
         shell: pwsh
         run: ./ci/tests/build_helpers.tests.ps1
