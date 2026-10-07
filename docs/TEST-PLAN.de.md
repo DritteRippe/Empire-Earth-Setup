@@ -1648,7 +1648,7 @@ Gemeinsam für alle Fälle dieses Blocks:
     `Component defaults: additional\movies selected once (an installation of an older setup, setup type custom; ComponentDefaults 0 -> 1).`
   - (c) Nach der Abwahl fehlt `Data\Movies` (bzw. ist leer); nach der stillen Reparatur bleibt es so; Log der Reparatur:
     `Component defaults: nothing selected: already done by an earlier run (ComponentDefaults 1).`
-  - (d) Keine Videos; Log: `Component defaults: nothing selected: /TYPE or /COMPONENTS on the command line.`
+  - (d) Keine Videos; Log: `Component defaults: nothing selected: /TYPE, /COMPONENTS or /LOADINF on the command line.`
   - (e) Nach beiden Läufen keine Videos; Log der Reparatur: `Component defaults: nothing selected: the setup type raw installs no additional content.`
 - **Log-Hinweis:** die Zeilen `Component defaults: ...` oben; bei Deutsch zusätzlich der Download von
   `Game/de/EE/Data/Movies/Empire Earth.bik`.

@@ -1556,8 +1556,8 @@ begin
   Check('ComponentDefaultsRevision', IntToStr(ComponentDefaultsRevision), '1');
   CheckSkipReason('no previous installation', False, False, 'full', 0, True, 'no previous installation (the setup type decides)');
   CheckSkipReason('no previous installation, custom', False, False, 'custom', 0, False, 'no previous installation (the setup type decides)');
-  CheckSkipReason('command line', True, True, 'custom', 0, False, '/TYPE or /COMPONENTS on the command line');
-  CheckSkipReason('command line wins over the record', True, True, 'custom', 1, False, '/TYPE or /COMPONENTS on the command line');
+  CheckSkipReason('command line', True, True, 'custom', 0, False, '/TYPE, /COMPONENTS or /LOADINF on the command line');
+  CheckSkipReason('command line wins over the record', True, True, 'custom', 1, False, '/TYPE, /COMPONENTS or /LOADINF on the command line');
   CheckSkipReason('done by revision 1', True, False, 'custom', 1, False, 'already done by an earlier run (ComponentDefaults 1)');
   CheckSkipReason('done by revision 2', True, False, 'custom', 2, False, 'already done by an earlier run (ComponentDefaults 2)');
   CheckSkipReason('type full', True, False, 'full', 0, True, 'the setup type full selects them itself');

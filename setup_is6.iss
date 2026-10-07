@@ -2072,7 +2072,7 @@ end;
 #if InstallMode == "Regular"
 // Components that became defaults after the installation was made by an older setup (contract 1.1 ComponentDefaults):
 // selected once on the first update of a custom installation; the types full and compact select them themselves, raw
-// never, an explicit /TYPE or /COMPONENTS is kept. Since 1.1.0: the intro movies. Called at the end of InitializeWizard,
+// never, an explicit /TYPE, /COMPONENTS or /LOADINF (its file may carry Components=) is kept. Since 1.1.0: the intro movies. Called at the end of InitializeWizard,
 // after Inno Setup has applied the selection of the previous installation (it does that before InitializeWizard).
 procedure SelectNewDefaultComponents;
 var
@@ -2084,7 +2084,8 @@ begin
   if RegQueryDWordValue(HKA, '{#BaseRegCommunity}\Installations\{#InstallType}', 'ComponentDefaults', Value) then
     Recorded := Value;
   Reason := NewDefaultComponentSkipReason(IsGameInstalled(),
-    (ExpandConstant('{param:TYPE|}') <> '') or (ExpandConstant('{param:COMPONENTS|}') <> ''),
+    (ExpandConstant('{param:TYPE|}') <> '') or (ExpandConstant('{param:COMPONENTS|}') <> '') or
+    (ExpandConstant('{param:LOADINF|}') <> ''),
     WizardSetupType(False), Recorded, WizardIsComponentSelected('additional\movies'));
   if Reason <> '' then
     Log('Component defaults: nothing selected: ' + Reason + '.')

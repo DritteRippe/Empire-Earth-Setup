@@ -153,7 +153,7 @@ const
   ComponentDefaultsRevision = 1;
 
 // Why an update selects no new default component; '' = it selects them (SelectNewDefaultComponents). HasPrevious: the
-// uninstall key of a previous installation exists; Explicit: /TYPE= or /COMPONENTS= is on the command line; SetupType: the
+// uninstall key of a previous installation exists; Explicit: /TYPE=, /COMPONENTS= or /LOADINF= (an answer file may carry Components=) is on the command line; SetupType: the
 // type Inno Setup took over from the previous installation (WizardSetupType(False)); Recorded: ComponentDefaults of the
 // install record (0 if missing: setups before 1.1.0 and 1.7.2); Selected: the component is selected already.
 function NewDefaultComponentSkipReason(const HasPrevious, Explicit: Boolean; const SetupType: String;
@@ -162,7 +162,7 @@ begin
   if not HasPrevious then
     Result := 'no previous installation (the setup type decides)'
   else if Explicit then
-    Result := '/TYPE or /COMPONENTS on the command line'
+    Result := '/TYPE, /COMPONENTS or /LOADINF on the command line'
   else if Recorded >= ComponentDefaultsRevision then
     Result := 'already done by an earlier run (ComponentDefaults ' + IntToStr(Recorded) + ')'
   else if CompareText(SetupType, 'raw') = 0 then

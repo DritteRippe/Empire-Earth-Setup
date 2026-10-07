@@ -11,7 +11,7 @@ $AllAddOns = @('additional\hd\terrain', 'additional\hd\music', 'additional\hd\bu
 $CompactAddOns = @('additional\drexmod\v3', 'additional\discord', 'additional\tools\diagnostic', 'additional\civs\ec', 'additional\movies')
 # The add-ons of the updates D3 to D5, which name their components with /COMPONENTS (no movies, nothing selected by default)
 $ExplicitAddOns = @($CompactAddOns | Where-Object { $_ -ne 'additional\movies' })
-$CommandLineDefaults = 'Component defaults: nothing selected: /TYPE or /COMPONENTS on the command line.'
+$CommandLineDefaults = 'Component defaults: nothing selected: /TYPE, /COMPONENTS or /LOADINF on the command line.'
 $ExactTasksAdmin = 'compatibility,compatibility_windows,firewallexception,desktopicon'
 $ExactTasksUser = 'compatibility,compatibility_windows,desktopicon'
 $ConsistencyAllowed = @('ScreenTooLow', 'WindowLargerThanScreen', 'WindowFitsOnlyWithHighDpiAware')
