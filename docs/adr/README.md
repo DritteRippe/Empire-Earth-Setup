@@ -22,7 +22,7 @@ the setup is [ARCHITECTURE.md](../ARCHITECTURE.md).
 | [0009](0009-no-installation-through-links.md) | No elevated installation through links in the folders all users can write to | Accepted, implemented |
 | [0010](0010-opt-in-compatibility-on-windows-7.md) | Opt-in compatibility flags on Windows 7; rules for the graphics and VirtualStore results | Accepted, implemented (the rules of points 4 and 5 wait for the results of TP-23 and TP-71) |
 | [0011](0011-real-data-end-to-end-test-in-ci.md) | Real-data end-to-end test on a throwaway GitHub-hosted Windows runner | Accepted, implemented (the first run on GitHub answers the open points of its Implementation) |
-| [0012](0012-pinned-downloads-despite-invalid-certificates.md) | Download pinned online files even from a server with an invalid certificate; every online file pinned | Accepted, implemented |
+| [0012](0012-pinned-downloads-despite-invalid-certificates.md) | Download pinned online files even from a server with an invalid certificate; every online file pinned | Accepted, implemented; the lint amended on 2026-10-08 (the suite installer) |
 | [0013](0013-suite-installer.md) | A suite installer "Empire Earth Community" runs the unchanged EE and NeoEE setups at `ssInstall` and installs the launcher outside their roots | Accepted (evidence of the WP0 spike pending) |
 
 Template for a new record (`NNNN-short-title.md`, next free number):
