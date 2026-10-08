@@ -49,9 +49,10 @@ setup version 1.7.2; the product setups of a suite release are told apart by the
   into `main`, the local checks, the commit style and the changelog. `.github/pull_request_template.md` asks for what
   and why, the checks and the docs; `.github/CODEOWNERS` asks `@DritteRippe` to review every pull request. The README
   links the guide.
-- `docs/RELEASING.md`: the checklist of a suite release, from the test plan and the servers to the package: every
-  place with the version number (the product setups keep 1.7.2), the merge commit, a tag only on a commit of `main`
-  whose complete `build.yml` run was green (a tag starts no run), the build of the product setups with
+- `docs/RELEASING.md`: the checklist of a suite release, from the test plan, the servers and the settings that let
+  reports reach the project (issues, private vulnerability reporting, the labels of the issue forms) to the package:
+  every place with the version number (the product setups keep 1.7.2), the merge commit, a tag only on a commit of
+  `main` whose complete `build.yml` run was green (a tag starts no run), the build of the product setups with
   `-SetupBuild suite-X.Y.Z-<commit>` and of the suite, what `BUILD-INFO.txt` and `SHA256SUMS.txt` must say, release
   notes without branch names (with a template), the package, `LAUNCHER_COMMIT` afterwards, and what is pinned on
   purpose, and which settings of the repository protect `main`, the tags and the releases. The README,
@@ -113,7 +114,8 @@ setup version 1.7.2; the product setups of a suite release are told apart by the
   help for the package (issues of Empire-Earth-Community), the launcher repository, the security policy and the README
   section "Support"; the bug form asks for the version of the package and, for a single setup (which always says
   "Setup v1.7.2"), the `SetupBuild` line of its log. README "Support" links the issue chooser. All of this works once
-  Issues and private vulnerability reporting are switched on in the settings of the repository (a fork has both off).
+  Issues and private vulnerability reporting are switched on in the settings of the repository (a fork has both off);
+  step 1 of `docs/RELEASING.md` checks them before every release.
 - README: a banner (`.github/assets/banner-light.svg` and `banner-dark.svg`, chosen by the color scheme), badges of
   this fork (latest release, the build of `main`, license, platform, Inno Setup 6.2.2) instead of the stars, forks and
   setup version of upstream, a navigation line, a hint for players with the link to the package, and the new sections
