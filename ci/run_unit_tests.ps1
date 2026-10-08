@@ -5,8 +5,10 @@
 .DESCRIPTION
   unit_tests.iss is a tiny setup that includes utils.iss, runs the tests in InitializeSetup,
   writes the results to a text file and exits without installing anything. The tests need no
-  network and no game data. This script compiles it with ISCC, runs it silently, prints the
-  results and exits with 0 if every test passed, else 1.
+  network and no game data. This script compiles it with ISCC, runs it silently (with
+  /SAMPLES=<the folder docs\contract-samples of the repository>, the byte samples of the contract
+  that the writers must reproduce), prints the results and exits with 0 if every test passed,
+  else 1.
 
 .PARAMETER Iscc
   Path to ISCC.exe. Default: $env:ISCC, the "Inno Setup 6" folder in Program Files, then PATH.
@@ -66,7 +68,10 @@ if ($code -ne 0) {
 }
 
 $exe = Join-Path $OutputDir 'unit_tests.exe'
-$process = Start-Process -FilePath $exe -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', "/RESULTS=$ResultFile") -Wait -PassThru
+# /SAMPLES: the byte samples of the contract (docs\contract-samples), which the writers of install.ini and of the
+# manifest must reproduce (TestContractSamples)
+$Samples = Join-Path $Root 'docs\contract-samples'
+$process = Start-Process -FilePath $exe -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', "/RESULTS=$ResultFile", "/SAMPLES=$Samples") -Wait -PassThru
 if (-not (Test-Path -LiteralPath $ResultFile -PathType Leaf)) {
   Write-Host "FAIL: no results written (unit_tests.exe exit code $($process.ExitCode))"
   exit 1

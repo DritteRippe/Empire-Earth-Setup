@@ -10,7 +10,8 @@ RUN=""
 [ -z "${DISPLAY:-}" ] && command -v xvfb-run >/dev/null 2>&1 && RUN="xvfb-run -a"
 rm -f out/unit_tests_result.txt
 wine "$ISCC" /Q unit_tests.iss || { echo "FAIL: the unit test setup does not compile"; exit 1; }
-$RUN wine out/unit_tests.exe /VERYSILENT /SUPPRESSMSGBOXES "/RESULTS=$(winepath -w out/unit_tests_result.txt)" 2>/dev/null
+$RUN wine out/unit_tests.exe /VERYSILENT /SUPPRESSMSGBOXES "/RESULTS=$(winepath -w out/unit_tests_result.txt)" \
+  "/SAMPLES=$(winepath -w ../../docs/contract-samples)" 2>/dev/null
 [ -f out/unit_tests_result.txt ] || { echo "FAIL: no results written"; exit 1; }
 # the results file is UTF-8 with BOM
 sed '1s/^\xEF\xBB\xBF//' out/unit_tests_result.txt | grep -v '^PASS '
