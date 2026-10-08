@@ -101,7 +101,7 @@ rules for a pull request are in [CONTRIBUTING.md](CONTRIBUTING.md).
 | [CONTRIBUTING.md](CONTRIBUTING.md) · [SECURITY.md](SECURITY.md) | how to help · how to report a vulnerability privately |
 
 ## Why this fork?
-This fork builds on the Empire Earth Community Setup by [EE-modders](https://github.com/EE-modders/Empire-Earth-Setup) and its contributors: the setup, its content and the 1.7.2 release are their work. The branch `main` of this fork rebuilds their Inno Setup 6 script (upstream branch `master`, "Updated to v1.7.2") with verified downloads, statistics only with consent, safer updates, automated tests and documentation. It also adds the suite installer "Empire Earth Community" for both games and the Empire Earth Launcher. There is no new game content ([CHANGELOG.md](CHANGELOG.md), "Suite 1.1.0" and "Unreleased").
+This fork builds on the Empire Earth Community Setup by [EE-modders](https://github.com/EE-modders/Empire-Earth-Setup) and its contributors: the setup, its content and the 1.7.2 release are their work. The branch `main` of this fork rebuilds their Inno Setup 6 script (upstream branch `master`, "Updated to v1.7.2") with verified downloads, statistics only with consent, safer updates, automated tests and documentation. It also adds the suite installer "Empire Earth Community" for both games and the Empire Earth Launcher. There is no new game content ([CHANGELOG.md](CHANGELOG.md), "Suite 1.1.1" and "Suite 1.1.0").
 
 | | Upstream 1.7.2 | This fork (`main`) |
 |---|---|---|
@@ -141,11 +141,13 @@ This fork builds on the Empire Earth Community Setup by [EE-modders](https://git
 
 ### Status
 > [!NOTE]
-> **Suite 1.1.0** is the current release (tag `suite-v1.1.0`, 2026-10-07), in the package
-> [Empire Earth Community](https://github.com/DritteRippe/Empire-Earth-Community/releases/latest) 1.1.0. **Suite 1.1.1**
-> is prepared on `main`: see "Unreleased" in the [CHANGELOG](CHANGELOG.md).
+> **Suite 1.1.1** is the current release (tag `suite-v1.1.1`, 2026-10-08, with launcher 1.1.1). Players get the suite
+> only with the package [Empire Earth Community](https://github.com/DritteRippe/Empire-Earth-Community/releases/latest),
+> whose release follows the tags ([docs/RELEASING.md](docs/RELEASING.md), step 7). At the time of the tag no case of the
+> test plan had run on real hardware with suite 1.1.1 (session 2 of the laptop test is open); CI ran the scenarios S1 to
+> S15 green. Details: "Suite 1.1.1" in the [CHANGELOG](CHANGELOG.md).
 
-**Released as part of the suite.** The product setups of this repository (EE and NeoEE, setup v2) have no release of their own: they are released inside the suite installer "Empire Earth Community", which embeds them byte for byte, and there is no `v2` tag. They keep the setup version 1.7.2 (`MySetupVersion`), the version of the last upstream release, because the update API may treat an unknown version as outdated ([ARCHITECTURE.md](docs/ARCHITECTURE.md), section 10); from suite 1.1.1 on, the product setups of a suite release are told apart by their `SetupBuild` (`install.ini`, the install record, the first line of the setup log and `BUILD-INFO.txt` of the package). The manual short run of the product setups (section 7 of the [test plan](docs/TEST-PLAN.de.md)) has not been recorded as passed yet. The suite installer is version 1.1.1 (`SuiteVersion` in `suite/suite.iss`), released on 2026-10-08 as the tag `suite-v1.1.1` together with launcher 1.1.1 (suite 1.1.0 is the tag `suite-v1.1.0`, suite 1.0.0 the tag `suite-v1.0.0`); players get the package from the [release page of Empire Earth Community](https://github.com/DritteRippe/Empire-Earth-Community/releases/latest). Like suite 1.1.0 it was released by the maintainer's decision before its criterion was met on real hardware: at the time of the tag no case of the laptop test had run with suite 1.1.1 (session 2 is still open). The criteria, what ran case by case and both exceptions are in [Empire Earth Community suite installer](#empire-earth-community-suite-installer).
+**Released as part of the suite.** The product setups of this repository (EE and NeoEE, setup v2) have no release of their own: they are released inside the suite installer "Empire Earth Community", which embeds them byte for byte, and there is no `v2` tag. They keep the setup version 1.7.2 (`MySetupVersion`), the version of the last upstream release, because the update API may treat an unknown version as outdated ([ARCHITECTURE.md](docs/ARCHITECTURE.md), section 10); from suite 1.1.1 on, the product setups of a suite release are told apart by their `SetupBuild` (`install.ini`, the install record, the first line of the setup log and `BUILD-INFO.txt` of the package). The manual short run of the product setups (section 7 of the [test plan](docs/TEST-PLAN.de.md)) has not been recorded as passed yet. The suite installer is version 1.1.1 (`SuiteVersion` in `suite/suite.iss`), released on 2026-10-08 as the tag `suite-v1.1.1` together with launcher 1.1.1 ([CHANGELOG.md](CHANGELOG.md), "Suite 1.1.1"; suite 1.1.0 is the tag `suite-v1.1.0`, suite 1.0.0 the tag `suite-v1.0.0`); players get the package from the [release page of Empire Earth Community](https://github.com/DritteRippe/Empire-Earth-Community/releases/latest). Like suite 1.1.0 it was released by the maintainer's decision before its criterion was met on real hardware: at the time of the tag no case of the laptop test had run with suite 1.1.1 (session 2 is still open). The criteria, what ran case by case and both exceptions are in [Empire Earth Community suite installer](#empire-earth-community-suite-installer).
 
 ## Features
 🎮 Empire Earth & The Art of Conquest\
@@ -168,7 +170,7 @@ This fork builds on the Empire Earth Community Setup by [EE-modders](https://git
 🛠️ Tool included: Empire Earth Diagnostic v1.0.0.1\
 🔐 Digitally (self-)signed
 
-New in setup v2 (released inside the suite installer since suite 1.0.0): see [Why this fork?](#why-this-fork) above and [CHANGELOG.md](CHANGELOG.md) ("Suite 1.1.0" and "Unreleased").
+New in setup v2 (released inside the suite installer since suite 1.0.0): see [Why this fork?](#why-this-fork) above and [CHANGELOG.md](CHANGELOG.md) ("Suite 1.1.1" and "Suite 1.1.0").
 
 ## Support
 - **Check the download:** the SHA-256 of every released setup is published next to its download. Compare it with `Get-FileHash <setup>.exe -Algorithm SHA256` in PowerShell before you run the setup, see [Checksums of the setups](#checksums-of-the-setups).

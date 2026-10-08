@@ -14,8 +14,28 @@ header.
 
 ## Unreleased
 
-Changes since suite 1.1.0 (tag `suite-v1.1.0`), for suite 1.1.1. The product setups still report the
-setup version 1.7.2; the product setups of a suite release are told apart by their `SetupBuild` (see Added).
+## Suite 1.1.1 - 2026-10-08
+
+Suite installer 1.1.1 (`SuiteVersion` 1.1.1, tag `suite-v1.1.1`) with the changes since suite 1.1.0 (tag
+`suite-v1.1.0`): a "Delete" of the uninstaller that checks for links up to the last moment, a freeze that counts a
+process that is ending as ended, Support and Updates links of its entry in Windows "Apps" that lead to the package,
+the `SetupBuild` of both product setups in `BUILD-INFO.txt`, stricter CI and the documents of a public repository. It
+packages Empire Earth Launcher 1.1.1 (tag `v1.1.1` of Empire-Earth-Launcher) and the Mod Creator; together they release
+contract revision 7. The product setups still report the setup version 1.7.2; the product setups of a suite release
+are told apart by their `SetupBuild` (see Added).
+
+Released on 2026-10-08, together with launcher 1.1.1, by decision of the maintainer before its criterion (README, test
+plan section 8 Block 9) was met on real hardware: **at the time of the tag no case had run on real hardware with suite
+1.1.1.** Session 2 of the laptop test is still open, and the cases of session 1 (TP-94 (c), TP-27 (a), TP-25 (a) to (c),
+TP-98 (a)) ran with suite 1.1.0 and were not repeated with 1.1.1. Not run on real hardware, case by case: TP-93,
+TP-94 (c), TP-95 (a) to (c), TP-97, TP-98 (a) to (d), TP-99 (a) to (e) (including the cancel of a repair and of the
+second game), TP-25 (a) to (d) and TP-27 (a). That includes the parts that are new in 1.1.1: the second link check right
+before the deletion (TP-95 (c)) and the log line with the NTSTATUS of a process that Windows refuses to suspend
+(TP-99). An install root in its 8.3 short form at the uninstallation is covered by the unit tests only, the Support and
+Updates links by `ci/check_suite.py` only. CI: the job `suite-e2e` (S1 to S15, windows-latest, placeholder products,
+silent, English) was green, with every job of *Build*, in runs 55 and 56 on `2fc0e76` and `e597714`; the release
+commits after them change only the version number and the documents. No test at all covers TP-98 (b) to (d) or
+TP-25 (d). The record of the test plan gets the results when they ran.
 
 ### Added
 - GitHub issue form for bug reports (`.github/ISSUE_TEMPLATE/bug_report.yml`: program, version, Windows version, what happened,
@@ -614,7 +634,7 @@ the setup version 1.7.2. The entries that name the suite describe the suite inst
   below its step limit (a hang is stopped with its child processes, recorded as a failure, and the
   scenario still uninstalls), and each scenario reports and removes what earlier ones left (also
   files, compatibility, GPU and firewall entries and shortcuts). The job runs by hand only since suite
-  1.1.0 (see "Unreleased", Changed; the repository must require approval of workflow runs for all external contributors), and the
+  1.1.0 (see "Suite 1.1.1", Changed; the repository must require approval of workflow runs for all external contributors), and the
   launcher checks come from a pinned full commit that must be on the launcher branch. README: when it
   runs, the approval setting, the pin, the caches.
 
