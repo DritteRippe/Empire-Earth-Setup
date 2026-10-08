@@ -56,7 +56,7 @@ env:
   # The launcher code runs as administrator next to the game data: a full commit, reviewed and moved
   # on purpose by a commit here (never a branch), and it must lie on LAUNCHER_BRANCH (ADR 0011)
   LAUNCHER_BRANCH: main
-  LAUNCHER_COMMIT: 5d256c8d98fb1d7e7509ad095c1cb1d3becbdc72
+  LAUNCHER_COMMIT: 90a35a4eaabac30454c1397eda8a08ecc44f2043
   # The real AppIds of the official setups (an update over 1.7.2 needs them)
   EE_APPID: 4C0B46D8-E7EB-4B95-97D4-A578D9B914C6
   NEOEE_APPID: A24FCC7A-5491-4FEA-837B-4E4430C349DA
