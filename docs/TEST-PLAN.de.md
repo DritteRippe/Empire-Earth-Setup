@@ -3348,6 +3348,13 @@ auf dem Desktop. Es gilt:
   CI-Szenario, sie liefen gar nicht. Sie sind vor oder mit 1.1.1 auf der Hardware nachzuholen; ein
   Befund dort wird in 1.1.1 behoben. Das Kriterium oben bleibt die Regel für die nächste Freigabe; dies ist eine datierte
   Ausnahme, kein bestandener Fall.
+- **Freigabekriterium der Suite 1.1.1:** wie das der Suite 1.1.0 oben, mit dem Job `suite-e2e` von S1 bis S15 (S15 übt
+  „Löschen“ der Deinstallation mit Platzhalter-Daten und ohne den Dialog; den Dialog prüft TP-95 (c)). Getaggt wird nur
+  ein Commit auf `main`, für den der vollständige Lauf von `build.yml` (alle Jobs: die Prüfungen, die Unit-Tests, der
+  Platzhalter-Build und `suite-e2e`) grün war. Ein Tag startet keinen eigenen Lauf: `build.yml` läuft bei einem Push auf
+  `main`, bei Pull Requests und von Hand. Die Suite 1.1.0 wurde veröffentlicht, als der einzige fertige Lauf auf `2b764e4`
+  rot war (Lauf 48, ein Unit-Test, der vom Timing abhing und für 1.1.1 behoben ist); der grüne Lauf 49 auf demselben
+  Commit kam erst durch den Tag.
 
 #### TP-90: Paket-ZIP ohne „Zulassen“: genau eine SmartScreen-Warnung
 

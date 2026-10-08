@@ -15,7 +15,7 @@ header.
 ## Unreleased
 
 Changes since suite 1.1.0 (tag `suite-v1.1.0`), for suite 1.1.1. The product setups still report the
-setup version 1.7.2.
+setup version 1.7.2; the product setups of a suite release are told apart by their `SetupBuild` (see Added).
 
 ### Added
 - GitHub issue form for bug reports (`.github/ISSUE_TEMPLATE/bug_report.yml`: program, version, Windows version, what happened,
@@ -25,6 +25,22 @@ setup version 1.7.2.
   reporting, the latest release is supported, scope is the code and CI of this repository, no bug bounty.
 - `.github/dependabot.yml`: Dependabot proposes monthly pull requests into `main` for the GitHub Actions of the workflows (at most
   three open, commit subjects start with "CI:"). No version updates for NuGet or pip: those versions are pinned on purpose.
+- CI scenario S15 of the job `suite-e2e`: the suite uninstaller with "Delete" on the placeholder installation. User data in
+  every folder the uninstaller offers, files next to them and `Data\dxm` of NeoEE as a junction to a folder outside with a
+  canary; exactly the offered folders must go, everything else and the target of the junction must stay. It runs through a
+  test hook that only the placeholder suite contains (`/TestDeleteUserData`, compiled in by `suite\build_suite.ps1
+  -Placeholders` only; `suite.iss` refuses the define with real AppIds). Before, the "Delete" branch had never run in any
+  test. `ci/check_suite.py` (part [Hook]) checks the hook, the fake of the scenario self-test has three new defects for S15.
+- The byte samples of the contract, `docs/contract-samples` (`install.ini` of the three install modes, `files.sha256`,
+  `record.reg`), taken over byte for byte from the launcher repository, which tests its readers against them (`-text` in
+  `.gitattributes`). `ci/compare_contract.py` compares them file by file like `docs/CONTRACT.md` (per file the first
+  differing line and both hashes, the files only one copy has, a hint for line endings; exit code 2 for a missing folder),
+  and the new unit test `TestContractSamples` checks that the writers of `install.ini` and of the manifest produce exactly
+  these bytes (`ci\run_unit_tests.ps1` and `ci/tests/run_unit_tests.sh` pass the folder as `/SAMPLES=...`).
+- `ci\build.ps1` writes `<setup>.exe.setupbuild` next to every setup: `SHA256=<hash of the setup>` and
+  `SetupBuild=<identifier>` (empty for none). `BUILD-INFO.txt` of the suite names the `SetupBuild` of both product setups
+  (`Product SetupBuild:   EE <id>, NeoEE <id>`; `none` or `not recorded` in placeholder and test builds), so the product
+  setups of two packages, which all report setup version 1.7.2, can be told apart (ADR 0013, amendment of 2026-10-08).
 
 ### Changed
 - One main line `main`: development happens on short-lived feature branches with a pull request into `main`, releases
@@ -41,6 +57,57 @@ setup version 1.7.2.
   are unchanged, `LAUNCHER_BRANCH` is `main`. `ci/e2e/tests/test_e2e_tools.py` checks the new rules (manual only, no other
   trigger, no job condition, the group per ref). To be switched back to pull requests with the label `e2e` when downloads
   work again: README "End-to-end test on Windows", ADR 0011 (amendment 2026-10-07).
+- `docs/CONTRACT.md` revision 7 (the same commit subject in both repositories; contract version still 1, compatible, no
+  MUST or MUST NOT relaxed). New for the launcher: an installation of the suite is sent to the release page of the package
+  (`https://github.com/DritteRippe/Empire-Earth-Community/releases/latest`), never to the product pages, which lead to the
+  official setup with the same AppId. New informative text for suite 1.1.1: a process that is ending counts as ended in
+  the freeze (1.7 point 2); the product setups of a suite release carry a `SetupBuild` (1.1); the Support and Updates
+  links of the suite's uninstall key (1.3); the byte samples, compared by `ci/compare_contract.py` (1.2, 2.2, 5, O12).
+  New open question O13: the update question of a product setup in the advanced mode of the suite. Corrections: status
+  Released with the tags of both releases, the links at the top lead to the forks of DritteRippe (the EE-modders
+  repositories have no copy), the freeze commit in "Based on" is 61797e6.
+- Suite: the links "Support" and "Updates" of the entry "Empire Earth Community (Launcher, EE, NeoEE)" in Windows "Apps"
+  lead to the repository Empire-Earth-Community and its releases, where the package is published, instead of
+  `https://empireearth.eu/`, which neither offers nor supports the suite. The publisher's link stays the one of EE.
+  `ci/check_suite.py` requires both values.
+- Suite build: a release build of the suite (no `-Placeholders`, `TestID` 0) stops before ISCC unless both product setups
+  have a `.setupbuild` record with an identifier; a record written for other bytes always stops the build. Build the
+  product setups of a release with `ci\build.ps1 -SetupBuild suite-1.1.1-<commit>`.
+- CI: every action of both workflows is pinned by its full commit with the release as a comment, at its Node.js 24 release
+  (`actions/checkout` 7.0.1, `actions/upload-artifact` 7.0.1, `actions/download-artifact` 8.0.1, `NuGet/setup-nuget` 4.0,
+  `microsoft/setup-msbuild` 3.0.0; `build.yml` used `@v4` tags before). The warning "Node.js 20 is deprecated" is gone.
+  Dependabot groups all action updates into one pull request a month and proposes a release only after seven days.
+  `ci/e2e/tests/test_suite_e2e.py` requires the pins in `build.yml`.
+
+### Fixed
+- Suite: a process of a product setup that is just ending (Windows answers its suspension with
+  `STATUS_PROCESS_IS_TERMINATING`, `0xC000010A`) counts as ended in the freeze before a stop. A cancel at that moment is no
+  longer treated as "unclear" and repeated for that reason alone. Any other process that Windows refuses to suspend still
+  blocks the stop, and the log now names its NTSTATUS (`process <id> cannot be suspended (NTSTATUS 0x...)`). ADR 0013,
+  amendment of 2026-10-08.
+- Suite uninstaller: a product that stays installed is recognized also when its install root is written in its 8.3 short
+  form (`C:\PROGRA~2\...`), so the profiles and saves it shares with the removed product are not offered for deletion. A
+  subst drive or a link in the spelling of a root is still not resolved.
+- CI: the unit test "SuiteFreezeJob of a job whose program ended" no longer depends on timing: it waits until the job lists
+  no process (the console helper `conhost.exe` ends a moment after `cmd.exe`). It had failed once in run 48 on the
+  release commit `2b764e4` and passed in run 49 on the same commit. `ci/check_suite.py` (part [Freeze]) checks the new
+  classification (`SuiteSuspendFailureIsEnd`) with three mutants.
+- CI: the module docstrings of `ci/check_contract.py` and `ci/check_suite.py` are raw strings (one invalid escape `\<`,
+  and two `\v` that Python read as a vertical tab). `build.yml` runs every Python step with
+  `PYTHONWARNINGS=error::SyntaxWarning`, so such an escape fails CI instead of printing a warning.
+- CI: `ci/check_suite.py`, `ci/check_suite_texts.py`, `ci/check_contract.py` and `ci/check_messages.py` fail when
+  `suite/suite.iss` is missing, instead of skipping the rules of the suite and passing.
+
+### Security
+- Suite uninstaller: each user data folder is checked for links again right before it is deleted. Before, the folders
+  were checked only before the question, and a junction created while the question was open (for example at `Data\dxm`,
+  which every user may replace in an installation for all users) could make the elevated `DelTree` delete outside the
+  installation. A folder that cannot be checked counts as a link (fail closed), and the cleanup of the empty folders
+  leaves links alone. What remains is the moment between the second check and the end of the deletion (ADR 0013,
+  amendment of 2026-10-08). The comment and the text of the CI check about `DelTree` and links are corrected.
+- CI: `ci/check_tls_policy.py` also reads the suite installer (`suite/suite.iss` and its `#include` files). Every rule of
+  ADR 0012 applies there, and the suite may hold no network code at all (no `http://` address, no WinHTTP, no `Option[...]`
+  of a COM object, no download function), because it downloads nothing itself (ADR 0012, amendment of 2026-10-08).
 
 ## Suite 1.1.0 - 2026-10-07
 
