@@ -216,11 +216,13 @@ AppName={#SuiteName}
 AppVersion={#SuiteVersion}
 AppVerName={#SuiteName} {#SuiteVersion}
 ; The Publisher of EE on purpose (Windows "Apps", IsForeignUninstallEntry); the marker of contract 1.3
-; (revision 5, MarkSuiteUninstallKey) tells the launcher that the key is no installation
+; (revision 5, MarkSuiteUninstallKey) tells the launcher that the key is no installation. The website of that
+; publisher stays the one of EE; the links "Support" and "Updates" of the entry lead to the repository the package
+; is published in, because empireearth.eu neither offers nor supports the suite (ci/check_suite.py checks them)
 AppPublisher={#SuiteName}
 AppPublisherURL=https://empireearth.eu/
-AppSupportURL=https://empireearth.eu/
-AppUpdatesURL=https://empireearth.eu/
+AppSupportURL=https://github.com/DritteRippe/Empire-Earth-Community
+AppUpdatesURL=https://github.com/DritteRippe/Empire-Earth-Community/releases
 VersionInfoVersion={#SuiteVersion}.0
 VersionInfoProductVersion={#SuiteVersion}
 VersionInfoCopyright={#SuiteName}

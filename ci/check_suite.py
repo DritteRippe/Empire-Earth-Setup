@@ -13,7 +13,9 @@ to stay safe and installable:
             mode, contract 0), DiskSpanning=yes with DiskSliceSize from the define
             SliceSize (never a number written into the script: the build script and the CI pass the
             size, and a size below the setup program is refused by ISCC), no pages and no language
-            dialog, SetupLogging=yes, CloseApplications=no
+            dialog, SetupLogging=yes, CloseApplications=no; the links "Support" and "Updates" of its entry
+            in Windows "Apps" (AppSupportURL, AppUpdatesURL) lead to the repository the package is
+            published in, not to empireearth.eu, which neither offers nor supports the suite
   [Files]   every entry is either a product setup (the sources {#EESetupFile} and {#NeoEESetupFile},
             with the flags dontcopy and nocompression and a DestName: byte for byte, extracted by the
             product runner) or a file of the launcher, the Mod Creator or the licenses below {app}
@@ -140,6 +142,9 @@ SETUP_EXPECTED = {
     "ShowLanguageDialog": "no",
     "SetupLogging": "yes",
     "CloseApplications": "no",
+    # the links of the entry in Windows "Apps": where the package is published and supported
+    "AppSupportURL": "https://github.com/DritteRippe/Empire-Earth-Community",
+    "AppUpdatesURL": "https://github.com/DritteRippe/Empire-Earth-Community/releases",
 }
 # the product log lines the suite parses (S3, contract 1.7 point 5): per product script the SuiteLog* constants of
 # suite/suite_common.iss whose texts all stand in one line of that script. A reworded line there, or a constant
@@ -1225,6 +1230,11 @@ def self_test(source_root):
          "when removing, SuiteShortcut must delete the shortcut file it names"),
         ("language dialog", replace(main, "ShowLanguageDialog=no", "ShowLanguageDialog=yes"),
          "ShowLanguageDialog=yes, expected no"),
+        ("the support link on the website that does not offer the suite",
+         replace(main, "AppSupportURL=https://github.com/DritteRippe/Empire-Earth-Community\n", "AppSupportURL=https://empireearth.eu/\n"),
+         "AppSupportURL=https://empireearth.eu/, expected https://github.com/DritteRippe/Empire-Earth-Community"),
+        ("no updates link", replace(main, "AppUpdatesURL=https://github.com/DritteRippe/Empire-Earth-Community/releases\n", ""),
+         "[Setup] has no AppUpdatesURL"),
         ("launcher files without Check: IsDotNet48",
          replace(main, 'Source: "{#LauncherDir}\\*"; DestDir: "{app}"; Excludes: "*.pdb"; Flags: ignoreversion recursesubdirs createallsubdirs; Check: IsDotNet48',
                  'Source: "{#LauncherDir}\\*"; DestDir: "{app}"; Excludes: "*.pdb"; Flags: ignoreversion recursesubdirs createallsubdirs'),
