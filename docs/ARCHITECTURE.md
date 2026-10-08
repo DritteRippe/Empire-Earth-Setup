@@ -348,6 +348,15 @@ section 12 lists which cases the end-to-end test covers).
   `GET`" (requirement 4 and check 3.4 of [SERVER-OPERATIONS.md](SERVER-OPERATIONS.md)), and since
   S-WP12 pins for every online file (`pins/online-files.txt`, section 6 there; a release build
   stops without them), so in a release no file depends on that check any more.
+- **The uninstaller of the suite and the user data** ([ADR 0013](adr/0013-suite-installer.md), decision 11 and the
+  amendment of 2026-10-08): after the answer "Löschen" it deletes fixed folders below the install roots and the
+  launcher's data folder with `DelTree`. `DelTree` of Inno Setup 6.2.2 checks only the folder it is given, and each
+  folder inside, for a link; Windows follows a link in a folder above, and `Data\dxm` above the target
+  `Data\dxm\mods` lies in the part every user may write to. So the suite checks each folder up to its root for links
+  before its question and again right before each `DelTree`, the check fails closed (a folder whose entry cannot be
+  read counts as a link), and `RemoveDir` removes an empty folder only if it is no link and not behind one. Residual
+  risk: a link created between that second check and the end of the `DelTree` (a moment, no longer the time the
+  question waits); as for the product setups, the complete fix would be RedirectionGuard of Inno Setup 6.7.
 
 ## 10. Open points
 
@@ -505,6 +514,8 @@ nothing covers TP-98 (b) to (d) or TP-25 (d) (test plan, section 8 Block 9).
   one task dialog at the end; a silent uninstallation keeps them. The product entries stay visible for a
   single game. A data folder that is a link or lies below one is never offered; the check fails closed, a
   folder whose entry cannot be read counts as a link (`SuiteLinkVerdict`, ADR 0013, amendment of 2026-10-08).
+  Each folder is checked again, up to its root, right before its `DelTree`, and an empty folder is removed only
+  if it is no link and not behind one (section 9).
 - **Files:** `suite/suite.iss` (`[Setup]`, payload, prechecks with the exit codes 10 to 15),
   `suite_common.iss` (pure helpers, tested by `ci/tests/suite_tests.iss`), `suite_messages.iss`
   (English, German, French), `suite_shortcuts.iss` and `suite_record.iss` (what the suite leaves

@@ -867,3 +867,22 @@ text of `ci/check_suite.py` said that `DelTree` follows a link that is the folde
    setups (ADR 0009, decision point 1); the log lines say "is a link (junction or symbolic link) or cannot be checked".
    The unit tests check the verdict as a pure function: a folder, a file, a junction, a symbolic link to a file, a path
    that exists but cannot be looked at, a path that does not exist.
+2. **The link check is repeated right before each `DelTree`.** `SuiteExistingDataFolders` offers every folder through
+   `SuiteOfferDataFolder`, which records the root its link check goes up to (the install root of the product, the
+   launcher's data folder) at the same index as the folder. After the answer "Delete", `SuiteDeleteDataFolders` checks
+   each folder again right before its `DelTree`: it must still exist (`DirExists`) and neither it nor a folder above it up
+   to that root may be a link now (`SuiteIsBehindLink`). A folder that fails stays, with the log line `User data folder
+   not deleted, it or a folder above it is a link (junction or symbolic link) now or cannot be checked: <folder>` (or
+   `... it is gone already: <folder>`). The window that was open as long as the question waited shrinks to the moment
+   between that check and the end of the `DelTree`.
+3. **The empty folders are removed only if they are no link.** `RemoveDir` never removes a folder with content, but it
+   removes a junction or a symbolic link whatever its target holds, and it follows a link in a folder above. The
+   folders of `SuiteEmptyFolder` and the launcher's data folder are removed only if `SuiteIsBehindLink` finds no link
+   up to their root; otherwise they stay, with the log line `Folder left as it is, ...`.
+4. **The checks.** `ci/check_suite.py`, part [Uninstaller], requires that each folder is offered through
+   `SuiteOfferDataFolder` with its root, that `SuiteOfferDataFolder` leaves out a folder behind a link and one of a
+   product that stays installed and records the root, that `SuiteDeleteDataFolders` checks `DirExists` and
+   `SuiteIsBehindLink(Folders[I], Roots[I])` right before `DelTree`, and that every `RemoveDir(Target)` follows a
+   `SuiteIsBehindLink(Target, ...)`; its self-test has a mutant for each (among them the second check removed, and the
+   second check against the folder itself instead of its root, which would miss a link in `Data\dxm`). The comment
+   above `SuiteIsBehindLink` and the text of the check now describe `DelTree` as it is.

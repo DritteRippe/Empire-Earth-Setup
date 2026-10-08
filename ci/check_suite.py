@@ -87,12 +87,16 @@ to stay safe and installable:
             usUninstall, the shortcuts, the record and the user data at usPostUninstall; InitializeUninstall
             checks the game and launcher mutexes, holds the setup mutex of [Setup] and asks one question
             (not in a silent run); the only programs it starts are the uninstaller of a product (after
-            SuiteIsProductUninstaller) and ping for a pause; the data folders it offers are no link and not behind
-            one, and not those of a product that stays installed; DelTree only in SuiteDeleteDataFolders, called only
-            after the answer "Delete" (the second button, never in a silent run); DeleteFile and RemoveDir only
-            on the paths of the helpers of suite_common.iss, and RemoveDir on the empty {app} in
-            SuiteRemoveEmptyRoot (not a link, not behind one); no registry deletion except RemoveSuiteRecord;
-            [UninstallDelete] names {app}\Logs only; no Setup-only function (WizardSilent)
+            SuiteIsProductUninstaller) and ping for a pause; the data folders it offers (SuiteOfferDataFolder) are
+            no link and not behind one up to their root, which is recorded next to each folder, and not those of a
+            product that stays installed; DelTree only in SuiteDeleteDataFolders, called only after the answer
+            "Delete" (the second button, never in a silent run), and only after it checked the folder again right
+            before (DirExists, SuiteIsBehindLink up to its root: the question waits without a limit, and DelTree of
+            Inno Setup 6.2.2 checks only the folder it is given, Windows follows a link in a folder above it);
+            DeleteFile and RemoveDir only on the paths of the helpers of suite_common.iss, RemoveDir of a folder of
+            SuiteEmptyFolder or SuiteLauncherDataDir only if it is no link and not behind one, and RemoveDir on the
+            empty {app} in SuiteRemoveEmptyRoot (not a link, not behind one); no registry deletion except
+            RemoveSuiteRecord; [UninstallDelete] names {app}\\Logs only; no Setup-only function (WizardSilent)
   [Safety]  no suite file mentions the registry key of the CD keys of the original game, the library of the
             NeoEE CD key registration or its function (the suite never reimplements or bypasses the
             registration, contract 1.7 point 5)
@@ -880,6 +884,12 @@ def check_marker(record, errors):
     return 2
 
 
+# The calls of SuiteOfferDataFolder in SuiteExistingDataFolders: each data folder with the root its link check goes up to (the
+# install root of its product, the launcher's data folder), which SuiteDeleteDataFolders checks up to again before DelTree
+SUITE_OFFERS = ["SuiteDataFolder(SuiteUninstallRoot[I], J), SuiteUninstallRoot[I], True, Folders, Roots",
+                "SuiteLauncherDataFolder(LocalAppData, J), SuiteLauncherDataDir(LocalAppData), False, Folders, Roots"]
+
+
 def check_uninstaller(uninstaller, main, files, errors):
     """Rules for suite/suite_uninstall.iss and for how suite/suite.iss uses it; the number of rules checked.
     files is {relative path: text} of every suite file."""
@@ -936,7 +946,7 @@ def check_uninstaller(uninstaller, main, files, errors):
                       f"(found: {trees})")
     data = bodies.get("SuiteRemoveUserData", "")
     calls = re.findall(r"\bSuiteDeleteDataFolders\s*\(", all_code)
-    delete_if = re.search(r"if\s+DeleteData\s+then\s+SuiteDeleteDataFolders\(Folders\);", data)
+    delete_if = re.search(r"if\s+DeleteData\s+then\s+SuiteDeleteDataFolders\(Folders,\s*Roots\);", data)
     asked = re.search(r"if\s+UninstallSilent\s+then\s+Log\(.*?\bDeleteData\s*:=\s*SuppressibleTaskDialogMsgBox\(.*?IDYES\)\s*=\s*IDNO;",
                       data, re.DOTALL)
     if len(calls) != 2 or not delete_if or not asked or data.find("SuiteDeleteDataFolders(") < data.find("SuppressibleTaskDialogMsgBox("):
@@ -944,13 +954,36 @@ def check_uninstaller(uninstaller, main, files, errors):
                       "the question, with 'if DeleteData then', and DeleteData is only True for the second button "
                       "(IDNO), never in a silent run; the answer of a suppressed box is IDYES (keep)")
     existing = bodies.get("SuiteExistingDataFolders", "")
-    if "SuiteDataFolder(" not in existing or "SuiteLauncherDataFolder(" not in existing or "DirExists(" not in existing:
+    offer = bodies.get("SuiteOfferDataFolder", "")
+    if "SuiteDataFolder(" not in existing or "SuiteLauncherDataFolder(" not in existing or "DirExists(Folder)" not in offer:
         errors.append(f"{where}: SuiteExistingDataFolders must list only the folders of SuiteDataFolder and "
                       "SuiteLauncherDataFolder that exist")
-    if existing.count("SuiteIsBehindLink(") != 2 or "SuiteIsFolderOfInstalledProduct(" not in existing:
-        errors.append(f"{where}: SuiteExistingDataFolders must leave out a data folder that is a link or behind one "
-                      "(SuiteIsBehindLink, for the folders of the products and of the launcher) and one that belongs to "
-                      "a product that stays installed (SuiteIsFolderOfInstalledProduct): DelTree follows such a link")
+    # every folder is offered with the root its link check goes up to: the install root of its product, the launcher's data folder
+    if call_arguments(existing, "SuiteOfferDataFolder") != SUITE_OFFERS:
+        errors.append(f"{where}: SuiteExistingDataFolders must offer each folder through SuiteOfferDataFolder with the root "
+                      f"its link check goes up to (expected {SUITE_OFFERS}, found {call_arguments(existing, 'SuiteOfferDataFolder')})")
+    if not re.search(r"if\s+SuiteIsBehindLink\(Folder,\s*Root\)\s+then\s+Log\(.*?\belse\s+if\s+OfProduct\s+and\s+"
+                     r"SuiteIsFolderOfInstalledProduct\(Folder\)\s+then\s+Log\(.*?\belse\s+begin\b.*?"
+                     r"Folders\[Count - 1\]\s*:=\s*Folder;\s*Roots\[Count - 1\]\s*:=\s*Root;", offer, re.DOTALL):
+        errors.append(f"{where}: SuiteOfferDataFolder must leave out a data folder that is a link or behind one up to its root "
+                      "(SuiteIsBehindLink(Folder, Root)) and one that belongs to a product that stays installed "
+                      "(SuiteIsFolderOfInstalledProduct), and record its root next to it (Roots): DelTree of Inno Setup 6.2.2 "
+                      "checks only the folder it is given for a link, Windows follows a link in a folder above it")
+    # the second look right before each DelTree: the question waited for the user without a limit
+    deletion = bodies.get("SuiteDeleteDataFolders", "")
+    if not re.search(r"\bfor\s+I\s*:=\s*0\s+to\s+GetArrayLength\(Folders\)\s*-\s*1\s+do\s+if\s+not\s+DirExists\(Folders\[I\]\)\s+then\s+"
+                     r"Log\(.*?\belse\s+if\s+SuiteIsBehindLink\(Folders\[I\],\s*Roots\[I\]\)\s+then\s+Log\(.*?"
+                     r"\belse\s+if\s+DelTree\(Folders\[I\],", deletion, re.DOTALL):
+        errors.append(f"{where}: SuiteDeleteDataFolders must check each folder again right before its DelTree: it still "
+                      "exists (DirExists(Folders[I])) and neither it nor a folder above it up to its root is a link now "
+                      "(SuiteIsBehindLink(Folders[I], Roots[I])); the question waits without a limit, and Windows follows "
+                      "a link in a folder above the one DelTree is given")
+    # RemoveDir of the folders that are empty now only for a folder that is no link and not behind one (RemoveDir removes a
+    # link whatever its target holds, and it follows a link in a folder above)
+    guarded = re.findall(r"if\s+SuiteIsBehindLink\(Target,\s*[^;]*?\)\s+then\s+Log\([^;]*\)\s+else\s+if\s+RemoveDir\(Target\)", data)
+    if not guarded or len(guarded) != data.count("RemoveDir(Target)"):
+        errors.append(f"{where}: SuiteRemoveUserData must remove a folder of SuiteEmptyFolder or SuiteLauncherDataDir only if it "
+                      "is no link and not behind one (if SuiteIsBehindLink(Target, ...) then Log(...) else if RemoveDir(Target))")
     for argument in call_arguments(all_code, "DeleteFile"):
         if argument != "Target":
             errors.append(f"{where}: DeleteFile({argument}): the uninstaller deletes only the launcher files of "
@@ -983,7 +1016,7 @@ def check_uninstaller(uninstaller, main, files, errors):
     entries = [line.strip() for _, line in sections(main, "UninstallDelete")]
     if entries != ['Type: filesandordirs; Name: "{app}\\Logs"']:
         errors.append(f"suite/suite.iss: [UninstallDelete] must name {{app}}\\Logs only, found {entries}")
-    return 12
+    return 15
 
 
 def check_forbidden_words(root, errors):
@@ -1466,12 +1499,41 @@ def self_test(source_root):
         ("DelTree in the product removal", replace(uninstall, "  Total := 0;\n", "  DelTree(ExpandConstant('{app}'), True, True, True);\n  Total := 0;\n"),
          "DelTree may only be called in SuiteDeleteDataFolders"),
         ("a data folder behind a link is offered",
-         replace(uninstall, "          if SuiteIsBehindLink(Folder, SuiteUninstallRoot[I]) then", "          if False then"),
-         "SuiteExistingDataFolders must leave out a data folder that is a link"),
+         replace(uninstall, "  if SuiteIsBehindLink(Folder, Root) then\n    Log('User data folder not offered", "  if False then\n    Log('User data folder not offered"),
+         "SuiteOfferDataFolder must leave out a data folder that is a link"),
         ("a data folder of an installed product is offered",
-         replace(uninstall, "          else if SuiteIsFolderOfInstalledProduct(Folder) then", "          else if False then"),
-         "SuiteExistingDataFolders must leave out a data folder that is a link"),
-        ("data folders deleted without the answer", replace(uninstall, "  if DeleteData then\n    SuiteDeleteDataFolders(Folders);", "  SuiteDeleteDataFolders(Folders);"),
+         replace(uninstall, "  else if OfProduct and SuiteIsFolderOfInstalledProduct(Folder) then", "  else if False then"),
+         "SuiteOfferDataFolder must leave out a data folder that is a link"),
+        ("the root of an offered folder is not recorded", replace(uninstall, "    Roots[Count - 1] := Root;\n", ""),
+         "SuiteOfferDataFolder must leave out a data folder that is a link"),
+        ("a data folder of a product offered with its own path as the root",
+         replace(uninstall, "SuiteOfferDataFolder(SuiteDataFolder(SuiteUninstallRoot[I], J), SuiteUninstallRoot[I], True,",
+                 "SuiteOfferDataFolder(SuiteDataFolder(SuiteUninstallRoot[I], J), SuiteDataFolder(SuiteUninstallRoot[I], J), True,"),
+         "SuiteExistingDataFolders must offer each folder through SuiteOfferDataFolder with the root"),
+        ("a data folder of the launcher offered with the root of a product",
+         replace(uninstall, "SuiteLauncherDataFolder(LocalAppData, J), SuiteLauncherDataDir(LocalAppData), False,",
+                 "SuiteLauncherDataFolder(LocalAppData, J), SuiteUninstallRoot[1], False,"),
+         "SuiteExistingDataFolders must offer each folder through SuiteOfferDataFolder with the root"),
+        ("the link check is not repeated right before DelTree",
+         replace(uninstall, "    else if SuiteIsBehindLink(Folders[I], Roots[I]) then\n", "    else if False then\n"),
+         "SuiteDeleteDataFolders must check each folder again right before its DelTree"),
+        ("the link check before DelTree only looks at the folder itself",
+         replace(uninstall, "SuiteIsBehindLink(Folders[I], Roots[I])", "SuiteIsBehindLink(Folders[I], Folders[I])"),
+         "SuiteDeleteDataFolders must check each folder again right before its DelTree"),
+        ("DelTree before the second link check",
+         replace(uninstall, "    if not DirExists(Folders[I]) then\n      Log('User data folder not deleted, it is gone already: ' + Folders[I])\n",
+                 "    if DelTree(Folders[I], True, True, True) then\n      Log('x')\n    else if not DirExists(Folders[I]) then\n      Log('User data folder not deleted, it is gone already: ' + Folders[I])\n"),
+         "DelTree may only be called in SuiteDeleteDataFolders, for the folders of its list"),
+        ("a folder that is gone is handed to DelTree",
+         replace(uninstall, "    if not DirExists(Folders[I]) then\n", "    if False then\n"),
+         "SuiteDeleteDataFolders must check each folder again right before its DelTree"),
+        ("an empty folder of a product removed through a link",
+         replace(uninstall, "          if SuiteIsBehindLink(Target, SuiteUninstallRoot[I]) then\n", "          if False then\n"),
+         "SuiteRemoveUserData must remove a folder of SuiteEmptyFolder or SuiteLauncherDataDir only if it is no link"),
+        ("the launcher's data folder removed through a link",
+         replace(uninstall, "    if SuiteIsBehindLink(Target, Target) then\n      Log('Folder left as it is", "    if False then\n      Log('Folder left as it is"),
+         "SuiteRemoveUserData must remove a folder of SuiteEmptyFolder or SuiteLauncherDataDir only if it is no link"),
+        ("data folders deleted without the answer", replace(uninstall, "  if DeleteData then\n    SuiteDeleteDataFolders(Folders, Roots);", "  SuiteDeleteDataFolders(Folders, Roots);"),
          "SuiteDeleteDataFolders is only called in SuiteRemoveUserData"),
         ("data folders deleted for the first button", replace(uninstall, "IDYES) = IDNO;", "IDYES) = IDYES;"),
          "DeleteData is only True for the second button"),

@@ -2260,10 +2260,13 @@ begin
     Result := SuiteLinkVerdict(False, 0, DirExists(P) or FileExists(P));
 end;
 
-// True if Folder or a folder above it, up to and including Root, is a reparse point: DelTree skips links
-// inside a folder but follows a link that is the folder itself or one of its parents (a saved games
-// folder redirected to Documents or OneDrive would lose the content of its target). The same protection
-// the product setups have (IsLinkGuardedFolder, ADR 0009). A Folder outside Root is checked up to its drive.
+// True if Folder or a folder above it, up to and including Root, is a reparse point or cannot be looked at
+// (SuiteIsReparsePoint). DelTree of Inno Setup 6.2.2 checks only the folder it is given, and each folder it
+// finds inside, for a link: such a link is removed without being entered. A link in a folder above is
+// resolved by Windows, so DelTree would delete the content of its target (the saved games below a Data
+// folder redirected to Documents or OneDrive). The uninstaller asks this before it offers a folder and again
+// right before each DelTree (suite_uninstall.iss). The same protection the product setups have
+// (IsLinkGuardedFolder, ADR 0009). A Folder outside Root is checked up to its drive.
 function SuiteIsBehindLink(const Folder, Root: String): Boolean;
 var
   P, Parent: String;
