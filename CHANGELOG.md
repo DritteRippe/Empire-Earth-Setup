@@ -78,6 +78,14 @@ setup version 1.7.2; the product setups of a suite release are told apart by the
   `microsoft/setup-msbuild` 3.0.0; `build.yml` used `@v4` tags before). The warning "Node.js 20 is deprecated" is gone.
   Dependabot groups all action updates into one pull request a month and proposes a release only after seven days.
   `ci/e2e/tests/test_suite_e2e.py` requires the pins in `build.yml`.
+- Documentation after the review of suite 1.1.0: the README says that the product setups are released inside the suite
+  only (with the setup version 1.7.2) and where players get the package; it calls the fix of the dead mouse confirmed
+  (TP-25 (b), 2026-10-07) instead of expected; it explains why the product setups use the AppIds of the official setups
+  1.7.2 and what follows from that, instead of a rule that forks generate their own; its links to the launcher lead to
+  the fork `DritteRippe/Empire-Earth-Launcher` (the upstream repository has neither the contract nor this launcher).
+  "Setup 1.1.0", a version no setup ever had, is "suite 1.1.0" in the README, the ADRs, the test plan and the comments.
+  ADR 0011 says that the real-data end-to-end test has never run successfully on GitHub (amendment of 2026-10-08), ADR
+  0013 is "Accepted, implemented", and ARCHITECTURE lists the open question O13.
 
 ### Fixed
 - Suite: a process of a product setup that is just ending (Windows answers its suspension with

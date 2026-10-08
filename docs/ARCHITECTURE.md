@@ -394,11 +394,20 @@ section 12 lists which cases the end-to-end test covers).
   only in HKCU, so an HKLM `Neo` key is reported as an old NeoEE installation. Whether the closed
   `authtools.dll` writes such a key when it registers the CD keys is unknown (contract O8); TP-61 (e)
   checks it before a release, a hit needs an exception in the check.
-- **O12** (copy check): answered locally, `ci/compare_contract.py` (S-WP1).
+- **O12** (copy check): answered locally, `ci/compare_contract.py` (S-WP1); since 2026-10-08 it also compares the
+  byte samples `docs/contract-samples`.
+- **O13** (open; update question of a product setup in the advanced mode of the suite, contract O13): in the advanced
+  mode the suite runs the product setups with their wizard, so a product setup can ask its update question, and "Yes"
+  opens the empireearth.eu page of its product, which leads an installation of the suite to the official setup with the
+  same AppId. Proposal: a switch from the suite with which a product setup skips the question (the package fixes the
+  versions it installs); it changes the product setups and contract 1.7 point 3 in one step.
 - **Setup version:** `MySetupVersion` stays `1.7.2` until the maintainers release v2; the update API
   may treat an unknown version as outdated, so the version is raised together with the release and
   the API, not by a work package. Test builds are told apart by `SetupBuild` (S-WP6, done:
-  `test<TestID>-<commit>` in `install.ini`, the install record and the first log line).
+  `test<TestID>-<commit>` in `install.ini`, the install record and the first log line), and so are the product setups
+  of a suite release since suite 1.1.1 (`-SetupBuild suite-<version>-<commit>`, named in `BUILD-INFO.txt`, ADR 0013
+  amendment of 2026-10-08). The product setups are released only inside the suite; a version of their own needs a
+  decision with the update API (`type=setup`) first.
 - **Mirror certificate:** unknown from the analysis environment. A release needs at least one file
   server with a valid certificate ([ADR 0006](adr/0006-strict-tls-and-server-certificates.md),
   release criterion in [SERVER-OPERATIONS.md](SERVER-OPERATIONS.md)); the test plan checks both

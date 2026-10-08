@@ -1,7 +1,9 @@
 # 0013. A suite installer that runs the unchanged EE and NeoEE setups and installs the launcher
 
-- Status: Accepted (decided by the maintainers on 2026-10-05; being implemented, the evidence of
-  the WP0 spike is in [Evidence](#evidence))
+- Status: Accepted, implemented (decided by the maintainers on 2026-10-05; released as suite 1.0.0 on 2026-10-06 and as
+  suite 1.1.0 on 2026-10-07; the evidence of the WP0 spike is in [Evidence](#evidence), what was built and how it is
+  tested is in [ARCHITECTURE.md](../ARCHITECTURE.md), section 11; the amendments below record the later decisions, the
+  last three for suite 1.1.1)
 - Date: 2026-10-05
 - Requirements: briefing D1 (Inno Setup 6.2.2, every behaviour change intended), D4 (Windows 7 SP1
   to 11), D5 (shared contract), D6 (CD-key registration untouched, no game data in the repository),
@@ -841,7 +843,7 @@ happened, and the log did not tell why Windows refused.
 - The cause of run 48 stays a well-founded guess; a different cause would now show up with its NTSTATUS in the reason of
   the unit test and in the log of the suite.
 - The contract (1.7 point 2, informative) says that a product setup that cannot be frozen runs on; a process that is ending
-  is not one that cannot be frozen.
+  is not one that cannot be frozen. Contract revision 7 says so in 1.7 point 2.
 
 ## Amendment: the deletion of the user data is checked up to the last moment (2026-10-08, for suite 1.1.1)
 

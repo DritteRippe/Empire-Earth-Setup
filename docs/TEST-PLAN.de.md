@@ -13,7 +13,7 @@ Block 8 (Links in `Data` und `Users`, TP-80) aus S-WP11; S-WP9 hat die Build-Art
 über 1.7.2 ohne Daten der Maintainer, die Fälle TP-71 bis TP-79 von Block 7, die
 Windows-8.1-Variante von TP-22 und die Entscheidungsregeln in TP-23 und TP-71 ergänzt; S-WP12 hat
 TP-00 und Block 1 an die gepinnten Downloads von einem Server mit ungültigem Zertifikat angepasst
-(ADR 0012); Lauf 5e (Setup 1.1.0) hat dgVoodoo 2.87.5 mit den Fensterschlüsseln (TP-25), das Spielfenster
+(ADR 0012); Lauf 5e (Suite 1.1.0) hat dgVoodoo 2.87.5 mit den Fensterschlüsseln (TP-25), das Spielfenster
 bis 1920x1200 (TP-26) und die Intro-Videos als Standard (TP-27) ergänzt. Alle Fälle
 sind ausgearbeitet; jeder hat eine Priorität (P1 bis P3, [Abschnitt 4](#4-vorlage-je-fall)).
 `ci/check_test_plan.py` prüft die Form dieses Dokuments (siehe

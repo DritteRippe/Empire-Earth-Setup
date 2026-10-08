@@ -361,7 +361,7 @@ page, the notice and the messages (`4eafaed`), this documentation with test case
 - **Comparing file times with `Written`** to detect a later older setup: Inno Setup keeps the time
   stamps of the source files, so the file times say nothing about the run.
 
-## Amendment 2026-10-07 (setup 1.1.0: the record value ComponentDefaults)
+## Amendment 2026-10-07 (suite 1.1.0: the record value ComponentDefaults)
 
 The install record has the optional value `ComponentDefaults` (REG_DWORD, contract 1.1 revision 6, setup-internal: the
 launcher ignores it). It holds the revision of the default components the installation has received

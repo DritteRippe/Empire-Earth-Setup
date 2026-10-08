@@ -164,7 +164,7 @@ then the change of the setup together with README, CHANGELOG and architecture do
 - **Make "native" the default:** no evidence that it is better on current Windows; the setup's wrapper
   defaults are the community's current practice.
 
-## Amendment 2026-10-07 (setup 1.1.0: dgVoodoo 2.87.5, the window keys of K1, the configurations in the repository, intro videos by default)
+## Amendment 2026-10-07 (suite 1.1.0: dgVoodoo 2.87.5, the window keys of K1, the configurations in the repository, intro videos by default)
 
 ### Context
 

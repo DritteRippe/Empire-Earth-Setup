@@ -1,7 +1,9 @@
 # 0011. Real-data end-to-end test on a throwaway GitHub-hosted Windows runner
 
-- Status: Accepted, implemented (see [Implementation](#implementation); verified locally, the first run
-  on GitHub answers the points listed there)
+- Status: Accepted, implemented, **never run successfully on GitHub**: every run so far stopped at the download of
+  the official setups (`r2.empireearth.eu` answers GitHub runners with HTTP 403), so the points that
+  [Implementation](#implementation) leaves to the first run are still open; by hand only since the amendment of
+  2026-10-07 (see the [amendment of 2026-10-08](#amendment-2026-10-08-never-run-successfully-the-state-after-suite-110))
 - Date: 2026-10-03
 - Requirements: briefing D6 (game data never committed, pushed or uploaded; never run a setup on a
   development machine; tests never use the network), D7; [ADR 0004](0004-install-record-and-integrity-manifest.md),
@@ -153,7 +155,7 @@ the pin and the caches; `ci/e2e/tests/test_e2e_tools.py` checks that the job con
 concurrency group agree, that the launcher is a full commit, that every action is pinned and that
 each budget lies below its step limit and leaves room for a setup run and the uninstallation.
 
-## Amendment 2026-10-07 (setup 1.1.0: the dgVoodoo archive as a third public download)
+## Amendment 2026-10-07 (suite 1.1.0: the dgVoodoo archive as a third public download)
 
 The job downloads a third public file: the official dgVoodoo archive (`dgVoodoo2_87_5.zip`). Its URL, SHA-256 and size are
 those of `pins/dgvoodoo.txt` (the workflow repeats none of them), the archive is cached by its SHA-256, verified in every run
@@ -183,3 +185,26 @@ file), the job condition of decision 1 and the concurrency group that uses it, a
 `ci/e2e/tests/test_e2e_tools.py` back to those rules. The old text of the workflow is in the git history (the commit before
 this amendment). Decision 1 as written above is the state to return to; the consequences about frequency, labels and caches
 describe that state too, not today's.
+
+## Amendment 2026-10-08 (never run successfully: the state after suite 1.1.0)
+
+The status said "implemented" and left the rest to the first run on GitHub. That run has not happened. The workflow ran 21
+times, all for pull requests into `v2` between 2026-10-03 and 2026-10-07: the first was skipped, the other 20 failed. The
+last one (run 21) failed in the step "Download the official setups 1.7.2 (cache miss)" with HTTP 403 from
+`r2.empireearth.eu`, and every later step was skipped; the README and the workflow name the same block as the reason for
+the runs before. Since the trigger became `workflow_dispatch` (amendment above) nobody has started it, on `main` or
+elsewhere.
+
+So in CI none of the scenarios A to E, none of the checks K1 to K15 and none of the launcher's `RealMachineTests` (the
+pinned `LAUNCHER_COMMIT`, launcher 1.1.0) has run against a real installation. The real-data path rests on the laptop
+test of the [test plan](../TEST-PLAN.de.md); the suite is covered by the job `suite-e2e` with placeholder products. The
+points of [Implementation](#implementation) under "Open until the first run on GitHub" stay open, and so does the URL
+of the dgVoodoo archive (amendment "the dgVoodoo archive").
+
+**Decision.** The status of this record says so ("never run successfully on GitHub"). Nothing else changes: the
+workflow stays as it is, by hand only.
+
+**What would make it run.** Either `r2.empireearth.eu` lets GitHub runners download again, or the two official setups
+reach the Actions cache of `main` another way (their SHA-256 values are pinned in the workflow, so the source of the
+bytes does not change the result). Then start one run by hand on `main`, which fills the caches for every branch, and
+switch back to pull requests (the way back above) only after a green run.
