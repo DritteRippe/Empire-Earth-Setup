@@ -879,10 +879,25 @@ text of `ci/check_suite.py` said that `DelTree` follows a link that is the folde
    removes a junction or a symbolic link whatever its target holds, and it follows a link in a folder above. The
    folders of `SuiteEmptyFolder` and the launcher's data folder are removed only if `SuiteIsBehindLink` finds no link
    up to their root; otherwise they stay, with the log line `Folder left as it is, ...`.
-4. **The checks.** `ci/check_suite.py`, part [Uninstaller], requires that each folder is offered through
+4. **A product that stays installed is recognized in another spelling of its root, too.** Two products may share one
+   install root, and the profiles and saved games below it then belong to the product that stays as well
+   (`SuiteIsFolderOfInstalledProduct`). The roots come from the uninstall keys in the spelling the setups were given, so
+   one may read `C:\PROGRA~2\EMPIRE~1` and the other `C:\Program Files (x86)\Empire Earth`. The comparison now holds
+   for the paths as written or for their `SuiteComparablePath`: the full path (`ExpandFileName`, `.` and `..` resolved,
+   `/` as `\`) in its 8.3 short form (`GetShortName`, which gives the path back unchanged if it does not exist or its
+   volume has no short names). As before, the case of the letters A to Z does not count (`UpperCase` of Pascal Script
+   maps only those); other letters keep their case in the spelling as written, while their short form, where the
+   volume has one, is the same for both. `SuiteIsSameOrInsideSpelled` says True more often than
+   `SuiteIsSameOrInside`, never less, so it only ever keeps a folder. A subst drive or a link in the spelling of a root
+   is not resolved (that would need `GetFinalPathNameByHandleW` through a DLL import and handles to folders); the link
+   check of the data folders does not depend on it. Unit tests: as written, with `..` and `/`, the folder or the path in
+   its short name, a folder named like the start of another, an empty folder.
+5. **The checks.** `ci/check_suite.py`, part [Uninstaller], requires that each folder is offered through
    `SuiteOfferDataFolder` with its root, that `SuiteOfferDataFolder` leaves out a folder behind a link and one of a
    product that stays installed and records the root, that `SuiteDeleteDataFolders` checks `DirExists` and
    `SuiteIsBehindLink(Folders[I], Roots[I])` right before `DelTree`, and that every `RemoveDir(Target)` follows a
    `SuiteIsBehindLink(Target, ...)`; its self-test has a mutant for each (among them the second check removed, and the
    second check against the folder itself instead of its root, which would miss a link in `Data\dxm`). The comment
-   above `SuiteIsBehindLink` and the text of the check now describe `DelTree` as it is.
+   above `SuiteIsBehindLink` and the text of the check now describe `DelTree` as it is. It also requires that
+   `SuiteIsFolderOfInstalledProduct` compares with `SuiteIsSameOrInsideSpelled` both ways (a mutant that compares as
+   written only must fail).

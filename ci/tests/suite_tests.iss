@@ -497,6 +497,18 @@ begin
   CheckBool('SuiteIsBehindLink missing folder', SuiteIsBehindLink(Root + '\none\x', Root), False);
   CheckBool('SuiteIsBehindLink drive only', SuiteIsBehindLink('C:\', 'C:\'), False);
   CheckBool('SuiteIsBehindLink empty', SuiteIsBehindLink('', Root), False);
+  // two spellings of one existing folder: "..", "/" and the 8.3 short name (GetShortName gives the long path back
+  // on a volume without short names; then the comparison as written decides, and the result is the same)
+  CheckBool('SuiteIsSameOrInsideSpelled as written', SuiteIsSameOrInsideSpelled(Sub, Root), True);
+  CheckBool('SuiteIsSameOrInsideSpelled with ..', SuiteIsSameOrInsideSpelled(Root + '\Empire Earth\x\..\Users', Sub), True);
+  CheckBool('SuiteIsSameOrInsideSpelled with /', SuiteIsSameOrInsideSpelled(Root + '/Empire Earth/Users', Root), True);
+  CheckBool('SuiteIsSameOrInsideSpelled the folder in its short name', SuiteIsSameOrInsideSpelled(Sub, GetShortName(Root + '\Empire Earth')), True);
+  CheckBool('SuiteIsSameOrInsideSpelled the path in its short name', SuiteIsSameOrInsideSpelled(GetShortName(Sub), Root + '\Empire Earth'), True);
+  CheckBool('SuiteIsSameOrInsideSpelled the folder inside the path', SuiteIsSameOrInsideSpelled(GetShortName(Root), Sub), False);
+  CheckBool('SuiteIsSameOrInsideSpelled a folder named like the start', SuiteIsSameOrInsideSpelled(Root + '\Empire Earth2\Users', Root + '\Empire Earth'), False);
+  CheckBool('SuiteIsSameOrInsideSpelled empty folder', SuiteIsSameOrInsideSpelled(Sub, ''), False);
+  Check('SuiteComparablePath empty', SuiteComparablePath('  '), '');
+  Check('SuiteComparablePath a folder that does not exist', SuiteComparablePath(Root + '\none\..\other'), Root + '\other');
   RemoveDir(Sub);
   RemoveDir(Root + '\Empire Earth');
   RemoveDir(Root);

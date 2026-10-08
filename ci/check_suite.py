@@ -89,7 +89,8 @@ to stay safe and installable:
             (not in a silent run); the only programs it starts are the uninstaller of a product (after
             SuiteIsProductUninstaller) and ping for a pause; the data folders it offers (SuiteOfferDataFolder) are
             no link and not behind one up to their root, which is recorded next to each folder, and not those of a
-            product that stays installed; DelTree only in SuiteDeleteDataFolders, called only after the answer
+            product that stays installed (compared as written and in the short spelling, SuiteIsSameOrInsideSpelled,
+            both ways); DelTree only in SuiteDeleteDataFolders, called only after the answer
             "Delete" (the second button, never in a silent run), and only after it checked the folder again right
             before (DirExists, SuiteIsBehindLink up to its root: the question waits without a limit, and DelTree of
             Inno Setup 6.2.2 checks only the folder it is given, Windows follows a link in a folder above it);
@@ -969,6 +970,11 @@ def check_uninstaller(uninstaller, main, files, errors):
                       "(SuiteIsBehindLink(Folder, Root)) and one that belongs to a product that stays installed "
                       "(SuiteIsFolderOfInstalledProduct), and record its root next to it (Roots): DelTree of Inno Setup 6.2.2 "
                       "checks only the folder it is given for a link, Windows follows a link in a folder above it")
+    installed = bodies.get("SuiteIsFolderOfInstalledProduct", "")
+    if "SuiteIsSameOrInsideSpelled(Folder, Root)" not in installed or "SuiteIsSameOrInsideSpelled(Root, Folder)" not in installed:
+        errors.append(f"{where}: SuiteIsFolderOfInstalledProduct must compare the folder with the root of a product that stays "
+                      "installed both ways and in both spellings (SuiteIsSameOrInsideSpelled(Folder, Root), "
+                      "SuiteIsSameOrInsideSpelled(Root, Folder)): the advanced wizard may have been given the short name of the root")
     # the second look right before each DelTree: the question waited for the user without a limit
     deletion = bodies.get("SuiteDeleteDataFolders", "")
     if not re.search(r"\bfor\s+I\s*:=\s*0\s+to\s+GetArrayLength\(Folders\)\s*-\s*1\s+do\s+if\s+not\s+DirExists\(Folders\[I\]\)\s+then\s+"
@@ -1016,7 +1022,7 @@ def check_uninstaller(uninstaller, main, files, errors):
     entries = [line.strip() for _, line in sections(main, "UninstallDelete")]
     if entries != ['Type: filesandordirs; Name: "{app}\\Logs"']:
         errors.append(f"suite/suite.iss: [UninstallDelete] must name {{app}}\\Logs only, found {entries}")
-    return 15
+    return 16
 
 
 def check_forbidden_words(root, errors):
@@ -1504,6 +1510,10 @@ def self_test(source_root):
         ("a data folder of an installed product is offered",
          replace(uninstall, "  else if OfProduct and SuiteIsFolderOfInstalledProduct(Folder) then", "  else if False then"),
          "SuiteOfferDataFolder must leave out a data folder that is a link"),
+        ("the root of a product that stays installed compared as written only",
+         replace(uninstall, "SuiteIsSameOrInsideSpelled(Folder, Root) or SuiteIsSameOrInsideSpelled(Root, Folder)",
+                 "SuiteIsSameOrInside(Folder, Root) or SuiteIsSameOrInside(Root, Folder)"),
+         "SuiteIsFolderOfInstalledProduct must compare the folder with the root of a product that stays installed"),
         ("the root of an offered folder is not recorded", replace(uninstall, "    Roots[Count - 1] := Root;\n", ""),
          "SuiteOfferDataFolder must leave out a data folder that is a link"),
         ("a data folder of a product offered with its own path as the root",

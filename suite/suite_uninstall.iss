@@ -244,7 +244,9 @@ end;
 // True if Folder is the folder of a product that stays installed (an uninstall key for all users that the
 // suite did not remove: a standalone setup, or a removal that failed) or lies inside its install root, or
 // if that root lies inside it. Two products may share one install root (the setups ask before they do);
-// the profiles and saved games below it are those of the product that stays too.
+// the profiles and saved games below it are those of the product that stays too. The paths are compared as
+// written and in their full short spelling (SuiteIsSameOrInsideSpelled): the advanced wizard of one product may
+// have been given C:\PROGRA~2\EMPIRE~1, that of the other C:\Program Files (x86)\Empire Earth.
 function SuiteIsFolderOfInstalledProduct(const Folder: String): Boolean;
 var
   I: Integer;
@@ -253,7 +255,7 @@ begin
   Result := False;
   for I := 1 to 2 do
     if SuiteReadProductEntry(SuiteUninstallProduct(I), Root, Exe) and (Root <> '') then
-      if SuiteIsSameOrInside(Folder, Root) or SuiteIsSameOrInside(Root, Folder) then
+      if SuiteIsSameOrInsideSpelled(Folder, Root) or SuiteIsSameOrInsideSpelled(Root, Folder) then
         Result := True;
 end;
 

@@ -1,8 +1,9 @@
 ﻿[Code]
 // Pure helpers of the suite installer (suite.iss, ADR 0013): they compute something from their
 // arguments and touch no wizard page, so ci/tests/suite_tests.iss tests them (run by
-// ci/tests/unit_tests.iss). Only SuiteFindSliceProblems and SuiteIsBehindLink read the file system (file
-// sizes, folder attributes); the tests give them files and folders of their own temporary folder.
+// ci/tests/unit_tests.iss). Only SuiteFindSliceProblems, SuiteIsBehindLink and SuiteComparablePath read the file
+// system (file sizes, folder attributes, short names); the tests give them files and folders of their own
+// temporary folder.
 // Requires: nothing (no define, no other script). Included before every other [Code] part of the suite.
 
 const
@@ -130,6 +131,26 @@ begin
   P := SuiteNormalizedPath(Path);
   F := SuiteNormalizedPath(Folder);
   Result := (F <> '') and ((P = F) or (Copy(P, 1, Length(F) + 1) = F + '\'));
+end;
+
+// A path in the spelling that two spellings of the same existing folder share: the full path (ExpandFileName
+// resolves "." and "..", a "/" becomes a "\") in its 8.3 short form (GetShortName, which gives the path back
+// unchanged if it does not exist or its volume has no short names). A subst drive or a link on the way is not
+// resolved. '' for an empty path.
+function SuiteComparablePath(const Path: String): String;
+begin
+  Result := Trim(Path);
+  if Result <> '' then
+    Result := GetShortName(ExpandFileName(Result));
+end;
+
+// SuiteIsSameOrInside for folders that may be written in two spellings: True if it holds for the paths as
+// written or for their SuiteComparablePath (C:\PROGRA~2\EMPIRE~1 and C:\Program Files (x86)\Empire Earth name
+// the same folder on a volume with short names). It says True more often than SuiteIsSameOrInside, never less,
+// so it serves to protect a folder, never to allow a deletion.
+function SuiteIsSameOrInsideSpelled(const Path, Folder: String): Boolean;
+begin
+  Result := SuiteIsSameOrInside(Path, Folder) or SuiteIsSameOrInside(SuiteComparablePath(Path), SuiteComparablePath(Folder));
 end;
 
 // The heuristic for "started from the ZIP view or from a temporary folder": Windows Explorer runs
