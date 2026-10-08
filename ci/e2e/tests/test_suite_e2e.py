@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Rules of the end-to-end scenarios of the suite installer (job suite-e2e of .github/workflows/build.yml,
-ci/e2e/run_e2e_suite.ps1) that their text must keep, read as text (the runner has no YAML library), and the
-proof that no code of the suite touches the CD key registry. Each rule is a function that returns problems and
+ci/e2e/run_e2e_suite.ps1) that their text must keep, read as text (the runner has no YAML library), the pins of
+the actions of build.yml (each by its full commit, with the release as a comment), and the proof that no code of
+the suite touches the CD key registry. Each rule is a function that returns problems and
 is tested against the real files (no problem) and against modified copies (the problem must be found), so the
 check itself is checked.
 
@@ -71,8 +72,8 @@ def workflow_problems(workflow):
         problems.append("the limits must be budget < step < job, found %s, %s, %s" % (budget.group(1), step, total.group(1)))
     # the artifact of the inputs: uploaded by compile, downloaded by suite-e2e, under one name
     compile_job = job_block(workflow, "compile")
-    uploaded = re.findall(r"upload-artifact@v4\n\s+with:\n\s+name: (\S+)", compile_job)
-    downloaded = re.findall(r"download-artifact@v4\n\s+with:\n\s+name: (\S+)", job)
+    uploaded = re.findall(r"upload-artifact@[^\n]*\n\s+with:\n\s+name: (\S+)", compile_job)
+    downloaded = re.findall(r"download-artifact@[^\n]*\n\s+with:\n\s+name: (\S+)", job)
     if not downloaded:
         problems.append("suite-e2e must download the inputs from compile")
     for name in downloaded:
@@ -94,6 +95,20 @@ def workflow_problems(workflow):
     if "RUNNER_TEMP" not in job:
         problems.append("the folders of the test must be below RUNNER_TEMP")
     return problems
+
+
+# An action by its full commit with the release as a comment, as Dependabot keeps it: "owner/repo[/path]@<sha> # vX.Y.Z"
+PINNED_ACTION = re.compile(r"^[\w.-]+/[\w.-]+(?:/[\w.-]+)*@[0-9a-f]{40} # v\d+(?:\.\d+)*$")
+
+
+def pin_problems(workflow):
+    """Every action of the workflow is pinned by its full commit, with its release as a comment: a tag can be
+    moved to other code, a commit cannot (both jobs build and run the placeholder setups and the suite)."""
+    uses = re.findall(r"(?m)^\s+(?:- )?uses: (.*?)\s*$", workflow)
+    if not uses:
+        return ["the workflow uses no action"]
+    return ["%s: an action is pinned by its full commit with the release as a comment (@<40 hex digits> # vX.Y.Z)"
+            % action for action in uses if not PINNED_ACTION.match(action)]
 
 
 def script_problems(helpers, runner, scenarios, titles_source):
@@ -229,6 +244,23 @@ class WorkflowRules(unittest.TestCase):
         text = read(".github", "workflows", "build.yml")
         head, tail = text.split("  suite-e2e:\n", 1)
         self.assertTrue(any("RUNNER_TEMP" in p for p in workflow_problems(head + "  suite-e2e:\n" + tail.replace("RUNNER_TEMP", "TEMP"))))
+
+
+class ActionPins(unittest.TestCase):
+    def test_every_action_is_pinned_to_a_commit(self):
+        self.assertEqual(pin_problems(read(".github", "workflows", "build.yml")), [])
+
+    def test_a_tag_a_short_commit_or_a_missing_release_is_found(self):
+        text = read(".github", "workflows", "build.yml")
+        pinned = re.search(r"(?m)uses: (actions/checkout@([0-9a-f]{40}) # (v\S+))$", text)
+        self.assertIsNotNone(pinned, "the test needs a pinned actions/checkout in the workflow")
+        whole, sha, release = pinned.groups()
+        for changed in ("actions/checkout@" + release, "actions/checkout@%s # %s" % (sha[:12], release),
+                        "actions/checkout@" + sha, "actions/checkout@main # " + release):
+            found = pin_problems(text.replace(whole, changed, 1))
+            self.assertEqual(len(found), 1, changed)
+            self.assertIn(changed, found[0])
+        self.assertEqual(pin_problems("jobs:\n  a:\n    steps:\n      - run: echo\n"), ["the workflow uses no action"])
 
 
 class ScriptRules(unittest.TestCase):
