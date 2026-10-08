@@ -14,6 +14,12 @@ header.
 
 ## Unreleased
 
+### Changed
+
+- The real-data end-to-end test (`e2e-realdata.yml`, by hand only) runs the checks of the released launcher 1.1.1:
+  `LAUNCHER_COMMIT` moved from `5d256c8` (launcher 1.1.0) to `90a35a4`, the merge commit of launcher 1.1.1 on `main`
+  (docs/RELEASING.md, step 8).
+
 ## Suite 1.1.1 - 2026-10-08
 
 Suite installer 1.1.1 (`SuiteVersion` 1.1.1, tag `suite-v1.1.1`) with the changes since suite 1.1.0 (tag
