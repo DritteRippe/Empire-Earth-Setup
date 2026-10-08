@@ -434,7 +434,7 @@ on 2026-10-07 as an exception, after session 1 of the laptop test only; TP-93, T
 TP-25 (d) were not run on real hardware. The CI scenarios exercise the paths of TP-93, TP-95, TP-97 and TP-99 (silent, English);
 nothing covers TP-98 (b) to (d) or TP-25 (d) (test plan, section 8 Block 9). The next release (suite 1.1.1) has the
 criterion of 1.1.0 with the job `suite-e2e` from S1 to S15, and its tag goes only on a commit of `main` whose complete
-`build.yml` run was green for that commit (a tag starts no run).
+`build.yml` run was green for that commit (a tag starts no run; [docs/RELEASING.md](RELEASING.md)).
 
 - **Package:** `Empire Earth Community Setup.exe` plus `.bin` slices of at most 50,000,000 bytes
   (`DiskSpanning`). It embeds the EE and NeoEE Regular setups byte for byte (official AppIds; SHA-256

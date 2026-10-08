@@ -49,6 +49,13 @@ setup version 1.7.2; the product setups of a suite release are told apart by the
   into `main`, the local checks, the commit style and the changelog. `.github/pull_request_template.md` asks for what
   and why, the checks and the docs; `.github/CODEOWNERS` asks `@DritteRippe` to review every pull request. The README
   links the guide.
+- `docs/RELEASING.md`: the checklist of a suite release, from the test plan and the servers to the package: every
+  place with the version number (the product setups keep 1.7.2), the merge commit, a tag only on a commit of `main`
+  whose complete `build.yml` run was green (a tag starts no run), the build of the product setups with
+  `-SetupBuild suite-X.Y.Z-<commit>` and of the suite, what `BUILD-INFO.txt` and `SHA256SUMS.txt` must say, release
+  notes without branch names (with a template), the package, `LAUNCHER_COMMIT` afterwards, and what is pinned on
+  purpose. The README, `CONTRIBUTING.md` and ARCHITECTURE link it. The bug form says where the suite version is
+  shown (its entry in Windows "Apps", the file properties), not the window title.
 
 ### Changed
 - One main line `main`: development happens on short-lived feature branches with a pull request into `main`, releases
