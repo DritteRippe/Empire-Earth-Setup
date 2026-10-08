@@ -14,6 +14,10 @@ pins/*.txt text eol=lf
 # The dgVoodoo configurations (config/dgVoodoo, ADR 0005): stored and checked out byte for byte (CRLF, tabs), because
 # ci/dgvoodoo_pins.ps1 and the end-to-end test compare them with the installed dgVoodoo.conf
 config/dgVoodoo/*.conf -text
+# The byte samples of the shared contract (docs/contract-samples, the same folder as in the launcher repository):
+# install-*.ini ASCII with CRLF, files.sha256 ASCII with LF, record.reg UTF-16 LE with BOM and CRLF, as the setup writes
+# them. git must never convert a byte of them; ci/compare_contract.py compares them with the launcher's copy.
+docs/contract-samples/** -text
 
 # Binary files: never touch line endings, never diff/merge as text.
 *.bmp  binary
