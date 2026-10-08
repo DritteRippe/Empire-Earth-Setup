@@ -57,13 +57,6 @@ setup version 1.7.2; the product setups of a suite release are told apart by the
   purpose, and which settings of the repository protect `main`, the tags and the releases. The README,
   `CONTRIBUTING.md` and ARCHITECTURE link it. The bug form says where the suite version is
   shown (its entry in Windows "Apps", the file properties), not the window title.
-- README: a banner (`.github/assets/banner-light.svg` and `banner-dark.svg`, chosen by the color scheme), badges of
-  this fork (latest release, the build of `main`, license, platform, Inno Setup 6.2.2) instead of the stars, forks and
-  setup version of upstream, a navigation line, a hint for players with the link to the package, and the new sections
-  "At a glance", "Quick start", "Download" and "Documentation". The paragraph on the suite installer is a list by topic
-  (one window, Cancel, the freeze, time limits, the window, shortcuts, .NET Framework 4.8, Windows "Apps"), and the
-  long developer details (the online files, both end-to-end tests, `ci/check_contract.py`) are folded. No content is
-  removed, and every heading keeps its anchor except the title.
 
 ### Changed
 - One main line `main`: development happens on short-lived feature branches with a pull request into `main`, releases
@@ -121,6 +114,13 @@ setup version 1.7.2; the product setups of a suite release are told apart by the
   section "Support"; the bug form asks for the version of the package and, for a single setup (which always says
   "Setup v1.7.2"), the `SetupBuild` line of its log. README "Support" links the issue chooser. All of this works once
   Issues and private vulnerability reporting are switched on in the settings of the repository (a fork has both off).
+- README: a banner (`.github/assets/banner-light.svg` and `banner-dark.svg`, chosen by the color scheme), badges of
+  this fork (latest release, the build of `main`, license, platform, Inno Setup 6.2.2) instead of the stars, forks and
+  setup version of upstream, a navigation line, a hint for players with the link to the package, and the new sections
+  "At a glance", "Quick start", "Download" and "Documentation". The paragraph on the suite installer is a list by topic
+  (one window, Cancel, the freeze, time limits, the window, shortcuts, .NET Framework 4.8, Windows "Apps"), and the
+  long developer details (the online files, both end-to-end tests, `ci/check_contract.py`) are folded. No content is
+  removed, and every heading keeps its anchor except the title.
 
 ### Fixed
 - Suite: a process of a product setup that is just ending (Windows answers its suspension with
