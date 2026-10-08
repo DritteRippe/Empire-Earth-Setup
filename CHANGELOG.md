@@ -54,7 +54,8 @@ setup version 1.7.2; the product setups of a suite release are told apart by the
   whose complete `build.yml` run was green (a tag starts no run), the build of the product setups with
   `-SetupBuild suite-X.Y.Z-<commit>` and of the suite, what `BUILD-INFO.txt` and `SHA256SUMS.txt` must say, release
   notes without branch names (with a template), the package, `LAUNCHER_COMMIT` afterwards, and what is pinned on
-  purpose. The README, `CONTRIBUTING.md` and ARCHITECTURE link it. The bug form says where the suite version is
+  purpose, and which settings of the repository protect `main`, the tags and the releases. The README,
+  `CONTRIBUTING.md` and ARCHITECTURE link it. The bug form says where the suite version is
   shown (its entry in Windows "Apps", the file properties), not the window title.
 - README: a banner (`.github/assets/banner-light.svg` and `banner-dark.svg`, chosen by the color scheme), badges of
   this fork (latest release, the build of `main`, license, platform, Inno Setup 6.2.2) instead of the stars, forks and

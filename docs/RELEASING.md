@@ -95,6 +95,8 @@ git push origin suite-vX.Y.Z
 - **A published tag is never moved or deleted.** A mistake after the tag gets a new patch version. The package names
   the tag and its commit as the source of the setups (`Quellcode.txt`, `BUILD-INFO.txt`).
 - `main` is never rewritten either (no force push).
+- The settings of the repository enforce both once they are switched on (see
+  [Protection of main, the tags and the releases](#protection-of-main-the-tags-and-the-releases)).
 
 ## 5. Build the suite
 
@@ -184,6 +186,18 @@ The package "Empire Earth Community" is released last, in its own repository, af
       launcher.
 - [ ] The description of the repository (*About*) names no branch and no outdated state.
 - [ ] Anything left for the next version goes under `## Unreleased`.
+
+## Protection of main, the tags and the releases
+
+The rules above (never rewrite `main`, never move or delete a tag, never change a published package) are what the
+contract ("Based on"), `Quellcode.txt` and the end-to-end pins rely on. The maintainer enforces them in the settings of
+the repository:
+
+| Setting | Where | What it does |
+|---|---|---|
+| Branch ruleset `main` | *Settings* > *Rules* > *Rulesets* > *New branch ruleset* | `main` cannot be deleted or force-pushed; a change needs a pull request with a green *Build* |
+| Tag ruleset `suite-v*` | *Settings* > *Rules* > *Rulesets* > *New tag ruleset* | a release tag cannot be moved or deleted |
+| Immutable releases | *Settings* > *General* > *Releases* | the tag and the assets of a published release can no longer change |
 
 ## What is pinned on purpose
 
