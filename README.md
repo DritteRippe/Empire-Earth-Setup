@@ -661,7 +661,7 @@ Before a commit, run the checks that the change touches. The CI workflow runs al
 - **Job `suite-e2e`:** the scenarios S1 to S15 of the suite installer on Windows ([End-to-end test of the suite installer](#end-to-end-test-of-the-suite-installer)).
 - Every Python step runs with `PYTHONWARNINGS=error::SyntaxWarning`, so an invalid escape sequence in a string fails CI instead of printing a warning.
 
-`.github/workflows/e2e-realdata.yml` builds and tests the real-data setups on Windows, by hand only, see [End-to-end test on Windows](#end-to-end-test-on-windows).
+`.github/workflows/e2e-realdata.yml` builds and tests the real-data setups on Windows, by hand only, see [End-to-end test on Windows](#end-to-end-test-on-windows). `.github/workflows/publish-release.yml` publishes the release of a tag by hand, only if its commit has a green *Build* on `main` ([docs/RELEASING.md](docs/RELEASING.md)).
 
 Every action of both workflows is pinned by its full commit with the release as a comment (`@<sha> # vX.Y.Z`, Node.js 24 releases), and Dependabot updates both: `.github/dependabot.yml` groups all action updates into one pull request into `main` a month (at most three open) and proposes a release only after it has been out for seven days (cooldown). There are no version updates for NuGet or pip, whose versions are pinned on purpose. On a fork, version updates must be enabled once under *Insights* > *Dependency graph* > *Dependabot*.
 

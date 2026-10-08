@@ -140,7 +140,11 @@ git status --porcelain            # must print nothing, or BUILD-INFO.txt says "
 
 ## 6. Release notes
 
-*Releases* > *Draft a new release*, choose the tag `suite-vX.Y.Z`, title `Empire Earth Community (Suite) X.Y.Z`:
+*Actions* > *Publish release* > *Run workflow* with the tag `suite-vX.Y.Z`, the title `Empire Earth Community (Suite) X.Y.Z`
+and the notes (`.github/workflows/publish-release.yml`): it refuses a tag whose commit has no successful run of *Build*
+for a push to `main` (both jobs), publishes the release without binaries and marks it as the latest (a tag like
+`suite-vX.Y.Z-rc1` as a pre-release). By hand it is *Releases* > *Draft a new release*, the tag `suite-vX.Y.Z`, the title
+`Empire Earth Community (Suite) X.Y.Z`. Either way:
 
 - [ ] The notes say what the version is for, which launcher it packages and where players get it: the package release
       page.

@@ -38,6 +38,10 @@ commits after them change only the version number and the documents. No test at 
 TP-25 (d). The record of the test plan gets the results when they ran.
 
 ### Added
+
+- Workflow *Publish release* (`.github/workflows/publish-release.yml`, run by hand): publishes the release of an
+  existing tag `suite-vX.Y.Z` with its title and notes, only if the tag's commit has a successful run of *Build* for a push
+  to `main` (docs/RELEASING.md, step 6).
 - GitHub issue form for bug reports (`.github/ISSUE_TEMPLATE/bug_report.yml`: program, version, Windows version, what happened,
   steps, the log locations of the setup, the suite and the launcher, a required confirmation that the reporter owns the original
   game and attaches no game files, CD keys or private package) and `.github/ISSUE_TEMPLATE/config.yml` (no blank issues, a link
