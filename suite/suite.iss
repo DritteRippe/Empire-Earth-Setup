@@ -46,7 +46,7 @@
 ; So is the marker of the uninstall key of the suite (contract 1.3, revision 5), which is removed with the key.
 
 #define SuiteName "Empire Earth Community"
-#define SuiteVersion "1.1.0"
+#define SuiteVersion "1.1.1"
 #define SuiteOutputName "Empire Earth Community Setup"
 #define SuiteRecordKey "Software\Empire Earth Community\Suite"
 #define LauncherExe "Empire Earth Launcher.exe"

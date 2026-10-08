@@ -3355,6 +3355,29 @@ auf dem Desktop. Es gilt:
   `main`, bei Pull Requests und von Hand. Die Suite 1.1.0 wurde veröffentlicht, als der einzige fertige Lauf auf `2b764e4`
   rot war (Lauf 48, ein Unit-Test, der vom Timing abhing und für 1.1.1 behoben ist); der grüne Lauf 49 auf demselben
   Commit kam erst durch den Tag.
+- **Ausnahme bei der Freigabe der Suite 1.1.1 (2026-10-08):** Die Suite 1.1.1 wurde am 2026-10-08 mit dem Tag
+  `suite-v1.1.1` zusammen mit dem Launcher 1.1.1 freigegeben, wieder auf Entscheidung des Maintainers und ohne das
+  Kriterium oben auf echter Hardware. **Zum Zeitpunkt des Tags lief kein Fall mit der Suite 1.1.1 auf echter Hardware:**
+  Die Sitzung 2 der Testanleitung ist weiter offen, und die Fälle der Sitzung 1 (TP-94 (c), TP-27 (a), TP-25 (a) bis (c)
+  und TP-98 (a), siehe die Ausnahme der Suite 1.1.0) liefen mit der Suite 1.1.0 und wurden mit 1.1.1 nicht wiederholt.
+  Fall für Fall **nicht auf echter Hardware gelaufen** sind also TP-93, TP-94 (c), TP-95 (a) bis (c), TP-97, TP-98 (a)
+  bis (d), TP-99 (a) bis (e) (auch der Abbruch einer Reparatur und der Abbruch des zweiten Spiels), TP-25 (a) bis (d) und
+  TP-27 (a). Darunter sind die Teile, die 1.1.1 neu bringt: in TP-95 (c) die zweite Prüfung auf Links unmittelbar vor dem
+  Löschen (Logzeile `User data folder not deleted, it or a folder above it is a link (junction or symbolic link) now or
+  cannot be checked: …`) und in TP-99 die Logzeile eines Prozesses, den Windows nicht anhalten lässt (`process … cannot be
+  suspended (NTSTATUS 0x…)`). Die übrigen Änderungen von 1.1.1, die sich erst auf Windows zeigen, haben keinen eigenen
+  Fall: ein Stammordner in der 8.3-Kurzform bei der Deinstallation (nur die Unit-Tests) und die Links „Support“ und
+  „Updates“ des Eintrags in „Apps“ (nur `ci/check_suite.py`). Der CI-Job `suite-e2e` (S1 bis S15 auf windows-latest mit
+  Platzhalter-Produkten, still, Englisch) war grün in den Läufen 55 und 56 von *Build* auf `2fc0e76` und `e597714`
+  (`main`), mit allen Jobs; die Commits der Freigabe danach ändern nur die Versionsnummer und die Dokumente. Er übt die
+  Wege von TP-93, TP-95, TP-97 und TP-99, mit S15 auch „Löschen“ ohne den Dialog; für TP-98 (b) bis (d) und TP-25 (d)
+  gibt es weiter kein CI-Szenario. Das Protokoll (Abschnitt 10) bekommt die Ergebnisse, wenn die Fälle gelaufen sind.
+  Dies ist eine datierte Ausnahme, kein bestandener Fall.
+- **Freigabekriterium der nächsten Version (nach der Suite 1.1.1):** wie das der Suite 1.1.1 oben, also TP-93,
+  TP-94 (c), TP-95, TP-97, TP-98, TP-99 (alle Varianten), TP-25 (a) bis (d) und TP-27 (a) auf echter Hardware mit dem
+  Paket dieser Version, der Job `suite-e2e` von S1 bis S15 und ein vollständig grüner Lauf von `build.yml` genau für den
+  Commit des Tags. Die Fälle, die für 1.1.0 und 1.1.1 nicht liefen, bleiben darin; ein Befund dort wird in der nächsten
+  Version behoben.
 
 #### TP-90: Paket-ZIP ohne „Zulassen“: genau eine SmartScreen-Warnung
 
