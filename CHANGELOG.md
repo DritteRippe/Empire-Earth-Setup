@@ -41,6 +41,9 @@ setup version 1.7.2; the product setups of a suite release are told apart by the
   `SetupBuild=<identifier>` (empty for none). `BUILD-INFO.txt` of the suite names the `SetupBuild` of both product setups
   (`Product SetupBuild:   EE <id>, NeoEE <id>`; `none` or `not recorded` in placeholder and test builds), so the product
   setups of two packages, which all report setup version 1.7.2, can be told apart (ADR 0013, amendment of 2026-10-08).
+- Issue forms `feature_request.yml` (an idea for the setups or the suite, with the limits that are on purpose) and
+  `security_contact.yml` (asks for a private contact without any detail: the fallback of `SECURITY.md`, which needs a
+  form because blank issues are off).
 
 ### Changed
 - One main line `main`: development happens on short-lived feature branches with a pull request into `main`, releases
@@ -92,6 +95,12 @@ setup version 1.7.2; the product setups of a suite release are told apart by the
   checked legally). It also lists the other binary components the setups ship from `data\` (EE Stats, Discord Presence,
   dreXmod, the DirectX wrappers of GOG and DDrawCompat, the NeoEE files, the diagnostic tool, `Language.dll`, the game
   files, the DirectX web installer) with their origin as far as it is known.
+- `SECURITY.md` starts with the supported versions (the latest suite release and `main`), links the form of GitHub
+  private vulnerability reporting directly and names the new issue form as the fallback. The issue chooser links the
+  help for the package (issues of Empire-Earth-Community), the launcher repository, the security policy and the README
+  section "Support"; the bug form asks for the version of the package and, for a single setup (which always says
+  "Setup v1.7.2"), the `SetupBuild` line of its log. README "Support" links the issue chooser. All of this works once
+  Issues and private vulnerability reporting are switched on in the settings of the repository (a fork has both off).
 
 ### Fixed
 - Suite: a process of a product setup that is just ending (Windows answers its suspension with

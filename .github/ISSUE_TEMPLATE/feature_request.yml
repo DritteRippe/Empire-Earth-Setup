@@ -1,0 +1,44 @@
+name: Feature request
+description: An idea for the setups or the suite installer "Empire Earth Community"
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for the idea. Some limits are on purpose:
+
+        - The setups install the game as it is: no new game content and no changed game programs ([Notes for Modders](https://github.com/DritteRippe/Empire-Earth-Setup#notes-for-modders)).
+        - They stay on Inno Setup 6.2.2 ([ADR 0002](https://github.com/DritteRippe/Empire-Earth-Setup/blob/main/docs/adr/0002-stay-on-inno-setup-6.2.2.md)) and download only over HTTPS, every online file pinned by its SHA-256 ([ADR 0012](https://github.com/DritteRippe/Empire-Earth-Setup/blob/main/docs/adr/0012-pinned-downloads-despite-invalid-certificates.md)).
+        - Nothing ever touches the NeoEE CD keys (`Software\Sierra\CDKeys`).
+
+        Ideas for the launcher go to the [launcher repository](https://github.com/DritteRippe/Empire-Earth-Launcher/issues).
+  - type: dropdown
+    id: program
+    attributes:
+      label: Which program?
+      options:
+        - Suite installer "Empire Earth Community"
+        - Setup EE or NeoEE
+        - Build, tests or CI (this repository)
+        - Something else
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would it solve?
+      description: What do you want to do, and what stops you today?
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: Your idea
+      description: How could the setup or the suite help? Screenshots or sketches are welcome.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives or workarounds
+      description: What do you do today instead?
