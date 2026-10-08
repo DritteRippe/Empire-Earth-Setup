@@ -90,6 +90,16 @@ function Get-TreeDigest([string]$Dir, [string[]]$ExcludeExtensions = @('.pdb')) 
   return [pscustomobject]@{ Digest = $digest; Files = $files.Count; Bytes = $total }
 }
 
+# The define of the test hook of the placeholder suite (suite\suite_uninstall.iss, PlaceholderUninstallDelete): a silent
+# uninstallation of a placeholder build answers the question about the user data with "Delete" when the uninstaller gets
+# /TestDeleteUserData (CI scenario S15, ci\e2e\e2e_suite_scenarios.ps1). This is the only place that builds the switch, and
+# suite\build_suite.ps1 calls it with its -Placeholders switch only (ci/check_suite.py checks both); suite.iss refuses the
+# define with real AppIds. A real build never contains the hook.
+function Get-SuitePlaceholderHookDefine([bool]$Placeholders) {
+  if ($Placeholders) { return @('/DPlaceholderUninstallDelete=1') }
+  return @()
+}
+
 # The slice size of a placeholder build: the size of the setup program rounded up to a multiple of
 # 64 KiB plus one more step (the size of setup.exe changes by a few bytes from pass to pass), at least
 # 262144. DiskSliceSize must be >= the size of setup.exe (ISCC refuses less, ADR 0013 Evidence).

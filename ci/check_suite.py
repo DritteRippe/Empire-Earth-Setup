@@ -69,7 +69,11 @@ to stay safe and installable:
             product script and every Sleep( in it stands inside an #ifdef PlaceholderInstallPause block, the only place that passes
             /DPlaceholderInstallPause is Get-PlaceholderPauseDefine of ci/build_helpers.ps1, which ci/build.ps1 calls
             with its -Placeholders switch only, and a build without -Placeholders stops if the resolved script holds
-            a hook line
+            a hook line; the test hook of the placeholder suite (suite_uninstall.iss, PlaceholderUninstallDelete, CI
+            scenario S15): every line of it stands in its one #ifdef block, the switch /TestDeleteUserData is the only
+            other way DeleteData becomes True, suite.iss refuses the define with AppIds other than the dummies and
+            never defines it, and only Get-SuitePlaceholderHookDefine of ci/suite_build_helpers.ps1 passes it, which
+            suite/build_suite.ps1 calls with its -Placeholders switch only
   [Display] the progress in the window of the suite (suite 1.1.0, S4): SuiteShowProgress (called by SuiteLookAtLog) leaves
             the advanced mode alone, takes the bar from SuiteRunningPermille (never 100 percent while a product setup
             runs), fails only into a log line (try/except, SuiteProgressBroken) and does not touch the bar's end; the bar
@@ -177,10 +181,16 @@ INNO_LOG_CONSTANTS = ("SuiteLogInstallStart", "SuiteLogTempFile", "SuiteLogInsta
 PRODUCT_LOG_FILES = tuple(sorted({rel for rel, _ in PRODUCT_LOG_LINES}))
 # the build files that pass the test hook of the placeholder builds (check_placeholder_hook) and the scenarios and their smoke test
 # that read the log lines of the cancel (check_test_log_lines)
-HOOK_FILES = ["ci/build.ps1", "ci/build_helpers.ps1", "ci/e2e/e2e_suite_scenarios.ps1", "ci/e2e/tests/e2e_suite_scenarios.tests.ps1"]
-# The lines the scenarios S11 to S14 of ci/e2e/e2e_suite_scenarios.ps1 match (the suite log and the log of the placeholder
-# product setup): file, text, written by the code of that file, and the part of it the scenarios spell (None: all of it). A reworded line fails here instead of in the job on Windows;
-# they are no lines the suite parses (PRODUCT_LOG_LINES), but the tests depend on them (TEST-PLAN TP-99 names them, too).
+HOOK_FILES = ["ci/build.ps1", "ci/build_helpers.ps1", "ci/e2e/e2e_suite_scenarios.ps1", "ci/e2e/tests/e2e_suite_scenarios.tests.ps1",
+              "ci/suite_build_helpers.ps1", "suite/build_suite.ps1"]
+# The test hook of the placeholder suite (suite/suite_uninstall.iss, CI scenario S15): its define, which only
+# Get-SuitePlaceholderHookDefine of ci/suite_build_helpers.ps1 passes, and the switch of the uninstaller it reads
+SUITE_HOOK_DEFINE = "PlaceholderUninstallDelete"
+SUITE_HOOK_SWITCH = "/TestDeleteUserData"
+# The lines the scenarios S8 and S11 to S15 of ci/e2e/e2e_suite_scenarios.ps1 match (the suite log, the log of its uninstaller
+# and the log of the placeholder product setup): file, text, written by the code of that file, and the part of it the scenarios
+# spell (None: all of it). A reworded line fails here instead of in the job on Windows; they are no lines the suite parses
+# (PRODUCT_LOG_LINES), but the tests depend on them (TEST-PLAN TP-95 and TP-99 name them, too).
 TEST_LOG_LINES = [
     ("suite/suite_run.iss", "/TestCancel, the cancel is requested as if the user had answered the question with Yes", None),
     ("suite/suite_run.iss", "/TestCancelAtInstall, its log shows the install step, the cancel is requested now", None),
@@ -202,6 +212,13 @@ TEST_LOG_LINES = [
     ("suite/suite_run.iss", "its setup was not stopped, it runs on", "its setup was not stopped"),
     ("suite/suite_run.iss", "cancelled by the user before it installed anything", None),
     ("suite/suite_run.iss", "was cancelled by the user, but its log shows that it had started to install", "was cancelled by the user, but its log shows"),
+    ("suite/suite_uninstall.iss", "Silent uninstallation: the user data stays:", None),
+    ("suite/suite_uninstall.iss", 'Test hook of a placeholder build: /TestDeleteUserData answers the question about the user data with "Delete"', None),
+    ("suite/suite_uninstall.iss", "User data folder deleted: ", None),
+    ("suite/suite_uninstall.iss", "User data folder not offered, it or a folder above it is a link (junction or symbolic link) or cannot be checked: ", None),
+    ("suite/suite_uninstall.iss", "Folder left as it is, it or a folder above it is a link (junction or symbolic link) or cannot be checked: ", None),
+    ("suite/suite_uninstall.iss", "User data folder not deleted, ", None),
+    ("suite/suite_uninstall.iss", "User data folder not (completely) deleted: ", None),
     ("setup_is6.iss", "Test hook of a placeholder build: pausing 2000 ms before the install step", None),
     ("setup_is6.iss", "Test hook of a placeholder build: pausing 2000 ms after the install step line", None),
 ]
@@ -800,8 +817,94 @@ def check_placeholder_hook(root, errors):
     return 6
 
 
+def ifdef_lines(text, define):
+    """The numbers of the lines of text inside an #ifdef <define> block, nested directives included (the #ifdef, its
+    #else and its #endif excluded)."""
+    inside, blocks = set(), []  # one entry per open #if block: True if it is the #ifdef of the define
+    for number, line in enumerate(text.splitlines(), 1):
+        stripped = line.strip()
+        enclosed = any(blocks)
+        if re.match(r"#\s*(ifdef|ifndef|if)\b", stripped):
+            blocks.append(bool(re.match(rf"#\s*ifdef\s+{define}\b", stripped)))
+        elif re.match(r"#\s*else\b", stripped) and blocks:
+            blocks[-1] = False
+            enclosed = any(blocks)
+        elif re.match(r"#\s*endif\b", stripped) and blocks:
+            blocks.pop()
+            enclosed = any(blocks)
+        if enclosed:
+            inside.add(number)
+    return inside
+
+
+def check_suite_hook(root, files, errors):
+    """The test hook of the placeholder suite (suite/suite_uninstall.iss, PlaceholderUninstallDelete, CI scenario S15): a silent
+    uninstallation of a placeholder build answers "Delete" when the uninstaller gets /TestDeleteUserData. Every line of the hook
+    stands in its one #ifdef block, DeleteData becomes True only through the question or the switch there, suite.iss refuses the
+    define with AppIds other than the dummies and nothing defines it, Get-SuitePlaceholderHookDefine is the only place that passes
+    it and suite/build_suite.ps1 calls it with -Placeholders only; the number of rules checked."""
+    where = "suite/suite_uninstall.iss"
+    text = files.get(where, "")
+    inside = ifdef_lines(text, SUITE_HOOK_DEFINE)
+    blocks = len(re.findall(rf"^\s*#\s*ifdef\s+{SUITE_HOOK_DEFINE}\b", text, re.MULTILINE))
+    if blocks != 1:
+        errors.append(f"{where}: expected one #ifdef {SUITE_HOOK_DEFINE} block (the test hook of the placeholder builds), found {blocks}")
+    hooked = 0
+    for no, line in code_lines(text):
+        if SUITE_HOOK_SWITCH in line or "Test hook of a placeholder build" in line:
+            hooked += 1
+            if no not in inside:
+                errors.append(f"{where}:{no}: this line of the test hook stands outside #ifdef {SUITE_HOOK_DEFINE}: a release "
+                              "build would delete the user data in a silent uninstallation")
+        for value in re.findall(r"\bDeleteData\s*:=\s*([^;]*)", line):
+            value = value.strip()
+            if value == f"SuiteHasParam('{SUITE_HOOK_SWITCH}')" and no in inside:
+                continue
+            if value != "False" and not value.startswith("SuppressibleTaskDialogMsgBox("):
+                errors.append(f"{where}:{no}: DeleteData := {value}: the user data is deleted only after the answer \"Delete\" "
+                              f"of the question, or in a placeholder build for {SUITE_HOOK_SWITCH} inside #ifdef {SUITE_HOOK_DEFINE}")
+    if hooked < 2:
+        errors.append(f"{where}: expected the test hook (SuiteHasParam('{SUITE_HOOK_SWITCH}') and its log line 'Test hook of a "
+                      f"placeholder build: ...') in #ifdef {SUITE_HOOK_DEFINE}, found {hooked} line(s)")
+    main = files.get("suite/suite.iss", "")
+    guard = [line for number, line in enumerate(main.splitlines(), 1) if number in ifdef_lines(main, SUITE_HOOK_DEFINE)]
+    guard_text = "\n".join(guard)
+    if not all(f'Copy({name}, 1, 24) != "00000000-0000-0000-0000-"' in guard_text for name in ("SuiteAppID", "EE_AppID", "NeoEE_AppID")) \
+            or not re.search(rf"#\s*error\s+{SUITE_HOOK_DEFINE}\b", guard_text):
+        errors.append(f"suite/suite.iss: #ifdef {SUITE_HOOK_DEFINE} must stop the build (#error) unless the three AppIds are the dummies "
+                      "of suite/build_suite.ps1 -Placeholders: a build with a real AppId never gets the test hook")
+    for rel, text_of in files.items():
+        if re.search(rf"#\s*define\s+{SUITE_HOOK_DEFINE}\b", text_of):
+            errors.append(f"{rel}: {SUITE_HOOK_DEFINE} must not be defined in the script (only suite/build_suite.ps1 -Placeholders passes it)")
+    try:
+        helpers = read(root, "ci/suite_build_helpers.ps1")
+        build = read(root, "suite/build_suite.ps1")
+    except CheckError as error:
+        errors.append(str(error))
+        return 5
+    if not re.search(r"function Get-SuitePlaceholderHookDefine\(\[bool\]\$Placeholders\)\s*\{\s*if \(\$Placeholders\) \{ return "
+                     rf"@\('/D{SUITE_HOOK_DEFINE}=1'\) \}}\s*return @\(\)", helpers):
+        errors.append(f"ci/suite_build_helpers.ps1: Get-SuitePlaceholderHookDefine must return /D{SUITE_HOOK_DEFINE}=1 for $Placeholders and "
+                      "nothing otherwise")
+    if "Get-SuitePlaceholderHookDefine ([bool]$Placeholders)" not in build:
+        errors.append("suite/build_suite.ps1: the define of the test hook must come from Get-SuitePlaceholderHookDefine ([bool]$Placeholders)")
+    for rel in ("ci", "suite", ".github"):
+        base = root / rel
+        paths = sorted(p for p in base.rglob("*") if p.is_file() and p.suffix in (".ps1", ".sh", ".yml", ".py", ".md", ".iss")) if base.is_dir() else []
+        for path in paths:
+            relative = path.relative_to(root).as_posix()
+            if relative in ("ci/suite_build_helpers.ps1", "ci/check_suite.py") or relative.startswith("ci/tests/"):
+                continue
+            comments = ("#", "//", ";") if path.suffix == ".iss" else ("#", "//")
+            for line in path.read_text(encoding="utf-8-sig", errors="replace").splitlines():
+                if SUITE_HOOK_DEFINE in line and not line.lstrip().startswith(comments):
+                    errors.append(f"{relative} names {SUITE_HOOK_DEFINE} in code: only Get-SuitePlaceholderHookDefine passes the switch")
+                    break
+    return 6
+
+
 def check_test_log_lines(root, errors):
-    """The log lines the scenarios S11 to S14 match (TEST_LOG_LINES) are written by the code, the scenario file of the
+    """The log lines the scenarios S8 and S11 to S15 match (TEST_LOG_LINES) are written by the code, the scenario file of the
     end-to-end test still names them, and the smoke test of the scenarios takes them from the code instead of writing them by
     hand (the fake once wrote "N processes run again" where the code writes "its N processes run again", and the scenario
     agreed with the fake); the number of rules checked."""
@@ -815,7 +918,7 @@ def check_test_log_lines(root, errors):
     scenarios = texts["ci/e2e/e2e_suite_scenarios.ps1"].replace("\\", "").replace("`", "")
     for rel, line, spelled in TEST_LOG_LINES:
         if line not in texts[rel]:
-            errors.append(f"{rel}: no line contains {line!r}, which the scenarios S11 to S14 of ci/e2e/e2e_suite_scenarios.ps1 match "
+            errors.append(f"{rel}: no line contains {line!r}, which the scenarios S8 and S11 to S15 of ci/e2e/e2e_suite_scenarios.ps1 match "
                           "(TEST_LOG_LINES): a change of this log line changes the scenarios and the test plan in the same commit")
         if (spelled or line) not in scenarios:
             errors.append(f"ci/e2e/e2e_suite_scenarios.ps1 does not name {(spelled or line)!r}, which {rel} writes (TEST_LOG_LINES)")
@@ -953,7 +1056,8 @@ def check_uninstaller(uninstaller, main, files, errors):
     data = bodies.get("SuiteRemoveUserData", "")
     calls = re.findall(r"\bSuiteDeleteDataFolders\s*\(", all_code)
     delete_if = re.search(r"if\s+DeleteData\s+then\s+SuiteDeleteDataFolders\(Folders,\s*Roots\);", data)
-    asked = re.search(r"if\s+UninstallSilent\s+then\s+Log\(.*?\bDeleteData\s*:=\s*SuppressibleTaskDialogMsgBox\(.*?IDYES\)\s*=\s*IDNO;",
+    asked = re.search(r"if\s+UninstallSilent\s+then\s+begin\b.*?\bif\s+not\s+DeleteData\s+then\s+Log\('Silent uninstallation: the user data "
+                      r"stays:.*?\bend\s+else\s+begin\b.*?\bDeleteData\s*:=\s*SuppressibleTaskDialogMsgBox\(.*?IDYES\)\s*=\s*IDNO;",
                       data, re.DOTALL)
     if len(calls) != 2 or not delete_if or not asked or data.find("SuiteDeleteDataFolders(") < data.find("SuppressibleTaskDialogMsgBox("):
         errors.append(f"{where}: SuiteDeleteDataFolders is only called in SuiteRemoveUserData, after the task dialog of "
@@ -1157,6 +1261,7 @@ def check(root):
     process = check_process(files, errors)
     freeze = check_freeze(files, errors)
     hook = check_placeholder_hook(root, errors)
+    suite_hook = check_suite_hook(root, files, errors)
     test_lines = check_test_log_lines(root, errors)
     display = check_display(files, errors)
     check_forbidden_words(root, errors)
@@ -1164,7 +1269,7 @@ def check(root):
     check_install_marker(root, common, errors)
     return errors, (f"suite frame: {directives} [Setup] directives, {products} product setups and {launcher} "
                     f"launcher, license and legal text entries in [Files], {codes} exit codes, {frame} slice, mode and registry view rules, product runner "
-                    f"{steps} rules, process {process} rules, freeze {freeze} rules, placeholder hook {hook} rules, {test_lines} log lines of the cancel that the scenarios match, display {display} rules, uninstall key marker {marker} rules, uninstaller {removal} rules, no CD key registry or library reference, {log_lines} product log lines the suite parses, the install marker first in CurStepChanged(ssInstall)")
+                    f"{steps} rules, process {process} rules, freeze {freeze} rules, placeholder hook {hook} rules, suite test hook {suite_hook} rules, {test_lines} log lines that the scenarios match, display {display} rules, uninstall key marker {marker} rules, uninstaller {removal} rules, no CD key registry or library reference, {log_lines} product log lines the suite parses, the install marker first in CurStepChanged(ssInstall)")
 
 
 def self_test(source_root):
@@ -1425,7 +1530,7 @@ def self_test(source_root):
          "Get-PlaceholderPauseDefine must return /DPlaceholderInstallPause=1 for $Placeholders and nothing otherwise"),
         ("a log line of the cancel reworded in the suite",
          replace(run, "freezing its setup and everything it started, to look at its log once more before it is stopped'", "freezing the setup, to look at its log once more before it is stopped'"),
-         "which the scenarios S11 to S14 of ci/e2e/e2e_suite_scenarios.ps1 match"),
+         "which the scenarios S8 and S11 to S15 of ci/e2e/e2e_suite_scenarios.ps1 match"),
         ("a log line of the cancel reworded in the scenarios",
          replace("ci/e2e/e2e_suite_scenarios.ps1", "processes run again", "processes go on", 2),
          "does not name 'processes run again'"),
@@ -1435,9 +1540,15 @@ def self_test(source_root):
         ("the patterns are not run against the code",
          replace("ci/e2e/tests/e2e_suite_scenarios.tests.ps1", "a line the code writes matches the pattern", "a pattern"),
          "the smoke test must fill in the Log( templates"),
+        ("a log line of the deletion reworded in the uninstaller",
+         replace(uninstall, "Log('User data folder deleted: ' + Folders[I])", "Log('Deleted: ' + Folders[I])"),
+         "no line contains 'User data folder deleted: ', which the scenarios S8 and S11 to S15"),
+        ("the line of the test hook of the uninstaller not named by the scenarios",
+         replace("ci/e2e/e2e_suite_scenarios.ps1", "/TestDeleteUserData answers the question about", "/TestDeleteUserData gives the answer about"),
+         "does not name 'Test hook of a placeholder build: /TestDeleteUserData answers the question"),
         ("a hook line reworded in the product script",
          replace("setup_is6.iss", "Test hook of a placeholder build: pausing 2000 ms after the install step line", "Test hook of a placeholder build: pausing after the install step"),
-         "which the scenarios S11 to S14 of ci/e2e/e2e_suite_scenarios.ps1 match"),
+         "which the scenarios S8 and S11 to S15 of ci/e2e/e2e_suite_scenarios.ps1 match"),
         ("another place passes the test hook switch",
          replace("ci/build.ps1", "  $defines += Get-SetupBuildDefine $SetupBuildValue\n", "  $defines += Get-SetupBuildDefine $SetupBuildValue\n  $defines += '/DPlaceholderInstallPause=1'\n"),
          "ci/build.ps1 names PlaceholderInstallPause in code"),
@@ -1557,8 +1668,33 @@ def self_test(source_root):
          "SuiteDeleteDataFolders is only called in SuiteRemoveUserData"),
         ("data folders deleted for the first button", replace(uninstall, "IDYES) = IDNO;", "IDYES) = IDYES;"),
          "DeleteData is only True for the second button"),
-        ("data folders deleted in a silent run", replace(uninstall, "    if UninstallSilent then\n      Log('Silent uninstallation", "    if False then\n      Log('Silent uninstallation"),
+        ("the question in a silent run", replace(uninstall, "    if UninstallSilent then\n    begin\n#ifdef", "    if False then\n    begin\n#ifdef"),
          "DeleteData is only True for the second button"),
+        ("data folders deleted in a silent run",
+         replace(uninstall, "#endif\n      if not DeleteData then\n", "#endif\n      DeleteData := True;\n      if not DeleteData then\n"),
+         "DeleteData := True: the user data is deleted only after the answer"),
+        ("the test hook outside its #ifdef",
+         lambda root: (replace(uninstall, "#ifdef PlaceholderUninstallDelete\n", "")(root),
+                       replace(uninstall, "#endif\n      if not DeleteData then\n", "      if not DeleteData then\n")(root)),
+         "this line of the test hook stands outside #ifdef PlaceholderUninstallDelete"),
+        ("the test hook in an #ifndef", replace(uninstall, "#ifdef PlaceholderUninstallDelete\n", "#ifndef PlaceholderUninstallDelete\n"),
+         "this line of the test hook stands outside #ifdef PlaceholderUninstallDelete"),
+        ("another switch answers Delete in the test hook",
+         replace(uninstall, "DeleteData := SuiteHasParam('/TestDeleteUserData');", "DeleteData := SuiteHasParam('/VERYSILENT');"),
+         "DeleteData := SuiteHasParam('/VERYSILENT'): the user data is deleted only after the answer"),
+        ("the test hook defined in the script", replace(main, "#define SuiteName \"Empire Earth Community\"\n",
+                                                        "#define SuiteName \"Empire Earth Community\"\n#define PlaceholderUninstallDelete 1\n"),
+         "PlaceholderUninstallDelete must not be defined in the script"),
+        ("the test hook with real AppIds", replace(main, '#if Copy(SuiteAppID, 1, 24) != "00000000-0000-0000-0000-" || ', "#if "),
+         "must stop the build (#error) unless the three AppIds are the dummies"),
+        ("the define of the test hook in every build",
+         replace("ci/suite_build_helpers.ps1", "  if ($Placeholders) { return @('/DPlaceholderUninstallDelete=1') }\n  return @()",
+                 "  return @('/DPlaceholderUninstallDelete=1')"),
+         "Get-SuitePlaceholderHookDefine must return /DPlaceholderUninstallDelete=1 for $Placeholders and nothing otherwise"),
+        ("the build passes the define of the test hook itself",
+         replace("suite/build_suite.ps1", "  $common += @(Get-SuitePlaceholderHookDefine ([bool]$Placeholders))\n",
+                 "  $common += @('/DPlaceholderUninstallDelete=1')\n"),
+         "suite/build_suite.ps1 names PlaceholderUninstallDelete in code"),
         ("DeleteFile of another file", replace(uninstall, "if DeleteFile(Target) then", "if DeleteFile(ExpandConstant('{app}\\x.exe')) then"),
          "the uninstaller deletes only the launcher files"),
         ("RemoveDir of another folder", replace(uninstall, "RemoveDir(Target)", "RemoveDir(ExpandConstant('{app}'))", 2),

@@ -148,7 +148,7 @@ jobs:
       # Tools of the real-data end-to-end test (.github/workflows/e2e-realdata.yml) with made-up
       # data: header extraction, placing the official files, the read set of the build against the
       # map, the upload guard, the report and the rules of the checks (in Windows PowerShell 5.1,
-      # which runs the scenarios). The same for the scenarios S1 to S14 of the suite installer (job
+      # which runs the scenarios). The same for the scenarios S1 to S15 of the suite installer (job
       # suite-e2e below): their rules in Windows PowerShell 5.1, and the scenarios themselves against a
       # fake Windows (an in-memory registry, a fake suite) in PowerShell 7: every check must pass
       # against the fake and each of a few defects of the fake must fail its check. No game data, no
@@ -229,7 +229,8 @@ jobs:
       # The inputs of the job suite-e2e: the placeholder suite, the same suite with a wrong pin of the EE
       # setup compiled in (scenario S5: the suite must refuse its own EE setup before it runs anything) and the
       # placeholder product setups (scenario S3 installs EE on its own first). Placeholders only: no game data,
-      # nothing to download, nothing that works as an installer.
+      # nothing to download, nothing that works as an installer. The placeholder suite holds the test hook of its
+      # uninstaller (scenario S15, /TestDeleteUserData); a build without -Placeholders never does.
       - name: Build the suite with a wrong EE pin (scenario S5)
         shell: pwsh
         run: ./suite/build_suite.ps1 -Placeholders -TestWrongEEPin -RequireVersion 6.2.2 -OutputDir out/SuiteWrongPin
@@ -252,7 +253,7 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
-  # The scenarios S1 to S14 of the suite installer (suite/suite.iss, ADR 0013) with the PLACEHOLDER builds of
+  # The scenarios S1 to S15 of the suite installer (suite/suite.iss, ADR 0013) with the PLACEHOLDER builds of
   # the job above: silent runs of the suite, which runs the placeholder EE and NeoEE setups, with exact task
   # lists (never neoee_cdkeys, certinclude, directplay, dxwebsetup), every host blocked, a dummy under
   # Software\Sierra\CDKeys that must survive everything, and the shortcuts read through WScript.Shell. It needs
@@ -286,7 +287,7 @@ jobs:
 
       # Windows PowerShell 5.1, as the scenarios of e2e-realdata.yml. The budget is below the limit of the
       # step, which is below the limit of the job: every program the scenarios start has its own limit, too.
-      - name: Scenarios S1 to S14
+      - name: Scenarios S1 to S15
         timeout-minutes: 130
         shell: pwsh
         run: powershell -NoProfile -ExecutionPolicy Bypass -File ci/e2e/run_e2e_suite.ps1 -Scenario All -BudgetMinutes 120

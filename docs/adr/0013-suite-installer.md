@@ -892,7 +892,23 @@ text of `ci/check_suite.py` said that `DelTree` follows a link that is the folde
    is not resolved (that would need `GetFinalPathNameByHandleW` through a DLL import and handles to folders); the link
    check of the data folders does not depend on it. Unit tests: as written, with `..` and `/`, the folder or the path in
    its short name, a folder named like the start of another, an empty folder.
-5. **The checks.** `ci/check_suite.py`, part [Uninstaller], requires that each folder is offered through
+5. **The deletion runs in CI.** The "Delete" branch had never run in any test: a silent uninstallation asks nothing and
+   keeps the data, and every scenario uninstalls silently. The placeholder suite now has a test hook, after the pattern of
+   `PlaceholderInstallPause` of the product setups: inside `#ifdef PlaceholderUninstallDelete`, the switch
+   `/TestDeleteUserData` of the uninstaller gives the answer "Delete" in a silent run, with the log line `Test hook of a
+   placeholder build: /TestDeleteUserData answers the question about the user data with "Delete"`. Inno Setup hands the
+   command line of `unins000.exe` to its copy in `%TEMP%`, whose `[Code]` reads it (`ParamStr`, Inno Setup 6.2.2
+   `Uninstall.pas`). Only `Get-SuitePlaceholderHookDefine` of `ci/suite_build_helpers.ps1` passes the define, and
+   `suite/build_suite.ps1` calls it with `-Placeholders` only; `suite.iss` stops the build (`#error`) if the define comes
+   with an AppId that is not one of the dummies, so a release never contains the hook, whoever passes the define. The
+   new scenario **S15** installs both products with the suite, puts user data into every folder the uninstaller offers,
+   files next to them (also a folder `Saved Games Old`) and a junction for `Data\dxm` of NeoEE to a folder outside the
+   installation with a canary, and uninstalls with `/TestDeleteUserData`. It checks that exactly the offered folders are
+   gone (one log line each), that every other file stays, that `Data\dxm\mods` behind the junction is neither offered nor
+   deleted and the empty folder cleanup leaves the junction as it is, and that the target of the junction did not change.
+   S15 cannot click in the dialog, so the second check (a link made while the question waits) stays with `ci/check_suite.py`
+   and TP-95 (c).
+6. **The checks.** `ci/check_suite.py`, part [Uninstaller], requires that each folder is offered through
    `SuiteOfferDataFolder` with its root, that `SuiteOfferDataFolder` leaves out a folder behind a link and one of a
    product that stays installed and records the root, that `SuiteDeleteDataFolders` checks `DirExists` and
    `SuiteIsBehindLink(Folders[I], Roots[I])` right before `DelTree`, and that every `RemoveDir(Target)` follows a
@@ -900,4 +916,23 @@ text of `ci/check_suite.py` said that `DelTree` follows a link that is the folde
    second check against the folder itself instead of its root, which would miss a link in `Data\dxm`). The comment
    above `SuiteIsBehindLink` and the text of the check now describe `DelTree` as it is. It also requires that
    `SuiteIsFolderOfInstalledProduct` compares with `SuiteIsSameOrInsideSpelled` both ways (a mutant that compares as
-   written only must fail).
+   written only must fail). Part [Hook] requires that every line of the test hook stands in its one `#ifdef` block, that
+   `DeleteData` becomes True only through the second button of the question or through the switch inside that block, that
+   `suite.iss` refuses the define with a real AppId and never defines it, and that only `Get-SuitePlaceholderHookDefine`
+   passes it, with a mutant for each. The lines S8 and S15 match are in `TEST_LOG_LINES`, and the smoke test of the scenarios
+   takes them from the code; its fake uninstaller deletes the offered folders for the switch, and three defects of it
+   (a deletion through the link, a deletion of the folder above, the switch ignored) must fail S15.
+
+**Consequences.**
+
+- A link in a folder above a data folder that appears while the question is open no longer leads the elevated `DelTree`
+  out of the installation; what remains is the moment between the second check and the end of the `DelTree`, the same
+  kind of race that ADR 0009 documents for the product setups (point 5) and that only RedirectionGuard of Inno Setup 6.7
+  would close.
+- A data folder whose entry cannot be read is kept; with the default permissions below `Program Files` and in the profile
+  that does not happen.
+- A junction or symbolic link that a player put at `Data\dxm` (or above an empty folder of the cleanup) stays after the
+  uninstallation, and with it the folders above it; before, `RemoveDir` removed such a link.
+- The placeholder suite of CI deletes user data in a silent uninstallation when it gets `/TestDeleteUserData`; it is
+  useless and never distributed anyway. A release build behaves as before: a silent uninstallation keeps the user data.
+- The dialog, its texts and the click on "Delete" are still tested only by hand (TP-95 (c)).

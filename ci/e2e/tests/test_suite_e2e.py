@@ -15,7 +15,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 E2E = os.path.dirname(HERE)
 REPO = os.path.dirname(os.path.dirname(E2E))
 WORKFLOW = os.path.join(REPO, ".github", "workflows", "build.yml")
-SCENARIO_IDS = ["S%d" % n for n in range(1, 15)]
+SCENARIO_IDS = ["S%d" % n for n in range(1, 16)]
 
 
 def read(*parts):
@@ -63,7 +63,7 @@ def workflow_problems(workflow):
         problems.append("the step Upload the logs must always run")
     # the time limits: budget < step < job
     budget = re.search(r"-BudgetMinutes (\d+)", job)
-    step = step_timeout(job, "Scenarios S1 to S14")
+    step = step_timeout(job, "Scenarios S1 to S15")
     total = re.search(r"^    timeout-minutes: (\d+)$", job, re.M)
     if not budget or step is None or not total:
         problems.append("suite-e2e needs -BudgetMinutes, a timeout of the scenario step and a timeout of the job")
@@ -85,7 +85,7 @@ def workflow_problems(workflow):
     build = compile_job.find("- name: Build\n")
     if stub < 0 or build < 0 or stub > build:
         problems.append("compile must build the stand-in of EEStatsSetup.dll (build_eestats_stub.ps1) before the step Build")
-    # S1 to S14 check the game program of each product (S9 deletes it and expects the repair to bring it back)
+    # S1 to S15 check the game program of each product (S9 deletes it and expects the repair to bring it back)
     for folder in ("data/Empire Earth Base/Empire Earth", "data/NeoEE Base/Empire Earth"):
         seeded = compile_job.find("'%s'" % folder)
         if seeded < 0 or build < 0 or seeded > build or "'Empire Earth.exe'" not in compile_job:
@@ -97,11 +97,11 @@ def workflow_problems(workflow):
 
 
 def script_problems(helpers, runner, scenarios, titles_source):
-    """The scripts: the fourteen scenarios everywhere, the default arguments of the product setups."""
+    """The scripts: the fifteen scenarios everywhere, the default arguments of the product setups."""
     problems = []
     listed = re.search(r"Scenarios = @\(([^)]*)\)", helpers)
     if not listed or re.findall(r"'(S\d+)'", listed.group(1)) != SCENARIO_IDS:
-        problems.append("e2e_suite_helpers.ps1: Scenarios must list S1 to S14 in order")
+        problems.append("e2e_suite_helpers.ps1: Scenarios must list S1 to S15 in order")
     for sid in SCENARIO_IDS:
         if not re.search(r"^  %s\s+= '" % sid, helpers, re.M):
             problems.append("e2e_suite_helpers.ps1: no title for %s" % sid)
@@ -137,6 +137,13 @@ def script_problems(helpers, runner, scenarios, titles_source):
         problems.append("e2e_suite_scenarios.ps1: S9 must run the repair with RepairEEArgs and RepairNeoEEArgs (no /TYPE)")
         if "telemetry" in text.lower():
             problems.append("%s names the telemetry component" % name)
+    # S15 gives the answer "Delete" through the test hook of the placeholder suite; no other scenario deletes the user data
+    s15 = scenarios.split("function Invoke-E2EScenarioS15 {", 1)[-1].split("\nfunction ", 1)[0]
+    if "Invoke-E2ESuiteUninstall $s 'suite-uninstall' $E2ESuiteConst.TestDeleteSwitch" not in s15 \
+            or scenarios.count("$E2ESuiteConst.TestDeleteSwitch") != 1:
+        problems.append("e2e_suite_scenarios.ps1: S15, and only S15, must run the uninstaller of the suite with $E2ESuiteConst.TestDeleteSwitch")
+    if not re.search(r"^  TestDeleteSwitch\s+= '/TestDeleteUserData'$", helpers, re.M):
+        problems.append("e2e_suite_helpers.ps1: TestDeleteSwitch must be /TestDeleteUserData (the switch of suite/suite_uninstall.iss)")
     if "Software\\Sierra" in scenarios.replace("Software\\\\Sierra", "") and "Remove-E2ERegTree" in scenarios:
         # only the snapshot reads the key; no scenario function deletes or writes below it
         for line in scenarios.splitlines():
@@ -266,6 +273,19 @@ class ScriptRules(unittest.TestCase):
     def test_a_scenario_function_missing(self):
         found = self.check("scenarios", "function Invoke-E2EScenarioS9 {", "function Invoke-E2EScenarioS9x {")
         self.assertTrue(any("no function for S9" in p for p in found), found)
+
+    def test_s15_without_the_answer_delete(self):
+        found = self.check("scenarios", "'suite-uninstall' $E2ESuiteConst.TestDeleteSwitch", "'suite-uninstall'")
+        self.assertTrue(any("S15, and only S15" in p for p in found), found)
+
+    def test_another_scenario_with_the_answer_delete(self):
+        found = self.check("scenarios", "$un = Invoke-E2ESuiteUninstall $s 'suite-uninstall'\n    $problems = @($un.Problems)\n    $patterns",
+                           "$un = Invoke-E2ESuiteUninstall $s 'suite-uninstall' $E2ESuiteConst.TestDeleteSwitch\n    $problems = @($un.Problems)\n    $patterns")
+        self.assertTrue(any("S15, and only S15" in p for p in found), found)
+
+    def test_another_switch_of_the_test_hook(self):
+        found = self.check("helpers", "TestDeleteSwitch    = '/TestDeleteUserData'", "TestDeleteSwitch    = '/DeleteAll'")
+        self.assertTrue(any("TestDeleteSwitch must be /TestDeleteUserData" in p for p in found), found)
 
     def test_a_missing_title(self):
         found = self.check("helpers", "  S4  = '", "  S4x = '")

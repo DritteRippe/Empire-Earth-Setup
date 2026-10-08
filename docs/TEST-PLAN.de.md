@@ -3278,7 +3278,7 @@ jede Prüfung der Deinstallation der Suite beachten muss, weil es sich nur auf e
 #### Gemeinsame Angaben der Fälle TP-90 bis TP-99
 
 Diese Fälle prüfen das **Suite-Setup auf dem Laptop mit den echten Daten** (Build-Art B). Sie ergänzen
-die automatischen Szenarien S1 bis S14 des Jobs `suite-e2e` ([README](../README.md), „End-to-end
+die automatischen Szenarien S1 bis S15 des Jobs `suite-e2e` ([README](../README.md), „End-to-end
 test of the suite installer“), die mit Platzhalter-Setups, still und ohne Netz laufen und nichts
 von dem sehen, was hier geprüft wird: SmartScreen, den Assistenten, das Spiel, die Verknüpfungen
 auf dem Desktop. Es gilt:
@@ -3624,8 +3624,9 @@ auf dem Desktop. Es gilt:
 
 - **Status:** ausgearbeitet
 - **Priorität:** P2 (Freigabekriterium für Launcher 1.0.0 und Suite 1.0.0)
-- **Bezug:** ADR 0013 (Entscheidung 11), Vertrag 1.6 und 1.7, Block 9 oben (Reihenfolge, Behalten
-  und Löschen, zwei Fragen, Over-the-Shoulder), Regel 3; Suite-Szenarien S7 und S8 (still)
+- **Bezug:** ADR 0013 (Entscheidung 11 und Nachtrag vom 2026-10-08), Vertrag 1.6 und 1.7, Block 9 oben (Reihenfolge,
+  Behalten und Löschen, zwei Fragen, Over-the-Shoulder), Regel 3; Suite-Szenarien S7 und S8 (still, „Behalten“) und S15
+  (still, „Löschen“ über den Test-Hook der Platzhalter-Builds, siehe Erwartetes Ergebnis)
 - **Ziel:** Die Deinstallation der Suite entfernt, was sie installiert hat, in der richtigen Reihenfolge;
   „Behalten (empfohlen)“ lässt Spielstände, Profile und Sicherungen unangetastet, „Löschen“ entfernt genau die
   angebotenen Ordner; `Software\Sierra\CDKeys` bleibt in beiden Läufen unberührt.
@@ -3680,6 +3681,14 @@ auf dem Desktop. Es gilt:
     Spielerordner bleiben (die mitgelieferten Zivilisationen gehören zum Setup und kommen mit (b) zurück).
   - (b) Die Neuinstallation läuft ohne Fehler, die Spielstände sind da.
   - (c) „Löschen“ entfernt genau die im Dialog genannten Ordner mit allem, was darin liegt.
+  - Automatischer Teil (Job `suite-e2e`, Szenario S15, Platzhalter-Daten, bei jedem Build): Eine stille Deinstallation
+    fragt nicht und löscht nie; nur der Test-Hook der Platzhalter-Builds (`suite\build_suite.ps1 -Placeholders`, Schalter
+    `/TestDeleteUserData` des Deinstallers, in keinem Release enthalten) gibt dort die Antwort „Löschen“. S15 prüft damit
+    Schritt 7 ohne den Dialog: Genau die angebotenen Ordner beider Spiele und des Launchers sind weg (je eine Zeile
+    `User data folder deleted: …`), Dateien neben ihnen bleiben, und ein `Data\dxm`, das eine Junction auf einen Ordner
+    außerhalb ist, wird weder angeboten noch durchlaufen (`User data folder not offered, it or a folder above it is a link
+    (junction or symbolic link) or cannot be checked: …`); das Ziel der Junction bleibt unverändert. Der Dialog, seine
+    Texte, die Reihenfolge der Fragen und der Klick auf „Löschen“ bleiben Teil dieses Falls auf der Hardware.
   - Der Inhalt von `Software\Sierra\CDKeys` bleibt bei Installation und beiden Deinstallationen (Regel 3).
   - Es erscheinen zwei Fragen in dieser Reihenfolge: die Abfrage der Suite (die Liste, „Ja“) und die Standardfrage
     von Inno Setup „Sind Sie sicher, dass Sie Empire Earth Community und alle zugehörigen Komponenten entfernen möchten?“ („Ja“); danach der Dialog zu den Nutzerdaten. Weitere Fragen oder eine andere
@@ -3692,7 +3701,9 @@ auf dem Desktop. Es gilt:
 - **Log-Hinweis:** `TP-95a_unins.log` und `TP-95c_unins.log` der Suite: `Suite record lists the products
   "…"` mit beiden Spielen, `Product NeoEE is installed in …: it will be removed`, `Product NeoEE: wait state … outcome`, `The user
   data stays:` (a) bzw. `User data folder deleted:` (c), `Launcher file deleted:`, `Shortcut removed:`; die
-  Reihenfolge der Spiele und die Dauer je Spiel notieren.
+  Reihenfolge der Spiele und die Dauer je Spiel notieren. Ein Ordner, der zwischen der Frage und dem Löschen zu einem Link
+  wurde, bleibt mit `User data folder not deleted, it or a folder above it is a link (junction or symbolic link) now or
+  cannot be checked: …` (c) stehen.
 
 #### TP-96: Pfad „Erweitert“: die Setups der Spiele selbst durchgehen
 

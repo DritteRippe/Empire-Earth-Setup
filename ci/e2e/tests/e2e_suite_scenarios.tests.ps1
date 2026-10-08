@@ -1,15 +1,16 @@
 <#
 .SYNOPSIS
-  Smoke test of the suite scenarios S1 to S14 (ci\e2e\e2e_suite_scenarios.ps1) against a FAKE Windows: no installer runs.
+  Smoke test of the suite scenarios S1 to S15 (ci\e2e\e2e_suite_scenarios.ps1) against a FAKE Windows: no installer runs.
 
 .DESCRIPTION
   The scenarios read and write the registry, shortcuts, files and processes of a Windows runner. Here the glue
   functions of e2e_windows.ps1 are replaced by an in-memory registry, shortcut files that hold "target|arguments", a
   list of held mutexes and a fake of the suite, of the product setups and of their uninstallers (written after
-  suite/suite*.iss: the log lines, the registry values, the files, the exit codes 3, 11, 14 and 15). The checks of the
+  suite/suite*.iss: the log lines, the registry values, the files, the exit codes 3, 11, 14 and 15, the user data the
+  uninstaller deletes with the answer "Delete"; a symbolic link stands in for a junction). The checks of the
   scenarios must PASS against the fake, and each of a few defects of the fake (a missing shortcut, the old shortcuts
-  not removed, a product that stays after the uninstallation, a changed CD key dummy, ...) must make the check that
-  is meant to catch it FAIL. The fake only proves the scenarios hang together and bite; the job suite-e2e of
+  not removed, a product that stays after the uninstallation, a changed CD key dummy, a deletion through a link, ...)
+  must make the check that is meant to catch it FAIL. The fake only proves the scenarios hang together and bite; the job suite-e2e of
   .github/workflows/build.yml runs the real thing. Everything happens in a temporary folder.
   Prints the failed checks and exits with 0 if every check passed, else 1.
 
@@ -170,6 +171,7 @@ try {
       '^SysErrorMessage\(' { return 'Access is denied' }
       '^SuitePhaseName\(' { return 'install' }
       '^Detail$' { return '' }
+      '^(Folder|Folders\[I\]|Target)$' { return '<path>' }
       '^IntToStr\(SuiteRunStep\)$' { if ($Product -eq 'NeoEE') { return '2' } else { return '1' } }
       '^IntToStr\(SuiteRunSteps\)$' { return '2' }
       '^IntToStr\((Code|Kind|SuiteStateOf\(Product\))\)$' { return '0' }
@@ -286,6 +288,19 @@ try {
   }
   # The shortcuts of suite 1.0.0 that S9 plants (scenarios.ps1 calls the Windows function)
   function Set-E2EShortcut([string]$Path, [string]$Target, [string]$Arguments) { Set-FakeShortcut $Path $Target $Arguments }
+  # A junction (S15) is a symbolic link here: .NET reports it as a reparse point, and Directory.Delete does not follow it
+  function New-E2EJunction([string]$Path, [string]$Target) { New-Item -ItemType SymbolicLink -Path $Path -Value $Target | Out-Null }
+  function Remove-E2ELink([string]$Path) { if (Test-Path -LiteralPath $Path) { [System.IO.Directory]::Delete((Join-Path (Split-Path -Parent $Path) (Split-Path -Leaf $Path))) } }
+  # True if Folder or a folder above it up to Root is a link (SuiteIsBehindLink)
+  function Test-FakeBehindLink([string]$Folder, [string]$Root) {
+    $path = Join-Path (Split-Path -Parent $Folder) (Split-Path -Leaf $Folder)
+    $top = Join-Path (Split-Path -Parent $Root) (Split-Path -Leaf $Root)
+    while ($path.Length -ge $top.Length) {
+      if ((Test-Path -LiteralPath $path) -and ((Get-Item -LiteralPath $path -Force).Attributes -band [System.IO.FileAttributes]::ReparsePoint)) { return $true }
+      $path = Split-Path -Parent $path
+    }
+    return $false
+  }
 
   # The log of the fake: lines with a time stamp like the ones of Inno Setup
   function Add-FakeLog([string]$File, [string[]]$Lines) {
@@ -295,13 +310,19 @@ try {
   }
 
   # --- Fake product setup and uninstaller (config_*.iss, setup_is6.iss) ---------------------------------------------------
+  # The files the fake setup of a product installs (its uninstaller removes them, and only them)
+  function Get-FakeProductFiles([string]$Id) {
+    $root = (Get-E2ESuiteProductRoots)[$Id]
+    $data = Join-Path $root (Get-E2EProduct $Id).SetupDataDir
+    return @((Join-Path (Join-Path $root 'Empire Earth') 'Empire Earth.exe'), (Join-Path $data 'install.ini'), (Join-Path $data 'files.sha256'),
+      (Join-Path $root 'Tools\Diagnostic\EE-Diagnostic.exe'), (Join-Path $root 'unins000.exe'), (Join-Path $root 'unins000.dat'))
+  }
   function Install-FakeProduct([string]$Id, [bool]$Icons, [string]$Tasks, [string]$LogFile, [bool]$Repair) {
     $p = Get-E2EProduct $Id
     $root = (Get-E2ESuiteProductRoots)[$Id]
     $keyPath = Get-E2EUninstallKeyPath $p
     $game = Join-Path (Join-Path $root 'Empire Earth') 'Empire Earth.exe'
-    $data = Join-Path $root $p.SetupDataDir
-    foreach ($file in @($game, (Join-Path $data 'install.ini'), (Join-Path $data 'files.sha256'), (Join-Path $root 'Tools\Diagnostic\EE-Diagnostic.exe'), (Join-Path $root 'unins000.exe'), (Join-Path $root 'unins000.dat'))) {
+    foreach ($file in (Get-FakeProductFiles $Id)) {
       New-Item -ItemType Directory -Force -Path (Split-Path -Parent $file) | Out-Null
       [System.IO.File]::WriteAllText($file, "fake $Id")
     }
@@ -342,10 +363,14 @@ try {
     foreach ($tree in @((Get-E2EUninstallKeyPath $p), "$($E2EConst.CommunityKey)\Installations\$Id")) { Remove-E2ERegTree 'HKLM64' $tree }
     Remove-E2ERegTree 'HKCU' "$($E2EConst.CommunityKey)\GameDefaults\$Id"
     Remove-E2ERegTree 'HKCU' $p.SettingsKeys['EE']
+    # the uninstaller of the product removes what its setup installed and its data folder ([UninstallDelete]), then the folders
+    # that are empty; the files of the players and every other file stay, and a link is neither entered nor removed
     if (Test-Path -LiteralPath $root) {
-      $keep = [regex]::Escape((Join-Path $root 'Empire Earth\Data')) + '[\\/](Saved Games|dxm[\\/]mods)[\\/]'
-      foreach ($file in @(Get-ChildItem -LiteralPath $root -Recurse -File | Where-Object { $_.FullName -notmatch ('^' + $keep) })) { Remove-Item -LiteralPath $file.FullName -Force }
-      foreach ($dir in @(Get-ChildItem -LiteralPath $root -Recurse -Directory | Sort-Object { $_.FullName.Length } -Descending)) {
+      foreach ($file in (Get-FakeProductFiles $Id)) { if (Test-Path -LiteralPath $file) { Remove-Item -LiteralPath $file -Force } }
+      $data = Join-Path $root $p.SetupDataDir
+      if (Test-Path -LiteralPath $data) { Remove-Item -LiteralPath $data -Recurse -Force }
+      $dirs = @(Get-ChildItem -LiteralPath $root -Recurse -Directory | Where-Object { -not ($_.Attributes -band [System.IO.FileAttributes]::ReparsePoint) })
+      foreach ($dir in @($dirs | Sort-Object { $_.FullName.Length } -Descending)) {
         if (@(Get-ChildItem -LiteralPath $dir.FullName -Force).Count -eq 0) { Remove-Item -LiteralPath $dir.FullName -Force }
       }
       if (@(Get-ChildItem -LiteralPath $root -Force).Count -eq 0) { Remove-Item -LiteralPath $root -Force }
@@ -525,19 +550,21 @@ try {
     return 0
   }
 
-  function Uninstall-FakeSuite([string]$LogFile) {
+  function Uninstall-FakeSuite([string]$LogFile, [string]$ExtraArguments = '') {
     $suiteRoot = Get-E2ESuiteRoot
     $record = Get-E2ERegValues 'HKLM64' $E2ESuiteConst.RecordKey
     $recorded = Get-E2ERegString $record 'Products'
     $lines = @('Suite uninstaller 1.1.0 (contract 1)', "Suite record lists the products `"$recorded`"")
     $roots = Get-E2ESuiteProductRoots
+    $removed = @()
     foreach ($id in @('NeoEE', 'EE')) {
       if ((Split-E2EList $recorded) -notcontains $id) { $lines += "Product $id is not listed by the suite: it is not touched"; continue }
       if (Test-E2ERegKey 'HKLM64' (Get-E2EUninstallKeyPath (Get-E2EProduct $id))) {
         $lines += "Product $id is installed in $($roots[$id]) (uninstaller x): it will be removed"
-        if ($script:Bug -ne 'keepproduct' -or $id -ne 'EE') { Uninstall-FakeProduct $id }
+        if ($script:Bug -ne 'keepproduct' -or $id -ne 'EE') { Uninstall-FakeProduct $id; $removed += $id }
       } else {
         $lines += "Product $id is listed but not installed any more (removed through its own entry in Apps): nothing to remove"
+        $removed += $id
       }
     }
     # SuiteRemoveOldSuiteShortcuts first (the uninstaller runs ApplySuiteShortcuts too): a log line for each shortcut of suite 1.0.0
@@ -560,17 +587,51 @@ try {
     if ($script:Bug -ne 'olduninst' -and (Test-Path -LiteralPath (Get-E2ESuiteGroup))) { Remove-Item -LiteralPath (Get-E2ESuiteGroup) -Recurse -Force }
     Remove-E2ERegTree 'HKLM64' $E2ESuiteConst.RecordKey
     Remove-E2ERegTree 'HKLM64' (Get-E2ESuiteUninstallKeyPath)
+    $data = Get-E2ELauncherDataDir
     foreach ($file in @('settings.json', 'log.txt')) {
-      if (Test-Path -LiteralPath (Join-Path (Get-E2ELauncherDataDir) $file)) { Remove-Item -LiteralPath (Join-Path (Get-E2ELauncherDataDir) $file) -Force }
+      if (Test-Path -LiteralPath (Join-Path $data $file)) { Remove-Item -LiteralPath (Join-Path $data $file) -Force }
     }
-    $lines += 'Silent uninstallation: the user data stays:'
+    # SuiteRemoveUserData: the folders with user data that exist below the roots of the products that are gone and of the
+    # launcher, without one that lies behind a link up to its root (the defect 'deletebehindlink' offers it). A silent run keeps
+    # them; the test hook of the placeholder suite (/TestDeleteUserData, S15) deletes them (the defect 'keepuserdata' ignores the
+    # switch, 'deleteforeign' deletes the folder above the saved games), and the folder cleanup leaves a link as it is.
+    # (The lines that name a folder are the ones the code writes: CodeLine fills in the templates of suite_uninstall.iss.)
+    $candidates = @()
+    foreach ($id in $removed) { foreach ($folder in (Get-E2ESuiteDataFolders @($roots[$id]))) { $candidates += , @($folder, $roots[$id]) } }
+    foreach ($folder in (Get-E2ESuiteDataFolders @() $data)) { $candidates += , @($folder, $data) }
+    $offered = @()
+    foreach ($candidate in $candidates) {
+      if (-not (Test-Path -LiteralPath $candidate[0] -PathType Container)) { continue }
+      if ((Test-FakeBehindLink $candidate[0] $candidate[1]) -and $script:Bug -ne 'deletebehindlink') {
+        $lines += (CodeLine 'User data folder not offered, it or a folder above it is a link' 'EE').Replace('<path>', $candidate[0])
+      } else { $offered += $candidate[0] }
+    }
+    if ($offered.Count -gt 0) {
+      if ((@(Split-E2ECommandLine $ExtraArguments) -contains $E2ESuiteConst.TestDeleteSwitch) -and $script:Bug -ne 'keepuserdata') {
+        $lines += CodeLine 'Test hook of a placeholder build: /TestDeleteUserData' 'EE'
+        foreach ($folder in $offered) {
+          $target = $folder
+          if ($script:Bug -eq 'deleteforeign' -and $folder -like '*\Saved Games') { $target = Split-Path -Parent $folder }
+          if (Test-Path -LiteralPath $target) { Remove-Item -LiteralPath $target -Recurse -Force }
+          $lines += (CodeLine 'User data folder deleted: ' 'EE').Replace('<path>', $folder)
+        }
+      } else { $lines += 'Silent uninstallation: the user data stays:' }
+    }
+    foreach ($id in $removed) {
+      foreach ($rel in @('Empire Earth\Data\dxm', 'Empire Earth - The Art of Conquest\Data\dxm')) {
+        $folder = Join-E2EPath $roots[$id] $rel
+        if ((Test-Path -LiteralPath $folder) -and (Test-FakeBehindLink $folder $roots[$id])) {
+          $lines += (CodeLine 'Folder left as it is, it or a folder above it is a link' 'EE').Replace('<path>', $folder)
+        }
+      }
+    }
     if (Test-Path -LiteralPath $suiteRoot) { Remove-Item -LiteralPath $suiteRoot -Recurse -Force }
     Add-FakeLog $LogFile $lines
   }
 
-  function Invoke-E2EUninstall([hashtable]$Product, [string]$Root, [string]$Hive, [string]$LogFile, [int]$TimeoutSeconds = 600) {
+  function Invoke-E2EUninstall([hashtable]$Product, [string]$Root, [string]$Hive, [string]$LogFile, [int]$TimeoutSeconds = 600, [string]$ExtraArguments = '') {
     if (-not (Test-E2ERegKey $Hive (Get-E2EUninstallKeyPath $Product))) { return @{ ExitCode = $null; Problems = @("$Hive uninstall key does not exist") } }
-    if ($Product.Id -eq 'Suite') { Uninstall-FakeSuite $LogFile } else { Uninstall-FakeProduct $Product.Id; Add-FakeLog $LogFile @('uninstalled') }
+    if ($Product.Id -eq 'Suite') { Uninstall-FakeSuite $LogFile $ExtraArguments } else { Uninstall-FakeProduct $Product.Id; Add-FakeLog $LogFile @('uninstalled') }
     return @{ ExitCode = 0; Problems = @() }
   }
 
@@ -636,7 +697,7 @@ try {
   Check 'the summary of a good run' (ConvertTo-E2ESuiteSummary -JsonLines @(Get-Content -LiteralPath (Join-Path $env:E2E_REPORT 'results.jsonl') | ForEach-Object { $_ } | Where-Object { $_ -notlike '*"Prepare"*' } | ForEach-Object { $_ }) -Scenarios @() -Titles $E2ESuiteTitles).Failed $false
   $all = @(Get-Content -LiteralPath (Join-Path $env:E2E_REPORT 'results.jsonl') | Where-Object { $_ })
   $withDone = @($all) + @($E2ESuiteConst.Scenarios | ForEach-Object { '{"scenario":"' + $_ + '","check":"DONE","status":"INFO","details":[]}' })
-  Check 'the summary: fourteen scenarios PASS' ((ConvertTo-E2ESuiteSummary -JsonLines $withDone -Scenarios $E2ESuiteConst.Scenarios -Titles $E2ESuiteTitles).Lines | Where-Object { $_ -like 'PASS *' }).Count 14
+  Check 'the summary: fifteen scenarios PASS' ((ConvertTo-E2ESuiteSummary -JsonLines $withDone -Scenarios $E2ESuiteConst.Scenarios -Titles $E2ESuiteTitles).Lines | Where-Object { $_ -like 'PASS *' }).Count 15
 
   # --- The checks bite: a defect of the fake must fail the check that is meant to catch it ------------------------------------
   $defects = @(
@@ -666,7 +727,11 @@ try {
     @{ Bug = 'cancel2abort'; Scenario = 'S12'; Check = 'cancel/RUN' },
     @{ Bug = 'repairkilled'; Scenario = 'S13'; Check = 'repair-cancel/UNCHANGED' },
     @{ Bug = 'phaseback'; Scenario = 'S1'; Check = 'install/LOG' },
-    @{ Bug = 'phasenoend'; Scenario = 'S1'; Check = 'install/LOG' }
+    @{ Bug = 'phasenoend'; Scenario = 'S1'; Check = 'install/LOG' },
+    @{ Bug = 'deletebehindlink'; Scenario = 'S15'; Check = 'suite-uninstall/KEPT' },
+    @{ Bug = 'deleteforeign'; Scenario = 'S15'; Check = 'suite-uninstall/KEPT' },
+    @{ Bug = 'keepuserdata'; Scenario = 'S15'; Check = 'suite-uninstall/DELETED' },
+    @{ Bug = 'keepproduct'; Scenario = 'S15'; Check = 'suite-uninstall/REMOVED' }
   )
   foreach ($defect in $defects) {
     $script:Bug = $defect.Bug

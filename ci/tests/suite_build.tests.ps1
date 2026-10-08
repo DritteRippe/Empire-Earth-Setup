@@ -99,6 +99,10 @@ try {
   CheckThrows 'slice size: more than the limit' { Get-PlaceholderSliceSize 49990000 } '*more than the limit*'
   CheckThrows 'slice size: zero' { Get-PlaceholderSliceSize 0 } '*not valid*'
 
+  # --- Get-SuitePlaceholderHookDefine: the test hook of the uninstaller (CI scenario S15) ---------------
+  Check 'hook define: placeholder build' ((Get-SuitePlaceholderHookDefine $true) -join ' ') '/DPlaceholderUninstallDelete=1'
+  Check 'hook define: real build' @(Get-SuitePlaceholderHookDefine $false).Count 0
+
   # --- Get-SuiteSliceInfo, Test-SuiteSliceLimit, Compare-SuiteBuilds ----------------------------------
   $base = 'Empire Earth Community Setup'
   function New-SliceFolder([string]$Name, [int[]]$Numbers, [int]$Seed) {
@@ -266,6 +270,7 @@ exit 0
   Check 'placeholder build: pass 3 is pass 2' ($lines[3].Replace('pass3', 'pass2') -ceq $lines[2].Replace('pass3', 'pass2')) $true
   Check 'placeholder build: dummy AppIds' ($lines[2] -like '*/DSuiteAppID=00000000-0000-0000-0000-0000000005EE /DEE_AppID=00000000-0000-0000-0000-0000000000EE /DNeoEE_AppID=00000000-0000-0000-0000-000000000AEE*') $true
   Check 'placeholder build: the product setups and their hashes' ($lines[2] -like '*/DEESetupFile=*EE_Setup_Test.exe /DEESetupSHA256=* /DEESetupSize=400000 /DNeoEESetupFile=*NeoEE_Setup_Test.exe /DNeoEESetupSHA256=* /DNeoEESetupSize=500000*') $true
+  Check 'placeholder build: every pass gets the test hook of the uninstaller' (@($lines | Where-Object { $_ -like '* /DPlaceholderUninstallDelete=1 *' }).Count) 4
   Check 'placeholder build: output files' (Get-Names $out) "BUILD-INFO.txt|$base-1.bin|$base-2.bin|$base-3.bin|$base.exe|SHA256SUMS.txt"
   Check 'placeholder build: nothing of pass 1' (@(Get-ChildItem -LiteralPath $out -File | Where-Object { $_.Name -like '*PASS1*' }).Count) 0
   $sums = @(Get-Content -LiteralPath (Join-Path $out 'SHA256SUMS.txt'))
@@ -346,6 +351,7 @@ exit 0
   $lines = @(Get-Calls)
   Check 'real build: ISCC calls (pass 1, 2, 3)' $lines.Count 3
   Check 'real build: the AppIds of the caller' ($lines[1] -like "*/DSuiteAppID=$($guids[0]) /DEE_AppID=$($guids[1]) /DNeoEE_AppID=$($guids[2])*") $true
+  Check 'real build: no test hook of the uninstaller' (@($lines | Where-Object { $_ -like '*PlaceholderUninstallDelete*' }).Count) 0
   $buildInfo = [System.IO.File]::ReadAllText((Join-Path $realArgs.OutputDir 'BUILD-INFO.txt'))
   Check 'real build: no placeholder note' ($buildInfo -like '*PLACEHOLDER*') $false
   Check 'real build: commits in BUILD-INFO' (($buildInfo -like '*Launcher commit:      abcdef1234567*') -and ($buildInfo -like '*Mod Creator commit:   0123456*')) $true

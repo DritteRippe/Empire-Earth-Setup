@@ -388,12 +388,16 @@ function Get-E2EUninstallKeyPath([hashtable]$Product) {
 # Runs <Root>\unins000.exe silently and waits until the uninstaller (also its copy in %TEMP%) is
 # done and the uninstall key is gone; a copy still running after the wait is stopped. A cleanup: it
 # may use the reserve of the phase budget. Throws if the uninstaller hits its time limit (it is
-# stopped then). Returns @{ ExitCode; Problems }.
-function Invoke-E2EUninstall([hashtable]$Product, [string]$Root, [string]$Hive, [string]$LogFile, [int]$TimeoutSeconds = ($E2EConst.UninstallTimeoutMinutes * 60)) {
+# stopped then). ExtraArguments go to the end of its command line (Inno Setup hands them to the copy
+# in %TEMP%, whose [Code] reads them: the suite scenario S15 passes the switch of the test hook of
+# the placeholder suite). Returns @{ ExitCode; Problems }.
+function Invoke-E2EUninstall([hashtable]$Product, [string]$Root, [string]$Hive, [string]$LogFile, [int]$TimeoutSeconds = ($E2EConst.UninstallTimeoutMinutes * 60), [string]$ExtraArguments = '') {
   $problems = @()
   $uninstaller = Join-Path $Root 'unins000.exe'
   if (-not (Test-Path -LiteralPath $uninstaller -PathType Leaf)) { return @{ ExitCode = $null; Problems = @("$uninstaller does not exist") } }
-  $code = Invoke-E2EProcess -FilePath $uninstaller -Arguments "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /LOG=`"$LogFile`"" -TimeoutSeconds $TimeoutSeconds -Cleanup
+  $arguments = "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /LOG=`"$LogFile`""
+  if ($ExtraArguments) { $arguments += " $ExtraArguments" }
+  $code = Invoke-E2EProcess -FilePath $uninstaller -Arguments $arguments -TimeoutSeconds $TimeoutSeconds -Cleanup
   $deadline = (Get-Date).AddSeconds(180)
   $keyPath = Get-E2EUninstallKeyPath $Product
   while ((Get-Date) -lt $deadline) {

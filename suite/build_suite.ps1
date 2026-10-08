@@ -22,7 +22,10 @@
   setups of ci\build.ps1 -Placeholders (out\EE_Regular, out\NeoEE_Regular), a stub launcher, a stub
   Mod Creator and stub licenses, and dummy AppIds. The slice size is computed from the size of the
   setup program (at least 262144, and DiskSliceSize must not be below the size of setup.exe: ISCC
-  refuses that), unless -SliceSize is given. The result is useless and must never be distributed.
+  refuses that), unless -SliceSize is given. A placeholder build also gets the test hook of the
+  uninstaller (the define of Get-SuitePlaceholderHookDefine in ci\suite_build_helpers.ps1:
+  /TestDeleteUserData answers "Delete" in a silent uninstallation, CI scenario S15); a real build never
+  does. The result is useless and must never be distributed.
 
   The real AppIds and the real inputs are only ever passed by the local real-data tooling, never
   committed. A real build (no -Placeholders) refuses the dummy AppIds. Never run the product
@@ -254,6 +257,8 @@ try {
   if ($PSBoundParameters.ContainsKey('EEInstallSize')) { $common += "/DEEInstallSize=$EEInstallSize" }
   if ($PSBoundParameters.ContainsKey('NeoEEInstallSize')) { $common += "/DNeoEEInstallSize=$NeoEEInstallSize" }
   if ($TestID -gt 0) { $common += "/DTestID=$TestID" }
+  # The test hook of the uninstaller (CI scenario S15): placeholder builds only
+  $common += @(Get-SuitePlaceholderHookDefine ([bool]$Placeholders))
 
   # One ISCC run into a fresh folder; stops with the errors of the log if ISCC fails
   function Invoke-SuitePass([string]$Name, [string[]]$Defines) {

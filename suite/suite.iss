@@ -29,6 +29,9 @@
 ;   /DEEInstallSize=<bytes> /DNeoEEInstallSize=<bytes>
 ;                                    free space the installed product needs (default: twice the setup size)
 ;   /DTestID=<n>                     0 = release build (default), > 0 = test build
+;   /DPlaceholderUninstallDelete=1   only suite\build_suite.ps1 -Placeholders passes it, never a real build: the test
+;                                    hook of the uninstaller, /TestDeleteUserData answers "Delete" in a silent
+;                                    uninstallation (CI scenario S15); refused with AppIds other than the dummies
 ; Two-pass build: the number and the total size of the slices are only known after a build, and they are
 ; compiled into the setup, so the build runs ISCC with /DSlicePass1=1, sums up the slices, and runs it again
 ; with their number and total. The single sizes are not compiled in: slice 1 is DiskSliceSize minus the size
@@ -87,6 +90,13 @@
 #endif
 #if EE_AppID == NeoEE_AppID || SuiteAppID == EE_AppID || SuiteAppID == NeoEE_AppID
   #error SuiteAppID, EE_AppID and NeoEE_AppID must differ: the suite and each product need an uninstall key of their own
+#endif
+; The test hook of the uninstaller (suite_uninstall.iss) only in a build with the dummy AppIds of
+; suite\build_suite.ps1 -Placeholders: a build with a real AppId never contains it, whoever passes the define
+#ifdef PlaceholderUninstallDelete
+  #if Copy(SuiteAppID, 1, 24) != "00000000-0000-0000-0000-" || Copy(EE_AppID, 1, 24) != "00000000-0000-0000-0000-" || Copy(NeoEE_AppID, 1, 24) != "00000000-0000-0000-0000-"
+    #error PlaceholderUninstallDelete is only for placeholder builds (suite\build_suite.ps1 -Placeholders with the dummy AppIds)
+  #endif
 #endif
 
 ; The embedded product setups: file, SHA-256 and size, which the suite compares with the extracted file

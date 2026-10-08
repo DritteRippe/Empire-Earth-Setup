@@ -12,7 +12,8 @@
 //                         Mod Creator and {app}\Logs ([UninstallDelete]) itself
 //   usDone                the folder of the suite, if Inno Setup could not remove it although it is empty
 // A silent uninstallation (/SILENT, /VERYSILENT) asks nothing, shows nothing and keeps every user data
-// folder. Nothing here touches the registry keys of the games (the product uninstallers do their own
+// folder; only the test hook of the placeholder builds (PlaceholderUninstallDelete, CI scenario S15, never in a
+// release build) lets the switch /TestDeleteUserData give the answer "Delete" there. Nothing here touches the registry keys of the games (the product uninstallers do their own
 // cleanup, setup_is6.iss) or the keys of the CD key registration; the only registry deletion of the suite is
 // RemoveSuiteRecord. ci/check_suite.py reads this file for the rules that keep it that way.
 // Limitation: with a standard user who confirms the elevation prompt with the credentials of an
@@ -354,7 +355,18 @@ begin
     for I := 0 to GetArrayLength(Folders) - 1 do
       List := List + Folders[I] + #13#10;
     if UninstallSilent then
-      Log('Silent uninstallation: the user data stays:'#13#10 + List)
+    begin
+#ifdef PlaceholderUninstallDelete
+      // Test hook of the placeholder builds (CI scenario S15): only suite\build_suite.ps1 -Placeholders passes the define,
+      // and suite.iss refuses it with real AppIds. A silent run asks nothing, so /TestDeleteUserData gives the answer
+      // "Delete", which runs the deletion below on the placeholder installation of the job.
+      DeleteData := SuiteHasParam('/TestDeleteUserData');
+      if DeleteData then
+        Log('Test hook of a placeholder build: /TestDeleteUserData answers the question about the user data with "Delete"');
+#endif
+      if not DeleteData then
+        Log('Silent uninstallation: the user data stays:'#13#10 + List);
+    end
     else
     begin
       // "Keep" is the first button (Yes) and the default; only the second button (No), "Delete", deletes
