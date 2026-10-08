@@ -796,15 +796,15 @@ way to the line, but a human click can hit the window as well, and a game withou
 
 **Context.** CI run 48 ([run 37684555046](https://github.com/DritteRippe/Empire-Earth-Setup/actions/runs/37684555046), push
 of `release-1.1.0`, commit `2b764e4`) failed in the unit test "SuiteFreezeJob of a job whose program ended" with `process
-3384 cannot be suspended`; run 49 on the same commit passed, and the suite and its tests are unchanged since. The test
-starts `cmd.exe /c exit 0`, waits until it has ended and freezes its job at once. Windows starts a console helper
-(`conhost.exe`) in the job of a console program, and the helper ends a moment after the program. The likely sequence (it
-cannot be replayed on purpose, and the old reason did not say what Windows answered): the job still listed the helper,
-`NtSuspendProcess` refused it because its last thread was ending (`STATUS_PROCESS_IS_TERMINATING`, `0xC000010A`), and its
-process object was not signalled yet, so the look without waiting (`WaitForSingleObject` with 0 ms) did not count it as
-ended either. `SuiteFreezeJob` took it for a process that cannot be frozen. A product setup can meet the same moment when
-its loader or a helper ends while the user cancels: the cancel was then *unclear* (point 3 of the race amendment) and was
-decided again. That is safe, but it is not what happened, and the log did not tell why Windows refused.
+3384 cannot be suspended`; run 49 on the same commit passed. The test starts `cmd.exe /c exit 0`, waits until it has ended
+and freezes its job at once. Windows 8 and later start a console helper (`conhost.exe`) in the job of a console program,
+and the helper ends a moment after the program. The likely sequence (it cannot be replayed on purpose, and the old reason
+did not say what Windows answered): the job still listed the helper, `NtSuspendProcess` refused it because its last thread
+was ending (`STATUS_PROCESS_IS_TERMINATING`, `0xC000010A`), and its process object was not signalled yet, so the look
+without waiting (`WaitForSingleObject` with 0 ms) did not count it as ended either. `SuiteFreezeJob` took it for a process
+that cannot be frozen. A product setup can meet the same moment when its loader or a helper ends while the user cancels:
+the cancel was then *unclear* (point 3 of the race amendment) and was decided again. That is safe, but it is not what
+happened, and the log did not tell why Windows refused.
 
 **Decision.**
 
@@ -826,6 +826,11 @@ decided again. That is safe, but it is not what happened, and the log did not te
    `WAIT_OBJECT_0`, and `SuiteFreezeJob` suspends in one place only; three mutants of its self-test must fail. The unit
    tests check the classification as a pure function (ending and not yet signalled, ending and signalled, access denied
    with and without an end, another failure, a failed wait) and the text of the status.
+4. **The unit test waits until the job is empty.** "SuiteFreezeJob of a job whose program ended" now waits, at most 30
+   seconds, until the job lists no process any more (`QueryInformationJobObject` with `JobObjectBasicProcessIdList`, the
+   list that `SuiteFreezeJob` reads, rather than the counter `ActiveProcesses` of `JobObjectBasicAccountingInformation`: the
+   test waits for exactly the input of the function it tests) and then expects a success with nothing frozen. The moment of
+   the ending helper is no longer part of that test; the classification of point 1 is tested on its own (point 3).
 
 **Consequences.**
 

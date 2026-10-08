@@ -1565,6 +1565,29 @@ begin
   RemoveDir(Dir);
 end;
 
+// Waits up to Ms milliseconds until the job lists no process any more (the list of QueryInformationJobObject that
+// SuiteFreezeJob reads). True once it lists none; False if processes are still listed after Ms or the job cannot be read.
+function WaitSuiteJobEmpty(Job: THandle; Ms: Integer): Boolean;
+var
+  List: TSuiteJobProcessList;
+  Waited: Integer;
+begin
+  Result := False;
+  Waited := 0;
+  repeat
+    List.NumberOfAssignedProcesses := 0;
+    List.NumberOfProcessIdsInList := 0;
+    if not SuiteQueryJob(Job, SuiteJobObjectBasicProcessIdList, List, SizeOf(List), 0) then
+      Exit;
+    Result := List.NumberOfAssignedProcesses = 0;
+    if not Result then
+    begin
+      Sleep(50);
+      Waited := Waited + 50;
+    end;
+  until Result or (Waited > Ms);
+end;
+
 // The freeze of the processes of a job (SuiteFreezeJob), the step before every stop of a product setup: when a suspension
 // that failed counts as an end (SuiteSuspendFailureIsEnd) and how its NTSTATUS is written (SuiteNtStatusText), programs that
 // ended or that cannot be frozen, and the setup of this test that writes a byte every 25 ms (/ProcTickDir, InitializeSetup of
@@ -1607,19 +1630,22 @@ begin
   Check('SuiteNtStatusText of STATUS_SUCCESS', SuiteNtStatusText(0), '0x00000000');
   Check('SuiteNtStatusText of STATUS_PENDING', SuiteNtStatusText(259), '0x00000103');
 
-  // a job whose program ended: nothing or only helpers left in it, no failure
+  // a job whose program ended: no failure. Windows 8 and later start a console helper (conhost.exe) in the job of a console
+  // program, and the helper ends a moment after the program; the test waits until the job lists no process any more, so the
+  // result does not depend on that moment. A helper that the freeze catches while it ends is not suspended by Windows and not
+  // signalled yet (most likely what made CI run 48 fail once, when the test did not wait): SuiteSuspendFailureIsEnd above.
   CheckBool('SuiteStartProduct starts a program that ends', SuiteStartProduct(ExpandConstant('{sys}\cmd.exe'), '/c exit 0', Dir, Proc, Job, Err), True);
   CheckBool('SuiteWaitEnd sees it end', SuiteWaitEnd(Proc, 30000), True);
   if Job = 0 then
     Skip('SuiteFreezeJob of a job whose program ended', 'the process could not be put in a job object')
   else
   begin
+    CheckBool('the job of the program that ended lists no process within 30 seconds', WaitSuiteJobEmpty(Job, 30000), True);
     Why := 'x';
     CheckBool('SuiteFreezeJob of a job whose program ended', SuiteFreezeJob(Job, Proc, Frozen, Why), True);
     Check('SuiteFreezeJob of a job whose program ended: no reason', Why, '');
-    // what is still in the job (Wine keeps a console helper there for a moment) is frozen and runs again
-    Check('SuiteResumeFrozen of what was frozen', IntToStr(SuiteResumeFrozen(Frozen)), '0');
-    Check('SuiteResumeFrozen forgot them', IntToStr(GetArrayLength(Frozen)), '0');
+    Check('SuiteFreezeJob of a job whose program ended: nothing to freeze', IntToStr(GetArrayLength(Frozen)), '0');
+    Check('SuiteResumeFrozen of nothing', IntToStr(SuiteResumeFrozen(Frozen)), '0');
   end;
   SuiteCloseHandle(Proc);
   if Job <> 0 then
