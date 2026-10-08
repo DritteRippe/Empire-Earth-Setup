@@ -142,6 +142,11 @@ setup version 1.7.2; the product setups of a suite release are told apart by the
   `PYTHONWARNINGS=error::SyntaxWarning`, so such an escape fails CI instead of printing a warning.
 - CI: `ci/check_suite.py`, `ci/check_suite_texts.py`, `ci/check_contract.py` and `ci/check_messages.py` fail when
   `suite/suite.iss` is missing, instead of skipping the rules of the suite and passing.
+- CI: the cancel scenarios S11 to S14 accept a cancel that is decided again because its first look met a log line with
+  only its time stamp (the processes run on, "the cancel stays requested (try N of 5)", contract 1.7 point 2). `/TestCancel`
+  asks as soon as the log of the product setup is open, while it writes many lines, and S14 failed on such a try on
+  2026-10-08 although NeoEE was then stopped as expected. Only the exact three lines of such a try are taken out
+  (`Remove-E2ECancelRetries`); a try that cannot freeze or read, and the last try, still fail the scenario.
 
 ### Security
 - Suite uninstaller: each user data folder is checked for links again right before it is deleted. Before, the folders

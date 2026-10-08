@@ -663,7 +663,7 @@ try {
   Check 'the templates are filled in: no expression is left in a line' (@($codeLines | Where-Object { $_.Contains('IntToStr(') }).Count) 0
   $cancelRequest = '/TestCancel, the cancel is requested as if the user had answered the question with Yes'
   $cancelPatterns = @()
-  foreach ($id in @('EE', 'NeoEE')) { $cancelPatterns += @(Get-E2ECancelStopPatterns $id $cancelRequest) + @(Get-E2ECancelStopNotMatches $id) }
+  foreach ($id in @('EE', 'NeoEE')) { $cancelPatterns += @(Get-E2ECancelStopPatterns $id $cancelRequest) + @(Get-E2ECancelStopNotMatches $id) + @(Get-E2ECancelRetryPatterns $id) }
   $cancelPatterns += @(Get-E2ECancelLateMatches) + @(Get-E2ECancelLateNotMatches) + @(Get-E2ECancelLateOrder)
   Check 'the patterns of S11 to S14 are many' ($cancelPatterns.Count -gt 40) $true
   foreach ($pattern in @($cancelPatterns | Select-Object -Unique)) {
@@ -672,6 +672,24 @@ try {
   # the check bites: the pattern the review found (no "its" before the count) matches no line of the code
   Check 'drift: the S14 pattern without its matches no line of the code' (@($codeLines | Where-Object { $_ -cmatch '^Product EE: ([2-9]|[1-9]\d+) processes run again$' }).Count) 0
   Check 'drift: a line of the code matches the corrected pattern' (@($codeLines | Where-Object { $_ -cmatch '^Product EE: its ([2-9]|[1-9]\d+) processes run again$' }).Count) 1
+  # A cancel that met a log line with only its time stamp is decided again (Remove-E2ECancelRetries): the three lines of such a
+  # try, as the code writes them, are taken out, nothing else is
+  $retry = @(Get-RenderedLogLines 'NeoEE' | Where-Object {
+      $_ -cmatch '^Product NeoEE: the last line of its log may be the install step' -or $_ -cmatch '^Product NeoEE: its \d+ processes run again$' -or
+      $_ -cmatch '^Product NeoEE: the state of its setup is not certain, the cancel stays requested' })
+  Check 'the three lines of a try again are lines of the code' $retry.Count 3
+  $mayBe = 'Product NeoEE: the last line of its log may be the install step, its setup is not stopped'
+  $runAgain = 'Product NeoEE: its 2 processes run again'
+  $stays = 'Product NeoEE: the state of its setup is not certain, the cancel stays requested (try 1 of 5)'
+  $frozen = 'Product NeoEE: 2 processes frozen'
+  Check 'a try again is taken out' ((Remove-E2ECancelRetries @($frozen, $mayBe, $runAgain, $stays, $frozen) 'NeoEE') -join '|') "$frozen|$frozen"
+  Check 'two tries again are taken out' (@(Remove-E2ECancelRetries @($mayBe, $runAgain, $stays, $mayBe, $runAgain, ($stays -replace 'try 1', 'try 2')) 'NeoEE').Count) 0
+  Check 'a try of another product stays' (@(Remove-E2ECancelRetries @($mayBe, $runAgain, $stays) 'EE').Count) 3
+  Check 'a lone line of a try stays' ((Remove-E2ECancelRetries @($mayBe, $runAgain, 'Product NeoEE: the cancel was not carried out, its setup could not be stopped safely') 'NeoEE') -join '|') "$mayBe|$runAgain|Product NeoEE: the cancel was not carried out, its setup could not be stopped safely"
+  $notFrozen = @('Product NeoEE: its setup could not be frozen (process 1 cannot be suspended (NTSTATUS 0xC0000022))', 'Product NeoEE: the state of its setup is not certain, it is not stopped', $runAgain, $stays)
+  Check 'a try that could not freeze stays' (@(Remove-E2ECancelRetries $notFrozen 'NeoEE').Count) 4
+  Check 'what stays still fails the must-not list' (@(Test-E2ELogLines -Lines @(Remove-E2ECancelRetries $notFrozen 'NeoEE') -NotMatches (Get-E2ECancelStopNotMatches 'NeoEE')).Count -gt 0) $true
+  Check 'no lines, no lines' (@(Remove-E2ECancelRetries @() 'NeoEE').Count) 0
   Check 'the fake takes a line from the code' (CodeLine ' processes run again' 'EE') 'Product EE: its 2 processes run again'
   Check 'the fake takes a line from the code: NeoEE' (CodeLine ': the setup ended with exit code' 'NeoEE') 'Product NeoEE: the setup ended with exit code 0 (kind 0), uninstall entry 1'
   $threw = $false
