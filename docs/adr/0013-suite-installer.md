@@ -936,3 +936,41 @@ text of `ci/check_suite.py` said that `DelTree` follows a link that is the folde
 - The placeholder suite of CI deletes user data in a silent uninstallation when it gets `/TestDeleteUserData`; it is
   useless and never distributed anyway. A release build behaves as before: a silent uninstallation keeps the user data.
 - The dialog, its texts and the click on "Delete" are still tested only by hand (TP-95 (c)).
+
+## Amendment: BUILD-INFO.txt names the SetupBuild of the product setups (2026-10-08, for suite 1.1.1)
+
+**Context.** Every product setup reports "Setup v1.7.2" (`MySetupVersion` stays 1.7.2 until v2 is released), in its
+window title, its version resource and its install record. The product setups of package 1.0.0 (dgVoodoo 2.82.1) and of
+package 1.1.0 (dgVoodoo 2.87.5, intro videos) are different binaries with the same version, and so is the official 1.7.2
+of 2023. `SetupBuild` (ADR 0004 point 10) exists to tell such builds apart, but `ci\build.ps1` passes none for a local
+release build, and `BUILD-INFO.txt` of the suite named none: neither the package nor a bug report could say which
+build of a product setup it was. A setup keeps the value only in its compressed data, so the suite build cannot read it
+from the file.
+
+**Decision.**
+
+1. **A record next to every setup.** `ci\build.ps1` writes `<setup>.exe.setupbuild` after `<setup>.exe.sha256`
+   (`Write-SetupBuildRecord` of `ci\build_helpers.ps1`): the line `SHA256=<hash of the setup>` and the line
+   `SetupBuild=<identifier>` (empty for none), LF, UTF-8 without BOM. The hash binds the record to the bytes it was
+   written for.
+2. **The suite build reads it.** `suite\build_suite.ps1` reads the record of each product setup it embeds
+   (`Get-ProductSetupBuild` of `ci\suite_build_helpers.ps1`) and writes `Product SetupBuild:   EE <identifier>, NeoEE
+   <identifier>` into `BUILD-INFO.txt` (`none` for a setup built without one, `not recorded` without a record). A record
+   written for other bytes always stops the build.
+3. **A release build needs it.** A build without `-Placeholders` and with `TestID` 0 stops before ISCC runs unless both
+   product setups have an identifier. The product setups of a package are built with
+   `ci\build.ps1 -SetupBuild <identifier>`, for example `suite-1.1.1-<short commit>`; the setups write it into
+   `install.ini`, the install record (contract 1.1, 1.2) and the first line of their log. A placeholder build and a test
+   build of the suite only name what the records say; in CI the placeholder product setups have the short commit.
+4. **Tests.** `ci\tests\build_helpers.tests.ps1` checks the record (its format, overwriting, the refused forms, the
+   record of every setup in the dry runs of `ci\build.ps1`), `ci\tests\suite_build.tests.ps1` the line in
+   `BUILD-INFO.txt` and the stops (no record, none, a record of other bytes) before ISCC.
+
+**Consequences.**
+
+- The product setups of two packages can be told apart by their `SetupBuild`, in the package (`BUILD-INFO.txt`), on the
+  machine (`install.ini`, the install record) and in a log. Their window title and version resource still say 1.7.2.
+- The record is as trustworthy as the build that wrote it: the suite build cannot read the value back from the setup,
+  it only checks that the record belongs to these bytes.
+- Whether the community product setups should get a version of their own (instead of 1.7.2 and `SetupBuild`) stays open;
+  the update API of the launcher asks with the setup version (`type=setup`), so that needs a decision with the API first.

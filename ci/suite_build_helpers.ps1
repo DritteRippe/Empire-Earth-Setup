@@ -47,6 +47,25 @@ function Assert-InputChecksum([string]$Path, [string]$What) {
   return [pscustomobject]@{ Path = $Path; Name = $name; Hash = $actual; Size = $size }
 }
 
+# The build identifier of a product setup for BUILD-INFO.txt ($Setup: the result of Assert-InputChecksum), from the
+# record ci\build.ps1 wrote next to it (Read-SetupBuildRecord of ci\build_helpers.ps1, bound to its SHA-256): the
+# identifier, 'none' if the setup was built without one, 'not recorded' if it has no record. Every product setup
+# reports setup 1.7.2, so only SetupBuild tells the product setups of two packages apart: with $Required (a release
+# build of the suite) anything but an identifier stops the build. A record of other bytes always stops it.
+function Get-ProductSetupBuild($Setup, [string]$What, [bool]$Required) {
+  $value = Read-SetupBuildRecord $Setup.Path $Setup.Hash
+  if ($value) { return $value }
+  if ($Required) {
+    $reason = "was built without a SetupBuild ($($Setup.Name).setupbuild says none)"
+    if ($null -eq $value) { $reason = "has no SetupBuild record ($($Setup.Name).setupbuild, written by ci\build.ps1)" }
+    throw ("${What} ${reason}: a release build of the suite needs product setups with a build identifier, because " +
+      "every product setup reports setup 1.7.2. Build them with ci\build.ps1 -SetupBuild <identifier> (e.g. " +
+      "suite-1.1.1-<commit>) and embed those.")
+  }
+  if ($null -eq $value) { return 'not recorded' }
+  return 'none'
+}
+
 # A legal text the suite shows (suite.iss [Files], from data\ of the checkout: the EULA of EE, the rules of
 # NeoEE) for a real build: returns its path, hash and size. Throws if it is missing or is a placeholder of
 # ci\make_placeholder_assets.py (data\ of CI holds only those, and the players would read the placeholder

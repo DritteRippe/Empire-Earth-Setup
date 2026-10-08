@@ -13,10 +13,14 @@
     2. Pass 2 with /DSliceCount and /DSliceTotal (the sum of the sizes of the .bin files).
     3. Pass 3, the same again: count, total and every byte must equal pass 2, else the build stops.
   Before that the inputs are checked: every product setup against its <setup>.exe.sha256 (written
-  by ci\build.ps1 next to every setup), the AppIds, the ISCC version (-RequireVersion). After the
-  build every slice must be at most 50,000,000 bytes (a real build also needs -SliceSize at most
-  that). Then out\Suite\ (-OutputDir) gets the setup program, the slices, SHA256SUMS.txt (the program
-  and every .bin) and BUILD-INFO.txt (input hashes, commits, ISCC version, slice data).
+  by ci\build.ps1 next to every setup), the AppIds, the ISCC version (-RequireVersion). The build
+  identifier of each product setup comes from its <setup>.exe.setupbuild (also written by
+  ci\build.ps1, bound to the SHA-256 of the setup): every product setup reports setup 1.7.2, so a
+  release build (no -Placeholders, TestID 0) stops unless both have one. After the build every slice
+  must be at most 50,000,000 bytes (a real build also needs -SliceSize at most that). Then out\Suite\
+  (-OutputDir) gets the setup program, the slices, SHA256SUMS.txt (the program and every .bin) and
+  BUILD-INFO.txt (input hashes, the SetupBuild of the product setups, commits, ISCC version, slice
+  data).
 
   With -Placeholders (CI, contributors without the game data) the inputs are the placeholder product
   setups of ci\build.ps1 -Placeholders (out\EE_Regular, out\NeoEE_Regular), a stub launcher, a stub
@@ -44,10 +48,12 @@
   AppId GUID of the NeoEE setup, without braces (real build).
 
 .PARAMETER EESetup
-  The EE setup to embed. <file>.sha256 must be next to it. Real build: required.
+  The EE setup to embed. <file>.sha256 must be next to it, and for a release build <file>.setupbuild
+  with a SetupBuild (ci\build.ps1 -SetupBuild <identifier>). Real build: required.
 
 .PARAMETER NeoEESetup
-  The NeoEE setup to embed, with <file>.sha256 next to it. Real build: required.
+  The NeoEE setup to embed, with <file>.sha256 next to it (and <file>.setupbuild, as for -EESetup).
+  Real build: required.
 
 .PARAMETER LauncherDir
   Release output of the launcher (no .pdb). Real build: required.
@@ -132,7 +138,7 @@ $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $false
 
 $Root = Split-Path -Parent $PSScriptRoot
-. (Join-Path $Root 'ci\build_helpers.ps1')        # Get-GitShortCommit, Write-FileSha256
+. (Join-Path $Root 'ci\build_helpers.ps1')        # Get-GitShortCommit, Write-FileSha256, Read-SetupBuildRecord
 . (Join-Path $Root 'ci\suite_build_helpers.ps1')
 
 $SuiteScript = Join-Path $PSScriptRoot 'suite.iss'
@@ -214,6 +220,11 @@ try {
   $ee = Assert-InputChecksum (Resolve-Input $EESetup) 'EE setup'
   $neo = Assert-InputChecksum (Resolve-Input $NeoEESetup) 'NeoEE setup'
   if ($ee.Hash -ceq $neo.Hash) { throw 'The EE and the NeoEE setup are the same file (same SHA-256).' }
+  # The build identifier of each product setup, from the record next to it (ci\build.ps1): every product setup
+  # reports setup 1.7.2, so a release build of the suite needs one for both (ADR 0004 point 10, ADR 0013)
+  $releaseBuild = (-not $Placeholders) -and ($TestID -eq 0)
+  $eeBuild = Get-ProductSetupBuild $ee 'The EE setup' $releaseBuild
+  $neoBuild = Get-ProductSetupBuild $neo 'The NeoEE setup' $releaseBuild
   $launcherTree = Get-TreeDigest $LauncherDir
   $modTree = Get-TreeDigest $ModCreatorDir
   $licenseTree = Get-TreeDigest $LicenseDir
@@ -356,6 +367,7 @@ try {
     "Mod Creator commit:   $(if ($ModCreatorCommit) { $ModCreatorCommit } else { 'not given' })",
     "ISCC:                 $version",
     "Build kind:           $(if ($TestID -gt 0) { "test build $TestID" } else { 'release build (TestID 0)' })",
+    "Product SetupBuild:   EE $eeBuild, NeoEE $neoBuild",
     "DiskSliceSize:        $SliceSize",
     "Slices:               $($final.Count), $($final.Total) bytes in total, setup program $($final.Exe.Length) bytes",
     '',
