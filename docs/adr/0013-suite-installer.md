@@ -791,3 +791,49 @@ way to the line, but a human click can hit the window as well, and a game withou
   a suite that dies during the few milliseconds of the freeze (documented above) and a stop that Windows does not carry out
   (the processes run again, the click is answered with `SuiteCancelRetry`).
 - The contract (1.7 point 2, informative) says that the suite decides on the log of a frozen setup.
+
+## Amendment: a process that is ending counts as ended in the freeze (2026-10-08, for suite 1.1.1)
+
+**Context.** CI run 48 ([run 37684555046](https://github.com/DritteRippe/Empire-Earth-Setup/actions/runs/37684555046), push
+of `release-1.1.0`, commit `2b764e4`) failed in the unit test "SuiteFreezeJob of a job whose program ended" with `process
+3384 cannot be suspended`; run 49 on the same commit passed, and the suite and its tests are unchanged since. The test
+starts `cmd.exe /c exit 0`, waits until it has ended and freezes its job at once. Windows starts a console helper
+(`conhost.exe`) in the job of a console program, and the helper ends a moment after the program. The likely sequence (it
+cannot be replayed on purpose, and the old reason did not say what Windows answered): the job still listed the helper,
+`NtSuspendProcess` refused it because its last thread was ending (`STATUS_PROCESS_IS_TERMINATING`, `0xC000010A`), and its
+process object was not signalled yet, so the look without waiting (`WaitForSingleObject` with 0 ms) did not count it as
+ended either. `SuiteFreezeJob` took it for a process that cannot be frozen. A product setup can meet the same moment when
+its loader or a helper ends while the user cancels: the cancel was then *unclear* (point 3 of the race amendment) and was
+decided again. That is safe, but it is not what happened, and the log did not tell why Windows refused.
+
+**Decision.**
+
+1. **A process that Windows reports as ending is ended for the freeze.** The pure function `SuiteSuspendFailureIsEnd`
+   (`suite_common.iss`) decides for every suspension that failed: it counts as an end if the status is
+   `STATUS_PROCESS_IS_TERMINATING` or the process has ended (`WAIT_OBJECT_0`). `NtSuspendProcess` returns that status when
+   the process is being run down because its last thread is exiting (in the Windows Research Kernel `PsSuspendProcess`
+   fails with it when it cannot acquire the run-down protection of the process, which the exit of the last thread runs
+   down; current versions are as undocumented as the function itself). Such a process runs no code of its own any more: it
+   starts no process and writes no log line. If it is the loader (`GetProcessId` of `Proc`), the end check of the freeze
+   counts it like a loader that has ended. **Any other failure is still a process that may run on:** the freeze fails, the
+   product setup is not stopped and the cancel is *unclear*, as before (race amendment, points 3 and 7). The guarantee of
+   the race amendment does not change: a product setup that runs and cannot be frozen is never stopped.
+2. **The reason names the NTSTATUS.** Any other failed suspension is reported as `process <id> cannot be suspended
+   (NTSTATUS 0x<8 hex digits>)` (`SuiteNtStatusText`) in the existing log line `its setup could not be frozen (...)`, so a
+   refusal on a player's machine can be told apart (for example `0xC0000022`, access denied).
+3. **Checks and tests.** `ci/check_suite.py`, part [Freeze]: a failed suspension counts as an end only through
+   `SuiteSuspendFailureIsEnd`, which accepts only `STATUS_PROCESS_IS_TERMINATING` (`-1073741558` as a Longint) and
+   `WAIT_OBJECT_0`, and `SuiteFreezeJob` suspends in one place only; three mutants of its self-test must fail. The unit
+   tests check the classification as a pure function (ending and not yet signalled, ending and signalled, access denied
+   with and without an end, another failure, a failed wait) and the text of the status.
+
+**Consequences.**
+
+- A cancel that meets a process of the product setup just as it ends is no longer answered with "could not be stopped
+  safely right now" for that reason alone. Nothing else changes for the user.
+- The rule still errs on the side of not stopping: a process that refuses the suspension for any other reason, also one
+  that ends a moment later, makes the freeze fail.
+- The cause of run 48 stays a well-founded guess; a different cause would now show up with its NTSTATUS in the reason of
+  the unit test and in the log of the suite.
+- The contract (1.7 point 2, informative) says that a product setup that cannot be frozen runs on; a process that is ending
+  is not one that cannot be frozen.

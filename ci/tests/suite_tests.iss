@@ -1565,8 +1565,9 @@ begin
   RemoveDir(Dir);
 end;
 
-// The freeze of the processes of a job (SuiteFreezeJob), the step before every stop of a product setup: programs that ended
-// or that cannot be frozen, and the setup of this test that writes a byte every 25 ms (/ProcTickDir, InitializeSetup of
+// The freeze of the processes of a job (SuiteFreezeJob), the step before every stop of a product setup: when a suspension
+// that failed counts as an end (SuiteSuspendFailureIsEnd) and how its NTSTATUS is written (SuiteNtStatusText), programs that
+// ended or that cannot be frozen, and the setup of this test that writes a byte every 25 ms (/ProcTickDir, InitializeSetup of
 // unit_tests.iss), as a loader with a real setup like a product setup. Frozen, nothing is written; resumed, it goes on;
 // terminated while frozen, it ends with SuiteKillCode. A freeze that finds nothing new is a success only if the loader has
 // ended or is among the frozen processes: a loader that runs outside the job, or a job without processes, is none (a wrong
@@ -1591,6 +1592,20 @@ begin
   CheckBool('SuiteFreezeJob without a job', SuiteFreezeJob(0, 0, Frozen, Why), False);
   CheckBool('SuiteFreezeJob without a job: a reason', Why <> '', True);
   Check('SuiteFreezeJob without a job: nothing frozen', IntToStr(GetArrayLength(Frozen)), '0');
+
+  // a process that NtSuspendProcess did not suspend: it counts as ended if Windows says that it is ending
+  // (STATUS_PROCESS_IS_TERMINATING, $C000010A: its last thread is leaving, but its object is not signalled yet) or if it has
+  // ended; any other failure is a process that may run on, the freeze fails and its reason names the NTSTATUS
+  CheckBool('SuiteSuspendFailureIsEnd: ending, not signalled yet', SuiteSuspendFailureIsEnd(SuiteStatusProcessIsTerminating, SuiteWaitTimeout), True);
+  CheckBool('SuiteSuspendFailureIsEnd: ending and signalled', SuiteSuspendFailureIsEnd(SuiteStatusProcessIsTerminating, SuiteWaitObject0), True);
+  CheckBool('SuiteSuspendFailureIsEnd: access denied, but ended meanwhile', SuiteSuspendFailureIsEnd(-1073741790, SuiteWaitObject0), True);
+  CheckBool('SuiteSuspendFailureIsEnd: access denied ($C0000022) and running', SuiteSuspendFailureIsEnd(-1073741790, SuiteWaitTimeout), False);
+  CheckBool('SuiteSuspendFailureIsEnd: unsuccessful ($C0000001) and running', SuiteSuspendFailureIsEnd(-1073741823, SuiteWaitTimeout), False);
+  CheckBool('SuiteSuspendFailureIsEnd: access denied and the look at the process failed (WAIT_FAILED)', SuiteSuspendFailureIsEnd(-1073741790, -1), False);
+  Check('SuiteNtStatusText of STATUS_PROCESS_IS_TERMINATING', SuiteNtStatusText(SuiteStatusProcessIsTerminating), '0xC000010A');
+  Check('SuiteNtStatusText of STATUS_ACCESS_DENIED', SuiteNtStatusText(-1073741790), '0xC0000022');
+  Check('SuiteNtStatusText of STATUS_SUCCESS', SuiteNtStatusText(0), '0x00000000');
+  Check('SuiteNtStatusText of STATUS_PENDING', SuiteNtStatusText(259), '0x00000103');
 
   // a job whose program ended: nothing or only helpers left in it, no failure
   CheckBool('SuiteStartProduct starts a program that ends', SuiteStartProduct(ExpandConstant('{sys}\cmd.exe'), '/c exit 0', Dir, Proc, Job, Err), True);

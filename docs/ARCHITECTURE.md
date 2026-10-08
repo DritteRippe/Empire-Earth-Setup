@@ -471,10 +471,12 @@ nothing covers TP-98 (b) to (d) or TP-25 (d) (test plan, section 8 Block 9).
   (`QueryInformationJobObject`, `IsProcessInJob`, `NtSuspendProcess`, repeated until the job holds no process that is not
   frozen), `SuiteTailLogToEnd` reads the log to its end including the last line without a line end, and the pure
   `SuiteStopDecision` says stop, too late, unclear or (after the stop, when the log shows the line now) incomplete;
-  whatever is not certain is left running (`SuiteResumeFrozen` in a `finally`). The freeze counts only if the loader has
-  ended or is among the frozen processes, and a stop counts only when `SuiteStopProduct` confirmed it (the order taken, the
-  setup gone); an unclear confirmed cancel stays requested for `SuiteCancelTriesMax` decisions and then gets the text
-  `SuiteCancelRetry`, never `SuiteCancelNotNow`. `/TestCancelAtInstall` and the placeholder pauses
+  whatever is not certain is left running (`SuiteResumeFrozen` in a `finally`). A process that Windows no longer suspends
+  because it is ending (`STATUS_PROCESS_IS_TERMINATING`, `SuiteSuspendFailureIsEnd`) counts as ended; any other refused
+  suspension fails the freeze and is logged with its NTSTATUS (`SuiteNtStatusText`). The freeze counts only if the loader
+  has ended (or is ending) or is among the frozen processes, and a stop counts only when `SuiteStopProduct` confirmed it
+  (the order taken, the setup gone); an unclear confirmed cancel stays requested for `SuiteCancelTriesMax` decisions and
+  then gets the text `SuiteCancelRetry`, never `SuiteCancelNotNow`. `/TestCancelAtInstall` and the placeholder pauses
   around the install step (`PlaceholderInstallPause`, `ci/build.ps1 -Placeholders` only) test the boundary in scenario S14.
 - **The progress in the window (suite 1.1.0, ADR 0013, amendment):** every look at the product log ends in
   `SuiteShowProgress` (`suite_run.iss`), which sets the status line (`SuiteStatusText`, one of seven texts by

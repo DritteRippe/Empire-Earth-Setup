@@ -50,7 +50,9 @@ to stay safe and installable:
             read once; after a cancel no further product setup starts and Setup ends with Abort
   [Freeze]  the race of Cancel (ADR 0013 amendment, run 5f): NtSuspendProcess and NtResumeProcess are imported once
             each and called only by SuiteFreezeJob and SuiteResumeFrozen; SuiteFreezeJob lists the job, opens only
-            processes that IsProcessInJob confirms and looks again until no process is new; SuiteStopBeforeInstall
+            processes that IsProcessInJob confirms and looks again until no process is new, and takes a process that
+            NtSuspendProcess did not suspend for ended only through SuiteSuspendFailureIsEnd (STATUS_PROCESS_IS_TERMINATING
+            or a process that has ended; any other failure fails the freeze); SuiteStopBeforeInstall
             freezes first, reads the log to its end, decides with SuiteStopDecision, only then stops the job, reads
             the log once more after the stop, and resumes in a finally block unless it terminated; SuiteFreezeJob
             succeeds only if the loader has ended or is among the frozen processes (an empty or wrong list of the job
@@ -656,6 +658,16 @@ def check_freeze(files, errors):
     run = "suite/suite_run.iss"
     common_text = "\n".join(line for _, line in code_lines(files.get(where, "")))
     run_text = "\n".join(line for _, line in code_lines(files.get(run, "")))
+    ending = bodies.get("SuiteSuspendFailureIsEnd", "")
+    if not re.search(r"Result\s*:=\s*\(Status\s*=\s*SuiteStatusProcessIsTerminating\)\s+or\s+\(WaitResult\s*=\s*SuiteWaitObject0\);", ending) \
+            or not re.search(r"^\s*SuiteStatusProcessIsTerminating\s*=\s*-1073741558\s*;", common_text, re.MULTILINE) \
+            or not re.search(r"Status\s*:=\s*SuiteSuspendProcess\(H\);\s+if\s+Status\s*<\s*0\s+then\s+begin\s+"
+                             r"if\s+SuiteSuspendFailureIsEnd\(Status,\s*SuiteWaitObject\(H,\s*0\)\)\s+then\s+begin", freeze) \
+            or len(re.findall(r"\bSuiteSuspendProcess\(", freeze)) != 1:
+        errors.append(f"{where}: SuiteFreezeJob may take a process that NtSuspendProcess did not suspend for ended only through "
+                      "SuiteSuspendFailureIsEnd, which says so only for STATUS_PROCESS_IS_TERMINATING (-1073741558, $C000010A: its last "
+                      "thread is ending) and for a process that has ended (WAIT_OBJECT_0): any other failure is a process that may run "
+                      "on, and the freeze must fail")
     order = [stop.find(token) for token in ("SuiteFreezeJob(", "SuiteTailLogToEnd(", "SuiteStopDecision(", "SuiteStopProduct(")]
     if min(order) < 0 or order != sorted(order):
         errors.append(f"{run}: SuiteStopBeforeInstall must freeze the job (SuiteFreezeJob), then read the log to its end "
@@ -719,7 +731,7 @@ def check_freeze(files, errors):
         errors.append(f"{run}: a confirmed cancel with an unclear state (SuiteStopUnclear) must stay requested for up to SuiteCancelTriesMax "
                       "decisions and then be told with SuiteCancelRetry; only SuiteStopTooLate says that the game is being installed "
                       "(SuiteCancelNotNow)")
-    return 13
+    return 14
 
 
 def check_placeholder_hook(root, errors):
@@ -1332,6 +1344,15 @@ def self_test(source_root):
         ("a process is resumed outside SuiteResumeFrozen",
          replace(run, "  SuiteLogProgressEnd(Product);\n\n  // (e)", "  SuiteLogProgressEnd(Product);\n  SuiteResumeProcess(Proc);\n\n  // (e)"),
          "SuiteResumeProcess is called by"),
+        ("any failed suspension counts as an ended process",
+         replace(common, "  Result := (Status = SuiteStatusProcessIsTerminating) or (WaitResult = SuiteWaitObject0);", "  Result := True;"),
+         "SuiteFreezeJob may take a process that NtSuspendProcess did not suspend for ended only through"),
+        ("another NTSTATUS counts as an ending process",
+         replace(common, "SuiteStatusProcessIsTerminating = -1073741558;", "SuiteStatusProcessIsTerminating = -1073741790;"),
+         "SuiteFreezeJob may take a process that NtSuspendProcess did not suspend for ended only through"),
+        ("a failed suspension is taken for an end without asking",
+         replace(common, "          if SuiteSuspendFailureIsEnd(Status, SuiteWaitObject(H, 0)) then\n", "          if True then\n"),
+         "SuiteFreezeJob may take a process that NtSuspendProcess did not suspend for ended only through"),
         ("a process of the job is suspended without the proof that it belongs to it",
          replace(common, "        if (SuiteIsProcessInJob(H, Job, InJob) = 0) or (InJob = 0) then", "        if False then"),
          "SuiteFreezeJob must confirm with IsProcessInJob"),

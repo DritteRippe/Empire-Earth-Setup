@@ -1589,6 +1589,7 @@ const
   SuiteProcessQueryInformation = $0400;
   SuiteErrorInvalidParameter = 87;
   SuiteFreezePasses = 20;          // how often the job is looked at for processes that came meanwhile
+  SuiteStatusProcessIsTerminating = -1073741558; // STATUS_PROCESS_IS_TERMINATING, $C000010A as a Longint
 
 type
   // The records of CreateProcessW and PeekMessageW, as in the Windows headers: every field is 4 bytes or, in
@@ -1735,6 +1736,24 @@ begin
     Result := SuiteTerminateProcess(Proc, SuiteKillCode);
 end;
 
+// An NTSTATUS (the result of a function of ntdll) the way Microsoft documents it, for the log: 0xC000010A
+function SuiteNtStatusText(Status: Longint): String;
+begin
+  Result := Format('0x%.4X%.4X', [(Status shr 16) and $FFFF, Status and $FFFF]);
+end;
+
+// Whether a process of the job that NtSuspendProcess did not suspend counts as ended for the freeze (SuiteFreezeJob). Status
+// is what NtSuspendProcess returned, WaitResult what a look at the process without waiting returned (WaitForSingleObject with
+// 0 ms). For a process whose last thread is ending, NtSuspendProcess returns STATUS_PROCESS_IS_TERMINATING: that process
+// runs no code of its own any more, so it starts nothing and writes nothing, but its object is signalled only a moment later
+// (for example the console helper conhost.exe right after its console program ended). A process that has ended
+// (WAIT_OBJECT_0) is no failure either. Any other failure is a process that may run on and cannot be frozen: the freeze fails
+// and the product setup is not stopped (ADR 0013, amendment of the race of Cancel, point 3).
+function SuiteSuspendFailureIsEnd(Status, WaitResult: Longint): Boolean;
+begin
+  Result := (Status = SuiteStatusProcessIsTerminating) or (WaitResult = SuiteWaitObject0);
+end;
+
 // Freezes every process of the job of the product setup, so that the suite can look at the log of a setup that does not move
 // on while it looks (the decision to stop it, ADR 0013 amendment of the race of Cancel). The freeze is not an instant:
 // NtSuspendProcess returns before every thread has actually stopped, and a thread that is in a system call finishes that one
@@ -1750,19 +1769,20 @@ end;
 // by one not yet frozen shows up in the next look at the job: the job is looked at again until a look finds no process that
 // is not frozen (a frozen process starts none). Every process is opened by the id the job gave and must be in the job
 // (IsProcessInJob), so that an id that was reused by another program meanwhile is never suspended. A process that ended
-// meanwhile is no failure, but an empty or wrong list must not look like a success: Proc is the loader, the process the job
-// was made for, and when the look finds nothing new it must either have ended or be among the frozen processes (an id the
-// open call rejects with ERROR_INVALID_PARAMETER counts as "ended", so a list with wrong ids would end here with nothing
-// frozen). Frozen holds what was frozen; Why says what failed. Result False: not everything could be frozen (no job, the job
-// cannot be read, a process cannot be suspended, the job keeps growing, the loader is running but not frozen): the caller
-// resumes what was frozen (SuiteResumeFrozen) and does not stop the product setup. The only place that suspends a process
-// (ci/check_suite.py).
+// meanwhile, or that Windows no longer suspends because its last thread is ending (SuiteSuspendFailureIsEnd), is no failure,
+// but an empty or wrong list must not look like a success: Proc is the loader, the process the job was made for, and when the
+// look finds nothing new it must either have ended (or be ending) or be among the frozen processes (an id the open call
+// rejects with ERROR_INVALID_PARAMETER counts as "ended", so a list with wrong ids would end here with nothing frozen). Frozen
+// holds what was frozen; Why says what failed (a suspension that failed with its NTSTATUS). Result False: not everything could
+// be frozen (no job, the job cannot be read, a process cannot be suspended and is not ending, the job keeps growing, the
+// loader is running but not frozen): the caller resumes what was frozen (SuiteResumeFrozen) and does not stop the product
+// setup. The only place that suspends a process (ci/check_suite.py).
 function SuiteFreezeJob(Job, Proc: THandle; var Frozen: array of TSuiteFrozenProcess; var Why: String): Boolean;
 var
   List: TSuiteJobProcessList;
   Pass, I, J, Count, Added: Integer;
-  Known: Boolean;
-  InJob: Longint;
+  Known, LoaderEnding: Boolean;
+  InJob, Status: Longint;
   Pid, LoaderPid: DWORD;
   H: THandle;
 begin
@@ -1770,6 +1790,7 @@ begin
   Why := '';
   SetArrayLength(Frozen, 0);
   Count := 0;
+  LoaderEnding := False;
   if Job = 0 then
   begin
     Why := 'the product setup is not in a job object';
@@ -1819,15 +1840,19 @@ begin
           SuiteCloseHandle(H);
           Continue;
         end;
-        if SuiteSuspendProcess(H) < 0 then
+        Status := SuiteSuspendProcess(H);
+        if Status < 0 then
         begin
-          if SuiteWaitObject(H, 0) = SuiteWaitObject0 then
+          if SuiteSuspendFailureIsEnd(Status, SuiteWaitObject(H, 0)) then
           begin
-            // it ended while it was suspended
+            // Windows says that it is ending (its last thread is leaving, it runs nothing of its own any more), or it ended
+            // while it was suspended
+            if Pid = SuiteGetProcessId(Proc) then
+              LoaderEnding := True;
             SuiteCloseHandle(H);
             Continue;
           end;
-          Why := 'process ' + IntToStr(Pid) + ' cannot be suspended';
+          Why := 'process ' + IntToStr(Pid) + ' cannot be suspended (NTSTATUS ' + SuiteNtStatusText(Status) + ')';
           SuiteCloseHandle(H);
           Exit;
         end;
@@ -1844,7 +1869,8 @@ begin
         else
         begin
           LoaderPid := SuiteGetProcessId(Proc);
-          Known := False;
+          // the loader is frozen, or Windows said that it is ending (it runs nothing of its own any more)
+          Known := LoaderEnding;
           for J := 0 to Count - 1 do
             if Frozen[J].Pid = LoaderPid then
               Known := True;

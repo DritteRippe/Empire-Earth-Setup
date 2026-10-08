@@ -164,7 +164,7 @@ try {
     switch -regex ($Expression) {
       '^Product$' { return $Product }
       '^Why$' { return 'cancelled by the user before it installed anything' }
-      '^Reason$' { return 'process 4 cannot be suspended' }
+      '^Reason$' { return 'process 4 cannot be suspended (NTSTATUS 0xC0000022)' }
       '^(SuiteProductsOk|SuiteMergeProducts\(Earlier, SuiteProductsOk\))$' { return 'EE' }
       '^SuiteCancelledProduct$' { return 'NeoEE' }
       '^SysErrorMessage\(' { return 'Access is denied' }
