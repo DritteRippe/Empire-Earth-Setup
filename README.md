@@ -1,7 +1,104 @@
-[![GitHub stars](https://img.shields.io/github/stars/EE-modders/Empire-Earth-Setup)](https://github.com/EE-modders/Empire-Earth-Setup/stargazers)
-[![GitHub forks](https://img.shields.io/github/forks/EE-modders/Empire-Earth-Setup)](https://github.com/EE-modders/Empire-Earth-Setup/network)
-[![Setup Version](https://img.shields.io/badge/Setup%20Version-v1.7.2-blue)](https://github.com/EE-modders/Empire-Earth-Setup)
-# 📥 Empire Earth Community Setup
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset=".github/assets/banner-dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset=".github/assets/banner-light.svg">
+  <img alt="Empire Earth Setup: The community installer for Empire Earth and NeoEE" src=".github/assets/banner-light.svg" width="100%">
+</picture>
+
+# Empire Earth Community Setup
+
+**The community installer for Empire Earth, The Art of Conquest and Neo Empire Earth:** the EE and NeoEE setups with
+verified downloads, statistics only with consent, safer updates and a hand-off to the Empire Earth Launcher, plus the
+suite installer "Empire Earth Community" that sets up both games and the launcher in one run. Written in Inno Setup 6.2.2
+and Pascal Script, with automated checks and tests.
+
+[![Latest release](https://img.shields.io/github/v/release/DritteRippe/Empire-Earth-Setup?label=release)](https://github.com/DritteRippe/Empire-Earth-Setup/releases/latest)
+[![Build](https://img.shields.io/github/actions/workflow/status/DritteRippe/Empire-Earth-Setup/build.yml?branch=main&label=build)](https://github.com/DritteRippe/Empire-Earth-Setup/actions/workflows/build.yml?query=branch%3Amain)
+[![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE)
+[![Platform: Windows](https://img.shields.io/badge/platform-Windows-0078D6)](#compatibility-and-graphics-options)
+[![Inno Setup 6.2.2](https://img.shields.io/badge/Inno%20Setup-6.2.2-264DE4)](#requirements)
+
+**[Download](#download)** · **[Quick start](#quick-start)** · **[Documentation](#documentation)** ·
+**[Contributing](CONTRIBUTING.md)** · **[Security](SECURITY.md)**
+
+> [!TIP]
+> **Just want to play?** You do not need anything from this repository. The package **Empire Earth Community** installs
+> both games, the community fixes and the Empire Earth Launcher in one go:
+> **[download the latest release](https://github.com/DritteRippe/Empire-Earth-Community/releases/latest)**.
+
+## At a glance
+
+- 📦 **One setup for everything:** the suite installer "Empire Earth Community" installs Empire Earth with The Art of
+  Conquest, Neo Empire Earth and the launcher in one run and one window. Cancel stops a game setup only before it
+  changes its game folder.
+- 🔐 **Verified downloads:** HTTPS only, and every online file is pinned by its SHA-256 and size; a file that can
+  contain code is never installed without its pin.
+- 🛡️ **Careful with administrator rights:** an installation for all users stops before it changes anything if it finds
+  links in the folders every user can write to; the uninstaller of the suite deletes your saves only on "Löschen",
+  and checks them for links again right before the deletion.
+- 🙋 **Statistics only with your consent;** the uninstaller sends nothing.
+- 🧩 **Made for the launcher:** every installation leaves an install record, `install.ini` and the integrity manifest
+  `files.sha256`, specified in the [contract](docs/CONTRACT.md) shared with the launcher.
+- 🖥️ **Windows 7 SP1 to 11**, also on ARM64; dgVoodoo 2.87.5 and a game window up to 1920 x 1200.
+- ✅ **Tested on every push:** all four variants compile with Inno Setup 6.2.2, unit tests and policy checks run, and
+  15 end-to-end scenarios install, repair, cancel and uninstall the suite on a Windows runner.
+- 🌍 **11 languages** in the setups; every new text in English, German and French.
+
+## Quick start
+
+**Players**
+
+1. Download the package [Empire Earth Community](https://github.com/DritteRippe/Empire-Earth-Community/releases/latest),
+   unpack it and run **Empire Earth Community Setup** (it asks for administrator rights).
+2. Double-click **Empire Earth Community** on the desktop: the launcher opens with the game chosen last.
+3. Something wrong? See [Support](#support) and [Known issues](#known-issues), or
+   [report a bug](https://github.com/DritteRippe/Empire-Earth-Setup/issues/new/choose).
+
+**Developers** (no game data needed; the checks run on Windows, Linux and macOS, the build needs Windows and
+Inno Setup 6.2.2)
+
+```powershell
+git clone https://github.com/DritteRippe/Empire-Earth-Setup.git
+cd Empire-Earth-Setup
+python ci/check_messages.py                                                # messages, BOM and CRLF of the own scripts
+python ci/check_suite.py                                                   # the frame of the suite installer
+powershell -ExecutionPolicy Bypass -File ci\build.ps1 -Placeholders        # all four variants compile
+powershell -ExecutionPolicy Bypass -File ci\run_unit_tests.ps1             # the unit tests
+powershell -ExecutionPolicy Bypass -File suite\build_suite.ps1 -Placeholders -RequireVersion 6.2.2
+```
+
+The placeholder builds are useless for playing and never distributed. Every check is listed in [Verify](#verify); the
+rules for a pull request are in [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Download
+
+| You want ... | Get it from |
+|---|---|
+| **To play:** both games, the community fixes and the launcher in one setup | The package **Empire Earth Community**, [latest release](https://github.com/DritteRippe/Empire-Earth-Community/releases/latest). Compare its files with its `SHA256SUMS.txt` before you run the setup ([Checksums of the setups](#checksums-of-the-setups)). |
+| The official EE or NeoEE setup 1.7.2 of the upstream project | [empireearth.eu](https://empireearth.eu/download). It is not a build of this fork and replaces an installation of the package in place ([AppIds](#appids)). |
+| The source code of a suite release | The tags `suite-vX.Y.Z` of this repository ([releases](https://github.com/DritteRippe/Empire-Earth-Setup/releases)) |
+
+> [!NOTE]
+> This repository publishes no installer: the suite embeds the game data, so it ships only inside the package. CI builds
+> placeholder setups only.
+
+## Documentation
+
+| Read | For |
+|---|---|
+| [Why this fork?](#why-this-fork) · [Status](#status) | what this fork changes compared with upstream 1.7.2, and what is released |
+| [Support](#support) · [Known issues](#known-issues) | the setup log, missing files, old installations, Windows 7, the mouse, minimizing, `dgVoodoo.conf`, the 2 GB limit |
+| [Security](#security) | the link check of an installation for all users, and what it cannot cover |
+| [Suite installer](#empire-earth-community-suite-installer) · [Uninstalling the suite](#empire-earth-community-suite-uninstalling) | how the suite installs, cancels and uninstalls, and its release criteria |
+| [Building](#building) | assets, AppIds, build switches, the build scripts, checksums, the online files, tests, CI |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | the structure of setup v2 and of the suite, data flows, error handling, the testing strategy |
+| [docs/adr/](docs/adr/README.md) | the decision records |
+| [docs/CONTRACT.md](docs/CONTRACT.md) | the contract with the launcher: what the setup leaves on the computer |
+| [docs/TEST-PLAN.de.md](docs/TEST-PLAN.de.md) | the manual tests on real Windows (German) |
+| [docs/SERVER-OPERATIONS.md](docs/SERVER-OPERATIONS.md) | what the file servers and the API must provide |
+| [docs/RELEASING.md](docs/RELEASING.md) | the release checklist |
+| [TRANSLATING.md](TRANSLATING.md) | the languages and how to translate |
+| [CHANGELOG.md](CHANGELOG.md) · [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) | the changes of every version · the third-party components |
+| [CONTRIBUTING.md](CONTRIBUTING.md) · [SECURITY.md](SECURITY.md) | how to help · how to report a vulnerability privately |
 
 ## Why this fork?
 This fork builds on the Empire Earth Community Setup by [EE-modders](https://github.com/EE-modders/Empire-Earth-Setup) and its contributors: the setup, its content and the 1.7.2 release are their work. The branch `main` of this fork rebuilds their Inno Setup 6 script (upstream branch `master`, "Updated to v1.7.2") with verified downloads, statistics only with consent, safer updates, automated tests and documentation. It also adds the suite installer "Empire Earth Community" for both games and the Empire Earth Launcher. There is no new game content ([CHANGELOG.md](CHANGELOG.md), "Suite 1.1.0" and "Unreleased").
@@ -43,6 +140,11 @@ This fork builds on the Empire Earth Community Setup by [EE-modders](https://git
 - The hidden setup data folder `{app}\<AppId>` is now `_setupdata_EE` or `_setupdata_NeoEE`; updates remove the old one.
 
 ### Status
+> [!NOTE]
+> **Suite 1.1.0** is the current release (tag `suite-v1.1.0`, 2026-10-07), in the package
+> [Empire Earth Community](https://github.com/DritteRippe/Empire-Earth-Community/releases/latest) 1.1.0. **Suite 1.1.1**
+> is prepared on `main`: see "Unreleased" in the [CHANGELOG](CHANGELOG.md).
+
 **Released as part of the suite.** The product setups of this repository (EE and NeoEE, setup v2) have no release of their own: they are released inside the suite installer "Empire Earth Community", which embeds them byte for byte, and there is no `v2` tag. They keep the setup version 1.7.2 (`MySetupVersion`), the version of the last upstream release, because the update API may treat an unknown version as outdated ([ARCHITECTURE.md](docs/ARCHITECTURE.md), section 10); from suite 1.1.1 on, the product setups of a suite release are told apart by their `SetupBuild` (`install.ini`, the install record, the first line of the setup log and `BUILD-INFO.txt` of the package). The manual short run of the product setups (section 7 of the [test plan](docs/TEST-PLAN.de.md)) has not been recorded as passed yet. The suite installer is version 1.1.0 (`SuiteVersion` in `suite/suite.iss`), released on 2026-10-07 as the tag `suite-v1.1.0` on the commit the package was built from (suite 1.0.0 is the tag `suite-v1.0.0`); players get the package from the [release page of Empire Earth Community](https://github.com/DritteRippe/Empire-Earth-Community/releases/latest). The next release is suite 1.1.1 ([CHANGELOG.md](CHANGELOG.md), "Unreleased"). It was released by the maintainer's decision after session 1 of the laptop test only (update from 1.0.0, playing with the mouse working right after the start, the launcher pages), without session 2; the criteria and that exception are in [Empire Earth Community suite installer](#empire-earth-community-suite-installer).
 
 ## Features
@@ -133,9 +235,25 @@ The setup records each installation for the [Empire Earth Launcher](https://gith
 The Windows test cases are TP-40, TP-41 and TP-50 of the [test plan](docs/TEST-PLAN.de.md).
 
 ## Empire Earth Community suite installer
-The suite installer "Empire Earth Community" ([ADR 0013](docs/adr/0013-suite-installer.md)) is one setup, `Empire Earth Community Setup.exe`, for the players who want everything in one run: it installs the [Empire Earth Launcher](#empire-earth-launcher) with the Mod Creator and runs the EE and NeoEE setups of this repository, byte for byte, one after the other (the games are selectable, both are preselected; "Advanced" shows the setup of each game). In the default mode the game setups run hidden (`/VERYSILENT /SUPPRESSMSGBOXES /NORESTART`), so the window of the suite is the only window and shows the progress; up to suite 1.0.0 they ran with `/SILENT` and each showed a progress window of its own. **Cancel** works until a game setup has started to change its game folder: the suite asks, and "Yes" stops that game setup and everything it started (a first game that was already finished stays installed and the suite finishes its launcher, shortcuts and record for it, the last page says that you cancelled the other game; if no game was finished the suite ends with exit code 3 and installs nothing); from the first step of the installation of a game setup on (it logs `Install step: the game folder is changed from here on` before it deletes its install state, moves the downloads and replaces the shipped random maps) the button is off and says why, because a stopped setup would leave a game without install state or half installed. The decision to stop a game setup is taken on a **frozen** setup: before the suite stops one (Cancel with "Yes", the answer "stop" of the stall question, the 90 minute limit) it suspends every process of the game setup, reads its log to the end and stops it only if the log shows no install step, so a click that arrives a few milliseconds before the game setup logs that line no longer leaves a game without install state; a game setup that logged the line meanwhile is let run on, resumed, and the click counts as too late ("Cancel is no longer possible"). When the state is not certain (a process cannot be frozen, the log cannot be read, the last line of the log has only its time stamp, or Windows did not stop the setup) the game setup is let run on as well, but nothing is said about installing: the "Yes" stays requested for a few wait slices and is decided again, and if it stays unclear the window says that the game setup could not be stopped safely right now and that you can click Cancel again. A game setup is never left frozen. One that was stopped and shows the line in its log afterwards (a line the suite missed) is reported as perhaps only partly installed, with the advice to run the suite again to repair it. A repair or an update that is cancelled before that point leaves the installed game exactly as it was. A game setup that shows no sign of life for 10 minutes is asked about once (a silent run keeps waiting; "stop" is checked against the log again, so a setup that ended or started to install while the question was open is not stopped for it), one that runs for 90 minutes (the downloads count) without having started to change its game folder is stopped and the suite goes on with the next game; a game setup that installs is never stopped for its time. A stopped game setup leaves its own `%TEMP%\is-*.tmp` folder with what it had downloaded (up to about 170 MB; the question names it). While a game setup runs the window of the suite answers the mouse; Esc and Tab do not work in it (the wait for the game setup is hand-made). The window shows what the game setup does: a status line with the step, the game and the phase (looking for the language files, downloading file n of N, checking them, installing the game files, registering the CD keys of NeoEE, finishing), the file being downloaded with its size or the game file being written, a bar for the whole run (never at 100 percent before the game setup has ended), and a list of the finished steps per game; the last page tells per game how many language files were installed from the download. It reads only the log of the game setup, so it is an estimate and never decides whether a game was installed (the exit code and the uninstall entry do). The advanced mode shows the wizard of each game instead. It creates one shortcut, `Empire Earth Community`, on the desktop and in its start menu folder `Empire Earth Community`; it starts the launcher without a game, so the launcher opens with the game chosen last (its Play page lists the four games). The start menu folder also holds the Mod Creator and the uninstaller; the suite creates no Diagnostic shortcut (the program stays in `Tools\Diagnostic` of the game folder). The shortcuts of suite 1.0.0 (`Empire Earth` and `Neo Empire Earth`, which started the launcher with that game, the Diagnostic shortcuts and `Empire Earth Launcher`) are deleted by an update, a repair and the uninstaller of the suite. The desktop `Empire Earth` is deleted only if it starts the launcher (the EE setup's own shortcut has that name and the EE setup deletes it itself). The desktop `Neo Empire Earth` is deleted whatever it starts: a shortcut of that name that you made yourself on the desktop of all users is deleted too, and a desktop `Empire Earth` that suite 1.0.0 made without .NET Framework 4.8 (it starts the game program) stays when the EE setup does not run in that update. Without .NET Framework 4.8 there is no launcher: the shortcut `Empire Earth Community` then starts Neo Empire Earth (or Empire Earth, if only it is installed) directly; install the .NET Framework 4.8 and run the suite setup again to get the launcher. It adds its own entry to Windows "Apps" (the games keep their own entries). That entry carries the publisher Empire Earth Community and an internal marker (`Empire Earth Community: Suite`, contract 1.3), so the launcher does not list it as a game. The four setups of this repository (EE and NeoEE, regular and portable) do not change.
+The suite installer "Empire Earth Community" ([ADR 0013](docs/adr/0013-suite-installer.md)) is one setup, `Empire Earth Community Setup.exe`, for the players who want everything in one run: it installs the [Empire Earth Launcher](#empire-earth-launcher) with the Mod Creator and runs the EE and NeoEE setups of this repository, byte for byte, one after the other (the games are selectable, both are preselected; "Advanced" shows the setup of each game).
 
-The script is in `suite/` and is built by `suite\build_suite.ps1` ([Suite build script](#suite-build-script)). This repository builds it only with placeholder products, a stub launcher and dummy AppIds (CI, job `suite-e2e`, no game data). A real build needs the private inputs: the real AppIds, the EE and NeoEE setups built from the game data, the real legal texts the suite shows (`EULA_DSML.txt` of EE and `neoee_rules.rtf` of NeoEE; the placeholders of `data/` in CI are not those), and the Release build of the launcher. The result contains game data and is never published in this repository, committed here or uploaded to a public place. The Windows test cases are TP-90 to TP-99 of the [test plan](docs/TEST-PLAN.de.md); the suite is tagged 1.0.0 only after TP-93 and TP-95 pass, and 1.1.0 only after TP-93, TP-94 (c), TP-95, TP-97, TP-98, TP-99 (all variants, including the cancel of a repair), TP-25 (a) to (d) and TP-27 (a) pass and the job `suite-e2e` (S1 to S14, with S11 to S14) was green on windows-latest for that commit. Suite 1.1.0 was tagged on 2026-10-07 as an exception to that rule: the maintainer ran only session 1 on his laptop (TP-94 (c), TP-27 (a), TP-25 (a), (b), (c) and (e), TP-26 (a), TP-98 (a)) and released after it; session 2 was not run. TP-93, TP-95, TP-97, TP-98 (b) to (d), TP-99 (a) to (e) and TP-25 (d) were therefore not run on real hardware. The job `suite-e2e` (S1 to S14, windows-latest, placeholder products, silent, English, green on `2b764e4` and `75923f3`) exercises install, adoption, repair, uninstall and cancel, the paths of TP-93, TP-95, TP-97 and TP-99; no test at all covers TP-98 (b) to (d) or TP-25 (d). They stay in the criterion for the next release and are to be run on hardware before or with 1.1.1; a problem found there is fixed in 1.1.1.
+<details>
+<summary>How the suite installs, cancels, waits and reports</summary>
+
+- **One window.** In the default mode the game setups run hidden (`/VERYSILENT /SUPPRESSMSGBOXES /NORESTART`), so the window of the suite is the only window and shows the progress; up to suite 1.0.0 they ran with `/SILENT` and each showed a progress window of its own. The advanced mode shows the wizard of each game instead.
+- **Cancel** works until a game setup has started to change its game folder: the suite asks, and "Yes" stops that game setup and everything it started (a first game that was already finished stays installed and the suite finishes its launcher, shortcuts and record for it, the last page says that you cancelled the other game; if no game was finished the suite ends with exit code 3 and installs nothing); from the first step of the installation of a game setup on (it logs `Install step: the game folder is changed from here on` before it deletes its install state, moves the downloads and replaces the shipped random maps) the button is off and says why, because a stopped setup would leave a game without install state or half installed.
+- **The freeze before a stop.** The decision to stop a game setup is taken on a **frozen** setup: before the suite stops one (Cancel with "Yes", the answer "stop" of the stall question, the 90 minute limit) it suspends every process of the game setup, reads its log to the end and stops it only if the log shows no install step, so a click that arrives a few milliseconds before the game setup logs that line no longer leaves a game without install state; a game setup that logged the line meanwhile is let run on, resumed, and the click counts as too late ("Cancel is no longer possible"). When the state is not certain (a process cannot be frozen, the log cannot be read, the last line of the log has only its time stamp, or Windows did not stop the setup) the game setup is let run on as well, but nothing is said about installing: the "Yes" stays requested for a few wait slices and is decided again, and if it stays unclear the window says that the game setup could not be stopped safely right now and that you can click Cancel again. A game setup is never left frozen. One that was stopped and shows the line in its log afterwards (a line the suite missed) is reported as perhaps only partly installed, with the advice to run the suite again to repair it. A repair or an update that is cancelled before that point leaves the installed game exactly as it was.
+- **Time limits.** A game setup that shows no sign of life for 10 minutes is asked about once (a silent run keeps waiting; "stop" is checked against the log again, so a setup that ended or started to install while the question was open is not stopped for it), one that runs for 90 minutes (the downloads count) without having started to change its game folder is stopped and the suite goes on with the next game; a game setup that installs is never stopped for its time. A stopped game setup leaves its own `%TEMP%\is-*.tmp` folder with what it had downloaded (up to about 170 MB; the question names it).
+- **What the window shows.** While a game setup runs the window of the suite answers the mouse; Esc and Tab do not work in it (the wait for the game setup is hand-made). The window shows what the game setup does: a status line with the step, the game and the phase (looking for the language files, downloading file n of N, checking them, installing the game files, registering the CD keys of NeoEE, finishing), the file being downloaded with its size or the game file being written, a bar for the whole run (never at 100 percent before the game setup has ended), and a list of the finished steps per game; the last page tells per game how many language files were installed from the download. It reads only the log of the game setup, so it is an estimate and never decides whether a game was installed (the exit code and the uninstall entry do).
+- **Shortcuts.** The suite creates one shortcut, `Empire Earth Community`, on the desktop and in its start menu folder `Empire Earth Community`; it starts the launcher without a game, so the launcher opens with the game chosen last (its Play page lists the four games). The start menu folder also holds the Mod Creator and the uninstaller; the suite creates no Diagnostic shortcut (the program stays in `Tools\Diagnostic` of the game folder). The shortcuts of suite 1.0.0 (`Empire Earth` and `Neo Empire Earth`, which started the launcher with that game, the Diagnostic shortcuts and `Empire Earth Launcher`) are deleted by an update, a repair and the uninstaller of the suite. The desktop `Empire Earth` is deleted only if it starts the launcher (the EE setup's own shortcut has that name and the EE setup deletes it itself). The desktop `Neo Empire Earth` is deleted whatever it starts: a shortcut of that name that you made yourself on the desktop of all users is deleted too, and a desktop `Empire Earth` that suite 1.0.0 made without .NET Framework 4.8 (it starts the game program) stays when the EE setup does not run in that update.
+- **Without .NET Framework 4.8** there is no launcher: the shortcut `Empire Earth Community` then starts Neo Empire Earth (or Empire Earth, if only it is installed) directly; install the .NET Framework 4.8 and run the suite setup again to get the launcher.
+- **Windows "Apps".** The suite adds its own entry to Windows "Apps" (the games keep their own entries). That entry carries the publisher Empire Earth Community and an internal marker (`Empire Earth Community: Suite`, contract 1.3), so the launcher does not list it as a game. The four setups of this repository (EE and NeoEE, regular and portable) do not change.
+
+</details>
+
+The script is in `suite/` and is built by `suite\build_suite.ps1` ([Suite build script](#suite-build-script)). This repository builds it only with placeholder products, a stub launcher and dummy AppIds (CI, job `suite-e2e`, no game data). A real build needs the private inputs: the real AppIds, the EE and NeoEE setups built from the game data, the real legal texts the suite shows (`EULA_DSML.txt` of EE and `neoee_rules.rtf` of NeoEE; the placeholders of `data/` in CI are not those), and the Release build of the launcher. The result contains game data and is never published in this repository, committed here or uploaded to a public place.
+
+**Release criteria and tests.** The Windows test cases are TP-90 to TP-99 of the [test plan](docs/TEST-PLAN.de.md); the suite is tagged 1.0.0 only after TP-93 and TP-95 pass, and 1.1.0 only after TP-93, TP-94 (c), TP-95, TP-97, TP-98, TP-99 (all variants, including the cancel of a repair), TP-25 (a) to (d) and TP-27 (a) pass and the job `suite-e2e` (S1 to S14, with S11 to S14) was green on windows-latest for that commit. Suite 1.1.0 was tagged on 2026-10-07 as an exception to that rule: the maintainer ran only session 1 on his laptop (TP-94 (c), TP-27 (a), TP-25 (a), (b), (c) and (e), TP-26 (a), TP-98 (a)) and released after it; session 2 was not run. TP-93, TP-95, TP-97, TP-98 (b) to (d), TP-99 (a) to (e) and TP-25 (d) were therefore not run on real hardware. The job `suite-e2e` (S1 to S14, windows-latest, placeholder products, silent, English, green on `2b764e4` and `75923f3`) exercises install, adoption, repair, uninstall and cancel, the paths of TP-93, TP-95, TP-97 and TP-99; no test at all covers TP-98 (b) to (d) or TP-25 (d). They stay in the criterion for the next release and are to be run on hardware before or with 1.1.1; a problem found there is fixed in 1.1.1.
 
 **Criterion of the next release (suite 1.1.1):** the criterion of 1.1.0 above, with the job `suite-e2e` from S1 to S15, and the tag goes only on a commit of `main` whose complete `build.yml` run (every job: the checks, the unit tests, the placeholder build and `suite-e2e`) was green for exactly that commit. A tag starts no run of its own: `build.yml` runs for a push to `main`, for a pull request and by hand. Suite 1.1.0 was published while the only finished run on its commit was red (run 48, a unit test that depended on timing, fixed for 1.1.1); the green run 49 on the same commit came from the tag itself. Every step of a release, from the version commit to the package, is in [docs/RELEASING.md](docs/RELEASING.md).
 
@@ -263,6 +381,9 @@ The setups can download localized content (voices, campaigns, the localized intr
 
 Why every file is pinned: TLS only shows where a file comes from, and a crafted data or movie file could attack the old parsers of the game and of Bink (2001-era code without ASLR/DEP); code is installed by the elevated setup and runs every time the game starts. A pin is the exact file the build knew. The price: a file that changes on the servers is discarded by every setup built before the change, until a setup with new pins is released, so the operators must regenerate the pins after every change ([docs/SERVER-OPERATIONS.md](docs/SERVER-OPERATIONS.md), section 6: `ci/online_pins.ps1 -Update -Source <copy of /localized/>`).
 
+<details>
+<summary>How the files are downloaded, what the setup reports, and where the pins come from</summary>
+
 How the files are downloaded (`DownloadOnlineFiles` in `downloads.iss`): before the first file the setup checks each server (`SelectOnlineFilesServer`): a request with certificate validation, and only if that gets no answer, one without (its answer is not read). The server with a valid certificate comes first, then one that only answers without validation, the main server on a tie; the mirror is not asked while the main server has a valid certificate. Then the setup downloads one file at a time on a download page, from that server and, if a file fails there (network, HTTP status, another size, a SHA-256 that does not match its pin), once from the other server, if that server may deliver the file. A pinned download stops as soon as its announced or received size cannot match the pin, so a server cannot fill the disk; from a server with an invalid certificate the file is streamed to a `.part` file and kept only if size and SHA-256 match. The stop button of the page ends all downloads: no further request, neither to the other server nor for the remaining files. Nothing of this stops the installation.
 
 Afterwards the setup lists, as a notice, every selected file it did not install from the download: not downloaded (failed on both servers), stopped or skipped after the stop button, discarded because it does not match its pin (e.g. updated on the server after the build, or damaged), a program file without pin, a file without pin from a server without a valid certificate, or a file that was downloaded but could not be stored for the installation. For each of them it installs its own version. In silent mode and with `/SUPPRESSMSGBOXES` the notice is only written to the log.
@@ -271,6 +392,8 @@ The pins come from two lists, both compiled into the setup:
 
 - `pins/online-files.txt` (checked in; `<SHA-256> <size> <server path>` per line, sorted, UTF-8 without BOM, LF). `ci/online_pins.ps1` checks it (format; every online file of both products pinned as the code of `RegisterOnlineFiles` registers it, read by `Get-OnlineFiles` in `ci\build_helpers.ps1`; no other path) and has a `-SelfTest`; CI runs both. `ci\build.ps1` stops a release build (`TestID` 0, also the placeholder build of CI) when an online file has no pin there, and every build when the list pins a path that no setup downloads; a test build only warns. `ISCC /DOnlinePinFile=<file>` uses another list.
 - `data\localized-text.sha256` in `sha256sum` format (`<hash>  <path>`), with paths relative to `data\localized-text` (the `Language.dll` and lobby files the setup ships itself). It applies first, so that a test build can pin a file differently; a release build with the real data stops if it pins a file differently from `pins/online-files.txt` (then `data\localized-text` is not the data of the servers), and if `pins/online-files.txt` gives a file with the same SHA-256 another size than the file has in `data\localized-text` (then that size is wrong, and the setups would reject the right file). The `localized` folder of the file servers has the same layout, except that it also has a lobby folder per language tag where `data\localized-text` has one folder for several languages: the setup requests the Chinese lobby files from `Lobby/zh-CN/` and `Lobby/zh-TW/` (also below `Mods/NeoEE/`), like the setups up to 1.7.2, and checks them against the entries of `Lobby/zh/` there (`GameLangLobbyDirs` in `setup_is6.iss`). Inno Setup 6.2 cannot compute SHA-256 in the preprocessor, so `ci\build.ps1` writes this list before every build; before compiling in the IDE or with ISCC directly, run `powershell -ExecutionPolicy Bypass -File ci\build.ps1 -DownloadHashesOnly` (it also names files the two lists pin differently), or on Linux/Wine `(cd data/localized-text && find . -type f -print0 | sort -z | xargs -0 sha256sum) > data/localized-text.sha256`. Without it the compiler prints a warning and only the pins of `pins/online-files.txt` apply. `ISCC /DDownloadHashFile=<file>` uses another list.
+
+</details>
 
 `ci/check_tls_policy.py` (with `--self-test`; CI) makes sure that certificate errors are only ever ignored for pinned files: the flags in one function (`ApplyCertificateErrorIgnoreFlags`), set only by `OpenWinHttpRequest` for the probe without validation and the download of a pinned file, which refuses a file without pin. It reads every script compiled into the setup (also the files of `#include` lines in subfolders) and allows the functions of `winhttp.dll` only in `utils.iss`, each under its own name, so that no alias declaration can bypass it. It also reads the suite installer (`suite/suite.iss` and the files of its `#include` lines): every rule of ADR 0012 applies there, and because the suite downloads nothing itself, its scripts may hold no network code at all (no `http://` address, no WinHTTP, no `Option[...]` of a COM object, no download function of Inno Setup; comments do not count; [ADR 0012](docs/adr/0012-pinned-downloads-despite-invalid-certificates.md), amendment of 2026-10-08). A missing `setup_is6.iss` or `suite/suite.iss` is an error.
 
@@ -317,6 +440,12 @@ A new case gets the next free id of its block; `python ci/check_test_plan.py` ch
 Windows runner (`windows-latest`), which GitHub throws away after the job. The result is a green or red run in the *Actions*
 tab and a German/English table in the job summary. Expect about two hours per run.
 
+> [!WARNING]
+> This workflow has **never run successfully** on GitHub: every run so far stopped at the download of the official
+> setups, which `r2.empireearth.eu` refuses to GitHub runners ([ADR 0011](docs/adr/0011-real-data-end-to-end-test-in-ci.md),
+> amendment of 2026-10-08). The real-data path is tested on the laptop only; the suite has its own job, see
+> [End-to-end test of the suite installer](#end-to-end-test-of-the-suite-installer).
+
 **When it runs: by hand only.** *Actions* > *E2E real data* > *Run workflow* (input `launcher_commit`: a full commit of the
 launcher fork on its branch `LAUNCHER_BRANCH` (`main`), empty for the pinned `LAUNCHER_COMMIT`, see below). The workflow has
 no `pull_request` trigger. The reason is external: `r2.empireearth.eu`, where the two official setups 1.7.2 come from,
@@ -339,6 +468,9 @@ fork, and upstream after a merge) must therefore set *Settings* > *Actions* > *G
 workflows: **Require approval for all external contributors** (GitHub's default asks only first-time contributors).
 Approve a run of an outside pull request only after reading its changes to `.github/` and `ci/`; to test such a change,
 push it to a branch of this repository and start the workflow there by hand.
+
+<details>
+<summary>The launcher pin, the caches, what the job does, its rules, what it does not cover, the self-tests and the asset map</summary>
 
 **The launcher checks come from a pinned commit.** `LAUNCHER_COMMIT` in the workflow is a full commit of the launcher
 fork (`LAUNCHER_REPOSITORY`), moved on purpose by a commit here; the job refuses a commit given by hand unless it has 40
@@ -450,8 +582,13 @@ not in one of the official setups or in a folder given with `--download <name>=<
 the job cannot place it). Set the times of the files of such a download to those of the archive first. Commit only the map,
 never the folders.
 
+</details>
+
 ### End-to-end test of the suite installer
 The job `suite-e2e` of `.github/workflows/build.yml` runs after the job `compile` and installs, repairs and uninstalls the **suite installer** ([ADR 0013](docs/adr/0013-suite-installer.md)) with the placeholder builds on a GitHub-hosted Windows runner (thrown away after the job). It needs **no download** at all (the official setups of the real-data test and `r2.empireearth.eu`, which blocks GitHub runners, are not involved) and no game data: `compile` builds the placeholder product setups, the placeholder suite (`suite\build_suite.ps1 -Placeholders`), the same suite with a wrong pin of the EE setup (`-TestWrongEEPin`) and uploads them as the artifact `suite-e2e-inputs` (one day). `ci\e2e\run_e2e_suite.ps1 -Scenario All` (Windows PowerShell 5.1, ~1 hour; `-Scenario S3` runs one scenario after `Prepare`) reuses the rules and the Windows glue of the real-data test (`e2e_helpers.ps1`, `e2e_windows.ps1`: dirty state and cleanup between scenarios, process runner with time limits, shortcut reader, uninstaller runner); the suite scenarios are in `e2e_suite_scenarios.ps1`, their pure rules in `e2e_suite_helpers.ps1`.
+
+<details>
+<summary>Hard rules, the scenarios S1 to S15, the test hooks and the self-tests</summary>
 
 **Hard rules** (as in the real-data test): every run is silent (`/VERYSILENT /SUPPRESSMSGBOXES /LOG`) and English; the product setups get exact task lists through `/EEArgs` and `/NeoEEArgs` (`/TYPE=compact /TASKS=compatibility,compatibility_windows`, NeoEE also `/MERGETASKS=!neoee_cdkeys,!certinclude,!directplay,!dxwebsetup`; the suite requires that decision in a silent run) and **never** select `neoee_cdkeys`, `certinclude`, `directplay` or `dxwebsetup`; every host the setups know is blocked in the hosts file and the products skip their downloads in English; every process has a time limit (setup 25 minutes, a run that must stop at its prechecks 5, uninstaller 25: a hang is a failure, spike Q3); the launcher is never started (the stub is no program). A dummy value is seeded under `Software\Sierra\CDKeys` in HKCU, HKLM64 and HKLM32 before S1, its snapshot is compared after every scenario, and nothing ever changes it: no suite code names `Software\Sierra` (`test_suite_e2e.py` greps for it).
 
@@ -479,6 +616,8 @@ The job `suite-e2e` of `.github/workflows/build.yml` runs after the job `compile
 
 Every check is a `PASS` or `FAIL` line in `results.jsonl`; the step "Job summary" turns it into one PASS/FAIL line per scenario in the job summary (`-Scenario Report`) and the logs of the suite and of the product setups are the artifact `suite-e2e-report`. A scenario never stops the job; the next one starts from a clean machine (leftovers are uninstalled first and reported as a warning). **Self-tests** (every build): `ci/e2e/tests/e2e_suite_helpers.tests.ps1` (the rules with made-up data, also in Windows PowerShell 5.1), `ci/e2e/tests/e2e_suite_scenarios.tests.ps1` (PowerShell 7: the scenarios against a fake Windows with an in-memory registry and a fake suite; every check must pass against the fake, and each of the 31 defect cases of the fake (24 distinct defects) must fail the check meant to catch it) and `ci/e2e/tests/test_suite_e2e.py` (the rules of the workflow and the scripts, also against modified copies). The fake proves that the scenarios hang together; it cannot prove that they agree with the real installers, which only the job shows.
 
+</details>
+
 ### Verify
 Before a commit, run the checks that the change touches. The CI workflow runs all of them except the copy check of the contract:
 
@@ -502,7 +641,12 @@ Before a commit, run the checks that the change touches. The CI workflow runs al
 
 `docs/CONTRACT.md` and its byte samples `docs/contract-samples` (`install-admin.ini`, `install-user.ini`, `install-portable.ini`, `files.sha256`, `record.reg`) exist in this repository and in the [launcher repository](https://github.com/DritteRippe/Empire-Earth-Launcher) and must stay byte-identical; a change of the contract or of a sample is one step in both repositories (same text, same commit subject). The samples folder is `-text` in `.gitattributes`, so git never converts a byte of it. CI cannot reach the other repository, so after every such change run the copy check against a local clone of the launcher, e.g. `python ci/compare_contract.py ../Empire-Earth-Launcher` (the clone's root folder or its `docs/CONTRACT.md`). It compares the contract and, file by file, the samples. Exit code 0: identical, the SHA-256 is printed; 1: different (for the contract both SHA-256 values and the first differing line, for each sample the first differing line and both hashes, and the files only one copy has; a hint if only the line endings differ, see `core.autocrlf`); 2: a file or the samples folder is missing. `python ci/compare_contract.py --self-test` checks the script itself.
 
+<details>
+<summary>What <code>ci/check_contract.py</code> compares</summary>
+
 `python ci/check_contract.py` checks that the tables of the contract match the script, the source of truth, and runs in CI: the contract version in its header against `#define ContractVersion` of `setup_is6.iss`, the publishers of the products (0) against `MyAppPublisher` of `config_ee.iss`/`config_neoee.iss` and the constants `CommunityPublisherEE`/`CommunityPublisherNeoEE` of `utils.iss`, the row `code` of 2.4 against `CodeFileExtensions` (`utils.iss`), the table of 3.2 against the `[Registry]` values of the game settings keys (name, type, data of both games including the ending epochs, class S/D = `deletevalue`, P = `createvalueifdoesntexist`), the table of 3.3 against the constants `MinGameWindowWidth` ... `MaxGameWindowHeight` (`utils.iss`), the table of 3.4 against the GPU preference entries (program, component, data, Windows versions, task) and the table of 3.7 against the compatibility entries (the flags of each task, the Windows compatibility mode, the Windows versions from `MinVersion` and `OnlyBelowVersion` of the tasks and entries, `(opt-in)` for an unchecked task, the root per install mode and the order; two entries that could write the value of one program in the same run are an error). It reads only tables, never the prose of the contract, and preprocesses `[Registry]` for all four build variants with a small interpreter of the ISPP directives used there; a directive or function it does not know is an error, not a guess. It also lints `[Files]` (contract 2.3): every entry whose `DestDir` is `{app}` or below has `ignoreversion` and none has `onlyifdoesntexist`, `promptifolder` or `confirmoverwrite`, so that every run processes every file it installs and the integrity manifest can list it, and the external entries that install the verified online files from `{tmp}\verified` must name the same sources, folders and components as `RecordVerifiedOnlineFiles` (`installstate.iss`), which adds those files to the manifest. A change of a default therefore fails CI until the contract is changed too, in both repositories, followed by the copy check above. `python ci/check_contract.py --self-test` runs it against modified copies (e.g. `Music Volume` `$2C` -> `$2D`, another publisher in `config_neoee.iss`, an extension missing, the window width limit 1920 -> 2560, `GpuPreference=1;`, `WIN7RTM` -> `WIN8RTM`, the row `compatibility_legacy` missing or with `WINXPSP3`, an entry without `ignoreversion`, the learning campaign recorded in the wrong folder) that must fail. After the placeholder build, `python ci/check_contract.py --preprocessed out/preprocessed` (CI; locally after `ci\build.ps1 -Placeholders -KeepPreprocessed out\preprocessed`) compares the `[Registry]` entries of that interpreter with the scripts ISCC itself preprocessed, for all four variants, and lints their fully expanded `[Files]` sections.
+
+</details>
 
 ### Continuous integration
 `.github/workflows/build.yml` runs for every push to `main`, every pull request and by hand, on `windows-latest` (a tag starts no run of its own):

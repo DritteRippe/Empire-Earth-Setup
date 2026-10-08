@@ -56,6 +56,13 @@ setup version 1.7.2; the product setups of a suite release are told apart by the
   notes without branch names (with a template), the package, `LAUNCHER_COMMIT` afterwards, and what is pinned on
   purpose. The README, `CONTRIBUTING.md` and ARCHITECTURE link it. The bug form says where the suite version is
   shown (its entry in Windows "Apps", the file properties), not the window title.
+- README: a banner (`.github/assets/banner-light.svg` and `banner-dark.svg`, chosen by the color scheme), badges of
+  this fork (latest release, the build of `main`, license, platform, Inno Setup 6.2.2) instead of the stars, forks and
+  setup version of upstream, a navigation line, a hint for players with the link to the package, and the new sections
+  "At a glance", "Quick start", "Download" and "Documentation". The paragraph on the suite installer is a list by topic
+  (one window, Cancel, the freeze, time limits, the window, shortcuts, .NET Framework 4.8, Windows "Apps"), and the
+  long developer details (the online files, both end-to-end tests, `ci/check_contract.py`) are folded. No content is
+  removed, and every heading keeps its anchor except the title.
 
 ### Changed
 - One main line `main`: development happens on short-lived feature branches with a pull request into `main`, releases
