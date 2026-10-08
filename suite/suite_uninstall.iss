@@ -13,9 +13,10 @@
 //   usDone                the folder of the suite, if Inno Setup could not remove it although it is empty
 // A silent uninstallation (/SILENT, /VERYSILENT) asks nothing, shows nothing and keeps every user data
 // folder; only the test hook of the placeholder builds (PlaceholderUninstallDelete, CI scenario S15, never in a
-// release build) lets the switch /TestDeleteUserData give the answer "Delete" there. Nothing here touches the registry keys of the games (the product uninstallers do their own
-// cleanup, setup_is6.iss) or the keys of the CD key registration; the only registry deletion of the suite is
-// RemoveSuiteRecord. ci/check_suite.py reads this file for the rules that keep it that way.
+// release build) lets the switch /TestDeleteUserData give the answer "Delete" there. Nothing here touches the
+// registry keys of the games (the product uninstallers do their own cleanup, setup_is6.iss) or the keys of the
+// CD key registration; the only registry deletion of the suite is RemoveSuiteRecord. ci/check_suite.py reads
+// this file for the rules that keep it that way.
 // Limitation: with a standard user who confirms the elevation prompt with the credentials of an
 // administrator ("over the shoulder"), {localappdata} is the profile of that administrator, so the settings
 // and the backups of the launcher of the standard user stay (README, docs/TEST-PLAN.de.md).
