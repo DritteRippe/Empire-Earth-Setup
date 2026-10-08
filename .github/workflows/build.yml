@@ -12,6 +12,13 @@ on:
 permissions:
   contents: read
 
+# Every Python run of this workflow (the checks and their self-tests, the placeholder generator that
+# ci/build.ps1 starts, the tests of the end-to-end tools, which import every tool) turns a SyntaxWarning
+# into an error: an invalid escape such as "\L" in a string literal is only a warning today and is to
+# become a SyntaxError in a later Python, which would stop the checks without a word about the cause.
+env:
+  PYTHONWARNINGS: error::SyntaxWarning
+
 jobs:
   compile:
     name: Compile all variants (placeholder assets)

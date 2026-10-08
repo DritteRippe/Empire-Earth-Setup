@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Checks the frame of the suite installer (suite/suite.iss, ADR 0013) that no compiler checks.
+r"""Checks the frame of the suite installer (suite/suite.iss, ADR 0013) that no compiler checks.
 
   python ci/check_suite.py [repo_dir]
   python ci/check_suite.py --self-test
@@ -103,7 +103,7 @@ to stay safe and installable:
             DeleteFile and RemoveDir only on the paths of the helpers of suite_common.iss, RemoveDir of a folder of
             SuiteEmptyFolder or SuiteLauncherDataDir only if it is no link and not behind one, and RemoveDir on the
             empty {app} in SuiteRemoveEmptyRoot (not a link, not behind one); no registry deletion except
-            RemoveSuiteRecord; [UninstallDelete] names {app}\\Logs only; no Setup-only function (WizardSilent)
+            RemoveSuiteRecord; [UninstallDelete] names {app}\Logs only; no Setup-only function (WizardSilent)
   [Safety]  no suite file mentions the registry key of the CD keys of the original game, the library of the
             NeoEE CD key registration or its function (the suite never reimplements or bypasses the
             registration, contract 1.7 point 5)

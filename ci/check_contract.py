@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Checks that the tables of docs/CONTRACT.md match the setup script, and lints the [Files] flags.
+r"""Checks that the tables of docs/CONTRACT.md match the setup script, and lints the [Files] flags.
 
   python ci/check_contract.py [repo_dir]
   python ci/check_contract.py --self-test
@@ -17,7 +17,7 @@ is the setup script. This check reads only TABLES of the contract, never its pro
                                                uninstall entries of both community products by
                                                them, ADR 0007)
   1.1, Value | Type                            the [Registry] values of the record key
-                                               {#BaseRegCommunity}\\Installations\\{#InstallType} of
+                                               {#BaseRegCommunity}\Installations\{#InstallType} of
                                                EE and NeoEE (Regular variants): exactly the names of
                                                the table, REG_DWORD = dword, REG_SZ = string; the
                                                optional SetupBuild only with the switch SetupBuild
@@ -42,13 +42,13 @@ is the setup script. This check reads only TABLES of the contract, never its pro
                                                which it applies, the height up to which the screen
                                                height scaled to that width counts at least)
   3.4, Value name | Component | Data |         the [Registry] entries below
-       Windows versions | Task                 Software\\Microsoft\\DirectX\\UserGpuPreferences
+       Windows versions | Task                 Software\Microsoft\DirectX\UserGpuPreferences
                                                (HKCU, REG_SZ, uninsdeletevalue): value name with
                                                {app} as <root>, Components, ValueData, the Windows
                                                versions of the entry and its task, Tasks; the same
                                                in all variants
   3.7, Task | Values | Windows versions |      the compatibility entries of [Registry]
-       Root (admin/user/portable)              (AppCompatFlags\\Layers): the flags each task adds
+       Root (admin/user/portable)              (AppCompatFlags\Layers): the flags each task adds
                                                (BuildCompatibilityFlags in utils.iss with the tasks
                                                GetCompatibilityFlags passes; several tasks joined by
                                                'or' are one row each), the Windows compatibility
@@ -108,8 +108,8 @@ what ssInstall had set), so the rules read them from the [Code] lines of the scr
                                                '{#InstallType}') and asks the update API for
                                                nothing: no QueryUpdateApi('') anywhere
   0 "Suite and launcher", row "Suite uninstall  the uninstall key of the suite (revision 5): exactly one
-  key marker" (name and data in backticks)     RegWriteDWordValue(HKLM, 'Software\\Microsoft\\Windows\\
-                                               CurrentVersion\\Uninstall\\{{#SuiteAppID}}_is1',
+  key marker" (name and data in backticks)     RegWriteDWordValue(HKLM, 'Software\Microsoft\Windows\
+                                               CurrentVersion\Uninstall\{{#SuiteAppID}}_is1',
                                                '<name>', <data>) (or the [Registry] entry): root
                                                HKLM, REG_DWORD, the data of the row, the AppId of
                                                the suite, never one of the products; no line of a
@@ -139,7 +139,7 @@ run processes every file it lists and the integrity manifest can list it. There 
 the rule is a MUST of the contract, an exception would need a change of the contract first.
 Every such entry also records its files for the manifest (ADR 0004 point 3): a compiled entry has
 "AfterInstall: RecordInstalledFile"; an entry that the manifest leaves out must not have it: the
-setup data folder (DestDir {app}\\{#SetupDataDir}, preprocessed {app}\\_setupdata_<product>),
+setup data folder (DestDir {app}\{#SetupDataDir}, preprocessed {app}\_setupdata_<product>),
 deleteafterinstall files, and external entries (Inno Setup calls their AfterInstall once for all
 files with the folder as CurrentFileName; the verified online files are added by
 installstate.iss). The entries are read as written (also those in #sub blocks, with ISPP line
