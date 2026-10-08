@@ -4,7 +4,7 @@
 # 📥 Empire Earth Community Setup
 
 ## Why this fork?
-This fork builds on the Empire Earth Community Setup by [EE-modders](https://github.com/EE-modders/Empire-Earth-Setup) and its contributors: the setup, its content and the 1.7.2 release are their work. The branch `main` of this fork rebuilds their Inno Setup 6 script (upstream branch `master`, "Updated to v1.7.2") with verified downloads, statistics only with consent, safer updates, automated tests and documentation. It also adds the suite installer "Empire Earth Community" for both games and the Empire Earth Launcher. There is no new game content ([CHANGELOG.md](CHANGELOG.md), "Unreleased").
+This fork builds on the Empire Earth Community Setup by [EE-modders](https://github.com/EE-modders/Empire-Earth-Setup) and its contributors: the setup, its content and the 1.7.2 release are their work. The branch `main` of this fork rebuilds their Inno Setup 6 script (upstream branch `master`, "Updated to v1.7.2") with verified downloads, statistics only with consent, safer updates, automated tests and documentation. It also adds the suite installer "Empire Earth Community" for both games and the Empire Earth Launcher. There is no new game content ([CHANGELOG.md](CHANGELOG.md), "Suite 1.1.0" and "Unreleased").
 
 | | Upstream 1.7.2 | This fork (`main`) |
 |---|---|---|
@@ -66,7 +66,7 @@ Not released. The setup version stays 1.7.2 until v2 is released; there is no v2
 🛠️ Tool included: Empire Earth Diagnostic v1.0.0.1\
 🔐 Digitally (self-)signed
 
-New in setup v2 (not released yet): see [Why this fork?](#why-this-fork) above and [CHANGELOG.md](CHANGELOG.md) "Unreleased".
+New in setup v2 (released inside the suite installer since suite 1.0.0): see [Why this fork?](#why-this-fork) above and [CHANGELOG.md](CHANGELOG.md) ("Suite 1.1.0" and "Unreleased").
 
 ## Support
 - **Check the download:** the SHA-256 of every released setup is published next to its download. Compare it with `Get-FileHash <setup>.exe -Algorithm SHA256` in PowerShell before you run the setup, see [Checksums of the setups](#checksums-of-the-setups).

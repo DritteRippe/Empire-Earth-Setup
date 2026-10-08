@@ -3,7 +3,9 @@
 Release notes of the Empire Earth Community Setup. The version is the setup version
 (`MySetupVersion` in `setup_is6.iss`); EE and NeoEE setups of the same version share the same
 features. Up to 1.0.4.1 the setup used the four-part version format of the game, since 1.5.0 it
-uses semantic versioning.
+uses semantic versioning. Since setup v2 the product setups are released only inside the suite
+installer "Empire Earth Community" and keep the setup version 1.7.2 (README, "Status"), so these
+sections are named after the suite version; the suite has no changelog of its own.
 
 Until 1.7.2 these notes lived in the header of `setup_is6.iss`. They were moved here unchanged
 apart from spelling fixes, the 1.7.1 correction noted there, a correction of 1.6.0 and an
@@ -12,13 +14,8 @@ header.
 
 ## Unreleased
 
-Setup v2: the refactoring and quality fixes of the base branch and the work packages of the v2
-plan (`docs/ARCHITECTURE.md`, "Plan", all done): built-in downloads instead of a plug-in, every
-online file pinned by its SHA-256 (also downloaded from a server with an invalid certificate), the
-compatibility defaults, a log of every run and checksums of the setups, the install record and the
-integrity manifest for the Empire Earth Launcher, hints before the installation, no elevated
-installation through links, and a complete German test plan for Windows. No new game content; the
-setup version stays 1.7.2 until the release.
+Changes since suite 1.1.0 (tag `suite-v1.1.0`), for suite 1.1.1. The product setups still report the
+setup version 1.7.2.
 
 ### Added
 - GitHub issue form for bug reports (`.github/ISSUE_TEMPLATE/bug_report.yml`: program, version, Windows version, what happened,
@@ -28,6 +25,37 @@ setup version stays 1.7.2 until the release.
   reporting, the latest release is supported, scope is the code and CI of this repository, no bug bounty.
 - `.github/dependabot.yml`: Dependabot proposes monthly pull requests into `main` for the GitHub Actions of the workflows (at most
   three open, commit subjects start with "CI:"). No version updates for NuGet or pip: those versions are pinned on purpose.
+
+### Changed
+- One main line `main`: development happens on short-lived feature branches with a pull request into `main`, releases
+  are tags on `main` (this repository and the launcher repository; the work of the branch `v2` is merged into the base
+  branch, which is called `main` from now on, here after the rename of the fork's `master`). `build.yml` runs on a push
+  to `main` only (pull requests and manual runs as before), the real-data end-to-end test checks the launcher commit
+  against the launcher's `main`, README and the test plan name `main`. References to what happened at a past commit (CONTRACT.md "Based on", released changelog entries, ADR texts
+  about past decisions and runs) keep the branch names of that time.
+- The real-data end-to-end test (`.github/workflows/e2e-realdata.yml`) runs by hand only (`workflow_dispatch`, input
+  `launcher_commit`), not for pull requests: `r2.empireearth.eu` answers GitHub runners with HTTP 403 (an external block),
+  so the check failed on every run, and a check that is always red trains people to ignore red checks. The `pull_request`
+  trigger, the `paths` filter and the job condition with the label and fork checks are gone, the concurrency group is one
+  per ref; the launcher commit check, `guard_upload.py`, the hosts block and the rule that game data never leaves the runner
+  are unchanged, `LAUNCHER_BRANCH` is `main`. `ci/e2e/tests/test_e2e_tools.py` checks the new rules (manual only, no other
+  trigger, no job condition, the group per ref). To be switched back to pull requests with the label `e2e` when downloads
+  work again: README "End-to-end test on Windows", ADR 0011 (amendment 2026-10-07).
+
+## Suite 1.1.0 - 2026-10-07
+
+Setup v2 and the suite installer "Empire Earth Community" up to suite 1.1.0. Setup v2: the
+refactoring and quality fixes of the base branch and the work packages of the v2 plan
+(`docs/ARCHITECTURE.md`, "Plan", all done): built-in downloads instead of a plug-in, every online
+file pinned by its SHA-256 (also downloaded from a server with an invalid certificate), the
+compatibility defaults, a log of every run and checksums of the setups, the install record and the
+integrity manifest for the Empire Earth Launcher, hints before the installation, no elevated
+installation through links, and a complete German test plan for Windows. No new game content.
+Setup v2 has no release of its own: its product setups are released inside the suite, as suite
+1.0.0 (tag `suite-v1.0.0`, 2026-10-06) and suite 1.1.0 (tag `suite-v1.1.0`, 2026-10-07), and keep
+the setup version 1.7.2. The entries that name the suite describe the suite installer.
+
+### Added
 - Suite installer 1.1.0: `SuiteVersion` of `suite/suite.iss` is 1.1.0 (the suite has no changelog of its own; its entries are
   the ones of this file that name the suite). It packages launcher 1.1.0 (`LAUNCHER_COMMIT` of
   `.github/workflows/e2e-realdata.yml`); `MySetupVersion` of the product setups stays 1.7.2 until setup v2 is released.
@@ -468,8 +496,8 @@ setup version stays 1.7.2 until the release.
   After its review: every program the scenarios start has a time limit and each phase a budget
   below its step limit (a hang is stopped with its child processes, recorded as a failure, and the
   scenario still uninstalls), and each scenario reports and removes what earlier ones left (also
-  files, compatibility, GPU and firewall entries and shortcuts). The job runs by hand only (see Changed;
-  the repository must require approval of workflow runs for all external contributors), and the
+  files, compatibility, GPU and firewall entries and shortcuts). The job runs by hand only since suite
+  1.1.0 (see "Unreleased", Changed; the repository must require approval of workflow runs for all external contributors), and the
   launcher checks come from a pinned full commit that must be on the launcher branch. README: when it
   runs, the approval setting, the pin, the caches.
 
@@ -502,20 +530,6 @@ setup version stays 1.7.2 until the release.
   (step D5).
 
 ### Changed
-- One main line `main`: development happens on short-lived feature branches with a pull request into `main`, releases
-  are tags on `main` (this repository and the launcher repository; the work of the branch `v2` is merged into the base
-  branch, which is called `main` from now on, here after the rename of the fork's `master`). `build.yml` runs on a push
-  to `main` only (pull requests and manual runs as before), the real-data end-to-end test checks the launcher commit
-  against the launcher's `main`, README and the test plan name `main`. References to what happened at a past commit (CONTRACT.md "Based on", released changelog entries, ADR texts
-  about past decisions and runs) keep the branch names of that time.
-- The real-data end-to-end test (`.github/workflows/e2e-realdata.yml`) runs by hand only (`workflow_dispatch`, input
-  `launcher_commit`), not for pull requests: `r2.empireearth.eu` answers GitHub runners with HTTP 403 (an external block),
-  so the check failed on every run, and a check that is always red trains people to ignore red checks. The `pull_request`
-  trigger, the `paths` filter and the job condition with the label and fork checks are gone, the concurrency group is one
-  per ref; the launcher commit check, `guard_upload.py`, the hosts block and the rule that game data never leaves the runner
-  are unchanged, `LAUNCHER_BRANCH` is `main`. `ci/e2e/tests/test_e2e_tools.py` checks the new rules (manual only, no other
-  trigger, no job condition, the group per ref). To be switched back to pull requests with the label `e2e` when downloads
-  work again: README "End-to-end test on Windows", ADR 0011 (amendment 2026-10-07).
 - DirectX wrapper: dgVoodoo 2.87.5 instead of 2.82.1 (x86 `DDraw.dll` and `D3DImm.dll`; the control panel
   `dgVoodooCpl.exe`, x64 only since dgVoodoo 2.86.3, only on 64-bit Windows). The five configurations of the dgVoodoo
   levels have new window settings: fake fullscreen (`FullscreenAttributes = fake`), Alt+Enter off

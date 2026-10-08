@@ -8,7 +8,7 @@ Launcher is specified in [docs/CONTRACT.md](CONTRACT.md) (shared with the launch
 document only explains how the setup implements it.
 
 Starting point is branch `refactor/quality-fixes` (setup 1.7.2 plus the quality fixes, see
-[CHANGELOG.md](../CHANGELOG.md) "Unreleased"). v2 evolves it, it does not rewrite it
+[CHANGELOG.md](../CHANGELOG.md) "Suite 1.1.0"). v2 evolves it, it does not rewrite it
 ([ADR 0001](adr/0001-keep-inno-setup-and-pascal-script.md)).
 
 ## 1. Goals and constraints
