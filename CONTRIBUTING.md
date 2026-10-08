@@ -16,7 +16,7 @@ Windows computers, translations and code are all welcome.
 | Report a bug of the setups or the suite installer | [New issue](https://github.com/DritteRippe/Empire-Earth-Setup/issues/new/choose) (the form asks for the logs; see [Support](README.md#support)) |
 | Report a bug of the launcher or the mod creator | [Empire-Earth-Launcher issues](https://github.com/DritteRippe/Empire-Earth-Launcher/issues) |
 | Report a security problem | **Privately**, see [SECURITY.md](SECURITY.md), never in a public issue |
-| Test on a real Windows computer | The German [test plan](docs/TEST-PLAN.de.md): section 7 is the short run before a release, Block 9 the cases of the suite. Still open from suite 1.1.0: TP-93, TP-95, TP-97, TP-98 (b) to (d), TP-99 and TP-25 (d) |
+| Test on a real Windows computer | The German [test plan](docs/TEST-PLAN.de.md): section 7 is the short run before a release, Block 9 the cases of the suite. Open for suite 1.1.1 (none ran on real hardware at the time of its tag): TP-93, TP-94 (c), TP-95 (a) to (c), TP-97, TP-98 (a) to (d), TP-99 (a) to (e), TP-25 (a) to (d) and TP-27 (a) |
 | Translate the setup | [TRANSLATING.md](TRANSLATING.md) (Brazilian Portuguese, Traditional Chinese, and every text added after 1.7.2 in the languages other than English, German and French) |
 | Change code or documentation | Read on |
 

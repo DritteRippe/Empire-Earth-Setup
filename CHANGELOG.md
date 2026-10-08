@@ -634,7 +634,7 @@ the setup version 1.7.2. The entries that name the suite describe the suite inst
   below its step limit (a hang is stopped with its child processes, recorded as a failure, and the
   scenario still uninstalls), and each scenario reports and removes what earlier ones left (also
   files, compatibility, GPU and firewall entries and shortcuts). The job runs by hand only since suite
-  1.1.0 (see "Suite 1.1.1", Changed; the repository must require approval of workflow runs for all external contributors), and the
+  1.1.1 (see "Suite 1.1.1", Changed; the repository must require approval of workflow runs for all external contributors), and the
   launcher checks come from a pinned full commit that must be on the launcher branch. README: when it
   runs, the approval setting, the pin, the caches.
 

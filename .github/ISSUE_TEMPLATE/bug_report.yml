@@ -29,7 +29,7 @@ body:
     id: version
     attributes:
       label: Version of the package, the suite, the setup or the launcher
-      description: The package version (the name of its ZIP file or folder, for example `Empire-Earth-Community-1.1.0`) or the suite version (the version of its entry in Windows "Apps", or the file properties of `Empire Earth Community Setup.exe`); the launcher version in its window or in `log.txt`. A single EE or NeoEE setup always says "Setup v1.7.2", so then also copy the line with `SetupBuild` from the start of its setup log. For a build of your own, the commit (`git log -1 --oneline`).
+      description: The package version (the name of its ZIP file or folder, for example `Empire-Earth-Community-1.1.1`) or the suite version (the version of its entry in Windows "Apps", or the file properties of `Empire Earth Community Setup.exe`); the launcher version in its window or in `log.txt`. A single EE or NeoEE setup always says "Setup v1.7.2", so then also copy the line with `SetupBuild` from the start of its setup log. For a build of your own, the commit (`git log -1 --oneline`).
       placeholder: "Package 1.1.1 (suite 1.1.1, launcher 1.1.1)"
     validations:
       required: true

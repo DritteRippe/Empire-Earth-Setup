@@ -1,9 +1,9 @@
 # 0013. A suite installer that runs the unchanged EE and NeoEE setups and installs the launcher
 
-- Status: Accepted, implemented (decided by the maintainers on 2026-10-05; released as suite 1.0.0 on 2026-10-06 and as
-  suite 1.1.0 on 2026-10-07; the evidence of the WP0 spike is in [Evidence](#evidence), what was built and how it is
-  tested is in [ARCHITECTURE.md](../ARCHITECTURE.md), section 11; the amendments below record the later decisions, the
-  last three for suite 1.1.1)
+- Status: Accepted, implemented (decided by the maintainers on 2026-10-05; released as suite 1.0.0 on 2026-10-06, as
+  suite 1.1.0 on 2026-10-07 and as suite 1.1.1 on 2026-10-08; the evidence of the WP0 spike is in
+  [Evidence](#evidence), what was built and how it is tested is in [ARCHITECTURE.md](../ARCHITECTURE.md), section 11;
+  the amendments below record the later decisions, the last three for suite 1.1.1)
 - Date: 2026-10-05
 - Requirements: briefing D1 (Inno Setup 6.2.2, every behaviour change intended), D4 (Windows 7 SP1
   to 11), D5 (shared contract), D6 (CD-key registration untouched, no game data in the repository),

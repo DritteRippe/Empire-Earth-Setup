@@ -28,11 +28,12 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - [ ] Every change of the version is merged into `main`, and `## Unreleased` of [CHANGELOG.md](../CHANGELOG.md) lists
       it in the right category (Added, Changed, Fixed, Security, ...).
 - [ ] The release criterion of the [test plan](TEST-PLAN.de.md) (section 8, Block 9, "Freigabekriterium") is met on
-      real hardware: for suite 1.1.1 the criterion of 1.1.0 (TP-93, TP-94 (c), TP-95, TP-97, TP-98, TP-99 with all
-      variants, TP-25 (a) to (d), TP-27 (a)) with the job `suite-e2e` from S1 to S15. Every result goes into the record of
-      section 10 of the test plan. Releasing with cases that did not run is a decision of the maintainer; it is then
-      written into the test plan (Block 9), the README ("Empire Earth Community suite installer") and the introduction
-      of the version in the CHANGELOG, case by case, as for 1.1.0.
+      real hardware: for the next version the criterion that Block 9 names for it ("Freigabekriterium der nächsten
+      Version": TP-93, TP-94 (c), TP-95, TP-97, TP-98, TP-99 with all variants, TP-25 (a) to (d), TP-27 (a), with the job
+      `suite-e2e` from S1 to S15), including the cases that did not run for 1.1.0 and 1.1.1. Every result
+      goes into the record of section 10 of the test plan. Releasing with cases that did not run is a decision of the
+      maintainer; it is then written into the test plan (Block 9), the README ("Empire Earth Community suite installer")
+      and the introduction of the version in the CHANGELOG, case by case, as for 1.1.0 and 1.1.1.
 - [ ] The servers: [TP-00](TEST-PLAN.de.md#tp-00-server-vorabprüfung) finds a file server that serves the pinned files,
       and `pins/online-files.txt` matches it ([SERVER-OPERATIONS.md](SERVER-OPERATIONS.md), sections 5 and 6). A
       mismatch is a release blocker on the server side.
@@ -63,7 +64,7 @@ every place with the version number:
 | `docs/ARCHITECTURE.md` | section 11 (the criterion and what ran) | 1.1.1 |
 | `docs/TEST-PLAN.de.md` | Block 9: the record of the release and the criterion of the next version | 1.1.1 |
 | `docs/CONTRACT.md` | only when a revision is released with it: the row of the revision in the history (the tags instead of "(planned)") and the row "Status", in both repositories at once | revision 7 |
-| `.github/ISSUE_TEMPLATE/bug_report.yml` | the example of the version | Package 1.1.1 (suite 1.1.1, launcher 1.1.1) |
+| `.github/ISSUE_TEMPLATE/bug_report.yml` | both examples of the version: the package folder in the description and the placeholder | `Empire-Earth-Community-1.1.1`; Package 1.1.1 (suite 1.1.1, launcher 1.1.1) |
 
 Then a second commit "Document suite X.Y.Z as released in the CHANGELOG and the README":
 
