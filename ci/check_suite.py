@@ -1543,7 +1543,7 @@ def self_test(source_root):
          replace(run, "freezing its setup and everything it started, to look at its log once more before it is stopped'", "freezing the setup, to look at its log once more before it is stopped'"),
          "which the scenarios S8 and S11 to S15 of ci/e2e/e2e_suite_scenarios.ps1 match"),
         ("a log line of the cancel reworded in the scenarios",
-         replace("ci/e2e/e2e_suite_scenarios.ps1", "processes run again", "processes go on", 2),
+         replace("ci/e2e/e2e_suite_scenarios.ps1", "processes run again", "processes go on", 3),
          "does not name 'processes run again'"),
         ("a line of the cancel written by hand in the fake",
          replace("ci/e2e/tests/e2e_suite_scenarios.tests.ps1", "$lines += CodeLine ' processes run again' $id", "$lines += \"Product ${id}: 2 processes run again\""),
