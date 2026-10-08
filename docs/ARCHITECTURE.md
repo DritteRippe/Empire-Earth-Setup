@@ -503,7 +503,8 @@ nothing covers TP-98 (b) to (d) or TP-25 (d) (test plan, section 8 Block 9).
   code of the first process decides nothing), then it removes the launcher, the shortcuts, the record and
   `{app}\Logs`. Saves, profiles and the launcher's backups stay unless the user presses "Löschen" in the
   one task dialog at the end; a silent uninstallation keeps them. The product entries stay visible for a
-  single game.
+  single game. A data folder that is a link or lies below one is never offered; the check fails closed, a
+  folder whose entry cannot be read counts as a link (`SuiteLinkVerdict`, ADR 0013, amendment of 2026-10-08).
 - **Files:** `suite/suite.iss` (`[Setup]`, payload, prechecks with the exit codes 10 to 15),
   `suite_common.iss` (pure helpers, tested by `ci/tests/suite_tests.iss`), `suite_messages.iss`
   (English, German, French), `suite_shortcuts.iss` and `suite_record.iss` (what the suite leaves

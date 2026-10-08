@@ -275,7 +275,7 @@ begin
         if (Folder <> '') and DirExists(Folder) then
         begin
           if SuiteIsBehindLink(Folder, SuiteUninstallRoot[I]) then
-            Log('User data folder not offered, it or a folder above it is a link (junction or symbolic link): ' + Folder)
+            Log('User data folder not offered, it or a folder above it is a link (junction or symbolic link) or cannot be checked: ' + Folder)
           else if SuiteIsFolderOfInstalledProduct(Folder) then
             Log('User data folder not offered, it belongs to a product that stays installed: ' + Folder)
           else
@@ -290,7 +290,7 @@ begin
   begin
     Folder := SuiteLauncherDataFolder(LocalAppData, J);
     if (Folder <> '') and DirExists(Folder) and SuiteIsBehindLink(Folder, SuiteLauncherDataDir(LocalAppData)) then
-      Log('User data folder not offered, it or a folder above it is a link (junction or symbolic link): ' + Folder)
+      Log('User data folder not offered, it or a folder above it is a link (junction or symbolic link) or cannot be checked: ' + Folder)
     else if (Folder <> '') and DirExists(Folder) then
     begin
       Count := Count + 1;
@@ -378,7 +378,7 @@ end;
 // usDone: Inno Setup removes the folder of the suite right after it deleted unins000.exe; while a virus scanner
 // still holds the deleted file, the folder is not empty yet and stays behind, empty (seen on the Windows
 // runners of CI). Tries again for about 3 s; RemoveDir never removes a folder with content, and a folder that
-// is a link or behind one is left alone.
+// is a link or behind one (or cannot be checked) is left alone.
 procedure SuiteRemoveEmptyRoot;
 var
   Root: String;

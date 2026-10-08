@@ -474,11 +474,18 @@ begin
 end;
 
 // The link check on folders without a link (Wine cannot make junctions, see the skipped test of
-// FindLinksInGameFolder): a folder, a folder below another, a file's folder that does not exist
+// FindLinksInGameFolder): a folder, a folder below another, a file's folder that does not exist. The verdict on
+// a link and on a path that exists but cannot be looked at (fail closed) is tested as a pure function.
 procedure TestSuiteLinks;
 var
   Root, Sub: String;
 begin
+  CheckBool('SuiteLinkVerdict a folder', SuiteLinkVerdict(True, FILE_ATTRIBUTE_DIRECTORY, True), False);
+  CheckBool('SuiteLinkVerdict a file', SuiteLinkVerdict(True, FILE_ATTRIBUTE_ARCHIVE, True), False);
+  CheckBool('SuiteLinkVerdict a junction', SuiteLinkVerdict(True, FILE_ATTRIBUTE_DIRECTORY or FILE_ATTRIBUTE_REPARSE_POINT, True), True);
+  CheckBool('SuiteLinkVerdict a symbolic link to a file', SuiteLinkVerdict(True, FILE_ATTRIBUTE_REPARSE_POINT, True), True);
+  CheckBool('SuiteLinkVerdict a path that exists but cannot be looked at', SuiteLinkVerdict(False, 0, True), True);
+  CheckBool('SuiteLinkVerdict a path that does not exist', SuiteLinkVerdict(False, 0, False), False);
   Root := ExpandConstant('{tmp}\suite_links');
   Sub := Root + '\Empire Earth\Users';
   ForceDirectories(Sub);

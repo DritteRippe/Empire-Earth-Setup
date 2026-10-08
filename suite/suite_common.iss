@@ -2225,19 +2225,39 @@ begin
   Result := SuiteIsSameOrInside(Exe, Root) and (Pos('..', Exe) = 0) and (Copy(Name, 1, 5) = 'unins') and (Copy(Name, Length(Name) - 3, 4) = '.exe');
 end;
 
-// True if Path is a junction, a symbolic link or another reparse point (FILE_ATTRIBUTE_REPARSE_POINT of
-// FindFirst); False if it does not exist
+// The verdict of the link check on one path: Found = FindFirst found its entry, Attributes = the attributes of
+// that entry, Exists = the path exists (DirExists or FileExists, which need no right to list the folder above
+// it). An entry with FILE_ATTRIBUTE_REPARSE_POINT is a link (a junction, a symbolic link or another reparse
+// point). A path that exists although FindFirst cannot read its entry (the folder above cannot be listed)
+// counts as a link too: the check fails closed, like the walk of the product setups, for which a folder that
+// cannot be listed is a finding (ADR 0009, decision point 1). A path that does not exist is no link.
+function SuiteLinkVerdict(Found: Boolean; Attributes: Cardinal; Exists: Boolean): Boolean;
+begin
+  if Found then
+    Result := (Attributes and FILE_ATTRIBUTE_REPARSE_POINT) <> 0
+  else
+    Result := Exists;
+end;
+
+// True if Path is a junction, a symbolic link or another reparse point, or if it exists but its entry cannot be
+// read (SuiteLinkVerdict); False if it does not exist. SuiteIsBehindLink never asks it for a drive root, whose
+// entry FindFirst cannot read.
 function SuiteIsReparsePoint(const Path: String): Boolean;
 var
   FindRec: TFindRec;
+  P: String;
 begin
-  Result := False;
-  if FindFirst(RemoveBackslash(Path), FindRec) then
-  try
-    Result := (FindRec.Attributes and FILE_ATTRIBUTE_REPARSE_POINT) <> 0;
-  finally
-    FindClose(FindRec);
-  end;
+  P := RemoveBackslash(Path);
+  if FindFirst(P, FindRec) then
+  begin
+    try
+      Result := SuiteLinkVerdict(True, FindRec.Attributes, True);
+    finally
+      FindClose(FindRec);
+    end;
+  end
+  else
+    Result := SuiteLinkVerdict(False, 0, DirExists(P) or FileExists(P));
 end;
 
 // True if Folder or a folder above it, up to and including Root, is a reparse point: DelTree skips links

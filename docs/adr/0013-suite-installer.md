@@ -842,3 +842,28 @@ happened, and the log did not tell why Windows refused.
   the unit test and in the log of the suite.
 - The contract (1.7 point 2, informative) says that a product setup that cannot be frozen runs on; a process that is ending
   is not one that cannot be frozen.
+
+## Amendment: the deletion of the user data is checked up to the last moment (2026-10-08, for suite 1.1.1)
+
+**Context.** The check of the state after the release of suite 1.1.0 (2026-10-07) read decision 11 against the code of
+`suite_uninstall.iss` and against `DelTree` of Inno Setup 6.2.2 (`Projects/InstFunc.pas` of the tag `is-6_2_2`). What is
+deleted after the answer "Delete" is right when the list is made: fixed folders below the install roots and the
+launcher's data folder, none that is a link or lies below one. But the suite looks at the folders once, before its
+question, and the question waits for the user without a limit. `DelTree` checks only the folder it is given, and each
+folder it finds inside, for a link (`IsDirectoryAndNotReparsePointRedir`) and removes such a link without entering it;
+a link in a folder above it is resolved by Windows like in any other path. `Data\dxm`, the folder above the target
+`Data\dxm\mods`, lies below `Data`, which every user may write to in an installation for all users (ADR 0009), so a
+standard user who replaces it by a junction while the question is open makes the elevated `DelTree` delete the content
+of the junction's target. Two smaller points: `SuiteIsReparsePoint` took a folder whose entry `FindFirst` could not read
+for "no link" (fail open, unlike the walk of the product setups), and the comment above `SuiteIsBehindLink` and the
+text of `ci/check_suite.py` said that `DelTree` follows a link that is the folder itself, which it does not.
+
+**Decision.**
+
+1. **A path that cannot be looked at counts as a link.** The pure function `SuiteLinkVerdict` (`suite_common.iss`)
+   decides for `SuiteIsReparsePoint`: an entry with `FILE_ATTRIBUTE_REPARSE_POINT` is a link, and so is a path that
+   exists (`DirExists` or `FileExists`, which need no right to list the folder above) although `FindFirst` cannot read
+   its entry. A path that does not exist is none. The check of the suite fails closed like the walk of the product
+   setups (ADR 0009, decision point 1); the log lines say "is a link (junction or symbolic link) or cannot be checked".
+   The unit tests check the verdict as a pure function: a folder, a file, a junction, a symbolic link to a file, a path
+   that exists but cannot be looked at, a path that does not exist.
