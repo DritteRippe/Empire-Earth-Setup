@@ -517,6 +517,6 @@ Every action of both workflows is pinned by its full commit with the release as 
 The own `.iss` files are UTF-8 **with BOM** and CRLF (see `.editorconfig` and `.gitattributes`): Inno Setup 6.2 reads files without BOM as ANSI and would break non-ASCII text. Release notes go into [CHANGELOG.md](CHANGELOG.md). After changing `messages.iss` or any own script, run `python ci/check_messages.py`: it reports duplicate messages, `==` typos, unknown language prefixes and messages that are used but not defined, which Inno Setup compiles without a warning, translations out of the standard order (`--sort` fixes that), and every own script without the UTF-8 BOM or with a line end other than CRLF. It finds the own scripts itself (every `*.iss` in the root folder and in `ci/tests`, plus every file named by an `#include "..."` line of `setup_is6.iss` or of a script found that way, without `internal/`), so a new module is checked from its first commit. `--coverage` adds the list of missing translations per language (see [TRANSLATING.md](TRANSLATING.md)).
 
 ## License
-Third-party files with restricting terms (dgVoodoo): [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+Third-party files with restricting terms (dgVoodoo, BASS) and the origin of the other binary components the setups ship: [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 
 Consider setup_is6.iss, config_ee.iss, config_neoee.iss, utils.iss, pages.iss, messages.iss, extension.iss, downloads.iss, randommaps.iss, eestats.iss, telemetry.iss, environment.iss, installstate.iss under **GPL-3.0 License**.

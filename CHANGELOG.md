@@ -86,6 +86,12 @@ setup version 1.7.2; the product setups of a suite release are told apart by the
   "Setup 1.1.0", a version no setup ever had, is "suite 1.1.0" in the README, the ADRs, the test plan and the comments.
   ADR 0011 says that the real-data end-to-end test has never run successfully on GitHub (amendment of 2026-10-08), ADR
   0013 is "Accepted, implemented", and ARCHITECTURE lists the open question O13.
+- `THIRD-PARTY-NOTICES.md` names BASS 2.4.16 of Un4seen Developments, the closed-source audio library that plays the
+  setup music (in this repository below `internal/lib/bass`, compiled into every product setup, never installed), with
+  its terms in short and the open points (no licence text in the repository, the combination with the GPL script not
+  checked legally). It also lists the other binary components the setups ship from `data\` (EE Stats, Discord Presence,
+  dreXmod, the DirectX wrappers of GOG and DDrawCompat, the NeoEE files, the diagnostic tool, `Language.dll`, the game
+  files, the DirectX web installer) with their origin as far as it is known.
 
 ### Fixed
 - Suite: a process of a product setup that is just ending (Windows answers its suspension with
