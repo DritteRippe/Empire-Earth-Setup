@@ -157,6 +157,8 @@ Mods that only you use are a different matter: dreXmod loads them from folders b
 ## Notes for Dev 
 Since the script is licensed under the GNU GPL v3 you have every right to modify the setup script to generate your own versions, but you must also publish the source code of the script. So if you want to contribute I invite you to fork this project, if you have ideas of modifications to do don't hesitate to make suggestions, I also invite you to make pull requests if you think you have done something that deserves to be in this script. The version of the script I'm distributing should become the standard to facilitate future installations. I hope you understand the objective and how necessary and helpful it is for everyone. If you think something is wrong, don't hesitate to tell me!
 
+How to contribute to this fork, step by step: [CONTRIBUTING.md](CONTRIBUTING.md).
+
 The registry values, files and per-user game settings that the [Empire Earth Launcher](https://github.com/DritteRippe/Empire-Earth-Launcher) relies on are specified in [docs/CONTRACT.md](docs/CONTRACT.md), which both repositories share. Change them only together with that file and the launcher. `ci/check_contract.py` (also in CI) fails when the tables of the contract and the script differ, see [Verify](#verify). How the setup is structured and why (module map, data flow, error handling, tests, decision records) is described in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and [docs/adr](docs/adr/README.md).
 
 ## Translating
@@ -277,7 +279,7 @@ The pins come from two lists, both compiled into the setup:
 Windows 7 installations without updated root certificates or without a usable TLS 1.2 handshake cannot use the update check; the pinned files should still arrive over WinHTTP if the TLS handshake itself works (test case TP-17), otherwise the installation continues with the files included in the setup. See [Support](#support).
 
 ### Contributing without the game data
-Development happens on short-lived feature branches with a pull request into `main`; releases are tags on `main`. Fork the repository or branch from `main`, push the branch and open the pull request; `build.yml` compiles it.
+The workflow, the local checks, the commit style and the changelog are in [CONTRIBUTING.md](CONTRIBUTING.md). Development happens on short-lived feature branches with a pull request into `main`; releases are tags on `main`. Fork the repository or branch from `main`, push the branch and open the pull request; `build.yml` compiles it.
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File ci\build.ps1 -Placeholders

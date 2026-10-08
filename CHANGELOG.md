@@ -44,6 +44,11 @@ setup version 1.7.2; the product setups of a suite release are told apart by the
 - Issue forms `feature_request.yml` (an idea for the setups or the suite, with the limits that are on purpose) and
   `security_contact.yml` (asks for a private contact without any detail: the fallback of `SECURITY.md`, which needs a
   form because blank issues are off).
+- `CONTRIBUTING.md`: ways to help, the rules that matter most (Inno Setup 6.2.2, BOM and CRLF, no game data, pinned
+  HTTPS downloads, the CD keys, elevated code, the shared contract, three languages), the workflow with a pull request
+  into `main`, the local checks, the commit style and the changelog. `.github/pull_request_template.md` asks for what
+  and why, the checks and the docs; `.github/CODEOWNERS` asks `@DritteRippe` to review every pull request. The README
+  links the guide.
 
 ### Changed
 - One main line `main`: development happens on short-lived feature branches with a pull request into `main`, releases
