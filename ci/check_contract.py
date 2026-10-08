@@ -62,8 +62,9 @@ is the setup script. This check reads only TABLES of the contract, never its pro
                                                apply in one run are an error
 
 Suite (contract revision 4, setup ADR 0013): suite/suite.iss and the files its #include "..." lines
-name. While suite/suite.iss does not exist, the check prints "suite/suite.iss not present, suite
-rules skipped" and passes. The suite writes its record and creates its shortcuts in code at
+name. A missing suite/suite.iss is an error, never a reason to skip these rules: the suite is what
+the package ships, and a script renamed in suite/build_suite.ps1 but not here would otherwise pass
+without a single rule checked. The suite writes its record and creates its shortcuts in code at
 ssPostInstall (ADR 0013 Evidence: the Check functions of [Icons] and [Registry] did not reliably see
 what ssInstall had set), so the rules read them from the [Code] lines of the script; entries of a
 [Registry] or [Icons] section are read as well and count the same.
@@ -1885,7 +1886,6 @@ def check_verified_online_files(root, errors):
 # Rules of the suite (contract 0 "Suite and launcher", 1.6, 1.7): suite/suite.iss
 
 SUITE_SCRIPT = "suite/suite.iss"
-SUITE_SKIPPED = f"{SUITE_SCRIPT} not present, suite rules skipped"
 SUITE_NAMES_SECTION = "Suite and launcher"
 # Rows of the table "Suite and launcher" (plain text of the column "Name")
 SUITE_SETUP_MUTEX_ROW = "Suite setup mutex (SetupMutex)"
@@ -2376,9 +2376,10 @@ def check_suite_protected(script, errors):
 
 
 def check_suite(root, contract_lines, version, errors):
-    """The suite rules; a summary text. Skipped (no error) while suite/suite.iss does not exist."""
+    """The suite rules; a summary text. A missing suite/suite.iss is an error, never a skip."""
     if not (root / SUITE_SCRIPT).is_file():
-        return SUITE_SKIPPED
+        raise CheckError(f"{SUITE_SCRIPT}: file not found (the main script of the suite installer; if it was "
+                         "renamed or moved, change SUITE_SCRIPT of this check too)")
     script = SuiteScript(root)
     names = suite_names(contract_lines)
     mutexes = check_suite_mutexes(script, names, errors)
@@ -3053,6 +3054,8 @@ end;
                  'external skipifsourcedoesntexist; Components: game or language\\update;'),
          "is not a list of component names joined by 'and'"),
         # suite (contract 0 "Suite and launcher", 1.6, 1.7): suite/suite.iss
+        ("suite: suite/suite.iss missing (renamed without this check)", remove(suite),
+         "suite/suite.iss: file not found (the main script of the suite installer"),
         ("suite: AppMutex without the launcher mutex",
          suite_case(",EmpireEarthCommunityLauncher\n", "\n"),
          "does not name EmpireEarthCommunityLauncher"),
@@ -3267,7 +3270,6 @@ end;
         ("[Files] verified EE entry with its components in another order and case",
          replace(main_script, 'external skipifsourcedoesntexist; Components: game and language\\update;',
                  'external skipifsourcedoesntexist; Components: Language\\Update and game;')),
-        ("suite: suite/suite.iss absent, suite rules skipped", remove(suite), SUITE_SKIPPED),
         ("suite: minimal suite/suite.iss as the contract describes it", fixture,
          "suite: SetupMutex and AppMutex (4 names), record with 8 values, 2 launcher shortcuts without --product=, none of suite 1.0.0"),
         ("suite code: record and shortcuts in code as the contract describes them", code_fixture,

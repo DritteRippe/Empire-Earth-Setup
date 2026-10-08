@@ -45,6 +45,8 @@ Errors (exit code 1):
     without BOM with the ANSI code page and breaks every non-ASCII text), that is not valid UTF-8,
     or that has a line end other than CRLF (a bare LF or CR),
   - an #include of an own script that does not exist,
+  - a missing suite/suite.iss or suite/suite_messages.iss (the suite is what the package ships: its
+    messages are never skipped),
   - a MsgBox or TaskDialogMsgBox call in a suite script.
 """
 import fnmatch
@@ -343,6 +345,9 @@ def main():
                 root, SUITE_MESSAGES, suite_languages,
                 lambda lang: suite_order.index(lang) if lang in suite_order else len(suite_order), errors,
                 "--sort" in options)
+    else:
+        errors.append(f"{SUITE_SCRIPT}: file not found (the main script of the suite installer, whose [Languages] "
+                      f"the messages of {SUITE_MESSAGES} are checked against)")
     if "--sort" in options:
         print("messages.iss" + (f" and {SUITE_MESSAGES}" if suite_present else "") + ": translations sorted")
         return 0
@@ -477,6 +482,9 @@ def self_test(source_root):
         ("suite_messages.iss missing",
          lambda root: (root / "suite/suite_messages.iss").unlink(),
          "suite/suite_messages.iss: file not found"),
+        ("suite.iss renamed",
+         lambda root: (root / "suite/suite.iss").rename(root / "suite/community.iss"),
+         "suite/suite.iss: file not found"),
     ]
     # Must pass: third-party code below internal/ and the temporary build copies of .gitignore
     passing = [

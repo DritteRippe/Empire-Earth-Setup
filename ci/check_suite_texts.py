@@ -22,10 +22,12 @@ shows them itself (docs/CONTRACT.md 1.7 point 4). They must not drift from the p
             the last page fill them from Pascal code, so a placeholder that is missing in one language would show
             a wrong text or an error only in that language
 
+A missing suite/suite.iss (or any other of these files) is an error, never a reason to skip the rules.
+
 --self-test runs the check against changed temporary copies (a changed German question, a missing
 translation, a placeholder that is not in the German text, a copy of the EULA or the rules with other bytes, a source that does not exist, a changed
-question in messages.iss, a page script that loads another file) that must fail, and the unchanged
-copy, which must pass. Exit code 0 if everything is as expected.
+question in messages.iss, a page script that loads another file, the main script of the suite renamed) that must
+fail, and the unchanged copy, which must pass. Exit code 0 if everything is as expected.
 """
 import hashlib
 import re
@@ -150,8 +152,6 @@ def check_pages(pages, errors):
 def check(root):
     """(errors, summary) for the repository root."""
     errors = []
-    if not (root / "suite/suite.iss").is_file():
-        return [], "suite/suite.iss not present, suite text rules skipped"
     try:
         main = read(root, "suite/suite.iss")
         pages = read(root, "suite/suite_pages.iss")
@@ -200,6 +200,9 @@ def self_test(source_root):
                 step(root)
         return apply
 
+    def rename(rel, new_rel):
+        return lambda root: (root / rel).rename(root / new_rel)
+
     eula_src = "data/Empire Earth Base/Empire Earth/EULA_DSML.txt"
     rules_src = "data/NeoEE Base/shared/neoee_rules.rtf"
     eula_line = '..\\data\\Empire Earth Base\\Empire Earth\\EULA_DSML.txt'
@@ -234,6 +237,9 @@ def self_test(source_root):
         ("source with a define", replace("suite/suite.iss", eula_line, "{#LicenseDir}\\EULA_DSML.txt"), "uses a define"),
         ("page loads another file", replace("suite/suite_pages.iss", "ExtractTemporaryFile('neoee_rules.rtf')",
                                             "ExtractTemporaryFile('other.rtf')"), "does not extract neoee_rules.rtf"),
+        # the suite is what the package ships: no suite script is no reason to skip the rules
+        ("the main script of the suite renamed", rename("suite/suite.iss", "suite/community.iss"),
+         "suite/suite.iss: file not found"),
     ]
     passing = [("unchanged copy", None, None)]
     failures = 0

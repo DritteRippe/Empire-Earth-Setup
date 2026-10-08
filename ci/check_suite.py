@@ -115,10 +115,14 @@ to stay safe and installable:
             (SuiteLogInstallPhase) is the first statement of CurStepChanged(ssInstall) in setup_is6.iss, before
             anything changes the game folder (DeleteInstallState, VerifyDownloadedFiles, PrepareRandomMapScripts)
 
+A missing suite/suite.iss is an error, not a reason to skip the rules: the suite is what the package
+ships, and a script renamed in suite/build_suite.ps1 but not in SUITE_FILES would otherwise pass
+without a single rule checked.
+
 --self-test runs the check against changed temporary copies of the suite files (MinVersion 10.0, a
 number as DiskSliceSize, a launcher entry without the Check, a product setup that is compressed,
-an exit code twice, ExitProcess outside SuiteStop, ...) that must fail, and the unchanged copy,
-which must pass. Exit code 0 if everything is as expected.
+an exit code twice, ExitProcess outside SuiteStop, the main script renamed, ...) that must fail, and
+the unchanged copy, which must pass. Exit code 0 if everything is as expected.
 """
 import re
 import shutil
@@ -1230,7 +1234,9 @@ def check(root):
     """(errors, summary) for the repository root."""
     errors = []
     if not (root / SUITE_FILES[0]).is_file():
-        return [], "suite/suite.iss not present, suite frame rules skipped"
+        # the suite is what the package ships: a missing or renamed main script is an error, never a skip
+        return [f"{SUITE_FILES[0]}: file not found (the main script of the suite installer; if it was renamed or moved, "
+                "change SUITE_FILES of this check too)"], ""
     try:
         main = read(root, SUITE_FILES[0])
         common = read(root, SUITE_FILES[1])
@@ -1286,9 +1292,14 @@ def self_test(source_root):
             path.write_bytes(text.replace(old_text, new_text).encode("utf-8"))
         return apply
 
+    def rename(rel, new_rel):
+        return lambda root: (root / rel).rename(root / new_rel)
+
     main, common, run = "suite/suite.iss", "suite/suite_common.iss", "suite/suite_run.iss"
     uninstall = "suite/suite_uninstall.iss"
     cases = [
+        # a script renamed in suite/build_suite.ps1 but not here would leave every rule unchecked
+        ("the main script renamed", rename(main, "suite/community.iss"), "suite/suite.iss: file not found"),
         ("MinVersion 10.0", replace(main, "MinVersion=6.1sp1", "MinVersion=10.0"), "MinVersion=10.0, expected 6.1sp1"),
         ("no MinVersion", replace(main, "MinVersion=6.1sp1\n", ""), "[Setup] has no MinVersion"),
         ("DiskSliceSize written as a number", replace(main, "DiskSliceSize={#SliceSize}", "DiskSliceSize=50000000"),
