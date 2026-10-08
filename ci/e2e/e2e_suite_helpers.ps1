@@ -1,4 +1,4 @@
-# Pure helpers of the end-to-end scenarios S1 to S14 of the suite installer (suite/suite.iss, ADR 0013), run by
+# Pure helpers of the end-to-end scenarios S1 to S15 of the suite installer (suite/suite.iss, ADR 0013), run by
 # ci/e2e/run_e2e_suite.ps1 in the job suite-e2e of .github/workflows/build.yml with the PLACEHOLDER builds (dummy
 # AppIds, stub launcher, no game data, no official download). Like e2e_helpers.ps1 nothing here touches the
 # registry, the network or a process: constants, the command lines of the suite and of its child setups and the
@@ -54,7 +54,16 @@ $E2ESuiteConst = @{
   # components (a /TYPE would replace them by the components of that type, without the choice of the GPU page)
   RepairEEArgs    = '/TASKS=compatibility,compatibility_windows'
   RepairNeoEEArgs = '/TASKS=compatibility,compatibility_windows /MERGETASKS=!neoee_cdkeys,!certinclude,!directplay,!dxwebsetup'
-  Scenarios = @('S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8', 'S9', 'S10', 'S11', 'S12', 'S13', 'S14')
+  Scenarios = @('S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8', 'S9', 'S10', 'S11', 'S12', 'S13', 'S14', 'S15')
+  # The folders with user data that the uninstaller of the suite offers for deletion (suite_common.iss SuiteDataFolder below
+  # the install root of a removed product, SuiteLauncherDataFolder below the launcher's data folder)
+  DataFolders         = @('Empire Earth\Users', 'Empire Earth\Data\Saved Games', 'Empire Earth - The Art of Conquest\Users',
+                          'Empire Earth - The Art of Conquest\Data\Saved Games', 'Empire Earth\Data\dxm\mods',
+                          'Empire Earth - The Art of Conquest\Data\dxm\mods')
+  LauncherDataFolders = @('Backups', 'Mod Creator')
+  # The switch of the test hook of the placeholder suite (suite_uninstall.iss, PlaceholderUninstallDelete): a silent
+  # uninstallation answers the question about the user data with "Delete" (S15)
+  TestDeleteSwitch    = '/TestDeleteUserData'
 }
 
 $E2ESuiteTitles = @{
@@ -73,6 +82,7 @@ $E2ESuiteTitles = @{
   S12 = 'Cancel while the second product setup runs: the suite finishes its part for the first one (exit code 0)'
   S13 = 'Cancel of a repair: the installed product stays exactly as it was (exit code 3)'
   S14 = 'Cancel at the install step of the first product setup: too late, it is not stopped and completes; the second one is stopped (exit code 0)'
+  S15 = 'Suite uninstaller with "Delete": exactly the offered folders gone, files next to them and the target of a junction in Data\dxm kept'
 }
 
 # The one shortcut of the suite 1.1.0 (contract 1.7 point 8): it starts the launcher without an argument
@@ -201,6 +211,20 @@ function Test-E2ESuiteChildArguments([string[]]$Arguments, [string]$Product) {
 # A path below a folder: the folder, a backslash, the name (Join-Path would reject a drive that the machine does not
 # have, and these are Windows paths, also when the tests run on Linux)
 function Join-E2EPath([string]$Folder, [string]$Name) { return ($Folder.TrimEnd('\', '/') + '\' + $Name) }
+
+# --- User data (suite_uninstall.iss, ADR 0013 decision 11) ------------------------------------------------------------
+
+# The folders the uninstaller of the suite offers for deletion when they exist: below each install root in Roots (the
+# products it removed) the profiles, saved games and self-made mods of both games, below the launcher's data folder (if
+# given) the backups and the Mod Creator folder. Never more: anything else must survive the answer "Delete" (S15).
+function Get-E2ESuiteDataFolders([string[]]$Roots, [string]$LauncherData = '') {
+  $folders = @()
+  foreach ($root in $Roots) {
+    if ($root) { foreach ($rel in $E2ESuiteConst.DataFolders) { $folders += Join-E2EPath $root $rel } }
+  }
+  if ($LauncherData) { foreach ($name in $E2ESuiteConst.LauncherDataFolders) { $folders += Join-E2EPath $LauncherData $name } }
+  return $folders
+}
 
 # --- Shortcuts (contract 1.7 point 8) -----------------------------------------------------------------------------
 

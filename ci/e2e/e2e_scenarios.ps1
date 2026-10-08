@@ -4,7 +4,7 @@
 # docs/TEST-PLAN.de.md describe what each scenario does and checks. Uses $Repo and $AssetMap of the
 # calling script. Windows PowerShell 5.1 compatible, ASCII only. Dot-source after e2e_checks.ps1.
 
-# The intro movies belong to the types full and compact since setup 1.1.0
+# The intro movies belong to the types full and compact since suite 1.1.0
 $AllAddOns = @('additional\hd\terrain', 'additional\hd\music', 'additional\hd\buildings', 'additional\hd\tech', 'additional\hd\effects',
                'additional\drexmod\v3', 'additional\discord', 'additional\tools\diagnostic', 'additional\civs\ec', 'additional\civs\ec_full',
                'additional\movies')
@@ -745,7 +745,7 @@ function Invoke-E2EScenarioC {
   $c2.FirstInstall = $false
   $c2.ManifestExact = $false
   $c2.Tasks = $before.Tasks
-  # 1.7.2 installed the intro movies only on request; the first update by setup 1.1.0 selects them once (ComponentDefaults)
+  # 1.7.2 installed the intro movies only on request; the first update by a product setup of suite 1.1.0 selects them once (ComponentDefaults)
   $c2.RequiredComponents = @(Split-E2EList $before.Components) + 'additional\movies'
   $c2.Wrapper = [string](@(Split-E2EList $before.Components | Where-Object { $_ -like 'additional\directx_wrapper\*' }) | Select-Object -First 1)
   $c2.Settings = 'keep'

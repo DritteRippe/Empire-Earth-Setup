@@ -225,7 +225,7 @@ the community publishers (`82974d4`), the screen in the log and the notice for a
 - **Check at start instead of at the folder page:** the chosen folder is unknown then, so the shared
   folder case and own "Installed From" values could not be told apart.
 
-## Amendment 2026-10-07 (setup 1.1.0: game window up to 1200 high, the wide-screen limit)
+## Amendment 2026-10-07 (suite 1.1.0: game window up to 1200 high, the wide-screen limit)
 
 Point 1 ("The clamp of the window size (1024 to 1920 x 768 to 1080) stays") is superseded: the height limit is 1200, and on
 a screen wider than 1920 the height is in addition at most the larger of 1080 and the screen height scaled to the width 1920

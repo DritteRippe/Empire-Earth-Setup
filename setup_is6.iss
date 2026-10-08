@@ -541,7 +541,7 @@ Name: "gameaoc"; Description: "{#MyAppName} : The Art of Conquest"; Types: full
 
 Name: "additional"; Description: "{cm:CompAdditional}"
 
-; Part of the types full and compact since setup 1.1.0: with the movies the game shows its intro, which the launcher's
+; Part of the types full and compact since suite 1.1.0: with the movies the game shows its intro, which the launcher's
 ; activation signal (launcher ADR 0010) makes skippable. Existing custom installations get them once
 ; (SelectNewDefaultComponents, record value ComponentDefaults)
 Name: "additional\movies"; Description: "{cm:CompMovies}"; Flags: disablenouninstallwarning; Types: full compact

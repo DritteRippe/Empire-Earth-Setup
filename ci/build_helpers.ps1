@@ -222,6 +222,42 @@ function Write-FileSha256([string]$Path, [string]$Destination) {
   return [pscustomobject]@{ Hash = $hash; Path = $Destination }
 }
 
+# The record of the build identifier of a setup, "$Path.setupbuild" next to it (ADR 0004 point 10, ADR 0013):
+# the line "SHA256=<64 lowercase hex digits of the setup>" and the line "SetupBuild=<identifier>" (empty if the
+# setup has none), each ending with one LF, UTF-8 without BOM. A setup keeps SetupBuild only in its compressed
+# data, and every product setup reports setup 1.7.2 (MySetupVersion), so suite\build_suite.ps1 takes the
+# identifier of each product setup it embeds from this record for its BUILD-INFO.txt; the hash binds the record
+# to the bytes it was written for. ci\build.ps1 writes it for every setup it built, after its SHA-256 file. An
+# existing record is overwritten. Returns its path.
+function Write-SetupBuildRecord([string]$Path, [string]$SetupBuild) {
+  if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+    throw "${Path}: file not found, no SetupBuild record written."
+  }
+  $SetupBuild = Assert-SetupBuild $SetupBuild
+  $Path = (Resolve-Path -LiteralPath $Path).ProviderPath
+  $hash = (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
+  $destination = "$Path.setupbuild"
+  [System.IO.File]::WriteAllText($destination, "SHA256=$hash`nSetupBuild=$SetupBuild`n", [System.Text.UTF8Encoding]::new($false))
+  return $destination
+}
+
+# Reads the record "$Path.setupbuild" (Write-SetupBuildRecord) of the setup $Path, whose SHA-256 is $Hash:
+# returns the identifier ('' if the setup was built without one) or $null if there is no record. Throws if the
+# record is not in its format or was written for other bytes than $Hash.
+function Read-SetupBuildRecord([string]$Path, [string]$Hash) {
+  $record = "$Path.setupbuild"
+  if (-not (Test-Path -LiteralPath $record -PathType Leaf)) { return $null }
+  $text = [System.IO.File]::ReadAllText($record)
+  $match = [regex]::Match($text, '\ASHA256=([0-9a-f]{64})\nSetupBuild=([A-Za-z0-9._-]{0,64})\n\z')
+  if (-not $match.Success) {
+    throw "${record}: not a SetupBuild record of ci\build.ps1 (the lines SHA256=<64 hex digits> and SetupBuild=<identifier>, LF)."
+  }
+  if ($match.Groups[1].Value -cne $Hash.ToLowerInvariant()) {
+    throw "${record}: written for a setup with the SHA-256 $($match.Groups[1].Value), not for this one ($($Hash.ToLowerInvariant()))."
+  }
+  return $match.Groups[2].Value
+}
+
 # --- The online files a setup can download (ci\build.ps1, ci\online_pins.ps1; ADR 0008 point 6,
 # ADR 0012)
 #

@@ -2,6 +2,9 @@
 # Nothing else: the NuGet packages, the Python and PowerShell tooling and the build tools are pinned
 # on purpose and change by a commit that says why. Security alerts for them come from the Dependabot
 # alerts of the repository settings, not from this file.
+#
+# Both workflows pin every action by its full commit with the release as a comment
+# ("@<sha> # vX.Y.Z"); Dependabot updates the commit and the comment together.
 version: 2
 updates:
   - package-ecosystem: github-actions
@@ -9,6 +12,17 @@ updates:
     target-branch: main
     schedule:
       interval: monthly
+    # One pull request a month for all actions: actions/upload-artifact and actions/download-artifact
+    # work on the same artifacts of a run (job compile uploads, job suite-e2e downloads) and are
+    # raised together, and CI checks the whole set at once.
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+    # A release is proposed only after it has been out for a week (Dependabot's default is three days),
+    # so that a broken or withdrawn release is usually gone before it reaches a pull request.
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 3
     commit-message:
       prefix: CI

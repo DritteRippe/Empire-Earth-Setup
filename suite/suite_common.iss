@@ -1,8 +1,9 @@
 ﻿[Code]
 // Pure helpers of the suite installer (suite.iss, ADR 0013): they compute something from their
 // arguments and touch no wizard page, so ci/tests/suite_tests.iss tests them (run by
-// ci/tests/unit_tests.iss). Only SuiteFindSliceProblems and SuiteIsBehindLink read the file system (file
-// sizes, folder attributes); the tests give them files and folders of their own temporary folder.
+// ci/tests/unit_tests.iss). Only SuiteFindSliceProblems, SuiteIsBehindLink and SuiteComparablePath read the file
+// system (file sizes, folder attributes, short names); the tests give them files and folders of their own
+// temporary folder.
 // Requires: nothing (no define, no other script). Included before every other [Code] part of the suite.
 
 const
@@ -130,6 +131,26 @@ begin
   P := SuiteNormalizedPath(Path);
   F := SuiteNormalizedPath(Folder);
   Result := (F <> '') and ((P = F) or (Copy(P, 1, Length(F) + 1) = F + '\'));
+end;
+
+// A path in the spelling that two spellings of the same existing folder share: the full path (ExpandFileName
+// resolves "." and "..", a "/" becomes a "\") in its 8.3 short form (GetShortName, which gives the path back
+// unchanged if it does not exist or its volume has no short names). A subst drive or a link on the way is not
+// resolved. '' for an empty path.
+function SuiteComparablePath(const Path: String): String;
+begin
+  Result := Trim(Path);
+  if Result <> '' then
+    Result := GetShortName(ExpandFileName(Result));
+end;
+
+// SuiteIsSameOrInside for folders that may be written in two spellings: True if it holds for the paths as
+// written or for their SuiteComparablePath (C:\PROGRA~2\EMPIRE~1 and C:\Program Files (x86)\Empire Earth name
+// the same folder on a volume with short names). It says True more often than SuiteIsSameOrInside, never less,
+// so it serves to protect a folder, never to allow a deletion.
+function SuiteIsSameOrInsideSpelled(const Path, Folder: String): Boolean;
+begin
+  Result := SuiteIsSameOrInside(Path, Folder) or SuiteIsSameOrInside(SuiteComparablePath(Path), SuiteComparablePath(Folder));
 end;
 
 // The heuristic for "started from the ZIP view or from a temporary folder": Windows Explorer runs
@@ -1589,6 +1610,7 @@ const
   SuiteProcessQueryInformation = $0400;
   SuiteErrorInvalidParameter = 87;
   SuiteFreezePasses = 20;          // how often the job is looked at for processes that came meanwhile
+  SuiteStatusProcessIsTerminating = -1073741558; // STATUS_PROCESS_IS_TERMINATING, $C000010A as a Longint
 
 type
   // The records of CreateProcessW and PeekMessageW, as in the Windows headers: every field is 4 bytes or, in
@@ -1735,6 +1757,24 @@ begin
     Result := SuiteTerminateProcess(Proc, SuiteKillCode);
 end;
 
+// An NTSTATUS (the result of a function of ntdll) the way Microsoft documents it, for the log: 0xC000010A
+function SuiteNtStatusText(Status: Longint): String;
+begin
+  Result := Format('0x%.4X%.4X', [(Status shr 16) and $FFFF, Status and $FFFF]);
+end;
+
+// Whether a process of the job that NtSuspendProcess did not suspend counts as ended for the freeze (SuiteFreezeJob). Status
+// is what NtSuspendProcess returned, WaitResult what a look at the process without waiting returned (WaitForSingleObject with
+// 0 ms). For a process whose last thread is ending, NtSuspendProcess returns STATUS_PROCESS_IS_TERMINATING: that process
+// runs no code of its own any more, so it starts nothing and writes nothing, but its object is signalled only a moment later
+// (for example the console helper conhost.exe right after its console program ended). A process that has ended
+// (WAIT_OBJECT_0) is no failure either. Any other failure is a process that may run on and cannot be frozen: the freeze fails
+// and the product setup is not stopped (ADR 0013, amendment of the race of Cancel, point 3).
+function SuiteSuspendFailureIsEnd(Status, WaitResult: Longint): Boolean;
+begin
+  Result := (Status = SuiteStatusProcessIsTerminating) or (WaitResult = SuiteWaitObject0);
+end;
+
 // Freezes every process of the job of the product setup, so that the suite can look at the log of a setup that does not move
 // on while it looks (the decision to stop it, ADR 0013 amendment of the race of Cancel). The freeze is not an instant:
 // NtSuspendProcess returns before every thread has actually stopped, and a thread that is in a system call finishes that one
@@ -1750,19 +1790,20 @@ end;
 // by one not yet frozen shows up in the next look at the job: the job is looked at again until a look finds no process that
 // is not frozen (a frozen process starts none). Every process is opened by the id the job gave and must be in the job
 // (IsProcessInJob), so that an id that was reused by another program meanwhile is never suspended. A process that ended
-// meanwhile is no failure, but an empty or wrong list must not look like a success: Proc is the loader, the process the job
-// was made for, and when the look finds nothing new it must either have ended or be among the frozen processes (an id the
-// open call rejects with ERROR_INVALID_PARAMETER counts as "ended", so a list with wrong ids would end here with nothing
-// frozen). Frozen holds what was frozen; Why says what failed. Result False: not everything could be frozen (no job, the job
-// cannot be read, a process cannot be suspended, the job keeps growing, the loader is running but not frozen): the caller
-// resumes what was frozen (SuiteResumeFrozen) and does not stop the product setup. The only place that suspends a process
-// (ci/check_suite.py).
+// meanwhile, or that Windows no longer suspends because its last thread is ending (SuiteSuspendFailureIsEnd), is no failure,
+// but an empty or wrong list must not look like a success: Proc is the loader, the process the job was made for, and when the
+// look finds nothing new it must either have ended (or be ending) or be among the frozen processes (an id the open call
+// rejects with ERROR_INVALID_PARAMETER counts as "ended", so a list with wrong ids would end here with nothing frozen). Frozen
+// holds what was frozen; Why says what failed (a suspension that failed with its NTSTATUS). Result False: not everything could
+// be frozen (no job, the job cannot be read, a process cannot be suspended and is not ending, the job keeps growing, the
+// loader is running but not frozen): the caller resumes what was frozen (SuiteResumeFrozen) and does not stop the product
+// setup. The only place that suspends a process (ci/check_suite.py).
 function SuiteFreezeJob(Job, Proc: THandle; var Frozen: array of TSuiteFrozenProcess; var Why: String): Boolean;
 var
   List: TSuiteJobProcessList;
   Pass, I, J, Count, Added: Integer;
-  Known: Boolean;
-  InJob: Longint;
+  Known, LoaderEnding: Boolean;
+  InJob, Status: Longint;
   Pid, LoaderPid: DWORD;
   H: THandle;
 begin
@@ -1770,6 +1811,7 @@ begin
   Why := '';
   SetArrayLength(Frozen, 0);
   Count := 0;
+  LoaderEnding := False;
   if Job = 0 then
   begin
     Why := 'the product setup is not in a job object';
@@ -1819,15 +1861,19 @@ begin
           SuiteCloseHandle(H);
           Continue;
         end;
-        if SuiteSuspendProcess(H) < 0 then
+        Status := SuiteSuspendProcess(H);
+        if Status < 0 then
         begin
-          if SuiteWaitObject(H, 0) = SuiteWaitObject0 then
+          if SuiteSuspendFailureIsEnd(Status, SuiteWaitObject(H, 0)) then
           begin
-            // it ended while it was suspended
+            // Windows says that it is ending (its last thread is leaving, it runs nothing of its own any more), or it ended
+            // while it was suspended
+            if Pid = SuiteGetProcessId(Proc) then
+              LoaderEnding := True;
             SuiteCloseHandle(H);
             Continue;
           end;
-          Why := 'process ' + IntToStr(Pid) + ' cannot be suspended';
+          Why := 'process ' + IntToStr(Pid) + ' cannot be suspended (NTSTATUS ' + SuiteNtStatusText(Status) + ')';
           SuiteCloseHandle(H);
           Exit;
         end;
@@ -1844,7 +1890,8 @@ begin
         else
         begin
           LoaderPid := SuiteGetProcessId(Proc);
-          Known := False;
+          // the loader is frozen, or Windows said that it is ending (it runs nothing of its own any more)
+          Known := LoaderEnding;
           for J := 0 to Count - 1 do
             if Frozen[J].Pid = LoaderPid then
               Known := True;
@@ -2199,25 +2246,48 @@ begin
   Result := SuiteIsSameOrInside(Exe, Root) and (Pos('..', Exe) = 0) and (Copy(Name, 1, 5) = 'unins') and (Copy(Name, Length(Name) - 3, 4) = '.exe');
 end;
 
-// True if Path is a junction, a symbolic link or another reparse point (FILE_ATTRIBUTE_REPARSE_POINT of
-// FindFirst); False if it does not exist
+// The verdict of the link check on one path: Found = FindFirst found its entry, Attributes = the attributes of
+// that entry, Exists = the path exists (DirExists or FileExists, which need no right to list the folder above
+// it). An entry with FILE_ATTRIBUTE_REPARSE_POINT is a link (a junction, a symbolic link or another reparse
+// point). A path that exists although FindFirst cannot read its entry (the folder above cannot be listed)
+// counts as a link too: the check fails closed, like the walk of the product setups, for which a folder that
+// cannot be listed is a finding (ADR 0009, decision point 1). A path that does not exist is no link.
+function SuiteLinkVerdict(Found: Boolean; Attributes: Cardinal; Exists: Boolean): Boolean;
+begin
+  if Found then
+    Result := (Attributes and FILE_ATTRIBUTE_REPARSE_POINT) <> 0
+  else
+    Result := Exists;
+end;
+
+// True if Path is a junction, a symbolic link or another reparse point, or if it exists but its entry cannot be
+// read (SuiteLinkVerdict); False if it does not exist. SuiteIsBehindLink never asks it for a drive root, whose
+// entry FindFirst cannot read.
 function SuiteIsReparsePoint(const Path: String): Boolean;
 var
   FindRec: TFindRec;
+  P: String;
 begin
-  Result := False;
-  if FindFirst(RemoveBackslash(Path), FindRec) then
-  try
-    Result := (FindRec.Attributes and FILE_ATTRIBUTE_REPARSE_POINT) <> 0;
-  finally
-    FindClose(FindRec);
-  end;
+  P := RemoveBackslash(Path);
+  if FindFirst(P, FindRec) then
+  begin
+    try
+      Result := SuiteLinkVerdict(True, FindRec.Attributes, True);
+    finally
+      FindClose(FindRec);
+    end;
+  end
+  else
+    Result := SuiteLinkVerdict(False, 0, DirExists(P) or FileExists(P));
 end;
 
-// True if Folder or a folder above it, up to and including Root, is a reparse point: DelTree skips links
-// inside a folder but follows a link that is the folder itself or one of its parents (a saved games
-// folder redirected to Documents or OneDrive would lose the content of its target). The same protection
-// the product setups have (IsLinkGuardedFolder, ADR 0009). A Folder outside Root is checked up to its drive.
+// True if Folder or a folder above it, up to and including Root, is a reparse point or cannot be looked at
+// (SuiteIsReparsePoint). DelTree of Inno Setup 6.2.2 checks only the folder it is given, and each folder it
+// finds inside, for a link: such a link is removed without being entered. A link in a folder above is
+// resolved by Windows, so DelTree would delete the content of its target (the saved games below a Data
+// folder redirected to Documents or OneDrive). The uninstaller asks this before it offers a folder and again
+// right before each DelTree (suite_uninstall.iss). The same protection the product setups have
+// (IsLinkGuardedFolder, ADR 0009). A Folder outside Root is checked up to its drive.
 function SuiteIsBehindLink(const Folder, Root: String): Boolean;
 var
   P, Parent: String;

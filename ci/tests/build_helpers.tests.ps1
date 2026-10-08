@@ -236,6 +236,36 @@ try {
   CheckThrows 'Write-FileSha256 refuses a missing file' { Write-FileSha256 (Join-Path $temp 'missing.exe') }
   Check 'Write-FileSha256 writes nothing for a missing file' (Test-Path -LiteralPath (Join-Path $temp 'missing.exe.sha256')) $false
 
+  # --- Write-SetupBuildRecord, Read-SetupBuildRecord: the SetupBuild of a setup next to it, bound to its SHA-256
+  # (suite\build_suite.ps1 names the build of each product setup it embeds from it)
+  function Get-ThrownMessage([scriptblock]$Block) {
+    try { & $Block | Out-Null } catch { return $_.Exception.Message }
+    return '(no exception)'
+  }
+  $record = Write-SetupBuildRecord $setup 'suite-1.1.1-abc1234'
+  Check 'Write-SetupBuildRecord path' $record "$setup.setupbuild"
+  $bytes = [System.IO.File]::ReadAllBytes($record)
+  Check 'Write-SetupBuildRecord content: the hash and the identifier, LF' ([System.Text.Encoding]::ASCII.GetString($bytes)) "SHA256=$empty`nSetupBuild=suite-1.1.1-abc1234`n"
+  Check 'Write-SetupBuildRecord without BOM and CR' (($bytes[0] -eq [byte][char]'S') -and ([Array]::IndexOf($bytes, [byte]13) -eq -1)) $true
+  Check 'Read-SetupBuildRecord: the identifier' (Read-SetupBuildRecord $setup $empty) 'suite-1.1.1-abc1234'
+  Check 'Read-SetupBuildRecord: a hash in upper case' (Read-SetupBuildRecord $setup $empty.ToUpperInvariant()) 'suite-1.1.1-abc1234'
+  [void](Write-SetupBuildRecord $setup '')
+  Check 'Write-SetupBuildRecord of none overwrites' ([System.IO.File]::ReadAllText($record)) "SHA256=$empty`nSetupBuild=`n"
+  $none = Read-SetupBuildRecord $setup $empty
+  Check 'Read-SetupBuildRecord: none is an empty identifier, not $null' (($null -ne $none) -and ($none -ceq '')) $true
+  Check 'Read-SetupBuildRecord: written for other bytes' ((Get-ThrownMessage { Read-SetupBuildRecord $setup $abc }) -like '*written for a setup with the SHA-256*') $true
+  Check 'Write-SetupBuildRecord refuses an invalid identifier' ((Get-ThrownMessage { Write-SetupBuildRecord $setup 'a b' }) -like '*not a build identifier*') $true
+  Check 'Write-SetupBuildRecord: an invalid identifier leaves the record alone' ([System.IO.File]::ReadAllText($record)) "SHA256=$empty`nSetupBuild=`n"
+  foreach ($bad in @("SHA256=$empty`r`nSetupBuild=x`r`n", "SetupBuild=x`nSHA256=$empty`n", "SHA256=$empty`nSetupBuild=a b`n",
+      "SHA256=$empty`nSetupBuild=x", "SHA256=$($empty.ToUpperInvariant())`nSetupBuild=x`n")) {
+    [System.IO.File]::WriteAllText($record, $bad)
+    Check "Read-SetupBuildRecord refuses '$($bad.Replace("`r", '\r').Replace("`n", '\n'))'" ((Get-ThrownMessage { Read-SetupBuildRecord $setup $empty }) -like '*not a SetupBuild record*') $true
+  }
+  Remove-Item -LiteralPath $record
+  Check 'Read-SetupBuildRecord: no record is $null' ($null -eq (Read-SetupBuildRecord $setup $empty)) $true
+  Check 'Write-SetupBuildRecord refuses a missing file' ((Get-ThrownMessage { Write-SetupBuildRecord (Join-Path $temp 'missing.exe') 'x' }) -like '*file not found*') $true
+  Check 'Write-SetupBuildRecord writes nothing for a missing file' (Test-Path -LiteralPath (Join-Path $temp 'missing.exe.setupbuild')) $false
+
   # Cross-check with the real sha256sum where it exists (Linux, Git Bash), else skipped
   $sha256sum = Get-Command 'sha256sum' -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
   if ($sha256sum) {
@@ -680,8 +710,15 @@ exit 0
       Check "dry run: $leaf.sha256 content" ([System.IO.File]::ReadAllText($sumFile)) "$empty  $leaf`n"
     }
     Check "dry run: SHA-256 of $leaf printed" @($buildOutput | Where-Object { $_ -like "*SHA-256 $empty  $leaf -> $leaf.sha256*" }).Count 1
+    # ... and the record of its SetupBuild, bound to that hash
+    $recordFile = "$exeFile.setupbuild"
+    Check "dry run: $leaf.setupbuild written" (Test-Path -LiteralPath $recordFile -PathType Leaf) $true
+    if (Test-Path -LiteralPath $recordFile -PathType Leaf) {
+      Check "dry run: $leaf.setupbuild content" ([System.IO.File]::ReadAllText($recordFile)) "SHA256=$empty`nSetupBuild=$testBuild`n"
+    }
+    Check "dry run: SetupBuild of $leaf printed" @($buildOutput | Where-Object { $_ -ceq "  SetupBuild $testBuild -> $leaf.setupbuild" }).Count 1
   }
-  Check 'dry run: only setups and SHA-256 files in out' @(Get-ChildItem -LiteralPath (Join-Path $repo 'out') -Recurse -File | Where-Object { $_.Name -notlike '*.exe' -and $_.Name -notlike '*.exe.sha256' }).Count 0
+  Check 'dry run: only setups, SHA-256 files and SetupBuild records in out' @(Get-ChildItem -LiteralPath (Join-Path $repo 'out') -Recurse -File | Where-Object { $_.Name -notlike '*.exe' -and $_.Name -notlike '*.exe.sha256' -and $_.Name -notlike '*.exe.setupbuild' }).Count 0
 
   # pins\online-files.txt pins every online file: no warning, no list
   Check 'dry run -TestID 1: the pins are counted' @($buildOutput | Where-Object { $_ -ceq 'Pins: 230 online file(s) in pins\online-files.txt.' }).Count 1
@@ -694,6 +731,8 @@ exit 0
   Check 'dry run without -TestID: no /DTestID (default of setup_is6.iss)' @(Get-Content -LiteralPath $calls | Where-Object { $_ -like '*/DTestID*' }).Count 0
   Check 'dry run without -TestID, not in CI: no /DSetupBuild' @(Get-Content -LiteralPath $calls | Where-Object { $_ -like '*/DSetupBuild*' }).Count 0
   Check 'dry run without -TestID, not in CI: no SetupBuild printed' @($buildOutput | Where-Object { $_ -like 'SetupBuild: none*' }).Count 1
+  Check 'dry run without -TestID, not in CI: the record says none' ([System.IO.File]::ReadAllText((Join-Path $repo 'out\EE_Regular\EE_Regular_dry_run.exe.setupbuild'))) "SHA256=$empty`nSetupBuild=`n"
+  Check 'dry run without -TestID, not in CI: SetupBuild none printed per setup' @($buildOutput | Where-Object { $_ -like '  SetupBuild none -> *.setupbuild' }).Count 2
   Check 'dry run release: the pins are counted' @($buildOutput | Where-Object { $_ -ceq 'Pins: 230 online file(s) in pins\online-files.txt.' }).Count 1
   Check 'dry run release: the hash list agrees' @($buildOutput | Where-Object { $_ -like 'Pins: data\localized-text and pins\online-files.txt agree*' }).Count 1
   Check 'dry run release: the dgVoodoo files are the pinned ones' @($buildOutput | Where-Object { $_ -ceq 'dgVoodoo: 3 file(s) of v2.87.5 match pins\dgvoodoo.txt.' }).Count 1

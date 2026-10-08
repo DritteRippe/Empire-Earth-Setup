@@ -1,4 +1,4 @@
-# Scenarios S1 to S14 of the suite installer (suite/suite.iss, ADR 0013) on a GitHub-hosted Windows runner with
+# Scenarios S1 to S15 of the suite installer (suite/suite.iss, ADR 0013) on a GitHub-hosted Windows runner with
 # the PLACEHOLDER builds of ci/build.ps1 and suite/build_suite.ps1 (dummy AppIds, stub launcher, no game data;
 # job suite-e2e of .github/workflows/build.yml, started by ci/e2e/run_e2e_suite.ps1). They reuse the rules and the
 # Windows glue of the real-data end-to-end test (e2e_helpers.ps1, e2e_windows.ps1, e2e_scenarios.ps1): the dirty
@@ -244,15 +244,15 @@ function Get-E2EProductLogLines([string]$Id) {
 }
 
 # Runs the uninstaller of the suite (silent, with /LOG: Invoke-E2EUninstall), which removes the products; waits until
-# it and the product uninstallers are done. Returns @{ Code; Problems; LogFile; LogLines }; a stop at the time limit
-# is a problem of the result, not an exception
-function Invoke-E2ESuiteUninstall([string]$Scenario, [string]$Step) {
+# it and the product uninstallers are done. ExtraArguments go to its command line (S15: the switch of the test hook).
+# Returns @{ Code; Problems; LogFile; LogLines }; a stop at the time limit is a problem of the result, not an exception
+function Invoke-E2ESuiteUninstall([string]$Scenario, [string]$Step, [string]$ExtraArguments = '') {
   $log = Get-E2ESuiteLogFile $Scenario $Step
   if (Test-Path -LiteralPath $log) { Remove-Item -LiteralPath $log -Force }
   $code = $null
   $problems = @()
   try {
-    $run = Invoke-E2EUninstall (Get-E2ESuiteProduct) (Get-E2ESuiteRoot) 'HKLM64' $log ($E2ESuiteConst.UninstallTimeoutMinutes * 60)
+    $run = Invoke-E2EUninstall (Get-E2ESuiteProduct) (Get-E2ESuiteRoot) 'HKLM64' $log ($E2ESuiteConst.UninstallTimeoutMinutes * 60) $ExtraArguments
     $code = $run.ExitCode
     $problems = @($run.Problems)
     if ($null -ne $code -and $code -ne 0) { $problems += "unins000.exe exit code $code" }
@@ -1030,6 +1030,38 @@ function Get-E2ECancelStopNotMatches([string]$Id) {
     "^Product ${Id} phase: (install|post install|CD keys|manifest|done)")
 }
 
+# A cancel whose look at the log caught the product setup in the middle of a log line (only the time stamp of the line was
+# written when its processes were frozen) is decided again by design: SuiteStopDecision counts such a line as unclear, the
+# processes run on, the request stays and the decision is made again after the next wait slice, at most SuiteCancelTriesMax
+# times (suite_run.iss, SuiteWaitForProduct; contract 1.7 point 2). /TestCancel requests the cancel as soon as the log of the
+# product setup is open, while that setup writes many lines, so a run can meet this moment (S14 in the CI run of 2026-10-08).
+# Such a try writes exactly these three lines, one right after the other, and changes nothing.
+function Get-E2ECancelRetryPatterns([string]$Id) {
+  return @(
+    "^Product ${Id}: the last line of its log may be the install step, its setup is not stopped`$",
+    "^Product ${Id}: its \d+ processes run again`$",
+    "^Product ${Id}: the state of its setup is not certain, the cancel stays requested \(try \d+ of \d+\)`$")
+}
+
+# The lines of a suite log without the tries of Get-E2ECancelRetryPatterns for the product Id, so that the "must not" list of
+# a stop (Get-E2ECancelStopNotMatches) judges the decision that stopped the setup. Only the exact three lines in a row are
+# taken out: a try that could not freeze the setup or read its log, a lone line of the three and the last try ("the cancel
+# was not carried out") stay in the lines and fail the check.
+function Remove-E2ECancelRetries([string[]]$Lines, [string]$Id) {
+  $p = @(Get-E2ECancelRetryPatterns $Id)
+  $kept = @()
+  $i = 0
+  while ($i -lt $Lines.Count) {
+    if (($i + 2 -lt $Lines.Count) -and ($Lines[$i] -cmatch $p[0]) -and ($Lines[$i + 1] -cmatch $p[1]) -and ($Lines[$i + 2] -cmatch $p[2])) {
+      $i += 3
+      continue
+    }
+    $kept += $Lines[$i]
+    $i++
+  }
+  return $kept
+}
+
 # What a cancelled run may leave: the folder of the suite with the log of the product setup it stopped, and nothing
 # else; no product, no record, no shortcut, no uninstall key
 function Test-E2ECancelledState([string]$Scenario, [string]$Step) {
@@ -1063,7 +1095,7 @@ function Invoke-E2EScenarioS11 {
   try {
     $run = Invoke-E2ESuiteRun -Scenario $s -Step 'cancel' -Package $env:E2E_SUITE -Products 'EE,NeoEE' -ExpectExit $E2ESuiteConst.ExitCancelled `
       -ExtraSwitches @('/TestCancel')
-    $problems = @(Test-E2ELogLines -Lines $run.LogLines -Matches @(
+    $problems = @(Test-E2ELogLines -Lines @(Remove-E2ECancelRetries $run.LogLines 'EE') -Matches @(
         '^Product EE \(step 1 of 2, state 0\): ',
         '^Products that succeeded in this run: ""$',
         '^The installation was cancelled by the user: no further product setup is started, Setup ends$') `
@@ -1091,7 +1123,7 @@ function Invoke-E2EScenarioS12 {
   try {
     $run = Invoke-E2ESuiteRun -Scenario $s -Step 'cancel' -Package $env:E2E_SUITE -Products 'EE,NeoEE' -ExtraSwitches @('/TestCancelNeoEE')
     if (-not $run.Ok) { return }
-    $problems = @(Test-E2ELogLines -Lines $run.LogLines -Matches @(
+    $problems = @(Test-E2ELogLines -Lines @(Remove-E2ECancelRetries $run.LogLines 'NeoEE') -Matches @(
         '^Product EE \(step 1 of 2, state 0\): ',
         '^Product NeoEE \(step 2 of 2, state 0\): ',
         '^Products that succeeded in this run: "EE"$',
@@ -1143,7 +1175,7 @@ function Invoke-E2EScenarioS13 {
     $cancel = Invoke-E2ESuiteRun -Scenario $s -Step 'repair-cancel' -Package $env:E2E_SUITE -Products 'EE' -ExpectExit $E2ESuiteConst.ExitCancelled `
       -EEArgs $E2ESuiteConst.RepairEEArgs -ExtraSwitches @('/TestCancel')
     if (-not $cancel.Ok) { return }
-    $problems = @(Test-E2ELogLines -Lines $cancel.LogLines -Matches @(
+    $problems = @(Test-E2ELogLines -Lines @(Remove-E2ECancelRetries $cancel.LogLines 'EE') -Matches @(
         '^Product EE \(step 1 of 1, state 1\): ',
         '^Products that succeeded in this run: ""$',
         '^The installation was cancelled by the user: no further product setup is started, Setup ends$') `
@@ -1299,7 +1331,7 @@ function Invoke-E2EScenarioS14 {
     $problems = @(Test-E2ELogLines -Lines $run.LogLines -Matches @(Get-E2ECancelLateMatches) -NotMatches @(Get-E2ECancelLateNotMatches))
     $problems += @(Test-E2ELogOrder $run.LogLines @(Get-E2ECancelLateOrder))
     $problems += @(Test-E2ELogOrder $run.LogLines (Get-E2ECancelStopPatterns 'NeoEE' '/TestCancel, the cancel is requested as if the user had answered the question with Yes'))
-    $problems += @(Test-E2ELogLines -Lines $run.LogLines -NotMatches (Get-E2ECancelStopNotMatches 'NeoEE'))
+    $problems += @(Test-E2ELogLines -Lines @(Remove-E2ECancelRetries $run.LogLines 'NeoEE') -NotMatches (Get-E2ECancelStopNotMatches 'NeoEE'))
     [void](Complete-E2ECheck $s 'cancel-late/DECISION' $problems 'the cancel at the install step of EE came too late (frozen, log read again, EE not stopped), the cancel of NeoEE stopped it')
     # the hook of the placeholder setup was there: the pause stands between the install step line and the first change
     $productLog = @(Get-E2EProductLogLines 'EE')
@@ -1325,6 +1357,117 @@ function Invoke-E2EScenarioS14 {
   }
 }
 
+# --- S15: the suite uninstaller deletes the user data ("Delete") -------------------------------------------------------
+
+# The line the test hook of the placeholder suite writes when /TestDeleteUserData answers the question (suite_uninstall.iss)
+$E2ETestDeleteLine = 'Test hook of a placeholder build: /TestDeleteUserData answers the question about the user data with "Delete"'
+
+# The files S15 plants next to the folders the uninstaller offers, below each product root: they must survive the answer
+# "Delete" (a folder whose name starts like an offered one included)
+$E2EForeignFiles = @('ci-foreign.txt', 'Empire Earth\ci-foreign.txt', 'Empire Earth\Data\ci-foreign.txt',
+  'Empire Earth\Data\Saved Games Old\ci-foreign.txt', 'Empire Earth - The Art of Conquest\Data\ci-foreign.txt')
+
+# Writes a small file with a text that names it (the checks compare the text afterwards); Path comes from Join-Path
+function Write-E2ETestFile([string]$Path) {
+  New-Item -ItemType Directory -Force -Path (Split-Path -Parent $Path) | Out-Null
+  [System.IO.File]::WriteAllText($Path, "ci data $Path", (New-Object System.Text.UTF8Encoding($false)))
+}
+
+# Problems for every file of the list that is gone or changed (Write-E2ETestFile wrote it)
+function Test-E2ETestFilesKept([string[]]$Paths) {
+  $problems = @()
+  foreach ($path in $Paths) {
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { $problems += "$path is gone" }
+    elseif ([System.IO.File]::ReadAllText($path) -cne "ci data $path") { $problems += "$path changed" }
+  }
+  return $problems
+}
+
+# The uninstaller of the placeholder suite runs with /TestDeleteUserData, the test hook that gives the answer "Delete" in a
+# silent run (suite_uninstall.iss, PlaceholderUninstallDelete; only suite\build_suite.ps1 -Placeholders builds it in). Before,
+# every folder it offers holds user data, files lie next to those folders, and Data\dxm of NeoEE is a junction to a folder
+# outside the installation with a canary file in mods\ (a standard user may replace Data\dxm, ADR 0009): Data\dxm\mods of NeoEE
+# lies behind a link and must be neither offered nor deleted, and the empty folder cleanup must leave the junction alone. After:
+# exactly the offered folders are gone (a log line each), every other file stays, the target of the junction is unchanged.
+# The second check right before each DelTree (a junction made while the question waits) needs a click in the dialog and is
+# checked by ci/check_suite.py; this scenario proves the deletion itself and its limits on Windows.
+function Invoke-E2EScenarioS15 {
+  $s = 'S15'
+  if (-not (Initialize-E2ESuiteScenario $s)) { return }
+  $roots = Get-E2ESuiteProductRoots
+  $data = Get-E2ELauncherDataDir
+  $outside = Join-Path $env:E2E_WORK 's15-outside'
+  $junction = Join-E2EPath $roots['NeoEE'] 'Empire Earth\Data\dxm'
+  try {
+    $run = Invoke-E2ESuiteInstall $s 'install' $env:E2E_SUITE 'EE,NeoEE' $false
+    if (-not $run.Ok) { return }
+    # 1. The junction: Data\dxm of NeoEE leads to a folder outside the installation with a canary in mods\ (the product setups
+    # install nothing below Data\dxm in a placeholder build)
+    $problems = @()
+    if (Test-Path -LiteralPath $outside) { Remove-E2EFolder $outside }
+    $canary = @((Join-Path $outside 'mods\ci-canary\CANARY.txt'), (Join-Path $outside 'CANARY.txt'))
+    foreach ($file in $canary) { Write-E2ETestFile $file }
+    if (Test-Path -LiteralPath $junction) { $problems += "$junction exists after the installation (expected no Data\dxm in a placeholder build)" }
+    else {
+      try {
+        New-Item -ItemType Directory -Force -Path (Split-Path -Parent $junction) | Out-Null
+        New-E2EJunction $junction $outside
+      } catch { $problems += "junction ${junction}: $($_.Exception.Message)" }
+    }
+    $behindLink = Join-E2EPath $junction 'mods'
+    if (-not (Test-Path -LiteralPath (Join-Path $behindLink 'ci-canary\CANARY.txt') -PathType Leaf)) { $problems += "the canary cannot be read through $junction" }
+    $outsideBefore = @(Get-E2EFileTreeLines $outside -NoFolderTimes)
+    # 2. User data in every folder the uninstaller offers (both games of both products, the launcher's backups and Mod Creator
+    # folder), a file in a subfolder each (DelTree goes down); files next to them must stay
+    $offered = @(Get-E2ESuiteDataFolders @($roots['EE'], $roots['NeoEE']) $data | Where-Object { $_ -ine $behindLink })
+    foreach ($folder in $offered) { Write-E2ETestFile (Join-Path $folder 'ci-data\ci-user-data.txt') }
+    $foreign = @()
+    foreach ($id in @('EE', 'NeoEE')) { foreach ($rel in $E2EForeignFiles) { $foreign += Join-Path $roots[$id] $rel } }
+    $foreign += @((Join-Path $roots['EE'] 'Empire Earth\Data\dxm\ci-foreign.txt'), (Join-Path $data 'ci-foreign.txt'))
+    foreach ($file in $foreign) { Write-E2ETestFile $file }
+    foreach ($file in @('settings.json', 'log.txt')) { Write-E2ETestFile (Join-Path $data $file) }
+    if (-not (Complete-E2ECheck $s 'before/DATA' $problems "$($offered.Count) folders with user data, $($foreign.Count) files next to them, Data\dxm of NeoEE a junction to $outside")) { return }
+
+    # 3. The uninstallation with the answer "Delete"
+    $un = Invoke-E2ESuiteUninstall $s 'suite-uninstall' $E2ESuiteConst.TestDeleteSwitch
+    $problems = @($un.Problems)
+    foreach ($id in @('EE', 'NeoEE')) {
+      $patterns = @($E2EForeignFiles | ForEach-Object { '^' + [regex]::Escape($_) + '$' }) + @('^Empire Earth\\Data\\dxm\\ci-foreign\.txt$')
+      $problems += @(Test-E2EProductRemoved $id $roots[$id] $patterns)
+    }
+    $problems += @(Test-E2ESuiteRemoved)
+    [void](Complete-E2ECheck $s 'suite-uninstall/REMOVED' $problems 'both products, the launcher, the shortcuts and the record are gone')
+
+    $problems = @()
+    foreach ($folder in $offered) {
+      if (Test-Path -LiteralPath $folder) { $problems += "$folder (offered) is still there" }
+    }
+    $deleted = @($un.LogLines | Where-Object { $_.StartsWith('User data folder deleted: ') } | ForEach-Object { $_.Substring('User data folder deleted: '.Length) })
+    $sets = Compare-E2ESets $offered $deleted
+    foreach ($folder in $sets.Missing) { $problems += "no log line 'User data folder deleted: $folder'" }
+    foreach ($folder in $sets.Extra) { $problems += "a folder that was not offered was deleted: $folder" }
+    $problems += @(Test-E2ELogLines -Lines $un.LogLines -Contains @($E2ETestDeleteLine) `
+      -NotContains @('Silent uninstallation: the user data stays:') -NotMatches @('^User data folder not deleted, ', '^User data folder not \(completely\) deleted: '))
+    [void](Complete-E2ECheck $s 'suite-uninstall/DELETED' $problems "the $($offered.Count) offered folders were deleted (the answer `"Delete`" of /TestDeleteUserData), a log line each")
+
+    $problems = @(Test-E2ETestFilesKept $foreign)
+    $problems += @(Test-E2ETestFilesKept $canary)
+    $problems += @(Compare-E2ESnapshot $outsideBefore @(Get-E2EFileTreeLines $outside -NoFolderTimes) "the target of the junction $junction")
+    $problems += @(Test-E2ELogLines -Lines $un.LogLines -Contains @(
+        "User data folder not offered, it or a folder above it is a link (junction or symbolic link) or cannot be checked: $behindLink",
+        "Folder left as it is, it or a folder above it is a link (junction or symbolic link) or cannot be checked: $junction"))
+    [void](Complete-E2ECheck $s 'suite-uninstall/KEPT' $problems "the $($foreign.Count) files next to the offered folders stay; Data\dxm\mods behind the junction was not offered, the junction and its target are untouched")
+    Test-E2EMachineSnapshot $s 'suite-uninstall'
+  } finally {
+    if (Test-Path -LiteralPath $junction) { Remove-E2ELink $junction }
+    Invoke-E2ESuiteCleanup $s
+    # the files of the scenario stay out of the next one
+    foreach ($path in @($data, $roots['EE'], $roots['NeoEE'], $outside)) {
+      try { if (Test-Path -LiteralPath $path) { Remove-E2EFolder $path } } catch { Write-Host "Cleanup of ${path}: $($_.Exception.Message)" }
+    }
+  }
+}
+
 # --- The scenarios by name ------------------------------------------------------------------------------------------------
 
 function Invoke-E2ESuiteScenario([string]$Id) {
@@ -1344,6 +1487,7 @@ function Invoke-E2ESuiteScenario([string]$Id) {
     'S12' { Invoke-E2EScenarioS12 }
     'S13' { Invoke-E2EScenarioS13 }
     'S14' { Invoke-E2EScenarioS14 }
+    'S15' { Invoke-E2EScenarioS15 }
     default { throw "Unknown scenario $Id" }
   }
 }

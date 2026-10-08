@@ -7,13 +7,16 @@
 //                         installed (NeoEE, then EE), one after the other, and waits for each one
 //   usPostUninstall       the shortcuts and the record of the suite (suite_shortcuts.iss, suite_record.iss),
 //                         the launcher's settings and log of the account that uninstalls, then, only after
-//                         the answer "Delete", the exact folders with user data; Inno Setup removes the files
-//                         of the launcher, the Mod Creator and {app}\Logs ([UninstallDelete]) itself
+//                         the answer "Delete", the exact folders with user data, each checked for links once
+//                         more right before it is deleted; Inno Setup removes the files of the launcher, the
+//                         Mod Creator and {app}\Logs ([UninstallDelete]) itself
 //   usDone                the folder of the suite, if Inno Setup could not remove it although it is empty
 // A silent uninstallation (/SILENT, /VERYSILENT) asks nothing, shows nothing and keeps every user data
-// folder. Nothing here touches the registry keys of the games (the product uninstallers do their own
-// cleanup, setup_is6.iss) or the keys of the CD key registration; the only registry deletion of the suite is
-// RemoveSuiteRecord. ci/check_suite.py reads this file for the rules that keep it that way.
+// folder; only the test hook of the placeholder builds (PlaceholderUninstallDelete, CI scenario S15, never in a
+// release build) lets the switch /TestDeleteUserData give the answer "Delete" there. Nothing here touches the
+// registry keys of the games (the product uninstallers do their own cleanup, setup_is6.iss) or the keys of the
+// CD key registration; the only registry deletion of the suite is RemoveSuiteRecord. ci/check_suite.py reads
+// this file for the rules that keep it that way.
 // Limitation: with a standard user who confirms the elevation prompt with the credentials of an
 // administrator ("over the shoulder"), {localappdata} is the profile of that administrator, so the settings
 // and the backups of the launcher of the standard user stay (README, docs/TEST-PLAN.de.md).
@@ -243,7 +246,9 @@ end;
 // True if Folder is the folder of a product that stays installed (an uninstall key for all users that the
 // suite did not remove: a standalone setup, or a removal that failed) or lies inside its install root, or
 // if that root lies inside it. Two products may share one install root (the setups ask before they do);
-// the profiles and saved games below it are those of the product that stays too.
+// the profiles and saved games below it are those of the product that stays too. The paths are compared as
+// written and in their full short spelling (SuiteIsSameOrInsideSpelled): the advanced wizard of one product may
+// have been given C:\PROGRA~2\EMPIRE~1, that of the other C:\Program Files (x86)\Empire Earth.
 function SuiteIsFolderOfInstalledProduct(const Folder: String): Boolean;
 var
   I: Integer;
@@ -252,63 +257,70 @@ begin
   Result := False;
   for I := 1 to 2 do
     if SuiteReadProductEntry(SuiteUninstallProduct(I), Root, Exe) and (Root <> '') then
-      if SuiteIsSameOrInside(Folder, Root) or SuiteIsSameOrInside(Root, Folder) then
+      if SuiteIsSameOrInsideSpelled(Folder, Root) or SuiteIsSameOrInsideSpelled(Root, Folder) then
         Result := True;
+end;
+
+// Offers Folder for deletion if it exists: it goes to Folders, and Root, up to which its link check goes, to
+// Roots at the same index. Left out with a log line: a folder that is a link or lies below one up to Root (or
+// cannot be checked), and for a folder of a product (OfProduct) one that belongs to a product that stays installed.
+procedure SuiteOfferDataFolder(const Folder, Root: String; OfProduct: Boolean; var Folders, Roots: TArrayOfString);
+var
+  Count: Integer;
+begin
+  if (Folder = '') or not DirExists(Folder) then
+    Exit;
+  if SuiteIsBehindLink(Folder, Root) then
+    Log('User data folder not offered, it or a folder above it is a link (junction or symbolic link) or cannot be checked: ' + Folder)
+  else if OfProduct and SuiteIsFolderOfInstalledProduct(Folder) then
+    Log('User data folder not offered, it belongs to a product that stays installed: ' + Folder)
+  else
+  begin
+    Count := GetArrayLength(Folders) + 1;
+    SetArrayLength(Folders, Count);
+    SetArrayLength(Roots, Count);
+    Folders[Count - 1] := Folder;
+    Roots[Count - 1] := Root;
+  end;
 end;
 
 // The folders with user data that exist: the profiles, saved games and self-made mods below the roots of the
 // products that are gone, the backups and the Mod Creator folder of the launcher. Only the folders of
 // SuiteDataFolder and SuiteLauncherDataFolder, never more, and none that is (or lies below) a link, or that
-// belongs to a product that stays installed.
-function SuiteExistingDataFolders(const LocalAppData: String): TArrayOfString;
+// belongs to a product that stays installed. Roots gets the root of each folder at the same index (the install
+// root of its product, the launcher's data folder): SuiteDeleteDataFolders checks the folder up to it again.
+function SuiteExistingDataFolders(const LocalAppData: String; var Roots: TArrayOfString): TArrayOfString;
 var
-  I, J, Count: Integer;
-  Folder: String;
+  I, J: Integer;
+  Folders: TArrayOfString;
 begin
-  Count := 0;
-  SetArrayLength(Result, 0);
+  SetArrayLength(Folders, 0);
+  SetArrayLength(Roots, 0);
   for I := 1 to 2 do
     if SuiteUninstallDone[I] then
       for J := 1 to SuiteDataFolderCount do
-      begin
-        Folder := SuiteDataFolder(SuiteUninstallRoot[I], J);
-        if (Folder <> '') and DirExists(Folder) then
-        begin
-          if SuiteIsBehindLink(Folder, SuiteUninstallRoot[I]) then
-            Log('User data folder not offered, it or a folder above it is a link (junction or symbolic link): ' + Folder)
-          else if SuiteIsFolderOfInstalledProduct(Folder) then
-            Log('User data folder not offered, it belongs to a product that stays installed: ' + Folder)
-          else
-          begin
-            Count := Count + 1;
-            SetArrayLength(Result, Count);
-            Result[Count - 1] := Folder;
-          end;
-        end;
-      end;
+        SuiteOfferDataFolder(SuiteDataFolder(SuiteUninstallRoot[I], J), SuiteUninstallRoot[I], True, Folders, Roots);
   for J := 1 to SuiteLauncherFolderCount do
-  begin
-    Folder := SuiteLauncherDataFolder(LocalAppData, J);
-    if (Folder <> '') and DirExists(Folder) and SuiteIsBehindLink(Folder, SuiteLauncherDataDir(LocalAppData)) then
-      Log('User data folder not offered, it or a folder above it is a link (junction or symbolic link): ' + Folder)
-    else if (Folder <> '') and DirExists(Folder) then
-    begin
-      Count := Count + 1;
-      SetArrayLength(Result, Count);
-      Result[Count - 1] := Folder;
-    end;
-  end;
+    SuiteOfferDataFolder(SuiteLauncherDataFolder(LocalAppData, J), SuiteLauncherDataDir(LocalAppData), False, Folders, Roots);
+  Result := Folders;
 end;
 
-// Deletes the folders of the list (from SuiteExistingDataFolders, which left out every folder that is a link
-// or behind one) with everything in them. DelTree does not follow a junction or a symbolic link inside a
-// folder: it removes the link only.
-procedure SuiteDeleteDataFolders(const Folders: TArrayOfString);
+// Deletes the folders of the list (from SuiteExistingDataFolders) with everything in them. The question before
+// this step waits for the user without a limit, so each folder is checked once more right before its DelTree:
+// it still exists, and neither it nor a folder above it up to its root (Roots, same index) is a link now. DelTree
+// of Inno Setup 6.2.2 removes a link that is the folder itself or lies inside it without entering it, but Windows
+// resolves a link in a folder above it: Data\dxm, which every user may replace (ADR 0009), lies above Data\dxm\mods,
+// and DelTree would delete the content of the link's target. A folder that fails the check stays, with a log line.
+procedure SuiteDeleteDataFolders(const Folders, Roots: TArrayOfString);
 var
   I: Integer;
 begin
   for I := 0 to GetArrayLength(Folders) - 1 do
-    if DelTree(Folders[I], True, True, True) then
+    if not DirExists(Folders[I]) then
+      Log('User data folder not deleted, it is gone already: ' + Folders[I])
+    else if SuiteIsBehindLink(Folders[I], Roots[I]) then
+      Log('User data folder not deleted, it or a folder above it is a link (junction or symbolic link) now or cannot be checked: ' + Folders[I])
+    else if DelTree(Folders[I], True, True, True) then
       Log('User data folder deleted: ' + Folders[I])
     else
       Log('User data folder not (completely) deleted: ' + Folders[I]);
@@ -318,7 +330,7 @@ end;
 procedure SuiteRemoveUserData;
 var
   LocalAppData, Target, List: String;
-  Folders, Buttons: TArrayOfString;
+  Folders, Roots, Buttons: TArrayOfString;
   I, J: Integer;
   DeleteData: Boolean;
 begin
@@ -336,7 +348,7 @@ begin
     end;
   end;
   // The user data: asked once, only if there is any, never in a silent run
-  Folders := SuiteExistingDataFolders(LocalAppData);
+  Folders := SuiteExistingDataFolders(LocalAppData, Roots);
   DeleteData := False;
   if GetArrayLength(Folders) > 0 then
   begin
@@ -344,7 +356,18 @@ begin
     for I := 0 to GetArrayLength(Folders) - 1 do
       List := List + Folders[I] + #13#10;
     if UninstallSilent then
-      Log('Silent uninstallation: the user data stays:'#13#10 + List)
+    begin
+#ifdef PlaceholderUninstallDelete
+      // Test hook of the placeholder builds (CI scenario S15): only suite\build_suite.ps1 -Placeholders passes the define,
+      // and suite.iss refuses it with real AppIds. A silent run asks nothing, so /TestDeleteUserData gives the answer
+      // "Delete", which runs the deletion below on the placeholder installation of the job.
+      DeleteData := SuiteHasParam('/TestDeleteUserData');
+      if DeleteData then
+        Log('Test hook of a placeholder build: /TestDeleteUserData answers the question about the user data with "Delete"');
+#endif
+      if not DeleteData then
+        Log('Silent uninstallation: the user data stays:'#13#10 + List);
+    end
     else
     begin
       // "Keep" is the first button (Yes) and the default; only the second button (No), "Delete", deletes
@@ -358,27 +381,37 @@ begin
     end;
   end;
   if DeleteData then
-    SuiteDeleteDataFolders(Folders);
-  // Folders that are empty now, from the inside out; RemoveDir never removes a folder with content
+    SuiteDeleteDataFolders(Folders, Roots);
+  // Folders that are empty now, from the inside out. RemoveDir never removes a folder with content, but it removes a
+  // link (junction or symbolic link) whatever its target holds, and it follows a link in a folder above: a folder
+  // that is a link or lies below one is left as it is.
   for I := 1 to 2 do
     if SuiteUninstallDone[I] then
       for J := 1 to SuiteEmptyFolderCount do
       begin
         Target := SuiteEmptyFolder(SuiteUninstallRoot[I], J);
         if (Target <> '') and DirExists(Target) then
-          if RemoveDir(Target) then
+        begin
+          if SuiteIsBehindLink(Target, SuiteUninstallRoot[I]) then
+            Log('Folder left as it is, it or a folder above it is a link (junction or symbolic link) or cannot be checked: ' + Target)
+          else if RemoveDir(Target) then
             Log('Empty folder removed: ' + Target);
+        end;
       end;
   Target := SuiteLauncherDataDir(LocalAppData);
   if (Target <> '') and DirExists(Target) then
-    if RemoveDir(Target) then
+  begin
+    if SuiteIsBehindLink(Target, Target) then
+      Log('Folder left as it is, it is a link (junction or symbolic link) or cannot be checked: ' + Target)
+    else if RemoveDir(Target) then
       Log('Empty folder removed: ' + Target);
+  end;
 end;
 
 // usDone: Inno Setup removes the folder of the suite right after it deleted unins000.exe; while a virus scanner
 // still holds the deleted file, the folder is not empty yet and stays behind, empty (seen on the Windows
 // runners of CI). Tries again for about 3 s; RemoveDir never removes a folder with content, and a folder that
-// is a link or behind one is left alone.
+// is a link or behind one (or cannot be checked) is left alone.
 procedure SuiteRemoveEmptyRoot;
 var
   Root: String;

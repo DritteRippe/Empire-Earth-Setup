@@ -27,7 +27,9 @@
        [/DTestID] [/DSetupBuild] into its own output folder and check that the file name proves the
        variant took effect.
     5. Write <setup>.exe.sha256 next to every setup that passed (sha256sum format, after ISCC has
-       signed it) and print its SHA-256, to publish next to the download.
+       signed it) and print its SHA-256, to publish next to the download; then <setup>.exe.setupbuild,
+       the record of its SetupBuild bound to that SHA-256 (Write-SetupBuildRecord), from which
+       suite\build_suite.ps1 names the build of each product setup it embeds.
   With -SignSetup the certificate internal\misc\<CertFileName> (DER or PEM) is first converted to
   a DER copy in the temporary build folder, checked against -CertHashSHA1 and passed to ISCC as
   /DCertDerFile, see README.md "Signed builds".
@@ -66,7 +68,9 @@
   be told apart. At most 64 characters of A-Z a-z 0-9 . _ - (anything else stops the script before
   ISCC runs); '' passes none. Default: test<TestID>-<commit> for a test build (TestID > 0, commit =
   the short Git commit of the repository, test<TestID> without Git), the short commit in CI (GitHub
-  Actions), none for every other build (the setups then write no SetupBuild value).
+  Actions), none for every other build (the setups then write no SetupBuild value). The product
+  setups of a release of the suite need one (suite\build_suite.ps1 refuses them without), e.g.
+  -SetupBuild suite-1.1.1-<commit>.
 
 .PARAMETER Variants
   Variants to build, any of EE/Regular, NeoEE/Regular, EE/Portable, NeoEE/Portable (default: all).
@@ -444,11 +448,15 @@ try {
       Write-Host "PASS $variant -> $($exe[0])"
       # SHA-256 file next to the setup, for the download page (README, "Checksums of the setups").
       # ISCC has already signed the setup (SignTool), so this is the hash of the file players get.
+      # Then the record of SetupBuild, bound to that SHA-256: the suite build names the build of each product setup
+      # it embeds from it (suite\build_suite.ps1, BUILD-INFO.txt)
       try {
         $checksum = Write-FileSha256 (Join-Path $variantOut $exe[0])
         Write-Host "  SHA-256 $($checksum.Hash)  $($exe[0]) -> $([System.IO.Path]::GetFileName($checksum.Path))"
+        $record = Write-SetupBuildRecord (Join-Path $variantOut $exe[0]) $SetupBuildValue
+        Write-Host "  SetupBuild $(if ($SetupBuildValue) { $SetupBuildValue } else { 'none' }) -> $([System.IO.Path]::GetFileName($record))"
       } catch {
-        Write-Host "FAIL $variant (no SHA-256 file: $($_.Exception.Message))"
+        Write-Host "FAIL $variant (no SHA-256 file or SetupBuild record: $($_.Exception.Message))"
         $failed += $variant
       }
     } else {

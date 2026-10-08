@@ -1,7 +1,9 @@
 # 0013. A suite installer that runs the unchanged EE and NeoEE setups and installs the launcher
 
-- Status: Accepted (decided by the maintainers on 2026-10-05; being implemented, the evidence of
-  the WP0 spike is in [Evidence](#evidence))
+- Status: Accepted, implemented (decided by the maintainers on 2026-10-05; released as suite 1.0.0 on 2026-10-06 and as
+  suite 1.1.0 on 2026-10-07; the evidence of the WP0 spike is in [Evidence](#evidence), what was built and how it is
+  tested is in [ARCHITECTURE.md](../ARCHITECTURE.md), section 11; the amendments below record the later decisions, the
+  last three for suite 1.1.1)
 - Date: 2026-10-05
 - Requirements: briefing D1 (Inno Setup 6.2.2, every behaviour change intended), D4 (Windows 7 SP1
   to 11), D5 (shared contract), D6 (CD-key registration untouched, no game data in the repository),
@@ -791,3 +793,186 @@ way to the line, but a human click can hit the window as well, and a game withou
   a suite that dies during the few milliseconds of the freeze (documented above) and a stop that Windows does not carry out
   (the processes run again, the click is answered with `SuiteCancelRetry`).
 - The contract (1.7 point 2, informative) says that the suite decides on the log of a frozen setup.
+
+## Amendment: a process that is ending counts as ended in the freeze (2026-10-08, for suite 1.1.1)
+
+**Context.** CI run 48 ([run 37684555046](https://github.com/DritteRippe/Empire-Earth-Setup/actions/runs/37684555046), push
+of `release-1.1.0`, commit `2b764e4`) failed in the unit test "SuiteFreezeJob of a job whose program ended" with `process
+3384 cannot be suspended`; run 49 on the same commit passed. The test starts `cmd.exe /c exit 0`, waits until it has ended
+and freezes its job at once. Windows 8 and later start a console helper (`conhost.exe`) in the job of a console program,
+and the helper ends a moment after the program. The likely sequence (it cannot be replayed on purpose, and the old reason
+did not say what Windows answered): the job still listed the helper, `NtSuspendProcess` refused it because its last thread
+was ending (`STATUS_PROCESS_IS_TERMINATING`, `0xC000010A`), and its process object was not signalled yet, so the look
+without waiting (`WaitForSingleObject` with 0 ms) did not count it as ended either. `SuiteFreezeJob` took it for a process
+that cannot be frozen. A product setup can meet the same moment when its loader or a helper ends while the user cancels:
+the cancel was then *unclear* (point 3 of the race amendment) and was decided again. That is safe, but it is not what
+happened, and the log did not tell why Windows refused.
+
+**Decision.**
+
+1. **A process that Windows reports as ending is ended for the freeze.** The pure function `SuiteSuspendFailureIsEnd`
+   (`suite_common.iss`) decides for every suspension that failed: it counts as an end if the status is
+   `STATUS_PROCESS_IS_TERMINATING` or the process has ended (`WAIT_OBJECT_0`). `NtSuspendProcess` returns that status when
+   the process is being run down because its last thread is exiting (in the Windows Research Kernel `PsSuspendProcess`
+   fails with it when it cannot acquire the run-down protection of the process, which the exit of the last thread runs
+   down; current versions are as undocumented as the function itself). Such a process runs no code of its own any more: it
+   starts no process and writes no log line. If it is the loader (`GetProcessId` of `Proc`), the end check of the freeze
+   counts it like a loader that has ended. **Any other failure is still a process that may run on:** the freeze fails, the
+   product setup is not stopped and the cancel is *unclear*, as before (race amendment, points 3 and 7). The guarantee of
+   the race amendment does not change: a product setup that runs and cannot be frozen is never stopped.
+2. **The reason names the NTSTATUS.** Any other failed suspension is reported as `process <id> cannot be suspended
+   (NTSTATUS 0x<8 hex digits>)` (`SuiteNtStatusText`) in the existing log line `its setup could not be frozen (...)`, so a
+   refusal on a player's machine can be told apart (for example `0xC0000022`, access denied).
+3. **Checks and tests.** `ci/check_suite.py`, part [Freeze]: a failed suspension counts as an end only through
+   `SuiteSuspendFailureIsEnd`, which accepts only `STATUS_PROCESS_IS_TERMINATING` (`-1073741558` as a Longint) and
+   `WAIT_OBJECT_0`, and `SuiteFreezeJob` suspends in one place only; three mutants of its self-test must fail. The unit
+   tests check the classification as a pure function (ending and not yet signalled, ending and signalled, access denied
+   with and without an end, another failure, a failed wait) and the text of the status.
+4. **The unit test waits until the job is empty.** "SuiteFreezeJob of a job whose program ended" now waits, at most 30
+   seconds, until the job lists no process any more (`QueryInformationJobObject` with `JobObjectBasicProcessIdList`, the
+   list that `SuiteFreezeJob` reads, rather than the counter `ActiveProcesses` of `JobObjectBasicAccountingInformation`: the
+   test waits for exactly the input of the function it tests) and then expects a success with nothing frozen. The moment of
+   the ending helper is no longer part of that test; the classification of point 1 is tested on its own (point 3).
+
+**Consequences.**
+
+- A cancel that meets a process of the product setup just as it ends is no longer answered with "could not be stopped
+  safely right now" for that reason alone. Nothing else changes for the user.
+- The rule still errs on the side of not stopping: a process that refuses the suspension for any other reason, also one
+  that ends a moment later, makes the freeze fail.
+- The cause of run 48 stays a well-founded guess; a different cause would now show up with its NTSTATUS in the reason of
+  the unit test and in the log of the suite.
+- The contract (1.7 point 2, informative) says that a product setup that cannot be frozen runs on; a process that is ending
+  is not one that cannot be frozen. Contract revision 7 says so in 1.7 point 2.
+
+## Amendment: the deletion of the user data is checked up to the last moment (2026-10-08, for suite 1.1.1)
+
+**Context.** The check of the state after the release of suite 1.1.0 (2026-10-07) read decision 11 against the code of
+`suite_uninstall.iss` and against `DelTree` of Inno Setup 6.2.2 (`Projects/InstFunc.pas` of the tag `is-6_2_2`). What is
+deleted after the answer "Delete" is right when the list is made: fixed folders below the install roots and the
+launcher's data folder, none that is a link or lies below one. But the suite looks at the folders once, before its
+question, and the question waits for the user without a limit. `DelTree` checks only the folder it is given, and each
+folder it finds inside, for a link (`IsDirectoryAndNotReparsePointRedir`) and removes such a link without entering it;
+a link in a folder above it is resolved by Windows like in any other path. `Data\dxm`, the folder above the target
+`Data\dxm\mods`, lies below `Data`, which every user may write to in an installation for all users (ADR 0009), so a
+standard user who replaces it by a junction while the question is open makes the elevated `DelTree` delete the content
+of the junction's target. Two smaller points: `SuiteIsReparsePoint` took a folder whose entry `FindFirst` could not read
+for "no link" (fail open, unlike the walk of the product setups), and the comment above `SuiteIsBehindLink` and the
+text of `ci/check_suite.py` said that `DelTree` follows a link that is the folder itself, which it does not.
+
+**Decision.**
+
+1. **A path that cannot be looked at counts as a link.** The pure function `SuiteLinkVerdict` (`suite_common.iss`)
+   decides for `SuiteIsReparsePoint`: an entry with `FILE_ATTRIBUTE_REPARSE_POINT` is a link, and so is a path that
+   exists (`DirExists` or `FileExists`, which need no right to list the folder above) although `FindFirst` cannot read
+   its entry. A path that does not exist is none. The check of the suite fails closed like the walk of the product
+   setups (ADR 0009, decision point 1); the log lines say "is a link (junction or symbolic link) or cannot be checked".
+   The unit tests check the verdict as a pure function: a folder, a file, a junction, a symbolic link to a file, a path
+   that exists but cannot be looked at, a path that does not exist.
+2. **The link check is repeated right before each `DelTree`.** `SuiteExistingDataFolders` offers every folder through
+   `SuiteOfferDataFolder`, which records the root its link check goes up to (the install root of the product, the
+   launcher's data folder) at the same index as the folder. After the answer "Delete", `SuiteDeleteDataFolders` checks
+   each folder again right before its `DelTree`: it must still exist (`DirExists`) and neither it nor a folder above it up
+   to that root may be a link now (`SuiteIsBehindLink`). A folder that fails stays, with the log line `User data folder
+   not deleted, it or a folder above it is a link (junction or symbolic link) now or cannot be checked: <folder>` (or
+   `... it is gone already: <folder>`). The window that was open as long as the question waited shrinks to the moment
+   between that check and the end of the `DelTree`.
+3. **The empty folders are removed only if they are no link.** `RemoveDir` never removes a folder with content, but it
+   removes a junction or a symbolic link whatever its target holds, and it follows a link in a folder above. The
+   folders of `SuiteEmptyFolder` and the launcher's data folder are removed only if `SuiteIsBehindLink` finds no link
+   up to their root; otherwise they stay, with the log line `Folder left as it is, ...`.
+4. **A product that stays installed is recognized in another spelling of its root, too.** Two products may share one
+   install root, and the profiles and saved games below it then belong to the product that stays as well
+   (`SuiteIsFolderOfInstalledProduct`). The roots come from the uninstall keys in the spelling the setups were given, so
+   one may read `C:\PROGRA~2\EMPIRE~1` and the other `C:\Program Files (x86)\Empire Earth`. The comparison now holds
+   for the paths as written or for their `SuiteComparablePath`: the full path (`ExpandFileName`, `.` and `..` resolved,
+   `/` as `\`) in its 8.3 short form (`GetShortName`, which gives the path back unchanged if it does not exist or its
+   volume has no short names). As before, the case of the letters A to Z does not count (`UpperCase` of Pascal Script
+   maps only those); other letters keep their case in the spelling as written, while their short form, where the
+   volume has one, is the same for both. `SuiteIsSameOrInsideSpelled` says True more often than
+   `SuiteIsSameOrInside`, never less, so it only ever keeps a folder. A subst drive or a link in the spelling of a root
+   is not resolved (that would need `GetFinalPathNameByHandleW` through a DLL import and handles to folders); the link
+   check of the data folders does not depend on it. Unit tests: as written, with `..` and `/`, the folder or the path in
+   its short name, a folder named like the start of another, an empty folder.
+5. **The deletion runs in CI.** The "Delete" branch had never run in any test: a silent uninstallation asks nothing and
+   keeps the data, and every scenario uninstalls silently. The placeholder suite now has a test hook, after the pattern of
+   `PlaceholderInstallPause` of the product setups: inside `#ifdef PlaceholderUninstallDelete`, the switch
+   `/TestDeleteUserData` of the uninstaller gives the answer "Delete" in a silent run, with the log line `Test hook of a
+   placeholder build: /TestDeleteUserData answers the question about the user data with "Delete"`. Inno Setup hands the
+   command line of `unins000.exe` to its copy in `%TEMP%`, whose `[Code]` reads it (`ParamStr`, Inno Setup 6.2.2
+   `Uninstall.pas`). Only `Get-SuitePlaceholderHookDefine` of `ci/suite_build_helpers.ps1` passes the define, and
+   `suite/build_suite.ps1` calls it with `-Placeholders` only; `suite.iss` stops the build (`#error`) if the define comes
+   with an AppId that is not one of the dummies, so a release never contains the hook, whoever passes the define. The
+   new scenario **S15** installs both products with the suite, puts user data into every folder the uninstaller offers,
+   files next to them (also a folder `Saved Games Old`) and a junction for `Data\dxm` of NeoEE to a folder outside the
+   installation with a canary, and uninstalls with `/TestDeleteUserData`. It checks that exactly the offered folders are
+   gone (one log line each), that every other file stays, that `Data\dxm\mods` behind the junction is neither offered nor
+   deleted and the empty folder cleanup leaves the junction as it is, and that the target of the junction did not change.
+   S15 cannot click in the dialog, so the second check (a link made while the question waits) stays with `ci/check_suite.py`
+   and TP-95 (c).
+6. **The checks.** `ci/check_suite.py`, part [Uninstaller], requires that each folder is offered through
+   `SuiteOfferDataFolder` with its root, that `SuiteOfferDataFolder` leaves out a folder behind a link and one of a
+   product that stays installed and records the root, that `SuiteDeleteDataFolders` checks `DirExists` and
+   `SuiteIsBehindLink(Folders[I], Roots[I])` right before `DelTree`, and that every `RemoveDir(Target)` follows a
+   `SuiteIsBehindLink(Target, ...)`; its self-test has a mutant for each (among them the second check removed, and the
+   second check against the folder itself instead of its root, which would miss a link in `Data\dxm`). The comment
+   above `SuiteIsBehindLink` and the text of the check now describe `DelTree` as it is. It also requires that
+   `SuiteIsFolderOfInstalledProduct` compares with `SuiteIsSameOrInsideSpelled` both ways (a mutant that compares as
+   written only must fail). Part [Hook] requires that every line of the test hook stands in its one `#ifdef` block, that
+   `DeleteData` becomes True only through the second button of the question or through the switch inside that block, that
+   `suite.iss` refuses the define with a real AppId and never defines it, and that only `Get-SuitePlaceholderHookDefine`
+   passes it, with a mutant for each. The lines S8 and S15 match are in `TEST_LOG_LINES`, and the smoke test of the scenarios
+   takes them from the code; its fake uninstaller deletes the offered folders for the switch, and three defects of it
+   (a deletion through the link, a deletion of the folder above, the switch ignored) must fail S15.
+
+**Consequences.**
+
+- A link in a folder above a data folder that appears while the question is open no longer leads the elevated `DelTree`
+  out of the installation; what remains is the moment between the second check and the end of the `DelTree`, the same
+  kind of race that ADR 0009 documents for the product setups (point 5) and that only RedirectionGuard of Inno Setup 6.7
+  would close.
+- A data folder whose entry cannot be read is kept; with the default permissions below `Program Files` and in the profile
+  that does not happen.
+- A junction or symbolic link that a player put at `Data\dxm` (or above an empty folder of the cleanup) stays after the
+  uninstallation, and with it the folders above it; before, `RemoveDir` removed such a link.
+- The placeholder suite of CI deletes user data in a silent uninstallation when it gets `/TestDeleteUserData`; it is
+  useless and never distributed anyway. A release build behaves as before: a silent uninstallation keeps the user data.
+- The dialog, its texts and the click on "Delete" are still tested only by hand (TP-95 (c)).
+
+## Amendment: BUILD-INFO.txt names the SetupBuild of the product setups (2026-10-08, for suite 1.1.1)
+
+**Context.** Every product setup reports "Setup v1.7.2" (`MySetupVersion` stays 1.7.2 until v2 is released), in its
+window title, its version resource and its install record. The product setups of package 1.0.0 (dgVoodoo 2.82.1) and of
+package 1.1.0 (dgVoodoo 2.87.5, intro videos) are different binaries with the same version, and so is the official 1.7.2
+of 2023. `SetupBuild` (ADR 0004 point 10) exists to tell such builds apart, but `ci\build.ps1` passes none for a local
+release build, and `BUILD-INFO.txt` of the suite named none: neither the package nor a bug report could say which
+build of a product setup it was. A setup keeps the value only in its compressed data, so the suite build cannot read it
+from the file.
+
+**Decision.**
+
+1. **A record next to every setup.** `ci\build.ps1` writes `<setup>.exe.setupbuild` after `<setup>.exe.sha256`
+   (`Write-SetupBuildRecord` of `ci\build_helpers.ps1`): the line `SHA256=<hash of the setup>` and the line
+   `SetupBuild=<identifier>` (empty for none), LF, UTF-8 without BOM. The hash binds the record to the bytes it was
+   written for.
+2. **The suite build reads it.** `suite\build_suite.ps1` reads the record of each product setup it embeds
+   (`Get-ProductSetupBuild` of `ci\suite_build_helpers.ps1`) and writes `Product SetupBuild:   EE <identifier>, NeoEE
+   <identifier>` into `BUILD-INFO.txt` (`none` for a setup built without one, `not recorded` without a record). A record
+   written for other bytes always stops the build.
+3. **A release build needs it.** A build without `-Placeholders` and with `TestID` 0 stops before ISCC runs unless both
+   product setups have an identifier. The product setups of a package are built with
+   `ci\build.ps1 -SetupBuild <identifier>`, for example `suite-1.1.1-<short commit>`; the setups write it into
+   `install.ini`, the install record (contract 1.1, 1.2) and the first line of their log. A placeholder build and a test
+   build of the suite only name what the records say; in CI the placeholder product setups have the short commit.
+4. **Tests.** `ci\tests\build_helpers.tests.ps1` checks the record (its format, overwriting, the refused forms, the
+   record of every setup in the dry runs of `ci\build.ps1`), `ci\tests\suite_build.tests.ps1` the line in
+   `BUILD-INFO.txt` and the stops (no record, none, a record of other bytes) before ISCC.
+
+**Consequences.**
+
+- The product setups of two packages can be told apart by their `SetupBuild`, in the package (`BUILD-INFO.txt`), on the
+  machine (`install.ini`, the install record) and in a log. Their window title and version resource still say 1.7.2.
+- The record is as trustworthy as the build that wrote it: the suite build cannot read the value back from the setup,
+  it only checks that the record belongs to these bytes.
+- Whether the community product setups should get a version of their own (instead of 1.7.2 and `SetupBuild`) stays open;
+  the update API of the launcher asks with the setup version (`type=setup`), so that needs a decision with the API first.

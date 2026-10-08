@@ -285,7 +285,7 @@ function Test-E2EK10Files([hashtable]$Ctx) {
     } elseif (@($Ctx.Components | Where-Object { $_ -like 'additional\directx_wrapper\*' }).Count -eq 0 -and (Test-Path -LiteralPath $ddraw)) {
       $problems += "$folderName\DDraw.dll exists without a wrapper"
     }
-    # The intro movies (since setup 1.1.0 part of the types full and compact): the files of the movies component; the
+    # The intro movies (since suite 1.1.0 part of the types full and compact): the files of the movies component; the
     # localized Empire Earth.bik of the language update may replace the English one, so it only has to exist
     if ($Ctx.Components -contains 'additional\movies') {
       $movies = @{ EE = @('Sierra.bik', 'SSSI.bik', 'Empire Earth.bik'); AoC = @('Sierra.bik', 'MadDocSoftware.bik') }

@@ -17,7 +17,7 @@
 ;
 ; Build and run (ci/run_unit_tests.ps1 does both and checks the result):
 ;   ISCC ci\tests\unit_tests.iss
-;   ci\tests\out\unit_tests.exe /VERYSILENT /SUPPRESSMSGBOXES /RESULTS=<file>
+;   ci\tests\out\unit_tests.exe /VERYSILENT /SUPPRESSMSGBOXES /RESULTS=<file> /SAMPLES=<repository>\docs\contract-samples
 ; The last line of <file> is "RESULT: PASS (<n> tests)" (", <s> skipped" if tests were skipped) or
 ; "RESULT: FAIL (<k> of <n> tests)".
 
@@ -1178,6 +1178,69 @@ begin
   Check('BuildMissingAfterInstallText only a path that is not ASCII', BuildMissingAfterInstallText(Missing), '');
 end;
 
+// The byte samples of the contract (docs/contract-samples, the same folder as in the launcher repository, which tests its
+// readers against them; ci/compare_contract.py compares both copies): the writers of the setup produce exactly their
+// bytes. ci/run_unit_tests.ps1 passes the folder as /SAMPLES=<folder>.
+procedure TestContractSamples;
+var
+  Folder, Manifest: String;
+  Missing, Paths, Reversed: TArrayOfString;
+  I: Integer;
+begin
+  Folder := ExpandConstant('{param:SAMPLES|}');
+  if Folder = '' then
+  begin
+    CheckBool('contract samples: the folder is given (/SAMPLES=<docs\contract-samples>, ci\run_unit_tests.ps1 passes it)', False, True);
+    Exit;
+  end;
+  Folder := AddBackslash(Folder);
+  Check('contract sample install-admin.ini: BuildInstallIniText',
+    BuildInstallIniText(1, 'NeoEE', '00000000-0000-0000-0000-000000000AEE', 'admin', '2.0.0.5', '2.0.0', 'a1b2c3d',
+      'game,gameaoc,additional,additional\directx_wrapper,additional\directx_wrapper\dx11_lvl11,language,language\de',
+      'compatibility,compatibility_windows,firewallexception,neoee_cdkeys', '2026-10-02 18:04:31'),
+    FileText(Folder + 'install-admin.ini'));
+  SetArrayLength(Missing, 2);
+  Missing[0] := 'Empire Earth/file0003.dll';
+  Missing[1] := 'Empire Earth/Data/file0004.dat';
+  Check('contract sample install-user.ini: BuildInstallIniText and BuildMissingAfterInstallText',
+    BuildInstallIniText(1, 'EE', '00000000-0000-0000-0000-0000000000EE', 'user', '2.0.0.5', '2.0.0', 'a1b2c3d',
+      'game,gameaoc,language,language\en', 'compatibility', '2026-10-02 18:10:02') + BuildMissingAfterInstallText(Missing),
+    FileText(Folder + 'install-user.ini'));
+  Check('contract sample install-portable.ini: BuildInstallIniText without SetupBuild',
+    BuildInstallIniText(1, 'NeoEE', '00000000-0000-0000-0000-000000000AEE', 'portable', '2.0.0.5', '2.0.0', '',
+      'game,language,language\fr', 'neoee_cdkeys', '2026-10-02 18:15:47'),
+    FileText(Folder + 'install-portable.ini'));
+  // files.sha256: a line of ManifestLine per file, in the order of MergeSortManifestPaths (contract 2.2)
+  SetArrayLength(Paths, 10);
+  Paths[0] := 'Empire Earth - The Art of Conquest/Data/file0003.dat';
+  Paths[1] := 'Empire Earth - The Art of Conquest/Data/WONLobby Resources/_LobbyResource.cfg';
+  Paths[2] := 'Empire Earth - The Art of Conquest/EE-AOC.exe';
+  Paths[3] := 'Empire Earth/Data/file0001.dat';
+  Paths[4] := 'Empire Earth/Data/file0002.ssa';
+  Paths[5] := 'Empire Earth/Empire Earth.exe';
+  Paths[6] := 'Empire Earth/file0001.dll';
+  Paths[7] := 'Empire Earth/file0002.cfg';
+  Paths[8] := 'Empire Earth/neoee.dll';
+  Paths[9] := 'Tools/Diagnostic/EE-Diagnostic.exe';
+  SetArrayLength(Reversed, 10);
+  for I := 0 to 9 do
+    Reversed[I] := Paths[9 - I];
+  MergeSortManifestPaths(Reversed);
+  Check('contract sample files.sha256: the order of MergeSortManifestPaths', JoinedPaths(Reversed), JoinedPaths(Paths));
+  Manifest :=
+    ManifestLine('0899cd856fba9b131050135138cd87c5e5222f0a0657b94730901988d5cabdbb', Paths[0]) +
+    ManifestLine('2be9fec91c2c7e4b40fedb0d2bf11da0f6fe4a7047946e3bd492a7377e7c6154', Paths[1]) +
+    ManifestLine('73014671303fd8235351b0a5e8aa8c6c6d19caf70d0d13900454afde0083d2a4', Paths[2]) +
+    ManifestLine('6e16930f100e4505c66e0a47609120d6d2c2c7d57c6e59f3f41aae35ba65adf7', Paths[3]) +
+    ManifestLine('d069ad2efe805a0d3b7f993e96ff2585942072e8c0be8f7c545fa496d717e98d', Paths[4]) +
+    ManifestLine('78dddd3d59eeda1a0397646b3d6470b2c84aa0604f5861c905444f21f011b501', Paths[5]) +
+    ManifestLine('df06dfe9f54974fd7fd850e5c1bf7d4887646c9f561a4f025a7816ca28ed7129', Paths[6]) +
+    ManifestLine('b1b7dd7ad486aef388280d060e0dfd9c14aca36757ba87b0feb39e48a05a921d', Paths[7]) +
+    ManifestLine('1a9f91939ca6c89cce3b04e0f9d58ca8b22c1fa2969ba45c6c80982363d24655', Paths[8]) +
+    ManifestLine('1c0cc9af658a84f25db98e61713a8fa0aae24908d0a4cef2d50f6079d93b5d95', Paths[9]);
+  Check('contract sample files.sha256: ManifestLine', Manifest, FileText(Folder + 'files.sha256'));
+end;
+
 procedure SetMissing(var Missing: TArrayOfString; const Count: Integer);
 var
   I: Integer;
@@ -1989,6 +2052,7 @@ begin
     TestCompareManifestPaths;
     TestSortManifestPaths;
     TestBuildMissingAfterInstallText;
+    TestContractSamples;
     TestFormatMissingFileList;
     TestFormatManifestSummary;
     TestManifestFiles;

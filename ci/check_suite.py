@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Checks the frame of the suite installer (suite/suite.iss, ADR 0013) that no compiler checks.
+r"""Checks the frame of the suite installer (suite/suite.iss, ADR 0013) that no compiler checks.
 
   python ci/check_suite.py [repo_dir]
   python ci/check_suite.py --self-test
@@ -13,7 +13,9 @@ to stay safe and installable:
             mode, contract 0), DiskSpanning=yes with DiskSliceSize from the define
             SliceSize (never a number written into the script: the build script and the CI pass the
             size, and a size below the setup program is refused by ISCC), no pages and no language
-            dialog, SetupLogging=yes, CloseApplications=no
+            dialog, SetupLogging=yes, CloseApplications=no; the links "Support" and "Updates" of its entry
+            in Windows "Apps" (AppSupportURL, AppUpdatesURL) lead to the repository the package is
+            published in, not to empireearth.eu, which neither offers nor supports the suite
   [Files]   every entry is either a product setup (the sources {#EESetupFile} and {#NeoEESetupFile},
             with the flags dontcopy and nocompression and a DestName: byte for byte, extracted by the
             product runner) or a file of the launcher, the Mod Creator or the licenses below {app}
@@ -50,7 +52,9 @@ to stay safe and installable:
             read once; after a cancel no further product setup starts and Setup ends with Abort
   [Freeze]  the race of Cancel (ADR 0013 amendment, run 5f): NtSuspendProcess and NtResumeProcess are imported once
             each and called only by SuiteFreezeJob and SuiteResumeFrozen; SuiteFreezeJob lists the job, opens only
-            processes that IsProcessInJob confirms and looks again until no process is new; SuiteStopBeforeInstall
+            processes that IsProcessInJob confirms and looks again until no process is new, and takes a process that
+            NtSuspendProcess did not suspend for ended only through SuiteSuspendFailureIsEnd (STATUS_PROCESS_IS_TERMINATING
+            or a process that has ended; any other failure fails the freeze); SuiteStopBeforeInstall
             freezes first, reads the log to its end, decides with SuiteStopDecision, only then stops the job, reads
             the log once more after the stop, and resumes in a finally block unless it terminated; SuiteFreezeJob
             succeeds only if the loader has ended or is among the frozen processes (an empty or wrong list of the job
@@ -65,7 +69,11 @@ to stay safe and installable:
             product script and every Sleep( in it stands inside an #ifdef PlaceholderInstallPause block, the only place that passes
             /DPlaceholderInstallPause is Get-PlaceholderPauseDefine of ci/build_helpers.ps1, which ci/build.ps1 calls
             with its -Placeholders switch only, and a build without -Placeholders stops if the resolved script holds
-            a hook line
+            a hook line; the test hook of the placeholder suite (suite_uninstall.iss, PlaceholderUninstallDelete, CI
+            scenario S15): every line of it stands in its one #ifdef block, the switch /TestDeleteUserData is the only
+            other way DeleteData becomes True, suite.iss refuses the define with AppIds other than the dummies and
+            never defines it, and only Get-SuitePlaceholderHookDefine of ci/suite_build_helpers.ps1 passes it, which
+            suite/build_suite.ps1 calls with its -Placeholders switch only
   [Display] the progress in the window of the suite (suite 1.1.0, S4): SuiteShowProgress (called by SuiteLookAtLog) leaves
             the advanced mode alone, takes the bar from SuiteRunningPermille (never 100 percent while a product setup
             runs), fails only into a log line (try/except, SuiteProgressBroken) and does not touch the bar's end; the bar
@@ -85,12 +93,17 @@ to stay safe and installable:
             usUninstall, the shortcuts, the record and the user data at usPostUninstall; InitializeUninstall
             checks the game and launcher mutexes, holds the setup mutex of [Setup] and asks one question
             (not in a silent run); the only programs it starts are the uninstaller of a product (after
-            SuiteIsProductUninstaller) and ping for a pause; the data folders it offers are no link and not behind
-            one, and not those of a product that stays installed; DelTree only in SuiteDeleteDataFolders, called only
-            after the answer "Delete" (the second button, never in a silent run); DeleteFile and RemoveDir only
-            on the paths of the helpers of suite_common.iss, and RemoveDir on the empty {app} in
-            SuiteRemoveEmptyRoot (not a link, not behind one); no registry deletion except RemoveSuiteRecord;
-            [UninstallDelete] names {app}\Logs only; no Setup-only function (WizardSilent)
+            SuiteIsProductUninstaller) and ping for a pause; the data folders it offers (SuiteOfferDataFolder) are
+            no link and not behind one up to their root, which is recorded next to each folder, and not those of a
+            product that stays installed (compared as written and in the short spelling, SuiteIsSameOrInsideSpelled,
+            both ways); DelTree only in SuiteDeleteDataFolders, called only after the answer
+            "Delete" (the second button, never in a silent run), and only after it checked the folder again right
+            before (DirExists, SuiteIsBehindLink up to its root: the question waits without a limit, and DelTree of
+            Inno Setup 6.2.2 checks only the folder it is given, Windows follows a link in a folder above it);
+            DeleteFile and RemoveDir only on the paths of the helpers of suite_common.iss, RemoveDir of a folder of
+            SuiteEmptyFolder or SuiteLauncherDataDir only if it is no link and not behind one, and RemoveDir on the
+            empty {app} in SuiteRemoveEmptyRoot (not a link, not behind one); no registry deletion except
+            RemoveSuiteRecord; [UninstallDelete] names {app}\Logs only; no Setup-only function (WizardSilent)
   [Safety]  no suite file mentions the registry key of the CD keys of the original game, the library of the
             NeoEE CD key registration or its function (the suite never reimplements or bypasses the
             registration, contract 1.7 point 5)
@@ -102,10 +115,14 @@ to stay safe and installable:
             (SuiteLogInstallPhase) is the first statement of CurStepChanged(ssInstall) in setup_is6.iss, before
             anything changes the game folder (DeleteInstallState, VerifyDownloadedFiles, PrepareRandomMapScripts)
 
+A missing suite/suite.iss is an error, not a reason to skip the rules: the suite is what the package
+ships, and a script renamed in suite/build_suite.ps1 but not in SUITE_FILES would otherwise pass
+without a single rule checked.
+
 --self-test runs the check against changed temporary copies of the suite files (MinVersion 10.0, a
 number as DiskSliceSize, a launcher entry without the Check, a product setup that is compressed,
-an exit code twice, ExitProcess outside SuiteStop, ...) that must fail, and the unchanged copy,
-which must pass. Exit code 0 if everything is as expected.
+an exit code twice, ExitProcess outside SuiteStop, the main script renamed, ...) that must fail, and
+the unchanged copy, which must pass. Exit code 0 if everything is as expected.
 """
 import re
 import shutil
@@ -133,6 +150,9 @@ SETUP_EXPECTED = {
     "ShowLanguageDialog": "no",
     "SetupLogging": "yes",
     "CloseApplications": "no",
+    # the links of the entry in Windows "Apps": where the package is published and supported
+    "AppSupportURL": "https://github.com/DritteRippe/Empire-Earth-Community",
+    "AppUpdatesURL": "https://github.com/DritteRippe/Empire-Earth-Community/releases",
 }
 # the product log lines the suite parses (S3, contract 1.7 point 5): per product script the SuiteLog* constants of
 # suite/suite_common.iss whose texts all stand in one line of that script. A reworded line there, or a constant
@@ -165,10 +185,16 @@ INNO_LOG_CONSTANTS = ("SuiteLogInstallStart", "SuiteLogTempFile", "SuiteLogInsta
 PRODUCT_LOG_FILES = tuple(sorted({rel for rel, _ in PRODUCT_LOG_LINES}))
 # the build files that pass the test hook of the placeholder builds (check_placeholder_hook) and the scenarios and their smoke test
 # that read the log lines of the cancel (check_test_log_lines)
-HOOK_FILES = ["ci/build.ps1", "ci/build_helpers.ps1", "ci/e2e/e2e_suite_scenarios.ps1", "ci/e2e/tests/e2e_suite_scenarios.tests.ps1"]
-# The lines the scenarios S11 to S14 of ci/e2e/e2e_suite_scenarios.ps1 match (the suite log and the log of the placeholder
-# product setup): file, text, written by the code of that file, and the part of it the scenarios spell (None: all of it). A reworded line fails here instead of in the job on Windows;
-# they are no lines the suite parses (PRODUCT_LOG_LINES), but the tests depend on them (TEST-PLAN TP-99 names them, too).
+HOOK_FILES = ["ci/build.ps1", "ci/build_helpers.ps1", "ci/e2e/e2e_suite_scenarios.ps1", "ci/e2e/tests/e2e_suite_scenarios.tests.ps1",
+              "ci/suite_build_helpers.ps1", "suite/build_suite.ps1"]
+# The test hook of the placeholder suite (suite/suite_uninstall.iss, CI scenario S15): its define, which only
+# Get-SuitePlaceholderHookDefine of ci/suite_build_helpers.ps1 passes, and the switch of the uninstaller it reads
+SUITE_HOOK_DEFINE = "PlaceholderUninstallDelete"
+SUITE_HOOK_SWITCH = "/TestDeleteUserData"
+# The lines the scenarios S8 and S11 to S15 of ci/e2e/e2e_suite_scenarios.ps1 match (the suite log, the log of its uninstaller
+# and the log of the placeholder product setup): file, text, written by the code of that file, and the part of it the scenarios
+# spell (None: all of it). A reworded line fails here instead of in the job on Windows; they are no lines the suite parses
+# (PRODUCT_LOG_LINES), but the tests depend on them (TEST-PLAN TP-95 and TP-99 name them, too).
 TEST_LOG_LINES = [
     ("suite/suite_run.iss", "/TestCancel, the cancel is requested as if the user had answered the question with Yes", None),
     ("suite/suite_run.iss", "/TestCancelAtInstall, its log shows the install step, the cancel is requested now", None),
@@ -190,6 +216,13 @@ TEST_LOG_LINES = [
     ("suite/suite_run.iss", "its setup was not stopped, it runs on", "its setup was not stopped"),
     ("suite/suite_run.iss", "cancelled by the user before it installed anything", None),
     ("suite/suite_run.iss", "was cancelled by the user, but its log shows that it had started to install", "was cancelled by the user, but its log shows"),
+    ("suite/suite_uninstall.iss", "Silent uninstallation: the user data stays:", None),
+    ("suite/suite_uninstall.iss", 'Test hook of a placeholder build: /TestDeleteUserData answers the question about the user data with "Delete"', None),
+    ("suite/suite_uninstall.iss", "User data folder deleted: ", None),
+    ("suite/suite_uninstall.iss", "User data folder not offered, it or a folder above it is a link (junction or symbolic link) or cannot be checked: ", None),
+    ("suite/suite_uninstall.iss", "Folder left as it is, it or a folder above it is a link (junction or symbolic link) or cannot be checked: ", None),
+    ("suite/suite_uninstall.iss", "User data folder not deleted, ", None),
+    ("suite/suite_uninstall.iss", "User data folder not (completely) deleted: ", None),
     ("setup_is6.iss", "Test hook of a placeholder build: pausing 2000 ms before the install step", None),
     ("setup_is6.iss", "Test hook of a placeholder build: pausing 2000 ms after the install step line", None),
 ]
@@ -656,6 +689,16 @@ def check_freeze(files, errors):
     run = "suite/suite_run.iss"
     common_text = "\n".join(line for _, line in code_lines(files.get(where, "")))
     run_text = "\n".join(line for _, line in code_lines(files.get(run, "")))
+    ending = bodies.get("SuiteSuspendFailureIsEnd", "")
+    if not re.search(r"Result\s*:=\s*\(Status\s*=\s*SuiteStatusProcessIsTerminating\)\s+or\s+\(WaitResult\s*=\s*SuiteWaitObject0\);", ending) \
+            or not re.search(r"^\s*SuiteStatusProcessIsTerminating\s*=\s*-1073741558\s*;", common_text, re.MULTILINE) \
+            or not re.search(r"Status\s*:=\s*SuiteSuspendProcess\(H\);\s+if\s+Status\s*<\s*0\s+then\s+begin\s+"
+                             r"if\s+SuiteSuspendFailureIsEnd\(Status,\s*SuiteWaitObject\(H,\s*0\)\)\s+then\s+begin", freeze) \
+            or len(re.findall(r"\bSuiteSuspendProcess\(", freeze)) != 1:
+        errors.append(f"{where}: SuiteFreezeJob may take a process that NtSuspendProcess did not suspend for ended only through "
+                      "SuiteSuspendFailureIsEnd, which says so only for STATUS_PROCESS_IS_TERMINATING (-1073741558, $C000010A: its last "
+                      "thread is ending) and for a process that has ended (WAIT_OBJECT_0): any other failure is a process that may run "
+                      "on, and the freeze must fail")
     order = [stop.find(token) for token in ("SuiteFreezeJob(", "SuiteTailLogToEnd(", "SuiteStopDecision(", "SuiteStopProduct(")]
     if min(order) < 0 or order != sorted(order):
         errors.append(f"{run}: SuiteStopBeforeInstall must freeze the job (SuiteFreezeJob), then read the log to its end "
@@ -719,7 +762,7 @@ def check_freeze(files, errors):
         errors.append(f"{run}: a confirmed cancel with an unclear state (SuiteStopUnclear) must stay requested for up to SuiteCancelTriesMax "
                       "decisions and then be told with SuiteCancelRetry; only SuiteStopTooLate says that the game is being installed "
                       "(SuiteCancelNotNow)")
-    return 13
+    return 14
 
 
 def check_placeholder_hook(root, errors):
@@ -778,8 +821,94 @@ def check_placeholder_hook(root, errors):
     return 6
 
 
+def ifdef_lines(text, define):
+    """The numbers of the lines of text inside an #ifdef <define> block, nested directives included (the #ifdef, its
+    #else and its #endif excluded)."""
+    inside, blocks = set(), []  # one entry per open #if block: True if it is the #ifdef of the define
+    for number, line in enumerate(text.splitlines(), 1):
+        stripped = line.strip()
+        enclosed = any(blocks)
+        if re.match(r"#\s*(ifdef|ifndef|if)\b", stripped):
+            blocks.append(bool(re.match(rf"#\s*ifdef\s+{define}\b", stripped)))
+        elif re.match(r"#\s*else\b", stripped) and blocks:
+            blocks[-1] = False
+            enclosed = any(blocks)
+        elif re.match(r"#\s*endif\b", stripped) and blocks:
+            blocks.pop()
+            enclosed = any(blocks)
+        if enclosed:
+            inside.add(number)
+    return inside
+
+
+def check_suite_hook(root, files, errors):
+    """The test hook of the placeholder suite (suite/suite_uninstall.iss, PlaceholderUninstallDelete, CI scenario S15): a silent
+    uninstallation of a placeholder build answers "Delete" when the uninstaller gets /TestDeleteUserData. Every line of the hook
+    stands in its one #ifdef block, DeleteData becomes True only through the question or the switch there, suite.iss refuses the
+    define with AppIds other than the dummies and nothing defines it, Get-SuitePlaceholderHookDefine is the only place that passes
+    it and suite/build_suite.ps1 calls it with -Placeholders only; the number of rules checked."""
+    where = "suite/suite_uninstall.iss"
+    text = files.get(where, "")
+    inside = ifdef_lines(text, SUITE_HOOK_DEFINE)
+    blocks = len(re.findall(rf"^\s*#\s*ifdef\s+{SUITE_HOOK_DEFINE}\b", text, re.MULTILINE))
+    if blocks != 1:
+        errors.append(f"{where}: expected one #ifdef {SUITE_HOOK_DEFINE} block (the test hook of the placeholder builds), found {blocks}")
+    hooked = 0
+    for no, line in code_lines(text):
+        if SUITE_HOOK_SWITCH in line or "Test hook of a placeholder build" in line:
+            hooked += 1
+            if no not in inside:
+                errors.append(f"{where}:{no}: this line of the test hook stands outside #ifdef {SUITE_HOOK_DEFINE}: a release "
+                              "build would delete the user data in a silent uninstallation")
+        for value in re.findall(r"\bDeleteData\s*:=\s*([^;]*)", line):
+            value = value.strip()
+            if value == f"SuiteHasParam('{SUITE_HOOK_SWITCH}')" and no in inside:
+                continue
+            if value != "False" and not value.startswith("SuppressibleTaskDialogMsgBox("):
+                errors.append(f"{where}:{no}: DeleteData := {value}: the user data is deleted only after the answer \"Delete\" "
+                              f"of the question, or in a placeholder build for {SUITE_HOOK_SWITCH} inside #ifdef {SUITE_HOOK_DEFINE}")
+    if hooked < 2:
+        errors.append(f"{where}: expected the test hook (SuiteHasParam('{SUITE_HOOK_SWITCH}') and its log line 'Test hook of a "
+                      f"placeholder build: ...') in #ifdef {SUITE_HOOK_DEFINE}, found {hooked} line(s)")
+    main = files.get("suite/suite.iss", "")
+    guard = [line for number, line in enumerate(main.splitlines(), 1) if number in ifdef_lines(main, SUITE_HOOK_DEFINE)]
+    guard_text = "\n".join(guard)
+    if not all(f'Copy({name}, 1, 24) != "00000000-0000-0000-0000-"' in guard_text for name in ("SuiteAppID", "EE_AppID", "NeoEE_AppID")) \
+            or not re.search(rf"#\s*error\s+{SUITE_HOOK_DEFINE}\b", guard_text):
+        errors.append(f"suite/suite.iss: #ifdef {SUITE_HOOK_DEFINE} must stop the build (#error) unless the three AppIds are the dummies "
+                      "of suite/build_suite.ps1 -Placeholders: a build with a real AppId never gets the test hook")
+    for rel, text_of in files.items():
+        if re.search(rf"#\s*define\s+{SUITE_HOOK_DEFINE}\b", text_of):
+            errors.append(f"{rel}: {SUITE_HOOK_DEFINE} must not be defined in the script (only suite/build_suite.ps1 -Placeholders passes it)")
+    try:
+        helpers = read(root, "ci/suite_build_helpers.ps1")
+        build = read(root, "suite/build_suite.ps1")
+    except CheckError as error:
+        errors.append(str(error))
+        return 5
+    if not re.search(r"function Get-SuitePlaceholderHookDefine\(\[bool\]\$Placeholders\)\s*\{\s*if \(\$Placeholders\) \{ return "
+                     rf"@\('/D{SUITE_HOOK_DEFINE}=1'\) \}}\s*return @\(\)", helpers):
+        errors.append(f"ci/suite_build_helpers.ps1: Get-SuitePlaceholderHookDefine must return /D{SUITE_HOOK_DEFINE}=1 for $Placeholders and "
+                      "nothing otherwise")
+    if "Get-SuitePlaceholderHookDefine ([bool]$Placeholders)" not in build:
+        errors.append("suite/build_suite.ps1: the define of the test hook must come from Get-SuitePlaceholderHookDefine ([bool]$Placeholders)")
+    for rel in ("ci", "suite", ".github"):
+        base = root / rel
+        paths = sorted(p for p in base.rglob("*") if p.is_file() and p.suffix in (".ps1", ".sh", ".yml", ".py", ".md", ".iss")) if base.is_dir() else []
+        for path in paths:
+            relative = path.relative_to(root).as_posix()
+            if relative in ("ci/suite_build_helpers.ps1", "ci/check_suite.py") or relative.startswith("ci/tests/"):
+                continue
+            comments = ("#", "//", ";") if path.suffix == ".iss" else ("#", "//")
+            for line in path.read_text(encoding="utf-8-sig", errors="replace").splitlines():
+                if SUITE_HOOK_DEFINE in line and not line.lstrip().startswith(comments):
+                    errors.append(f"{relative} names {SUITE_HOOK_DEFINE} in code: only Get-SuitePlaceholderHookDefine passes the switch")
+                    break
+    return 6
+
+
 def check_test_log_lines(root, errors):
-    """The log lines the scenarios S11 to S14 match (TEST_LOG_LINES) are written by the code, the scenario file of the
+    """The log lines the scenarios S8 and S11 to S15 match (TEST_LOG_LINES) are written by the code, the scenario file of the
     end-to-end test still names them, and the smoke test of the scenarios takes them from the code instead of writing them by
     hand (the fake once wrote "N processes run again" where the code writes "its N processes run again", and the scenario
     agreed with the fake); the number of rules checked."""
@@ -793,7 +922,7 @@ def check_test_log_lines(root, errors):
     scenarios = texts["ci/e2e/e2e_suite_scenarios.ps1"].replace("\\", "").replace("`", "")
     for rel, line, spelled in TEST_LOG_LINES:
         if line not in texts[rel]:
-            errors.append(f"{rel}: no line contains {line!r}, which the scenarios S11 to S14 of ci/e2e/e2e_suite_scenarios.ps1 match "
+            errors.append(f"{rel}: no line contains {line!r}, which the scenarios S8 and S11 to S15 of ci/e2e/e2e_suite_scenarios.ps1 match "
                           "(TEST_LOG_LINES): a change of this log line changes the scenarios and the test plan in the same commit")
         if (spelled or line) not in scenarios:
             errors.append(f"ci/e2e/e2e_suite_scenarios.ps1 does not name {(spelled or line)!r}, which {rel} writes (TEST_LOG_LINES)")
@@ -868,6 +997,12 @@ def check_marker(record, errors):
     return 2
 
 
+# The calls of SuiteOfferDataFolder in SuiteExistingDataFolders: each data folder with the root its link check goes up to (the
+# install root of its product, the launcher's data folder), which SuiteDeleteDataFolders checks up to again before DelTree
+SUITE_OFFERS = ["SuiteDataFolder(SuiteUninstallRoot[I], J), SuiteUninstallRoot[I], True, Folders, Roots",
+                "SuiteLauncherDataFolder(LocalAppData, J), SuiteLauncherDataDir(LocalAppData), False, Folders, Roots"]
+
+
 def check_uninstaller(uninstaller, main, files, errors):
     """Rules for suite/suite_uninstall.iss and for how suite/suite.iss uses it; the number of rules checked.
     files is {relative path: text} of every suite file."""
@@ -924,21 +1059,50 @@ def check_uninstaller(uninstaller, main, files, errors):
                       f"(found: {trees})")
     data = bodies.get("SuiteRemoveUserData", "")
     calls = re.findall(r"\bSuiteDeleteDataFolders\s*\(", all_code)
-    delete_if = re.search(r"if\s+DeleteData\s+then\s+SuiteDeleteDataFolders\(Folders\);", data)
-    asked = re.search(r"if\s+UninstallSilent\s+then\s+Log\(.*?\bDeleteData\s*:=\s*SuppressibleTaskDialogMsgBox\(.*?IDYES\)\s*=\s*IDNO;",
+    delete_if = re.search(r"if\s+DeleteData\s+then\s+SuiteDeleteDataFolders\(Folders,\s*Roots\);", data)
+    asked = re.search(r"if\s+UninstallSilent\s+then\s+begin\b.*?\bif\s+not\s+DeleteData\s+then\s+Log\('Silent uninstallation: the user data "
+                      r"stays:.*?\bend\s+else\s+begin\b.*?\bDeleteData\s*:=\s*SuppressibleTaskDialogMsgBox\(.*?IDYES\)\s*=\s*IDNO;",
                       data, re.DOTALL)
     if len(calls) != 2 or not delete_if or not asked or data.find("SuiteDeleteDataFolders(") < data.find("SuppressibleTaskDialogMsgBox("):
         errors.append(f"{where}: SuiteDeleteDataFolders is only called in SuiteRemoveUserData, after the task dialog of "
                       "the question, with 'if DeleteData then', and DeleteData is only True for the second button "
                       "(IDNO), never in a silent run; the answer of a suppressed box is IDYES (keep)")
     existing = bodies.get("SuiteExistingDataFolders", "")
-    if "SuiteDataFolder(" not in existing or "SuiteLauncherDataFolder(" not in existing or "DirExists(" not in existing:
+    offer = bodies.get("SuiteOfferDataFolder", "")
+    if "SuiteDataFolder(" not in existing or "SuiteLauncherDataFolder(" not in existing or "DirExists(Folder)" not in offer:
         errors.append(f"{where}: SuiteExistingDataFolders must list only the folders of SuiteDataFolder and "
                       "SuiteLauncherDataFolder that exist")
-    if existing.count("SuiteIsBehindLink(") != 2 or "SuiteIsFolderOfInstalledProduct(" not in existing:
-        errors.append(f"{where}: SuiteExistingDataFolders must leave out a data folder that is a link or behind one "
-                      "(SuiteIsBehindLink, for the folders of the products and of the launcher) and one that belongs to "
-                      "a product that stays installed (SuiteIsFolderOfInstalledProduct): DelTree follows such a link")
+    # every folder is offered with the root its link check goes up to: the install root of its product, the launcher's data folder
+    if call_arguments(existing, "SuiteOfferDataFolder") != SUITE_OFFERS:
+        errors.append(f"{where}: SuiteExistingDataFolders must offer each folder through SuiteOfferDataFolder with the root "
+                      f"its link check goes up to (expected {SUITE_OFFERS}, found {call_arguments(existing, 'SuiteOfferDataFolder')})")
+    if not re.search(r"if\s+SuiteIsBehindLink\(Folder,\s*Root\)\s+then\s+Log\(.*?\belse\s+if\s+OfProduct\s+and\s+"
+                     r"SuiteIsFolderOfInstalledProduct\(Folder\)\s+then\s+Log\(.*?\belse\s+begin\b.*?"
+                     r"Folders\[Count - 1\]\s*:=\s*Folder;\s*Roots\[Count - 1\]\s*:=\s*Root;", offer, re.DOTALL):
+        errors.append(f"{where}: SuiteOfferDataFolder must leave out a data folder that is a link or behind one up to its root "
+                      "(SuiteIsBehindLink(Folder, Root)) and one that belongs to a product that stays installed "
+                      "(SuiteIsFolderOfInstalledProduct), and record its root next to it (Roots): DelTree of Inno Setup 6.2.2 "
+                      "checks only the folder it is given for a link, Windows follows a link in a folder above it")
+    installed = bodies.get("SuiteIsFolderOfInstalledProduct", "")
+    if "SuiteIsSameOrInsideSpelled(Folder, Root)" not in installed or "SuiteIsSameOrInsideSpelled(Root, Folder)" not in installed:
+        errors.append(f"{where}: SuiteIsFolderOfInstalledProduct must compare the folder with the root of a product that stays "
+                      "installed both ways and in both spellings (SuiteIsSameOrInsideSpelled(Folder, Root), "
+                      "SuiteIsSameOrInsideSpelled(Root, Folder)): the advanced wizard may have been given the short name of the root")
+    # the second look right before each DelTree: the question waited for the user without a limit
+    deletion = bodies.get("SuiteDeleteDataFolders", "")
+    if not re.search(r"\bfor\s+I\s*:=\s*0\s+to\s+GetArrayLength\(Folders\)\s*-\s*1\s+do\s+if\s+not\s+DirExists\(Folders\[I\]\)\s+then\s+"
+                     r"Log\(.*?\belse\s+if\s+SuiteIsBehindLink\(Folders\[I\],\s*Roots\[I\]\)\s+then\s+Log\(.*?"
+                     r"\belse\s+if\s+DelTree\(Folders\[I\],", deletion, re.DOTALL):
+        errors.append(f"{where}: SuiteDeleteDataFolders must check each folder again right before its DelTree: it still "
+                      "exists (DirExists(Folders[I])) and neither it nor a folder above it up to its root is a link now "
+                      "(SuiteIsBehindLink(Folders[I], Roots[I])); the question waits without a limit, and Windows follows "
+                      "a link in a folder above the one DelTree is given")
+    # RemoveDir of the folders that are empty now only for a folder that is no link and not behind one (RemoveDir removes a
+    # link whatever its target holds, and it follows a link in a folder above)
+    guarded = re.findall(r"if\s+SuiteIsBehindLink\(Target,\s*[^;]*?\)\s+then\s+Log\([^;]*\)\s+else\s+if\s+RemoveDir\(Target\)", data)
+    if not guarded or len(guarded) != data.count("RemoveDir(Target)"):
+        errors.append(f"{where}: SuiteRemoveUserData must remove a folder of SuiteEmptyFolder or SuiteLauncherDataDir only if it "
+                      "is no link and not behind one (if SuiteIsBehindLink(Target, ...) then Log(...) else if RemoveDir(Target))")
     for argument in call_arguments(all_code, "DeleteFile"):
         if argument != "Target":
             errors.append(f"{where}: DeleteFile({argument}): the uninstaller deletes only the launcher files of "
@@ -971,7 +1135,7 @@ def check_uninstaller(uninstaller, main, files, errors):
     entries = [line.strip() for _, line in sections(main, "UninstallDelete")]
     if entries != ['Type: filesandordirs; Name: "{app}\\Logs"']:
         errors.append(f"suite/suite.iss: [UninstallDelete] must name {{app}}\\Logs only, found {entries}")
-    return 12
+    return 16
 
 
 def check_forbidden_words(root, errors):
@@ -1070,7 +1234,9 @@ def check(root):
     """(errors, summary) for the repository root."""
     errors = []
     if not (root / SUITE_FILES[0]).is_file():
-        return [], "suite/suite.iss not present, suite frame rules skipped"
+        # the suite is what the package ships: a missing or renamed main script is an error, never a skip
+        return [f"{SUITE_FILES[0]}: file not found (the main script of the suite installer; if it was renamed or moved, "
+                "change SUITE_FILES of this check too)"], ""
     try:
         main = read(root, SUITE_FILES[0])
         common = read(root, SUITE_FILES[1])
@@ -1101,6 +1267,7 @@ def check(root):
     process = check_process(files, errors)
     freeze = check_freeze(files, errors)
     hook = check_placeholder_hook(root, errors)
+    suite_hook = check_suite_hook(root, files, errors)
     test_lines = check_test_log_lines(root, errors)
     display = check_display(files, errors)
     check_forbidden_words(root, errors)
@@ -1108,7 +1275,7 @@ def check(root):
     check_install_marker(root, common, errors)
     return errors, (f"suite frame: {directives} [Setup] directives, {products} product setups and {launcher} "
                     f"launcher, license and legal text entries in [Files], {codes} exit codes, {frame} slice, mode and registry view rules, product runner "
-                    f"{steps} rules, process {process} rules, freeze {freeze} rules, placeholder hook {hook} rules, {test_lines} log lines of the cancel that the scenarios match, display {display} rules, uninstall key marker {marker} rules, uninstaller {removal} rules, no CD key registry or library reference, {log_lines} product log lines the suite parses, the install marker first in CurStepChanged(ssInstall)")
+                    f"{steps} rules, process {process} rules, freeze {freeze} rules, placeholder hook {hook} rules, suite test hook {suite_hook} rules, {test_lines} log lines that the scenarios match, display {display} rules, uninstall key marker {marker} rules, uninstaller {removal} rules, no CD key registry or library reference, {log_lines} product log lines the suite parses, the install marker first in CurStepChanged(ssInstall)")
 
 
 def self_test(source_root):
@@ -1125,9 +1292,14 @@ def self_test(source_root):
             path.write_bytes(text.replace(old_text, new_text).encode("utf-8"))
         return apply
 
+    def rename(rel, new_rel):
+        return lambda root: (root / rel).rename(root / new_rel)
+
     main, common, run = "suite/suite.iss", "suite/suite_common.iss", "suite/suite_run.iss"
     uninstall = "suite/suite_uninstall.iss"
     cases = [
+        # a script renamed in suite/build_suite.ps1 but not here would leave every rule unchecked
+        ("the main script renamed", rename(main, "suite/community.iss"), "suite/suite.iss: file not found"),
         ("MinVersion 10.0", replace(main, "MinVersion=6.1sp1", "MinVersion=10.0"), "MinVersion=10.0, expected 6.1sp1"),
         ("no MinVersion", replace(main, "MinVersion=6.1sp1\n", ""), "[Setup] has no MinVersion"),
         ("DiskSliceSize written as a number", replace(main, "DiskSliceSize={#SliceSize}", "DiskSliceSize=50000000"),
@@ -1174,6 +1346,11 @@ def self_test(source_root):
          "when removing, SuiteShortcut must delete the shortcut file it names"),
         ("language dialog", replace(main, "ShowLanguageDialog=no", "ShowLanguageDialog=yes"),
          "ShowLanguageDialog=yes, expected no"),
+        ("the support link on the website that does not offer the suite",
+         replace(main, "AppSupportURL=https://github.com/DritteRippe/Empire-Earth-Community\n", "AppSupportURL=https://empireearth.eu/\n"),
+         "AppSupportURL=https://empireearth.eu/, expected https://github.com/DritteRippe/Empire-Earth-Community"),
+        ("no updates link", replace(main, "AppUpdatesURL=https://github.com/DritteRippe/Empire-Earth-Community/releases\n", ""),
+         "[Setup] has no AppUpdatesURL"),
         ("launcher files without Check: IsDotNet48",
          replace(main, 'Source: "{#LauncherDir}\\*"; DestDir: "{app}"; Excludes: "*.pdb"; Flags: ignoreversion recursesubdirs createallsubdirs; Check: IsDotNet48',
                  'Source: "{#LauncherDir}\\*"; DestDir: "{app}"; Excludes: "*.pdb"; Flags: ignoreversion recursesubdirs createallsubdirs'),
@@ -1332,6 +1509,15 @@ def self_test(source_root):
         ("a process is resumed outside SuiteResumeFrozen",
          replace(run, "  SuiteLogProgressEnd(Product);\n\n  // (e)", "  SuiteLogProgressEnd(Product);\n  SuiteResumeProcess(Proc);\n\n  // (e)"),
          "SuiteResumeProcess is called by"),
+        ("any failed suspension counts as an ended process",
+         replace(common, "  Result := (Status = SuiteStatusProcessIsTerminating) or (WaitResult = SuiteWaitObject0);", "  Result := True;"),
+         "SuiteFreezeJob may take a process that NtSuspendProcess did not suspend for ended only through"),
+        ("another NTSTATUS counts as an ending process",
+         replace(common, "SuiteStatusProcessIsTerminating = -1073741558;", "SuiteStatusProcessIsTerminating = -1073741790;"),
+         "SuiteFreezeJob may take a process that NtSuspendProcess did not suspend for ended only through"),
+        ("a failed suspension is taken for an end without asking",
+         replace(common, "          if SuiteSuspendFailureIsEnd(Status, SuiteWaitObject(H, 0)) then\n", "          if True then\n"),
+         "SuiteFreezeJob may take a process that NtSuspendProcess did not suspend for ended only through"),
         ("a process of the job is suspended without the proof that it belongs to it",
          replace(common, "        if (SuiteIsProcessInJob(H, Job, InJob) = 0) or (InJob = 0) then", "        if False then"),
          "SuiteFreezeJob must confirm with IsProcessInJob"),
@@ -1355,9 +1541,9 @@ def self_test(source_root):
          "Get-PlaceholderPauseDefine must return /DPlaceholderInstallPause=1 for $Placeholders and nothing otherwise"),
         ("a log line of the cancel reworded in the suite",
          replace(run, "freezing its setup and everything it started, to look at its log once more before it is stopped'", "freezing the setup, to look at its log once more before it is stopped'"),
-         "which the scenarios S11 to S14 of ci/e2e/e2e_suite_scenarios.ps1 match"),
+         "which the scenarios S8 and S11 to S15 of ci/e2e/e2e_suite_scenarios.ps1 match"),
         ("a log line of the cancel reworded in the scenarios",
-         replace("ci/e2e/e2e_suite_scenarios.ps1", "processes run again", "processes go on", 2),
+         replace("ci/e2e/e2e_suite_scenarios.ps1", "processes run again", "processes go on", 3),
          "does not name 'processes run again'"),
         ("a line of the cancel written by hand in the fake",
          replace("ci/e2e/tests/e2e_suite_scenarios.tests.ps1", "$lines += CodeLine ' processes run again' $id", "$lines += \"Product ${id}: 2 processes run again\""),
@@ -1365,9 +1551,15 @@ def self_test(source_root):
         ("the patterns are not run against the code",
          replace("ci/e2e/tests/e2e_suite_scenarios.tests.ps1", "a line the code writes matches the pattern", "a pattern"),
          "the smoke test must fill in the Log( templates"),
+        ("a log line of the deletion reworded in the uninstaller",
+         replace(uninstall, "Log('User data folder deleted: ' + Folders[I])", "Log('Deleted: ' + Folders[I])"),
+         "no line contains 'User data folder deleted: ', which the scenarios S8 and S11 to S15"),
+        ("the line of the test hook of the uninstaller not named by the scenarios",
+         replace("ci/e2e/e2e_suite_scenarios.ps1", "/TestDeleteUserData answers the question about", "/TestDeleteUserData gives the answer about"),
+         "does not name 'Test hook of a placeholder build: /TestDeleteUserData answers the question"),
         ("a hook line reworded in the product script",
          replace("setup_is6.iss", "Test hook of a placeholder build: pausing 2000 ms after the install step line", "Test hook of a placeholder build: pausing after the install step"),
-         "which the scenarios S11 to S14 of ci/e2e/e2e_suite_scenarios.ps1 match"),
+         "which the scenarios S8 and S11 to S15 of ci/e2e/e2e_suite_scenarios.ps1 match"),
         ("another place passes the test hook switch",
          replace("ci/build.ps1", "  $defines += Get-SetupBuildDefine $SetupBuildValue\n", "  $defines += Get-SetupBuildDefine $SetupBuildValue\n  $defines += '/DPlaceholderInstallPause=1'\n"),
          "ci/build.ps1 names PlaceholderInstallPause in code"),
@@ -1445,17 +1637,75 @@ def self_test(source_root):
         ("DelTree in the product removal", replace(uninstall, "  Total := 0;\n", "  DelTree(ExpandConstant('{app}'), True, True, True);\n  Total := 0;\n"),
          "DelTree may only be called in SuiteDeleteDataFolders"),
         ("a data folder behind a link is offered",
-         replace(uninstall, "          if SuiteIsBehindLink(Folder, SuiteUninstallRoot[I]) then", "          if False then"),
-         "SuiteExistingDataFolders must leave out a data folder that is a link"),
+         replace(uninstall, "  if SuiteIsBehindLink(Folder, Root) then\n    Log('User data folder not offered", "  if False then\n    Log('User data folder not offered"),
+         "SuiteOfferDataFolder must leave out a data folder that is a link"),
         ("a data folder of an installed product is offered",
-         replace(uninstall, "          else if SuiteIsFolderOfInstalledProduct(Folder) then", "          else if False then"),
-         "SuiteExistingDataFolders must leave out a data folder that is a link"),
-        ("data folders deleted without the answer", replace(uninstall, "  if DeleteData then\n    SuiteDeleteDataFolders(Folders);", "  SuiteDeleteDataFolders(Folders);"),
+         replace(uninstall, "  else if OfProduct and SuiteIsFolderOfInstalledProduct(Folder) then", "  else if False then"),
+         "SuiteOfferDataFolder must leave out a data folder that is a link"),
+        ("the root of a product that stays installed compared as written only",
+         replace(uninstall, "SuiteIsSameOrInsideSpelled(Folder, Root) or SuiteIsSameOrInsideSpelled(Root, Folder)",
+                 "SuiteIsSameOrInside(Folder, Root) or SuiteIsSameOrInside(Root, Folder)"),
+         "SuiteIsFolderOfInstalledProduct must compare the folder with the root of a product that stays installed"),
+        ("the root of an offered folder is not recorded", replace(uninstall, "    Roots[Count - 1] := Root;\n", ""),
+         "SuiteOfferDataFolder must leave out a data folder that is a link"),
+        ("a data folder of a product offered with its own path as the root",
+         replace(uninstall, "SuiteOfferDataFolder(SuiteDataFolder(SuiteUninstallRoot[I], J), SuiteUninstallRoot[I], True,",
+                 "SuiteOfferDataFolder(SuiteDataFolder(SuiteUninstallRoot[I], J), SuiteDataFolder(SuiteUninstallRoot[I], J), True,"),
+         "SuiteExistingDataFolders must offer each folder through SuiteOfferDataFolder with the root"),
+        ("a data folder of the launcher offered with the root of a product",
+         replace(uninstall, "SuiteLauncherDataFolder(LocalAppData, J), SuiteLauncherDataDir(LocalAppData), False,",
+                 "SuiteLauncherDataFolder(LocalAppData, J), SuiteUninstallRoot[1], False,"),
+         "SuiteExistingDataFolders must offer each folder through SuiteOfferDataFolder with the root"),
+        ("the link check is not repeated right before DelTree",
+         replace(uninstall, "    else if SuiteIsBehindLink(Folders[I], Roots[I]) then\n", "    else if False then\n"),
+         "SuiteDeleteDataFolders must check each folder again right before its DelTree"),
+        ("the link check before DelTree only looks at the folder itself",
+         replace(uninstall, "SuiteIsBehindLink(Folders[I], Roots[I])", "SuiteIsBehindLink(Folders[I], Folders[I])"),
+         "SuiteDeleteDataFolders must check each folder again right before its DelTree"),
+        ("DelTree before the second link check",
+         replace(uninstall, "    if not DirExists(Folders[I]) then\n      Log('User data folder not deleted, it is gone already: ' + Folders[I])\n",
+                 "    if DelTree(Folders[I], True, True, True) then\n      Log('x')\n    else if not DirExists(Folders[I]) then\n      Log('User data folder not deleted, it is gone already: ' + Folders[I])\n"),
+         "DelTree may only be called in SuiteDeleteDataFolders, for the folders of its list"),
+        ("a folder that is gone is handed to DelTree",
+         replace(uninstall, "    if not DirExists(Folders[I]) then\n", "    if False then\n"),
+         "SuiteDeleteDataFolders must check each folder again right before its DelTree"),
+        ("an empty folder of a product removed through a link",
+         replace(uninstall, "          if SuiteIsBehindLink(Target, SuiteUninstallRoot[I]) then\n", "          if False then\n"),
+         "SuiteRemoveUserData must remove a folder of SuiteEmptyFolder or SuiteLauncherDataDir only if it is no link"),
+        ("the launcher's data folder removed through a link",
+         replace(uninstall, "    if SuiteIsBehindLink(Target, Target) then\n      Log('Folder left as it is", "    if False then\n      Log('Folder left as it is"),
+         "SuiteRemoveUserData must remove a folder of SuiteEmptyFolder or SuiteLauncherDataDir only if it is no link"),
+        ("data folders deleted without the answer", replace(uninstall, "  if DeleteData then\n    SuiteDeleteDataFolders(Folders, Roots);", "  SuiteDeleteDataFolders(Folders, Roots);"),
          "SuiteDeleteDataFolders is only called in SuiteRemoveUserData"),
         ("data folders deleted for the first button", replace(uninstall, "IDYES) = IDNO;", "IDYES) = IDYES;"),
          "DeleteData is only True for the second button"),
-        ("data folders deleted in a silent run", replace(uninstall, "    if UninstallSilent then\n      Log('Silent uninstallation", "    if False then\n      Log('Silent uninstallation"),
+        ("the question in a silent run", replace(uninstall, "    if UninstallSilent then\n    begin\n#ifdef", "    if False then\n    begin\n#ifdef"),
          "DeleteData is only True for the second button"),
+        ("data folders deleted in a silent run",
+         replace(uninstall, "#endif\n      if not DeleteData then\n", "#endif\n      DeleteData := True;\n      if not DeleteData then\n"),
+         "DeleteData := True: the user data is deleted only after the answer"),
+        ("the test hook outside its #ifdef",
+         lambda root: (replace(uninstall, "#ifdef PlaceholderUninstallDelete\n", "")(root),
+                       replace(uninstall, "#endif\n      if not DeleteData then\n", "      if not DeleteData then\n")(root)),
+         "this line of the test hook stands outside #ifdef PlaceholderUninstallDelete"),
+        ("the test hook in an #ifndef", replace(uninstall, "#ifdef PlaceholderUninstallDelete\n", "#ifndef PlaceholderUninstallDelete\n"),
+         "this line of the test hook stands outside #ifdef PlaceholderUninstallDelete"),
+        ("another switch answers Delete in the test hook",
+         replace(uninstall, "DeleteData := SuiteHasParam('/TestDeleteUserData');", "DeleteData := SuiteHasParam('/VERYSILENT');"),
+         "DeleteData := SuiteHasParam('/VERYSILENT'): the user data is deleted only after the answer"),
+        ("the test hook defined in the script", replace(main, "#define SuiteName \"Empire Earth Community\"\n",
+                                                        "#define SuiteName \"Empire Earth Community\"\n#define PlaceholderUninstallDelete 1\n"),
+         "PlaceholderUninstallDelete must not be defined in the script"),
+        ("the test hook with real AppIds", replace(main, '#if Copy(SuiteAppID, 1, 24) != "00000000-0000-0000-0000-" || ', "#if "),
+         "must stop the build (#error) unless the three AppIds are the dummies"),
+        ("the define of the test hook in every build",
+         replace("ci/suite_build_helpers.ps1", "  if ($Placeholders) { return @('/DPlaceholderUninstallDelete=1') }\n  return @()",
+                 "  return @('/DPlaceholderUninstallDelete=1')"),
+         "Get-SuitePlaceholderHookDefine must return /DPlaceholderUninstallDelete=1 for $Placeholders and nothing otherwise"),
+        ("the build passes the define of the test hook itself",
+         replace("suite/build_suite.ps1", "  $common += @(Get-SuitePlaceholderHookDefine ([bool]$Placeholders))\n",
+                 "  $common += @('/DPlaceholderUninstallDelete=1')\n"),
+         "suite/build_suite.ps1 names PlaceholderUninstallDelete in code"),
         ("DeleteFile of another file", replace(uninstall, "if DeleteFile(Target) then", "if DeleteFile(ExpandConstant('{app}\\x.exe')) then"),
          "the uninstaller deletes only the launcher files"),
         ("RemoveDir of another folder", replace(uninstall, "RemoveDir(Target)", "RemoveDir(ExpandConstant('{app}'))", 2),

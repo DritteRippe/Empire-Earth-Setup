@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  Tests of ci\e2e\e2e_suite_helpers.ps1, the rules of the suite end-to-end scenarios S1 to S14, with fake data.
+  Tests of ci\e2e\e2e_suite_helpers.ps1, the rules of the suite end-to-end scenarios S1 to S15, with fake data.
 
 .DESCRIPTION
   The command lines of the suite and of the product setups it runs (valid ones must pass, each kind of defect must be
@@ -293,7 +293,18 @@ CheckProblems 'log order: the same line is not used twice' (Test-E2ELogOrder $or
 CheckProblems 'log order: no lines' (Test-E2ELogOrder @() @('^a$')) ([regex]::Escape("log line missing, or not after '(start of the log)': ^a`$"))
 
 # --- The scenarios and their titles ---------------------------------------------------------------------------------------------------
-Check 'scenarios: fourteen' $E2ESuiteConst.Scenarios.Count 14
+Check 'scenarios: fifteen' $E2ESuiteConst.Scenarios.Count 15
+
+# The folders with user data the uninstaller offers (S15): six below each removed product root, two of the launcher
+$dataFolders = @(Get-E2ESuiteDataFolders @('C:\Program Files (x86)\Empire Earth\', 'D:\Neo') 'C:\Users\x\AppData\Local\Empire Earth Launcher')
+Check 'data folders: six per product, two of the launcher' $dataFolders.Count 14
+Check 'data folders: the profiles of EE first' $dataFolders[0] 'C:\Program Files (x86)\Empire Earth\Empire Earth\Users'
+Check 'data folders: the self-made mods of AoC' ($dataFolders -contains 'D:\Neo\Empire Earth - The Art of Conquest\Data\dxm\mods') $true
+Check 'data folders: the backups of the launcher' ($dataFolders -contains 'C:\Users\x\AppData\Local\Empire Earth Launcher\Backups') $true
+Check 'data folders: never Data or dxm itself' (@($dataFolders | Where-Object { $_ -match '\\(Data|dxm)$' }).Count) 0
+Check 'data folders: no launcher folder' @(Get-E2ESuiteDataFolders @('C:\R')).Count 6
+Check 'data folders: no root' @(Get-E2ESuiteDataFolders @() 'C:\L').Count 2
+Check 'test hook switch' $E2ESuiteConst.TestDeleteSwitch '/TestDeleteUserData'
 foreach ($id in $E2ESuiteConst.Scenarios) { Check "title of $id" ($E2ESuiteTitles.ContainsKey($id) -and $E2ESuiteTitles[$id].Length -gt 10) $true }
 Check 'the AppIds are the dummies of ci/build.ps1' ($E2ESuiteConst.ProductAppIds['EE'] + '|' + $E2ESuiteConst.ProductAppIds['NeoEE'] + '|' + $E2ESuiteConst.SuiteAppId) `
   '00000000-0000-0000-0000-0000000000EE|00000000-0000-0000-0000-000000000AEE|00000000-0000-0000-0000-0000000005EE'

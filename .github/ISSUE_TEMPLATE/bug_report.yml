@@ -7,7 +7,11 @@ body:
       value: |
         Thank you for the report. Before you start, please read [Support](https://github.com/DritteRippe/Empire-Earth-Setup#support) in the README: it explains where the logs are.
 
-        **Never attach or paste game files, CD keys or the private test package.** Logs contain no CD keys and no passwords, but they can contain folder names with your Windows user name (`C:\Users\<name>\...`): look at them before you post them and replace the names if you like.
+        **A security problem?** Do not use this form, report it privately: [SECURITY.md](https://github.com/DritteRippe/Empire-Earth-Setup/blob/main/SECURITY.md).
+
+        **Help with installing or playing the package?** Ask in the [issues of the package](https://github.com/DritteRippe/Empire-Earth-Community/issues).
+
+        **Never attach or paste game files, CD keys or the package itself.** Logs contain no CD keys and no passwords, but they can contain folder names with your Windows user name (`C:\Users\<name>\...`): look at them before you post them and replace the names if you like.
   - type: dropdown
     id: program
     attributes:
@@ -24,9 +28,9 @@ body:
   - type: input
     id: version
     attributes:
-      label: Version of the suite, the setup or the launcher
-      description: The version in the title of the installer window or in the file name, the launcher version in its window or in `log.txt`. For a build of your own, the commit (`git log -1 --oneline`).
-      placeholder: "Suite 1.1.0, launcher 1.1.0"
+      label: Version of the package, the suite, the setup or the launcher
+      description: The package version (the name of its ZIP file or folder, for example `Empire-Earth-Community-1.1.0`) or the suite version (the version of its entry in Windows "Apps", or the file properties of `Empire Earth Community Setup.exe`); the launcher version in its window or in `log.txt`. A single EE or NeoEE setup always says "Setup v1.7.2", so then also copy the line with `SetupBuild` from the start of its setup log. For a build of your own, the commit (`git log -1 --oneline`).
+      placeholder: "Package 1.1.0 (suite 1.1.0, launcher 1.1.0)"
     validations:
       required: true
   - type: input
@@ -72,5 +76,5 @@ body:
       options:
         - label: I own the original game.
           required: true
-        - label: I am not attaching game files, CD keys or the private package.
+        - label: I am not attaching game files, CD keys or the package.
           required: true

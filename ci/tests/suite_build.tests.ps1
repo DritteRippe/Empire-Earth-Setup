@@ -91,6 +91,24 @@ try {
   [System.IO.File]::WriteAllBytes((Join-Path $inDir 'a.exe'), (New-Bytes 1000 3))
   CheckThrows 'Assert-InputChecksum: changed file' { Assert-InputChecksum (Join-Path $inDir 'a.exe') 'test' } '*SHA-256 of*'
 
+  # --- Get-ProductSetupBuild: the SetupBuild of a product setup from its record (ci\build.ps1) ------
+  New-TestFile (Join-Path $inDir 'p.exe') 1000 4
+  [void](Write-FileSha256 (Join-Path $inDir 'p.exe'))
+  $product = Assert-InputChecksum (Join-Path $inDir 'p.exe') 'test'
+  Check 'product SetupBuild: no record' (Get-ProductSetupBuild $product 'The EE setup' $false) 'not recorded'
+  CheckThrows 'product SetupBuild: no record in a release build' { Get-ProductSetupBuild $product 'The EE setup' $true } '*The EE setup has no SetupBuild record (p.exe.setupbuild*ci\build.ps1 -SetupBuild*'
+  [void](Write-SetupBuildRecord (Join-Path $inDir 'p.exe') '')
+  Check 'product SetupBuild: built without one' (Get-ProductSetupBuild $product 'The EE setup' $false) 'none'
+  CheckThrows 'product SetupBuild: none in a release build' { Get-ProductSetupBuild $product 'The NeoEE setup' $true } '*The NeoEE setup was built without a SetupBuild*'
+  [void](Write-SetupBuildRecord (Join-Path $inDir 'p.exe') 'suite-1.1.1-abc1234')
+  Check 'product SetupBuild: the identifier' (Get-ProductSetupBuild $product 'The EE setup' $false) 'suite-1.1.1-abc1234'
+  Check 'product SetupBuild: the identifier in a release build' (Get-ProductSetupBuild $product 'The EE setup' $true) 'suite-1.1.1-abc1234'
+  New-TestFile (Join-Path $inDir 'q.exe') 1000 5
+  [void](Write-FileSha256 (Join-Path $inDir 'q.exe'))
+  $other = Assert-InputChecksum (Join-Path $inDir 'q.exe') 'test'
+  Copy-Item -LiteralPath (Join-Path $inDir 'p.exe.setupbuild') -Destination (Join-Path $inDir 'q.exe.setupbuild')
+  CheckThrows 'product SetupBuild: the record of another setup, also in a test build' { Get-ProductSetupBuild $other 'The EE setup' $false } '*q.exe.setupbuild: written for a setup with the SHA-256*'
+
   # --- Get-PlaceholderSliceSize -------------------------------------------------------------------
   Check 'slice size: 300000' (Get-PlaceholderSliceSize 300000) 393216
   Check 'slice size: exactly a multiple' (Get-PlaceholderSliceSize 262144) 327680
@@ -98,6 +116,10 @@ try {
   Check 'slice size: never below the setup program' ((Get-PlaceholderSliceSize 3200001) -ge 3200001) $true
   CheckThrows 'slice size: more than the limit' { Get-PlaceholderSliceSize 49990000 } '*more than the limit*'
   CheckThrows 'slice size: zero' { Get-PlaceholderSliceSize 0 } '*not valid*'
+
+  # --- Get-SuitePlaceholderHookDefine: the test hook of the uninstaller (CI scenario S15) ---------------
+  Check 'hook define: placeholder build' ((Get-SuitePlaceholderHookDefine $true) -join ' ') '/DPlaceholderUninstallDelete=1'
+  Check 'hook define: real build' @(Get-SuitePlaceholderHookDefine $false).Count 0
 
   # --- Get-SuiteSliceInfo, Test-SuiteSliceLimit, Compare-SuiteBuilds ----------------------------------
   $base = 'Empire Earth Community Setup'
@@ -181,6 +203,8 @@ try {
   New-TestFile (Join-Path $repo 'out\NeoEE_Regular\NeoEE_Setup_Test.exe') 500000 12
   [void](Write-FileSha256 (Join-Path $repo 'out\EE_Regular\EE_Setup_Test.exe'))
   [void](Write-FileSha256 (Join-Path $repo 'out\NeoEE_Regular\NeoEE_Setup_Test.exe'))
+  # The record of SetupBuild: the EE setup has one (in CI the short commit), the NeoEE setup none yet
+  [void](Write-SetupBuildRecord (Join-Path $repo 'out\EE_Regular\EE_Setup_Test.exe') 'abc1234')
 
   $calls = Join-Path $temp 'iscc_calls.txt'
   $marker = Join-Path $temp 'fake_marker'
@@ -266,6 +290,7 @@ exit 0
   Check 'placeholder build: pass 3 is pass 2' ($lines[3].Replace('pass3', 'pass2') -ceq $lines[2].Replace('pass3', 'pass2')) $true
   Check 'placeholder build: dummy AppIds' ($lines[2] -like '*/DSuiteAppID=00000000-0000-0000-0000-0000000005EE /DEE_AppID=00000000-0000-0000-0000-0000000000EE /DNeoEE_AppID=00000000-0000-0000-0000-000000000AEE*') $true
   Check 'placeholder build: the product setups and their hashes' ($lines[2] -like '*/DEESetupFile=*EE_Setup_Test.exe /DEESetupSHA256=* /DEESetupSize=400000 /DNeoEESetupFile=*NeoEE_Setup_Test.exe /DNeoEESetupSHA256=* /DNeoEESetupSize=500000*') $true
+  Check 'placeholder build: every pass gets the test hook of the uninstaller' (@($lines | Where-Object { $_ -like '* /DPlaceholderUninstallDelete=1 *' }).Count) 4
   Check 'placeholder build: output files' (Get-Names $out) "BUILD-INFO.txt|$base-1.bin|$base-2.bin|$base-3.bin|$base.exe|SHA256SUMS.txt"
   Check 'placeholder build: nothing of pass 1' (@(Get-ChildItem -LiteralPath $out -File | Where-Object { $_.Name -like '*PASS1*' }).Count) 0
   $sums = @(Get-Content -LiteralPath (Join-Path $out 'SHA256SUMS.txt'))
@@ -286,6 +311,7 @@ exit 0
   Check 'BUILD-INFO: NeoEE setup hash' ($buildInfo -like "*$((Read-Sha256File (Join-Path $repo 'out\NeoEE_Regular\NeoEE_Setup_Test.exe.sha256')).Hash)  500000  NeoEE_Setup_Test.exe*") $true
   Check 'BUILD-INFO: slices' ($buildInfo -like '*Slices:               3, 920000 bytes in total, setup program 300000 bytes*') $true
   Check 'BUILD-INFO: slice size' ($buildInfo -like '*DiskSliceSize:        393216*') $true
+  Check 'BUILD-INFO: the SetupBuild of the product setups (a placeholder build needs none)' ($buildInfo -like '*Product SetupBuild:   EE abc1234, NeoEE not recorded*') $true
   Check 'BUILD-INFO: the output hashes' ($buildInfo -like "*  $($sums[0])*") $true
   Check 'BUILD-INFO: no AppId' ($buildInfo -like '*0000-0000*') $false
 
@@ -342,16 +368,30 @@ exit 0
     LauncherDir = (Join-Path $real 'launcher'); ModCreatorDir = (Join-Path $real 'mod'); LicenseDir = (Join-Path $real 'lic')
     LauncherCommit = 'abcdef1234567'; ModCreatorCommit = '0123456'; SliceSize = 450000
   }
+  # A release build of the suite needs the SetupBuild of both product setups (the records of ci\build.ps1)
+  CheckThrows 'release build: a product setup without a SetupBuild record' { & $build @realArgs } '*The NeoEE setup has no SetupBuild record*'
+  Check 'release build: no SetupBuild record stops before ISCC' @(Get-Calls).Count 0
+  [void](Write-SetupBuildRecord (Join-Path $repo 'out\NeoEE_Regular\NeoEE_Setup_Test.exe') '')
+  Reset-Fake ''; CheckThrows 'release build: a product setup built without a SetupBuild' { & $build @realArgs } '*The NeoEE setup was built without a SetupBuild*'
+  $a = $realArgs.Clone(); $a.TestID = 3; $a.OutputDir = (Join-Path $temp 'out_real_test')
+  Reset-Fake ''; & $build @a 3>$null 6>$null
+  Check 'real test build: product setups without a SetupBuild pass' ([System.IO.File]::ReadAllText((Join-Path $a.OutputDir 'BUILD-INFO.txt')) -like '*Product SetupBuild:   EE abc1234, NeoEE none*') $true
+  foreach ($setup in @('out\EE_Regular\EE_Setup_Test.exe', 'out\NeoEE_Regular\NeoEE_Setup_Test.exe')) {
+    [void](Write-SetupBuildRecord (Join-Path $repo $setup) 'suite-9.9.9-abc1234')
+  }
+  Reset-Fake ''
   & $build @realArgs 3>$null 6>$null
   $lines = @(Get-Calls)
   Check 'real build: ISCC calls (pass 1, 2, 3)' $lines.Count 3
   Check 'real build: the AppIds of the caller' ($lines[1] -like "*/DSuiteAppID=$($guids[0]) /DEE_AppID=$($guids[1]) /DNeoEE_AppID=$($guids[2])*") $true
+  Check 'real build: no test hook of the uninstaller' (@($lines | Where-Object { $_ -like '*PlaceholderUninstallDelete*' }).Count) 0
   $buildInfo = [System.IO.File]::ReadAllText((Join-Path $realArgs.OutputDir 'BUILD-INFO.txt'))
   Check 'real build: no placeholder note' ($buildInfo -like '*PLACEHOLDER*') $false
   Check 'real build: commits in BUILD-INFO' (($buildInfo -like '*Launcher commit:      abcdef1234567*') -and ($buildInfo -like '*Mod Creator commit:   0123456*')) $true
   Check 'real build: launcher folder without the .pdb' ($buildInfo -like '*1 files, 100 bytes*') $true
   Check 'real build: no AppId in BUILD-INFO' (($buildInfo -like "*$($guids[0])*") -or ($buildInfo -like "*$($guids[1])*")) $false
   Check 'real build: the legal texts in BUILD-INFO' (($buildInfo -like '*Legal text*3000  EULA_DSML.txt*') -and ($buildInfo -like '*Legal text*2000  neoee_rules.rtf*')) $true
+  Check 'real build: the SetupBuild of both product setups in BUILD-INFO' ($buildInfo -like '*Product SetupBuild:   EE suite-9.9.9-abc1234, NeoEE suite-9.9.9-abc1234*') $true
   Check 'real build: the slice size of the limit is the default' (Test-Path -LiteralPath (Join-Path $realArgs.OutputDir "$base.exe")) $true
 
   # A real build without -SliceSize uses the limit of GitHub: DiskSliceSize 50,000,000
@@ -398,6 +438,14 @@ exit 0
   Check 'changed input stops before ISCC' @(Get-Calls).Count 0
   $a = $realArgs.Clone(); $a.NeoEESetup = $realArgs.EESetup
   Reset-Fake ''; CheckThrows 'the same file as both setups' { & $build @a } '*same file*'
+  # a SetupBuild record that was written for other bytes: the record of the EE setup next to another setup
+  $foreign = Join-Path $temp 'foreign'
+  New-TestFile (Join-Path $foreign 'EE_Setup_Test.exe') 400000 98
+  [void](Write-FileSha256 (Join-Path $foreign 'EE_Setup_Test.exe'))
+  Copy-Item -LiteralPath (Join-Path $repo 'out\EE_Regular\EE_Setup_Test.exe.setupbuild') -Destination $foreign
+  $a = $realArgs.Clone(); $a.EESetup = (Join-Path $foreign 'EE_Setup_Test.exe')
+  Reset-Fake ''; CheckThrows 'a SetupBuild record of other bytes' { & $build @a } '*EE_Setup_Test.exe.setupbuild: written for a setup with the SHA-256*'
+  Check 'a SetupBuild record of other bytes stops before ISCC' @(Get-Calls).Count 0
   # ISCC
   Reset-Fake ''; $env:FAKE_ISCC_VERSION = '6.2.1'
   CheckThrows 'wrong ISCC version' { & $build @realArgs } '*6.2.2 is required, found 6.2.1*'

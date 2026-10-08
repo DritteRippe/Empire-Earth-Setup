@@ -13,7 +13,7 @@ Block 8 (Links in `Data` und `Users`, TP-80) aus S-WP11; S-WP9 hat die Build-Art
 über 1.7.2 ohne Daten der Maintainer, die Fälle TP-71 bis TP-79 von Block 7, die
 Windows-8.1-Variante von TP-22 und die Entscheidungsregeln in TP-23 und TP-71 ergänzt; S-WP12 hat
 TP-00 und Block 1 an die gepinnten Downloads von einem Server mit ungültigem Zertifikat angepasst
-(ADR 0012); Lauf 5e (Setup 1.1.0) hat dgVoodoo 2.87.5 mit den Fensterschlüsseln (TP-25), das Spielfenster
+(ADR 0012); Lauf 5e (Suite 1.1.0) hat dgVoodoo 2.87.5 mit den Fensterschlüsseln (TP-25), das Spielfenster
 bis 1920x1200 (TP-26) und die Intro-Videos als Standard (TP-27) ergänzt. Alle Fälle
 sind ausgearbeitet; jeder hat eine Priorität (P1 bis P3, [Abschnitt 4](#4-vorlage-je-fall)).
 `ci/check_test_plan.py` prüft die Form dieses Dokuments (siehe
@@ -3278,7 +3278,7 @@ jede Prüfung der Deinstallation der Suite beachten muss, weil es sich nur auf e
 #### Gemeinsame Angaben der Fälle TP-90 bis TP-99
 
 Diese Fälle prüfen das **Suite-Setup auf dem Laptop mit den echten Daten** (Build-Art B). Sie ergänzen
-die automatischen Szenarien S1 bis S14 des Jobs `suite-e2e` ([README](../README.md), „End-to-end
+die automatischen Szenarien S1 bis S15 des Jobs `suite-e2e` ([README](../README.md), „End-to-end
 test of the suite installer“), die mit Platzhalter-Setups, still und ohne Netz laufen und nichts
 von dem sehen, was hier geprüft wird: SmartScreen, den Assistenten, das Spiel, die Verknüpfungen
 auf dem Desktop. Es gilt:
@@ -3348,6 +3348,13 @@ auf dem Desktop. Es gilt:
   CI-Szenario, sie liefen gar nicht. Sie sind vor oder mit 1.1.1 auf der Hardware nachzuholen; ein
   Befund dort wird in 1.1.1 behoben. Das Kriterium oben bleibt die Regel für die nächste Freigabe; dies ist eine datierte
   Ausnahme, kein bestandener Fall.
+- **Freigabekriterium der Suite 1.1.1:** wie das der Suite 1.1.0 oben, mit dem Job `suite-e2e` von S1 bis S15 (S15 übt
+  „Löschen“ der Deinstallation mit Platzhalter-Daten und ohne den Dialog; den Dialog prüft TP-95 (c)). Getaggt wird nur
+  ein Commit auf `main`, für den der vollständige Lauf von `build.yml` (alle Jobs: die Prüfungen, die Unit-Tests, der
+  Platzhalter-Build und `suite-e2e`) grün war. Ein Tag startet keinen eigenen Lauf: `build.yml` läuft bei einem Push auf
+  `main`, bei Pull Requests und von Hand. Die Suite 1.1.0 wurde veröffentlicht, als der einzige fertige Lauf auf `2b764e4`
+  rot war (Lauf 48, ein Unit-Test, der vom Timing abhing und für 1.1.1 behoben ist); der grüne Lauf 49 auf demselben
+  Commit kam erst durch den Tag.
 
 #### TP-90: Paket-ZIP ohne „Zulassen“: genau eine SmartScreen-Warnung
 
@@ -3624,8 +3631,9 @@ auf dem Desktop. Es gilt:
 
 - **Status:** ausgearbeitet
 - **Priorität:** P2 (Freigabekriterium für Launcher 1.0.0 und Suite 1.0.0)
-- **Bezug:** ADR 0013 (Entscheidung 11), Vertrag 1.6 und 1.7, Block 9 oben (Reihenfolge, Behalten
-  und Löschen, zwei Fragen, Over-the-Shoulder), Regel 3; Suite-Szenarien S7 und S8 (still)
+- **Bezug:** ADR 0013 (Entscheidung 11 und Nachtrag vom 2026-10-08), Vertrag 1.6 und 1.7, Block 9 oben (Reihenfolge,
+  Behalten und Löschen, zwei Fragen, Over-the-Shoulder), Regel 3; Suite-Szenarien S7 und S8 (still, „Behalten“) und S15
+  (still, „Löschen“ über den Test-Hook der Platzhalter-Builds, siehe Erwartetes Ergebnis)
 - **Ziel:** Die Deinstallation der Suite entfernt, was sie installiert hat, in der richtigen Reihenfolge;
   „Behalten (empfohlen)“ lässt Spielstände, Profile und Sicherungen unangetastet, „Löschen“ entfernt genau die
   angebotenen Ordner; `Software\Sierra\CDKeys` bleibt in beiden Läufen unberührt.
@@ -3680,6 +3688,14 @@ auf dem Desktop. Es gilt:
     Spielerordner bleiben (die mitgelieferten Zivilisationen gehören zum Setup und kommen mit (b) zurück).
   - (b) Die Neuinstallation läuft ohne Fehler, die Spielstände sind da.
   - (c) „Löschen“ entfernt genau die im Dialog genannten Ordner mit allem, was darin liegt.
+  - Automatischer Teil (Job `suite-e2e`, Szenario S15, Platzhalter-Daten, bei jedem Build): Eine stille Deinstallation
+    fragt nicht und löscht nie; nur der Test-Hook der Platzhalter-Builds (`suite\build_suite.ps1 -Placeholders`, Schalter
+    `/TestDeleteUserData` des Deinstallers, in keinem Release enthalten) gibt dort die Antwort „Löschen“. S15 prüft damit
+    Schritt 7 ohne den Dialog: Genau die angebotenen Ordner beider Spiele und des Launchers sind weg (je eine Zeile
+    `User data folder deleted: …`), Dateien neben ihnen bleiben, und ein `Data\dxm`, das eine Junction auf einen Ordner
+    außerhalb ist, wird weder angeboten noch durchlaufen (`User data folder not offered, it or a folder above it is a link
+    (junction or symbolic link) or cannot be checked: …`); das Ziel der Junction bleibt unverändert. Der Dialog, seine
+    Texte, die Reihenfolge der Fragen und der Klick auf „Löschen“ bleiben Teil dieses Falls auf der Hardware.
   - Der Inhalt von `Software\Sierra\CDKeys` bleibt bei Installation und beiden Deinstallationen (Regel 3).
   - Es erscheinen zwei Fragen in dieser Reihenfolge: die Abfrage der Suite (die Liste, „Ja“) und die Standardfrage
     von Inno Setup „Sind Sie sicher, dass Sie Empire Earth Community und alle zugehörigen Komponenten entfernen möchten?“ („Ja“); danach der Dialog zu den Nutzerdaten. Weitere Fragen oder eine andere
@@ -3692,7 +3708,9 @@ auf dem Desktop. Es gilt:
 - **Log-Hinweis:** `TP-95a_unins.log` und `TP-95c_unins.log` der Suite: `Suite record lists the products
   "…"` mit beiden Spielen, `Product NeoEE is installed in …: it will be removed`, `Product NeoEE: wait state … outcome`, `The user
   data stays:` (a) bzw. `User data folder deleted:` (c), `Launcher file deleted:`, `Shortcut removed:`; die
-  Reihenfolge der Spiele und die Dauer je Spiel notieren.
+  Reihenfolge der Spiele und die Dauer je Spiel notieren. Ein Ordner, der zwischen der Frage und dem Löschen zu einem Link
+  wurde, bleibt mit `User data folder not deleted, it or a folder above it is a link (junction or symbolic link) now or
+  cannot be checked: …` (c) stehen.
 
 #### TP-96: Pfad „Erweitert“: die Setups der Spiele selbst durchgehen
 
@@ -3964,9 +3982,11 @@ auf dem Desktop. Es gilt:
   stopping its setup ...`; kam „Ja“ zu spät, steht stattdessen `Product EE: its log shows the install step, its setup is
   not stopped`, `Product EE: its 2 processes run again` und `the cancel came too late …`, und das Setup läuft zu Ende (ein
   Prozess, der nach dem späten „Ja“ stehen bleibt, ist ein Fehler: dann fehlt die Zeile `processes run again`). Steht `its
-  setup could not be frozen (…)` im Log, hat Windows das Anhalten verweigert oder die Prozessliste des Jobs war leer oder
-  falsch (`the loader of the product setup … runs, but is not among the … processes the job named`): das Setup wurde bewusst
-  nicht beendet (Befund festhalten). Die Suite entscheidet dann in den nächsten Wartetakten noch bis zu viermal neu
+  setup could not be frozen (…)` im Log, hat Windows das Anhalten verweigert (`process … cannot be suspended (NTSTATUS
+  0x…)` mit dem Code von Windows, z. B. `0xC0000022` für „Zugriff verweigert“; ein Prozess, der sich gerade beendet,
+  `0xC000010A`, zählt als beendet und steht hier nie) oder die Prozessliste des Jobs war leer oder falsch (`the loader of
+  the product setup … runs, but is not among the … processes the job named`): das Setup wurde bewusst nicht beendet
+  (Befund mit der ganzen Zeile festhalten). Die Suite entscheidet dann in den nächsten Wartetakten noch bis zu viermal neu
   (`the state of its setup is not certain, the cancel stays requested (try n of 5)`); bleibt es unklar, steht `the cancel was
   not carried out, its setup could not be stopped safely` im Log, das Fenster sagt „… ließ sich gerade nicht sicher beenden …
   Klicke in einem Moment erneut auf Abbrechen“ (nicht „Das Spiel wird gerade installiert“, das wäre falsch) und das Setup

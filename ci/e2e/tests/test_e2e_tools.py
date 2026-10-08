@@ -559,10 +559,11 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn('"name=dgvoodoo-$($pins.Version)"', self.text)
 
     def test_every_action_is_pinned_to_a_commit(self):
-        uses = re.findall(r"(?m)^\s+(?:- )?uses: (\S+)", self.text)
+        # by its full commit, with the release as a comment (Dependabot updates both)
+        uses = re.findall(r"(?m)^\s+(?:- )?uses: (.*?)\s*$", self.text)
         self.assertGreater(len(uses), 5)
         for action in uses:
-            self.assertRegex(action, r"^[\w.-]+/[\w.-]+(/[\w.-]+)*@[0-9a-f]{40}$")
+            self.assertRegex(action, r"^[\w.-]+/[\w.-]+(/[\w.-]+)*@[0-9a-f]{40} # v\d+(\.\d+)*$")
 
     def test_the_scripts_stop_their_programs_before_the_step_limits(self):
         steps = re.findall(r"(?m)^        timeout-minutes: (\d+)\n        shell: pwsh\n        run: \|\n"

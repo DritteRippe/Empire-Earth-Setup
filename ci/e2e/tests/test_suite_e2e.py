@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Rules of the end-to-end scenarios of the suite installer (job suite-e2e of .github/workflows/build.yml,
-ci/e2e/run_e2e_suite.ps1) that their text must keep, read as text (the runner has no YAML library), and the
-proof that no code of the suite touches the CD key registry. Each rule is a function that returns problems and
+ci/e2e/run_e2e_suite.ps1) that their text must keep, read as text (the runner has no YAML library), the pins of
+the actions of build.yml (each by its full commit, with the release as a comment), and the proof that no code of
+the suite touches the CD key registry. Each rule is a function that returns problems and
 is tested against the real files (no problem) and against modified copies (the problem must be found), so the
 check itself is checked.
 
@@ -15,7 +16,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 E2E = os.path.dirname(HERE)
 REPO = os.path.dirname(os.path.dirname(E2E))
 WORKFLOW = os.path.join(REPO, ".github", "workflows", "build.yml")
-SCENARIO_IDS = ["S%d" % n for n in range(1, 15)]
+SCENARIO_IDS = ["S%d" % n for n in range(1, 16)]
 
 
 def read(*parts):
@@ -63,7 +64,7 @@ def workflow_problems(workflow):
         problems.append("the step Upload the logs must always run")
     # the time limits: budget < step < job
     budget = re.search(r"-BudgetMinutes (\d+)", job)
-    step = step_timeout(job, "Scenarios S1 to S14")
+    step = step_timeout(job, "Scenarios S1 to S15")
     total = re.search(r"^    timeout-minutes: (\d+)$", job, re.M)
     if not budget or step is None or not total:
         problems.append("suite-e2e needs -BudgetMinutes, a timeout of the scenario step and a timeout of the job")
@@ -71,8 +72,8 @@ def workflow_problems(workflow):
         problems.append("the limits must be budget < step < job, found %s, %s, %s" % (budget.group(1), step, total.group(1)))
     # the artifact of the inputs: uploaded by compile, downloaded by suite-e2e, under one name
     compile_job = job_block(workflow, "compile")
-    uploaded = re.findall(r"upload-artifact@v4\n\s+with:\n\s+name: (\S+)", compile_job)
-    downloaded = re.findall(r"download-artifact@v4\n\s+with:\n\s+name: (\S+)", job)
+    uploaded = re.findall(r"upload-artifact@[^\n]*\n\s+with:\n\s+name: (\S+)", compile_job)
+    downloaded = re.findall(r"download-artifact@[^\n]*\n\s+with:\n\s+name: (\S+)", job)
     if not downloaded:
         problems.append("suite-e2e must download the inputs from compile")
     for name in downloaded:
@@ -85,7 +86,7 @@ def workflow_problems(workflow):
     build = compile_job.find("- name: Build\n")
     if stub < 0 or build < 0 or stub > build:
         problems.append("compile must build the stand-in of EEStatsSetup.dll (build_eestats_stub.ps1) before the step Build")
-    # S1 to S14 check the game program of each product (S9 deletes it and expects the repair to bring it back)
+    # S1 to S15 check the game program of each product (S9 deletes it and expects the repair to bring it back)
     for folder in ("data/Empire Earth Base/Empire Earth", "data/NeoEE Base/Empire Earth"):
         seeded = compile_job.find("'%s'" % folder)
         if seeded < 0 or build < 0 or seeded > build or "'Empire Earth.exe'" not in compile_job:
@@ -96,12 +97,26 @@ def workflow_problems(workflow):
     return problems
 
 
+# An action by its full commit with the release as a comment, as Dependabot keeps it: "owner/repo[/path]@<sha> # vX.Y.Z"
+PINNED_ACTION = re.compile(r"^[\w.-]+/[\w.-]+(?:/[\w.-]+)*@[0-9a-f]{40} # v\d+(?:\.\d+)*$")
+
+
+def pin_problems(workflow):
+    """Every action of the workflow is pinned by its full commit, with its release as a comment: a tag can be
+    moved to other code, a commit cannot (both jobs build and run the placeholder setups and the suite)."""
+    uses = re.findall(r"(?m)^\s+(?:- )?uses: (.*?)\s*$", workflow)
+    if not uses:
+        return ["the workflow uses no action"]
+    return ["%s: an action is pinned by its full commit with the release as a comment (@<40 hex digits> # vX.Y.Z)"
+            % action for action in uses if not PINNED_ACTION.match(action)]
+
+
 def script_problems(helpers, runner, scenarios, titles_source):
-    """The scripts: the fourteen scenarios everywhere, the default arguments of the product setups."""
+    """The scripts: the fifteen scenarios everywhere, the default arguments of the product setups."""
     problems = []
     listed = re.search(r"Scenarios = @\(([^)]*)\)", helpers)
     if not listed or re.findall(r"'(S\d+)'", listed.group(1)) != SCENARIO_IDS:
-        problems.append("e2e_suite_helpers.ps1: Scenarios must list S1 to S14 in order")
+        problems.append("e2e_suite_helpers.ps1: Scenarios must list S1 to S15 in order")
     for sid in SCENARIO_IDS:
         if not re.search(r"^  %s\s+= '" % sid, helpers, re.M):
             problems.append("e2e_suite_helpers.ps1: no title for %s" % sid)
@@ -137,6 +152,13 @@ def script_problems(helpers, runner, scenarios, titles_source):
         problems.append("e2e_suite_scenarios.ps1: S9 must run the repair with RepairEEArgs and RepairNeoEEArgs (no /TYPE)")
         if "telemetry" in text.lower():
             problems.append("%s names the telemetry component" % name)
+    # S15 gives the answer "Delete" through the test hook of the placeholder suite; no other scenario deletes the user data
+    s15 = scenarios.split("function Invoke-E2EScenarioS15 {", 1)[-1].split("\nfunction ", 1)[0]
+    if "Invoke-E2ESuiteUninstall $s 'suite-uninstall' $E2ESuiteConst.TestDeleteSwitch" not in s15 \
+            or scenarios.count("$E2ESuiteConst.TestDeleteSwitch") != 1:
+        problems.append("e2e_suite_scenarios.ps1: S15, and only S15, must run the uninstaller of the suite with $E2ESuiteConst.TestDeleteSwitch")
+    if not re.search(r"^  TestDeleteSwitch\s+= '/TestDeleteUserData'$", helpers, re.M):
+        problems.append("e2e_suite_helpers.ps1: TestDeleteSwitch must be /TestDeleteUserData (the switch of suite/suite_uninstall.iss)")
     if "Software\\Sierra" in scenarios.replace("Software\\\\Sierra", "") and "Remove-E2ERegTree" in scenarios:
         # only the snapshot reads the key; no scenario function deletes or writes below it
         for line in scenarios.splitlines():
@@ -224,6 +246,23 @@ class WorkflowRules(unittest.TestCase):
         self.assertTrue(any("RUNNER_TEMP" in p for p in workflow_problems(head + "  suite-e2e:\n" + tail.replace("RUNNER_TEMP", "TEMP"))))
 
 
+class ActionPins(unittest.TestCase):
+    def test_every_action_is_pinned_to_a_commit(self):
+        self.assertEqual(pin_problems(read(".github", "workflows", "build.yml")), [])
+
+    def test_a_tag_a_short_commit_or_a_missing_release_is_found(self):
+        text = read(".github", "workflows", "build.yml")
+        pinned = re.search(r"(?m)uses: (actions/checkout@([0-9a-f]{40}) # (v\S+))$", text)
+        self.assertIsNotNone(pinned, "the test needs a pinned actions/checkout in the workflow")
+        whole, sha, release = pinned.groups()
+        for changed in ("actions/checkout@" + release, "actions/checkout@%s # %s" % (sha[:12], release),
+                        "actions/checkout@" + sha, "actions/checkout@main # " + release):
+            found = pin_problems(text.replace(whole, changed, 1))
+            self.assertEqual(len(found), 1, changed)
+            self.assertIn(changed, found[0])
+        self.assertEqual(pin_problems("jobs:\n  a:\n    steps:\n      - run: echo\n"), ["the workflow uses no action"])
+
+
 class ScriptRules(unittest.TestCase):
     def files(self):
         return (read("ci", "e2e", "e2e_suite_helpers.ps1"), read("ci", "e2e", "run_e2e_suite.ps1"), read("ci", "e2e", "e2e_suite_scenarios.ps1"))
@@ -266,6 +305,19 @@ class ScriptRules(unittest.TestCase):
     def test_a_scenario_function_missing(self):
         found = self.check("scenarios", "function Invoke-E2EScenarioS9 {", "function Invoke-E2EScenarioS9x {")
         self.assertTrue(any("no function for S9" in p for p in found), found)
+
+    def test_s15_without_the_answer_delete(self):
+        found = self.check("scenarios", "'suite-uninstall' $E2ESuiteConst.TestDeleteSwitch", "'suite-uninstall'")
+        self.assertTrue(any("S15, and only S15" in p for p in found), found)
+
+    def test_another_scenario_with_the_answer_delete(self):
+        found = self.check("scenarios", "$un = Invoke-E2ESuiteUninstall $s 'suite-uninstall'\n    $problems = @($un.Problems)\n    $patterns",
+                           "$un = Invoke-E2ESuiteUninstall $s 'suite-uninstall' $E2ESuiteConst.TestDeleteSwitch\n    $problems = @($un.Problems)\n    $patterns")
+        self.assertTrue(any("S15, and only S15" in p for p in found), found)
+
+    def test_another_switch_of_the_test_hook(self):
+        found = self.check("helpers", "TestDeleteSwitch    = '/TestDeleteUserData'", "TestDeleteSwitch    = '/DeleteAll'")
+        self.assertTrue(any("TestDeleteSwitch must be /TestDeleteUserData" in p for p in found), found)
 
     def test_a_missing_title(self):
         found = self.check("helpers", "  S4  = '", "  S4x = '")

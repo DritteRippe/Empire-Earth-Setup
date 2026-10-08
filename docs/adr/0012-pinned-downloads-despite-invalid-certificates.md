@@ -1,6 +1,7 @@
 # 0012. Download pinned online files even from a server with an invalid certificate
 
-- Status: Accepted, implemented (S-WP12, see [Implementation](#implementation))
+- Status: Accepted, implemented (S-WP12, see [Implementation](#implementation)); the lint amended on 2026-10-08
+  (it reads the suite installer too, see the last section)
 - Date: 2026-10-03
 - Requirements: D3, R16, R17
 - Amends: [ADR 0003](0003-built-in-downloads-instead-of-idp.md) (every download with Inno Setup's
@@ -212,3 +213,30 @@ all met.
 | C: main server with the wrong host name, mirror valid | mirror first; a pinned file missing there comes from the main server over WinHTTP; the file without pin only from the mirror |
 | D: no pins | no request without validation, `OnlineFilesUnreachable` path, no request reached a server |
 | E: neither server listens | both "no answer", no server |
+
+## Amendment: the lint reads the suite installer too (2026-10-08, for suite 1.1.1)
+
+**Context.** `ci/check_tls_policy.py` started from `setup_is6.iss` and the `*.iss` files of the root folder. The suite
+installer (`suite/suite.iss`, [ADR 0013](0013-suite-installer.md)) is a second program with its own main script, and
+nothing of the product setups includes it, so none of its scripts was read: in a copy, a function with the WinHttpRequest
+COM object, `Option[4] := $3300` and an `http://` address appended to `suite/suite_common.iss` passed the lint. The suite
+has no network code today, but it is the program players start, and it runs elevated.
+
+**Decision.**
+
+1. The lint reads the suite from its own main script: `suite/suite.iss` and every file of its `#include` lines
+   (ISPP's search order: next to the including file, then next to `suite/suite.iss`). Every rule of point 8 applies to
+   these scripts as well. A missing `setup_is6.iss` or `suite/suite.iss` is an error, not a skip.
+2. The suite downloads nothing itself; its product setups do, under the rules of this record. So no script of the suite
+   may hold network code at all, comments left out: no `http://` address (also not in `[Setup]`), no WinHTTP in any form
+   (a function, a constant, the COM object `WinHttp.WinHttpRequest.5.1`), no `Option[...]` of a COM object and none of the
+   download functions of Inno Setup 6.2.2 (`DownloadTemporaryFile`, `DownloadTemporaryFileSize`,
+   `DownloadTemporaryFileDate`, `CreateDownloadPage`, `SetDownloadCredentials`). A file of the product setups that the
+   suite includes counts as a script of the suite.
+3. The self-test has a case for each: the flags in a module of the suite, the COM object, a named COM option, an
+   `http://` address in `[Setup]` and in code, a download, a product file included by the suite, the main script of the
+   suite renamed; and an `http://` address in a comment of the suite must pass.
+
+**Consequences.** A download in the suite (for example of .NET Framework 4.8, or an update check) needs a change of this
+record and of the lint first, with its own rules for the certificate and the pin. The links of the suite's entry in
+Windows "Apps" (`AppPublisherURL`, `AppSupportURL`, `AppUpdatesURL`) stay `https://` addresses.

@@ -474,11 +474,18 @@ begin
 end;
 
 // The link check on folders without a link (Wine cannot make junctions, see the skipped test of
-// FindLinksInGameFolder): a folder, a folder below another, a file's folder that does not exist
+// FindLinksInGameFolder): a folder, a folder below another, a file's folder that does not exist. The verdict on
+// a link and on a path that exists but cannot be looked at (fail closed) is tested as a pure function.
 procedure TestSuiteLinks;
 var
   Root, Sub: String;
 begin
+  CheckBool('SuiteLinkVerdict a folder', SuiteLinkVerdict(True, FILE_ATTRIBUTE_DIRECTORY, True), False);
+  CheckBool('SuiteLinkVerdict a file', SuiteLinkVerdict(True, FILE_ATTRIBUTE_ARCHIVE, True), False);
+  CheckBool('SuiteLinkVerdict a junction', SuiteLinkVerdict(True, FILE_ATTRIBUTE_DIRECTORY or FILE_ATTRIBUTE_REPARSE_POINT, True), True);
+  CheckBool('SuiteLinkVerdict a symbolic link to a file', SuiteLinkVerdict(True, FILE_ATTRIBUTE_REPARSE_POINT, True), True);
+  CheckBool('SuiteLinkVerdict a path that exists but cannot be looked at', SuiteLinkVerdict(False, 0, True), True);
+  CheckBool('SuiteLinkVerdict a path that does not exist', SuiteLinkVerdict(False, 0, False), False);
   Root := ExpandConstant('{tmp}\suite_links');
   Sub := Root + '\Empire Earth\Users';
   ForceDirectories(Sub);
@@ -490,6 +497,18 @@ begin
   CheckBool('SuiteIsBehindLink missing folder', SuiteIsBehindLink(Root + '\none\x', Root), False);
   CheckBool('SuiteIsBehindLink drive only', SuiteIsBehindLink('C:\', 'C:\'), False);
   CheckBool('SuiteIsBehindLink empty', SuiteIsBehindLink('', Root), False);
+  // two spellings of one existing folder: "..", "/" and the 8.3 short name (GetShortName gives the long path back
+  // on a volume without short names; then the comparison as written decides, and the result is the same)
+  CheckBool('SuiteIsSameOrInsideSpelled as written', SuiteIsSameOrInsideSpelled(Sub, Root), True);
+  CheckBool('SuiteIsSameOrInsideSpelled with ..', SuiteIsSameOrInsideSpelled(Root + '\Empire Earth\x\..\Users', Sub), True);
+  CheckBool('SuiteIsSameOrInsideSpelled with /', SuiteIsSameOrInsideSpelled(Root + '/Empire Earth/Users', Root), True);
+  CheckBool('SuiteIsSameOrInsideSpelled the folder in its short name', SuiteIsSameOrInsideSpelled(Sub, GetShortName(Root + '\Empire Earth')), True);
+  CheckBool('SuiteIsSameOrInsideSpelled the path in its short name', SuiteIsSameOrInsideSpelled(GetShortName(Sub), Root + '\Empire Earth'), True);
+  CheckBool('SuiteIsSameOrInsideSpelled the folder inside the path', SuiteIsSameOrInsideSpelled(GetShortName(Root), Sub), False);
+  CheckBool('SuiteIsSameOrInsideSpelled a folder named like the start', SuiteIsSameOrInsideSpelled(Root + '\Empire Earth2\Users', Root + '\Empire Earth'), False);
+  CheckBool('SuiteIsSameOrInsideSpelled empty folder', SuiteIsSameOrInsideSpelled(Sub, ''), False);
+  Check('SuiteComparablePath empty', SuiteComparablePath('  '), '');
+  Check('SuiteComparablePath a folder that does not exist', SuiteComparablePath(Root + '\none\..\other'), Root + '\other');
   RemoveDir(Sub);
   RemoveDir(Root + '\Empire Earth');
   RemoveDir(Root);
@@ -1565,8 +1584,32 @@ begin
   RemoveDir(Dir);
 end;
 
-// The freeze of the processes of a job (SuiteFreezeJob), the step before every stop of a product setup: programs that ended
-// or that cannot be frozen, and the setup of this test that writes a byte every 25 ms (/ProcTickDir, InitializeSetup of
+// Waits up to Ms milliseconds until the job lists no process any more (the list of QueryInformationJobObject that
+// SuiteFreezeJob reads). True once it lists none; False if processes are still listed after Ms or the job cannot be read.
+function WaitSuiteJobEmpty(Job: THandle; Ms: Integer): Boolean;
+var
+  List: TSuiteJobProcessList;
+  Waited: Integer;
+begin
+  Result := False;
+  Waited := 0;
+  repeat
+    List.NumberOfAssignedProcesses := 0;
+    List.NumberOfProcessIdsInList := 0;
+    if not SuiteQueryJob(Job, SuiteJobObjectBasicProcessIdList, List, SizeOf(List), 0) then
+      Exit;
+    Result := List.NumberOfAssignedProcesses = 0;
+    if not Result then
+    begin
+      Sleep(50);
+      Waited := Waited + 50;
+    end;
+  until Result or (Waited > Ms);
+end;
+
+// The freeze of the processes of a job (SuiteFreezeJob), the step before every stop of a product setup: when a suspension
+// that failed counts as an end (SuiteSuspendFailureIsEnd) and how its NTSTATUS is written (SuiteNtStatusText), programs that
+// ended or that cannot be frozen, and the setup of this test that writes a byte every 25 ms (/ProcTickDir, InitializeSetup of
 // unit_tests.iss), as a loader with a real setup like a product setup. Frozen, nothing is written; resumed, it goes on;
 // terminated while frozen, it ends with SuiteKillCode. A freeze that finds nothing new is a success only if the loader has
 // ended or is among the frozen processes: a loader that runs outside the job, or a job without processes, is none (a wrong
@@ -1592,19 +1635,36 @@ begin
   CheckBool('SuiteFreezeJob without a job: a reason', Why <> '', True);
   Check('SuiteFreezeJob without a job: nothing frozen', IntToStr(GetArrayLength(Frozen)), '0');
 
-  // a job whose program ended: nothing or only helpers left in it, no failure
+  // a process that NtSuspendProcess did not suspend: it counts as ended if Windows says that it is ending
+  // (STATUS_PROCESS_IS_TERMINATING, $C000010A: its last thread is leaving, but its object is not signalled yet) or if it has
+  // ended; any other failure is a process that may run on, the freeze fails and its reason names the NTSTATUS
+  CheckBool('SuiteSuspendFailureIsEnd: ending, not signalled yet', SuiteSuspendFailureIsEnd(SuiteStatusProcessIsTerminating, SuiteWaitTimeout), True);
+  CheckBool('SuiteSuspendFailureIsEnd: ending and signalled', SuiteSuspendFailureIsEnd(SuiteStatusProcessIsTerminating, SuiteWaitObject0), True);
+  CheckBool('SuiteSuspendFailureIsEnd: access denied, but ended meanwhile', SuiteSuspendFailureIsEnd(-1073741790, SuiteWaitObject0), True);
+  CheckBool('SuiteSuspendFailureIsEnd: access denied ($C0000022) and running', SuiteSuspendFailureIsEnd(-1073741790, SuiteWaitTimeout), False);
+  CheckBool('SuiteSuspendFailureIsEnd: unsuccessful ($C0000001) and running', SuiteSuspendFailureIsEnd(-1073741823, SuiteWaitTimeout), False);
+  CheckBool('SuiteSuspendFailureIsEnd: access denied and the look at the process failed (WAIT_FAILED)', SuiteSuspendFailureIsEnd(-1073741790, -1), False);
+  Check('SuiteNtStatusText of STATUS_PROCESS_IS_TERMINATING', SuiteNtStatusText(SuiteStatusProcessIsTerminating), '0xC000010A');
+  Check('SuiteNtStatusText of STATUS_ACCESS_DENIED', SuiteNtStatusText(-1073741790), '0xC0000022');
+  Check('SuiteNtStatusText of STATUS_SUCCESS', SuiteNtStatusText(0), '0x00000000');
+  Check('SuiteNtStatusText of STATUS_PENDING', SuiteNtStatusText(259), '0x00000103');
+
+  // a job whose program ended: no failure. Windows 8 and later start a console helper (conhost.exe) in the job of a console
+  // program, and the helper ends a moment after the program; the test waits until the job lists no process any more, so the
+  // result does not depend on that moment. A helper that the freeze catches while it ends is not suspended by Windows and not
+  // signalled yet (most likely what made CI run 48 fail once, when the test did not wait): SuiteSuspendFailureIsEnd above.
   CheckBool('SuiteStartProduct starts a program that ends', SuiteStartProduct(ExpandConstant('{sys}\cmd.exe'), '/c exit 0', Dir, Proc, Job, Err), True);
   CheckBool('SuiteWaitEnd sees it end', SuiteWaitEnd(Proc, 30000), True);
   if Job = 0 then
     Skip('SuiteFreezeJob of a job whose program ended', 'the process could not be put in a job object')
   else
   begin
+    CheckBool('the job of the program that ended lists no process within 30 seconds', WaitSuiteJobEmpty(Job, 30000), True);
     Why := 'x';
     CheckBool('SuiteFreezeJob of a job whose program ended', SuiteFreezeJob(Job, Proc, Frozen, Why), True);
     Check('SuiteFreezeJob of a job whose program ended: no reason', Why, '');
-    // what is still in the job (Wine keeps a console helper there for a moment) is frozen and runs again
-    Check('SuiteResumeFrozen of what was frozen', IntToStr(SuiteResumeFrozen(Frozen)), '0');
-    Check('SuiteResumeFrozen forgot them', IntToStr(GetArrayLength(Frozen)), '0');
+    Check('SuiteFreezeJob of a job whose program ended: nothing to freeze', IntToStr(GetArrayLength(Frozen)), '0');
+    Check('SuiteResumeFrozen of nothing', IntToStr(SuiteResumeFrozen(Frozen)), '0');
   end;
   SuiteCloseHandle(Proc);
   if Job <> 0 then

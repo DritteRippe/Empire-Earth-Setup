@@ -148,14 +148,14 @@ end;
 
 const
   // Revision of the default components (install record value ComponentDefaults, contract 1.1, revision 6): 1 = the intro
-  // movies (additional\movies) belong to the types full and compact (setup 1.1.0). Raise it with the next component that
+  // movies (additional\movies) belong to the types full and compact (suite 1.1.0). Raise it with the next component that
   // becomes a default for existing installations, and select that one in SelectNewDefaultComponents (setup_is6.iss).
   ComponentDefaultsRevision = 1;
 
 // Why an update selects no new default component; '' = it selects them (SelectNewDefaultComponents). HasPrevious: the
 // uninstall key of a previous installation exists; Explicit: /TYPE=, /COMPONENTS= or /LOADINF= (an answer file may carry Components=) is on the command line; SetupType: the
 // type Inno Setup took over from the previous installation (WizardSetupType(False)); Recorded: ComponentDefaults of the
-// install record (0 if missing: setups before 1.1.0 and 1.7.2); Selected: the component is selected already.
+// install record (0 if missing: product setups before suite 1.1.0 and 1.7.2); Selected: the component is selected already.
 function NewDefaultComponentSkipReason(const HasPrevious, Explicit: Boolean; const SetupType: String;
   const Recorded: Integer; const Selected: Boolean): String;
 begin

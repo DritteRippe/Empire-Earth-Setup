@@ -1,6 +1,10 @@
 # Compiles all four setup variants (EE/NeoEE x Regular/Portable) against placeholder assets.
 # The real game data is not in the repository, so this checks that the script compiles; the
 # produced installers are useless and are deliberately not uploaded.
+#
+# Every action is pinned by its full commit, with the release as a comment, like in
+# e2e-realdata.yml: a tag can be moved, a commit cannot. Dependabot proposes new releases and
+# updates both (.github/dependabot.yml).
 name: Build
 
 on:
@@ -12,13 +16,20 @@ on:
 permissions:
   contents: read
 
+# Every Python run of this workflow (the checks and their self-tests, the placeholder generator that
+# ci/build.ps1 starts, the tests of the end-to-end tools, which import every tool) turns a SyntaxWarning
+# into an error: an invalid escape such as "\L" in a string literal is only a warning today and is to
+# become a SyntaxError in a later Python, which would stop the checks without a word about the cause.
+env:
+  PYTHONWARNINGS: error::SyntaxWarning
+
 jobs:
   compile:
     name: Compile all variants (placeholder assets)
     runs-on: windows-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # The script targets Inno Setup 6.2.x; pin the version the releases are built with.
       - name: Install Inno Setup 6.2.2
@@ -86,8 +97,9 @@ jobs:
         shell: pwsh
         run: python ci/check_suite_texts.py --self-test
 
-      # docs/CONTRACT.md must be identical in the launcher repository, which CI cannot reach: the
-      # copy check runs locally (README, "Verify"); here only its self-test.
+      # docs/CONTRACT.md and the byte samples docs/contract-samples must be identical in the launcher
+      # repository, which CI cannot reach: the copy check runs locally (README, "Verify"); here only
+      # its self-test.
       - name: Contract copy check (self-test)
         shell: pwsh
         run: python ci/compare_contract.py --self-test
@@ -148,7 +160,7 @@ jobs:
       # Tools of the real-data end-to-end test (.github/workflows/e2e-realdata.yml) with made-up
       # data: header extraction, placing the official files, the read set of the build against the
       # map, the upload guard, the report and the rules of the checks (in Windows PowerShell 5.1,
-      # which runs the scenarios). The same for the scenarios S1 to S14 of the suite installer (job
+      # which runs the scenarios). The same for the scenarios S1 to S15 of the suite installer (job
       # suite-e2e below): their rules in Windows PowerShell 5.1, and the scenarios themselves against a
       # fake Windows (an in-memory registry, a fake suite) in PowerShell 7: every check must pass
       # against the fake and each of a few defects of the fake must fail its check. No game data, no
@@ -202,7 +214,7 @@ jobs:
       # The resolved scripts are handy to review what a change does to each variant.
       - name: Upload preprocessed scripts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: preprocessed-scripts
           path: out/preprocessed
@@ -219,7 +231,7 @@ jobs:
         run: ./suite/build_suite.ps1 -Placeholders -RequireVersion 6.2.2
 
       - name: Upload the placeholder suite
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: suite-placeholder
           path: out/Suite
@@ -229,7 +241,8 @@ jobs:
       # The inputs of the job suite-e2e: the placeholder suite, the same suite with a wrong pin of the EE
       # setup compiled in (scenario S5: the suite must refuse its own EE setup before it runs anything) and the
       # placeholder product setups (scenario S3 installs EE on its own first). Placeholders only: no game data,
-      # nothing to download, nothing that works as an installer.
+      # nothing to download, nothing that works as an installer. The placeholder suite holds the test hook of its
+      # uninstaller (scenario S15, /TestDeleteUserData); a build without -Placeholders never does.
       - name: Build the suite with a wrong EE pin (scenario S5)
         shell: pwsh
         run: ./suite/build_suite.ps1 -Placeholders -TestWrongEEPin -RequireVersion 6.2.2 -OutputDir out/SuiteWrongPin
@@ -245,14 +258,14 @@ jobs:
           Get-ChildItem -LiteralPath $inputs -Recurse -File | ForEach-Object { $_.FullName.Substring((Resolve-Path $inputs).Path.Length + 1) }
 
       - name: Upload the inputs of the suite end-to-end test
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: suite-e2e-inputs
           path: out/suite-e2e-inputs
           retention-days: 1
           if-no-files-found: error
 
-  # The scenarios S1 to S14 of the suite installer (suite/suite.iss, ADR 0013) with the PLACEHOLDER builds of
+  # The scenarios S1 to S15 of the suite installer (suite/suite.iss, ADR 0013) with the PLACEHOLDER builds of
   # the job above: silent runs of the suite, which runs the placeholder EE and NeoEE setups, with exact task
   # lists (never neoee_cdkeys, certinclude, directplay, dxwebsetup), every host blocked, a dummy under
   # Software\Sierra\CDKeys that must survive everything, and the shortcuts read through WScript.Shell. It needs
@@ -265,7 +278,7 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 150
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # The folders of the test, below the temporary folder of the runner (not below %TEMP%: the suite takes a
       # package there for a ZIP view, exit code 12 instead of 11)
@@ -279,14 +292,14 @@ jobs:
           ) | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       - name: Download the inputs
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: suite-e2e-inputs
           path: ${{ runner.temp }}\ee-suite-e2e\inputs
 
       # Windows PowerShell 5.1, as the scenarios of e2e-realdata.yml. The budget is below the limit of the
       # step, which is below the limit of the job: every program the scenarios start has its own limit, too.
-      - name: Scenarios S1 to S14
+      - name: Scenarios S1 to S15
         timeout-minutes: 130
         shell: pwsh
         run: powershell -NoProfile -ExecutionPolicy Bypass -File ci/e2e/run_e2e_suite.ps1 -Scenario All -BudgetMinutes 120
@@ -298,7 +311,7 @@ jobs:
 
       - name: Upload the logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: suite-e2e-report
           path: ${{ runner.temp }}\ee-suite-e2e\report

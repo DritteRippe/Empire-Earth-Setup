@@ -10,12 +10,14 @@ installed (docs/adr/0012-pinned-downloads-despite-invalid-certificates.md). This
 that the exception stays where it is. It reads every script compiled into the setup, without "//"
 comments: every *.iss file in the root folder and every file that an #include line names in
 setup_is6.iss or in a file found that way, also third-party code under internal/
-(internal/lib/bass/bass.iss). The unit tests in ci/tests call the WinHTTP helpers on purpose and
-are not read. Pascal names are case-insensitive, and so is the search for them. It reports (exit
-code 1):
+(internal/lib/bass/bass.iss). It reads the suite installer the same way, from its own main script:
+suite/suite.iss and every file of its #include lines (ADR 0013); the rules below apply to its
+scripts as well. The unit tests in ci/tests call the WinHTTP helpers on purpose and are not read.
+Pascal names are case-insensitive, and so is the search for them. It reports (exit code 1):
 
-  - an #include whose file does not exist or is outside the repository, and an #include built
-    from an expression other than the one of config_<type>.iss (a file of the root folder);
+  - a main script that does not exist (setup_is6.iss, suite/suite.iss), an #include whose file does
+    not exist or is outside the repository, and an #include built from an expression other than
+    the one of config_<type>.iss (a file of the root folder);
   - a function of winhttp.dll declared anywhere but in utils.iss, under another name than its own
     (an alias such as "function SetOpt(...); external 'WinHttpSetOption@winhttp.dll ...'" would
     escape the rules below), twice, with another external text than
@@ -44,12 +46,21 @@ code 1):
     under a condition that requires a pinned file (Check = OnlineFilePinned);
   - the certificate option of the WinHttpRequest COM object (SslErrorIgnoreFlags, Option[4]) or any
     Option[...] index of it but the named constants WinHttpRequestOptionSecureProtocols and
-    WinHttpRequestOptionEnableRedirects.
+    WinHttpRequestOptionEnableRedirects;
+  - in a script of the suite installer, which downloads nothing itself (its product setups do, ADR
+    0013) and runs elevated: any network code at all, that is an http:// address (also in [Setup],
+    where "//" starts no comment), WinHTTP in any form (a function, a constant, the COM object
+    WinHttp.WinHttpRequest.5.1), any Option[...] of a COM object, and the download functions of
+    Inno Setup 6.2.2 (DownloadTemporaryFile, DownloadTemporaryFileSize, DownloadTemporaryFileDate,
+    CreateDownloadPage, SetDownloadCredentials). A product script that the suite includes counts as
+    a script of the suite.
 
 --self-test runs the check against modified temporary copies of the scripts (the flags in another
 function, a second caller, True from another function, the guard removed, an alias of
-WinHttpSetOption, the flags in an included file of a subfolder, ...) that must fail, and against
-an unmodified copy that must pass. Exit code 0 if all cases behave.
+WinHttpSetOption, the flags in an included file of a subfolder, the flags, an http:// address, the
+WinHttpRequest COM object or a download in a file of the suite, the main script of the suite
+renamed, ...) that must fail, and against an unmodified copy and a few harmless changes (an http://
+address in a comment of the suite) that must pass. Exit code 0 if all cases behave.
 """
 import os
 import re
@@ -59,6 +70,8 @@ import tempfile
 from pathlib import Path
 
 MAIN_SCRIPT = "setup_is6.iss"
+# The suite installer (ADR 0013): a second program with its own main script and #include closure
+SUITE_SCRIPT = "suite/suite.iss"
 APPLY = "ApplyCertificateErrorIgnoreFlags"
 OPEN = "OpenWinHttpRequest"
 PROBE = "GetHttpStatusIgnoringCertificate"
@@ -90,6 +103,14 @@ OTHER_HTTP = re.compile(r"wininet|urlmon|xmlhttp", re.IGNORECASE)
 ADDRESS = re.compile(r"@\s*(WinHttp\w+|" + "|".join(ROUTINES.values()) + r")\b", re.IGNORECASE)
 HEADER = re.compile(r"^(?:function|procedure)\s+(\w+)\b", re.IGNORECASE)
 GUARD = re.compile(r"^\s*if\s+OnlineFiles\[Index\]\.SHA256\s*=\s*''\s+then\s+RaiseException\(", re.IGNORECASE)
+# What no script of the suite may hold, comments left out (strip_comment cuts "http://x" of a [Setup] line to "http:")
+SUITE_NETWORK = (
+    (re.compile(r"\bhttp:", re.IGNORECASE), "an http:// address"),
+    (re.compile(r"\bWinHttp", re.IGNORECASE), "WinHTTP"),
+    (re.compile(r"\.Option\s*\[", re.IGNORECASE), "an option of a COM object (Option[...])"),
+    (re.compile(r"\b(?:DownloadTemporaryFile(?:Size|Date)?|CreateDownloadPage|SetDownloadCredentials)\b", re.IGNORECASE),
+     "a download function of Inno Setup"),
+)
 
 
 def strip_comment(line):
@@ -113,15 +134,31 @@ def read_text(path):
 
 
 def script_files(root):
-    """(relative paths with "/", problems) of the scripts compiled into the setup: every *.iss file
-    of the root folder (without the temporary copies of ci/build.ps1) and every file an #include
-    line names in one of them, recursively, wherever it is in the repository. ISPP looks for a
-    plain file name next to the including file first, then next to the main script."""
+    """(relative paths with "/", the paths of the suite installer among them, problems) of the
+    scripts compiled into the setup and into the suite installer. The setup: every *.iss file of the
+    root folder (without the temporary copies of ci/build.ps1) and every file an #include line names
+    in one of them, recursively, wherever it is in the repository. The suite: suite/suite.iss and
+    every file its #include lines name, recursively; a file of the setup that the suite includes is
+    a file of the suite as well."""
     root = Path(root)
     problems = []
+    for main in (MAIN_SCRIPT, SUITE_SCRIPT):
+        if not (root / main).is_file():
+            problems.append(f"{main}: file not found (a main script this check starts from; if it was renamed or "
+                            "moved, change this check too)")
+    setup = include_closure(root, [MAIN_SCRIPT] + sorted(path.name for path in root.glob("*.iss")
+                                                         if not path.name.startswith("_pp") and path.name != MAIN_SCRIPT),
+                            root, problems)
+    suite = include_closure(root, [SUITE_SCRIPT], (root / SUITE_SCRIPT).parent, problems)
+    return setup + [rel for rel in suite if rel not in setup], suite, list(dict.fromkeys(problems))
+
+
+def include_closure(root, queue, main_folder, problems):
+    """The relative paths (with "/") of the scripts in queue and of every file an #include line names
+    in one of them, recursively. ISPP looks for a plain file name next to the including file first,
+    then in main_folder, the folder of the main script."""
     found = []
-    queue = [MAIN_SCRIPT] + sorted(path.name for path in root.glob("*.iss")
-                                   if not path.name.startswith("_pp") and path.name != MAIN_SCRIPT)
+    queue = list(queue)
     while queue:
         rel = queue.pop(0)
         path = root / rel
@@ -140,7 +177,7 @@ def script_files(root):
                     problems.append(f"{where}: built from an expression this check cannot follow (use a plain file name)")
                 continue
             name = (literal.group(1) or literal.group(2)).replace("\\", "/")
-            target = next((candidate for candidate in (path.parent / name, root / name) if candidate.is_file()), None)
+            target = next((candidate for candidate in (path.parent / name, main_folder / name) if candidate.is_file()), None)
             if target is None:
                 problems.append(f"{where}: file not found")
                 continue
@@ -149,14 +186,15 @@ def script_files(root):
                 problems.append(f"{where}: outside the repository")
                 continue
             queue.append(target_rel)
-    return found, problems
+    return found
 
 
 def read_scripts(root):
-    """([(relative path, lines without comments)] of script_files, problems of script_files)."""
-    files, problems = script_files(root)
+    """([(relative path, lines without comments)] of script_files, the paths of the suite, problems
+    of script_files)."""
+    files, suite, problems = script_files(root)
     scripts = [(rel, [strip_comment(line) for line in read_text(Path(root) / rel).split("\n")]) for rel in files]
-    return scripts, problems
+    return scripts, suite, problems
 
 
 def routines(lines):
@@ -258,6 +296,18 @@ def check_externals(scripts, problems):
                                 "escapes this check)")
 
 
+def check_suite_offline(scripts, suite, problems):
+    """No network code in a script of the suite installer (see the module docstring)."""
+    for name, lines in scripts:
+        if name not in suite:
+            continue
+        for i, line in enumerate(lines):
+            for pattern, what in SUITE_NETWORK:
+                if pattern.search(line):
+                    problems.append(f"{name}, line {i + 1}: {what} in the suite installer, which downloads nothing "
+                                    "itself (ADR 0013: its product setups download, under the rules of ADR 0012)")
+
+
 def check_named_options(scripts, problems):
     """Every named option of NAMED_OPTIONS defined exactly once, with its value."""
     for option, value in NAMED_OPTIONS.items():
@@ -298,9 +348,10 @@ def check(root):
     calls = {}  # name -> list of (file, line number, owner, arguments, line index)
     texts = {}
     spans_of = {}
-    scripts, include_problems = read_scripts(root)
+    scripts, suite, include_problems = read_scripts(root)
     problems.extend(include_problems)
     check_externals(scripts, problems)
+    check_suite_offline(scripts, suite, problems)
     check_named_options(scripts, problems)
     for name, lines in scripts:
         spans = routines(lines)
@@ -392,7 +443,8 @@ def run(root):
         print(f"TLS policy: {len(problems)} problem(s), see ADR 0012")
         return 1
     print(f"TLS policy: certificate errors are only ignored in {APPLY}, called by {OPEN} for "
-          f"{PROBE} and {DOWNLOAD} (pinned files only)")
+          f"{PROBE} and {DOWNLOAD} (pinned files only); no network code in the {len(script_files(root)[1])} "
+          "scripts of the suite installer")
     return 0
 
 
@@ -427,6 +479,9 @@ def self_test(source_root):
             for step in steps:
                 step(root)
         return apply
+
+    def rename(rel, new_rel):
+        return lambda root: (root / rel).rename(root / new_rel)
 
     # The finding of the review of S-WP12: an alias of WinHttpSetOption with a composed option and
     # composed flags, in a file without any WinHTTP code
@@ -540,12 +595,47 @@ def self_test(source_root):
         ("an #include built from another expression",
          append_code("setup_is6.iss", '#include AddBackslash(SourcePath) + "internal\\selftest.iss"\n'),
          "built from an expression this check cannot follow"),
+        # The suite installer (ADR 0013): its own main script and #include closure, the rules above and no network code
+        ("the flags in a module of the suite, only reached by its #include",
+         append_code("suite/suite_common.iss", "procedure SelfTestExtra;\nvar\n  F: Cardinal;\nbegin\n  F := $3300;\nend;\n"),
+         ("suite/suite_common.iss, line", "($3300) outside ApplyCertificateErrorIgnoreFlags")),
+        ("the WinHttpRequest COM object with the certificate option in a module of the suite",
+         append_code("suite/suite_common.iss", "procedure SelfTestExtra;\nvar\n  Request: Variant;\nbegin\n"
+                     "  Request := CreateOleObject('WinHttp.WinHttpRequest.5.1');\n  Request.Option[4] := $3300;\n"
+                     "  Request.Open('GET', 'https://example.invalid/', False);\nend;\n"),
+         ("suite/suite_common.iss, line", "WinHTTP in the suite installer")),
+        ("a named COM option in a module of the suite",
+         append_code("suite/suite_run.iss", "procedure SelfTestExtra(Request: Variant);\nbegin\n"
+                     "  Request.Option[WinHttpRequestOptionEnableRedirects] := False;\nend;\n"),
+         ("suite/suite_run.iss, line", "an option of a COM object (Option[...]) in the suite installer")),
+        ("an http:// address in [Setup] of the suite",
+         edit("suite/suite.iss", "AppPublisherURL=https://empireearth.eu/", "AppPublisherURL=http://empireearth.eu/"),
+         ("suite/suite.iss, line", "an http:// address in the suite installer")),
+        ("an http:// address in the code of the suite",
+         append_code("suite/suite_run.iss", "procedure SelfTestExtra;\nvar\n  S: String;\nbegin\n"
+                     "  S := 'HTTP://example.invalid/'; // upper case\nend;\n"),
+         ("suite/suite_run.iss, line", "an http:// address in the suite installer")),
+        ("a download of Inno Setup in the suite",
+         append_code("suite/suite_pages.iss", "procedure SelfTestExtra;\nbegin\n"
+                     "  DownloadTemporaryFile('https://example.invalid/x.exe', 'x.exe', '', nil);\nend;\n"),
+         ("suite/suite_pages.iss, line", "a download function of Inno Setup in the suite installer")),
+        ("a file of the setup included by the suite",
+         edit("suite/suite.iss", '#include "suite_common.iss"', '#include "suite_common.iss"\n#include "..\\utils.iss"'),
+         ("utils.iss, line", "WinHTTP in the suite installer")),
+        ("the main script of the suite renamed",
+         rename("suite/suite.iss", "suite/community.iss"),
+         "suite/suite.iss: file not found"),
+    ]
+    # Changes that must pass: network words in comments of the suite, which the compiler never sees
+    passing = [
+        ("an http:// address and WinHTTP in a comment of the suite",
+         append_code("suite/suite_run.iss", "// http://example.invalid/ and WinHttpOpen are named in a comment only\n")),
     ]
     failures = 0
     with tempfile.TemporaryDirectory() as temp:
         copy = Path(temp) / "repo"
 
-        files, _ = script_files(source)
+        files, suite, _ = script_files(source)
 
         def fresh():
             if copy.exists():
@@ -558,6 +648,9 @@ def self_test(source_root):
         if "internal/lib/bass/bass.iss" not in files:
             failures += 1
             print("FAIL self-test: internal/lib/bass/bass.iss is not among the scripts read: " + ", ".join(files))
+        if "suite/suite_common.iss" not in suite or "suite/suite_common.iss" not in files:
+            failures += 1
+            print("FAIL self-test: suite/suite_common.iss is not among the scripts of the suite: " + ", ".join(suite))
         if check(copy):
             failures += 1
             print("FAIL self-test: the unmodified copy does not pass: " + "; ".join(check(copy)))
@@ -565,19 +658,32 @@ def self_test(source_root):
             fresh()
             apply(copy)
             problems = check(copy)
-            hits = [problem for problem in problems if not expected or expected[0] in problem]
+            # the expected text, or a tuple of texts that must all be in the same problem
+            wanted = expected[0] if expected and isinstance(expected[0], tuple) else tuple(expected)
+            hits = [problem for problem in problems if all(text in problem for text in wanted)]
             if not problems:
                 failures += 1
                 print(f"FAIL self-test: {name}: not detected")
             elif not hits:
                 failures += 1
-                print(f"FAIL self-test: {name}: no problem with '{expected[0]}': " + "; ".join(problems))
+                texts = "' and '".join(wanted)
+                print(f"FAIL self-test: {name}: no problem with '{texts}': " + "; ".join(problems))
             else:
                 print(f"ok   {name}: {hits[0]}")
+        for name, apply in passing:
+            fresh()
+            apply(copy)
+            problems = check(copy)
+            if problems:
+                failures += 1
+                print(f"FAIL self-test: {name}: must pass: " + "; ".join(problems))
+            else:
+                print(f"ok   {name}: passes")
+    total = len(cases) + len(passing) + 1
     if failures:
-        print(f"self-test: FAIL ({failures} of {len(cases) + 1} cases)")
+        print(f"self-test: FAIL ({failures} of {total} cases)")
         return 1
-    print(f"self-test: PASS ({len(cases) + 1} cases)")
+    print(f"self-test: PASS ({total} cases)")
     return 0
 
 

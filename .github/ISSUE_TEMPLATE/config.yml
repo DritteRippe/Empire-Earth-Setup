@@ -1,5 +1,14 @@
 blank_issues_enabled: false
 contact_links:
-  - name: Help, logs and the community
+  - name: Need help with the game package?
+    url: https://github.com/DritteRippe/Empire-Earth-Community/issues
+    about: Installing, starting or updating the package "Empire Earth Community" (German or English).
+  - name: Problem with the launcher or the mod creator
+    url: https://github.com/DritteRippe/Empire-Earth-Launcher/issues
+    about: The Empire Earth Launcher and the mod creator live in the launcher repository.
+  - name: Report a security vulnerability
+    url: https://github.com/DritteRippe/Empire-Earth-Setup/security/policy
+    about: Please report security problems privately, never in a public issue (SECURITY.md).
+  - name: Where is the setup log?
     url: https://github.com/DritteRippe/Empire-Earth-Setup#support
-    about: "How to find the setup log and where to ask (empireearth.eu, the community Discord). Security problems: see SECURITY.md; never post details in an issue."
+    about: The README section "Support" says where every log is and where the community helps (empireearth.eu, Discord).

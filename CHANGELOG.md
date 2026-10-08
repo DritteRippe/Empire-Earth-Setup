@@ -3,7 +3,9 @@
 Release notes of the Empire Earth Community Setup. The version is the setup version
 (`MySetupVersion` in `setup_is6.iss`); EE and NeoEE setups of the same version share the same
 features. Up to 1.0.4.1 the setup used the four-part version format of the game, since 1.5.0 it
-uses semantic versioning.
+uses semantic versioning. Since setup v2 the product setups are released only inside the suite
+installer "Empire Earth Community" and keep the setup version 1.7.2 (README, "Status"), so these
+sections are named after the suite version; the suite has no changelog of its own.
 
 Until 1.7.2 these notes lived in the header of `setup_is6.iss`. They were moved here unchanged
 apart from spelling fixes, the 1.7.1 correction noted there, a correction of 1.6.0 and an
@@ -12,13 +14,8 @@ header.
 
 ## Unreleased
 
-Setup v2: the refactoring and quality fixes of the base branch and the work packages of the v2
-plan (`docs/ARCHITECTURE.md`, "Plan", all done): built-in downloads instead of a plug-in, every
-online file pinned by its SHA-256 (also downloaded from a server with an invalid certificate), the
-compatibility defaults, a log of every run and checksums of the setups, the install record and the
-integrity manifest for the Empire Earth Launcher, hints before the installation, no elevated
-installation through links, and a complete German test plan for Windows. No new game content; the
-setup version stays 1.7.2 until the release.
+Changes since suite 1.1.0 (tag `suite-v1.1.0`), for suite 1.1.1. The product setups still report the
+setup version 1.7.2; the product setups of a suite release are told apart by their `SetupBuild` (see Added).
 
 ### Added
 - GitHub issue form for bug reports (`.github/ISSUE_TEMPLATE/bug_report.yml`: program, version, Windows version, what happened,
@@ -28,6 +25,154 @@ setup version stays 1.7.2 until the release.
   reporting, the latest release is supported, scope is the code and CI of this repository, no bug bounty.
 - `.github/dependabot.yml`: Dependabot proposes monthly pull requests into `main` for the GitHub Actions of the workflows (at most
   three open, commit subjects start with "CI:"). No version updates for NuGet or pip: those versions are pinned on purpose.
+- CI scenario S15 of the job `suite-e2e`: the suite uninstaller with "Delete" on the placeholder installation. User data in
+  every folder the uninstaller offers, files next to them and `Data\dxm` of NeoEE as a junction to a folder outside with a
+  canary; exactly the offered folders must go, everything else and the target of the junction must stay. It runs through a
+  test hook that only the placeholder suite contains (`/TestDeleteUserData`, compiled in by `suite\build_suite.ps1
+  -Placeholders` only; `suite.iss` refuses the define with real AppIds). Before, the "Delete" branch had never run in any
+  test. `ci/check_suite.py` (part [Hook]) checks the hook, the fake of the scenario self-test has three new defects for S15.
+- The byte samples of the contract, `docs/contract-samples` (`install.ini` of the three install modes, `files.sha256`,
+  `record.reg`), taken over byte for byte from the launcher repository, which tests its readers against them (`-text` in
+  `.gitattributes`). `ci/compare_contract.py` compares them file by file like `docs/CONTRACT.md` (per file the first
+  differing line and both hashes, the files only one copy has, a hint for line endings; exit code 2 for a missing folder),
+  and the new unit test `TestContractSamples` checks that the writers of `install.ini` and of the manifest produce exactly
+  these bytes (`ci\run_unit_tests.ps1` and `ci/tests/run_unit_tests.sh` pass the folder as `/SAMPLES=...`).
+- `ci\build.ps1` writes `<setup>.exe.setupbuild` next to every setup: `SHA256=<hash of the setup>` and
+  `SetupBuild=<identifier>` (empty for none). `BUILD-INFO.txt` of the suite names the `SetupBuild` of both product setups
+  (`Product SetupBuild:   EE <id>, NeoEE <id>`; `none` or `not recorded` in placeholder and test builds), so the product
+  setups of two packages, which all report setup version 1.7.2, can be told apart (ADR 0013, amendment of 2026-10-08).
+- Issue forms `feature_request.yml` (an idea for the setups or the suite, with the limits that are on purpose) and
+  `security_contact.yml` (asks for a private contact without any detail: the fallback of `SECURITY.md`, which needs a
+  form because blank issues are off).
+- `CONTRIBUTING.md`: ways to help, the rules that matter most (Inno Setup 6.2.2, BOM and CRLF, no game data, pinned
+  HTTPS downloads, the CD keys, elevated code, the shared contract, three languages), the workflow with a pull request
+  into `main`, the local checks, the commit style and the changelog. `.github/pull_request_template.md` asks for what
+  and why, the checks and the docs; `.github/CODEOWNERS` asks `@DritteRippe` to review every pull request. The README
+  links the guide.
+- `docs/RELEASING.md`: the checklist of a suite release, from the test plan, the servers and the settings that let
+  reports reach the project (issues, private vulnerability reporting, the labels of the issue forms) to the package:
+  every place with the version number (the product setups keep 1.7.2), the merge commit, a tag only on a commit of
+  `main` whose complete `build.yml` run was green (a tag starts no run), the build of the product setups with
+  `-SetupBuild suite-X.Y.Z-<commit>` and of the suite, what `BUILD-INFO.txt` and `SHA256SUMS.txt` must say, release
+  notes without branch names (with a template), the package, `LAUNCHER_COMMIT` afterwards, and what is pinned on
+  purpose, and which settings of the repository protect `main`, the tags and the releases. The README,
+  `CONTRIBUTING.md` and ARCHITECTURE link it. The bug form says where the suite version is
+  shown (its entry in Windows "Apps", the file properties), not the window title.
+
+### Changed
+- One main line `main`: development happens on short-lived feature branches with a pull request into `main`, releases
+  are tags on `main` (this repository and the launcher repository; the work of the branch `v2` is merged into the base
+  branch, which is called `main` from now on, here after the rename of the fork's `master`). `build.yml` runs on a push
+  to `main` only (pull requests and manual runs as before), the real-data end-to-end test checks the launcher commit
+  against the launcher's `main`, README and the test plan name `main`. References to what happened at a past commit (CONTRACT.md "Based on", released changelog entries, ADR texts
+  about past decisions and runs) keep the branch names of that time.
+- The real-data end-to-end test (`.github/workflows/e2e-realdata.yml`) runs by hand only (`workflow_dispatch`, input
+  `launcher_commit`), not for pull requests: `r2.empireearth.eu` answers GitHub runners with HTTP 403 (an external block),
+  so the check failed on every run, and a check that is always red trains people to ignore red checks. The `pull_request`
+  trigger, the `paths` filter and the job condition with the label and fork checks are gone, the concurrency group is one
+  per ref; the launcher commit check, `guard_upload.py`, the hosts block and the rule that game data never leaves the runner
+  are unchanged, `LAUNCHER_BRANCH` is `main`. `ci/e2e/tests/test_e2e_tools.py` checks the new rules (manual only, no other
+  trigger, no job condition, the group per ref). To be switched back to pull requests with the label `e2e` when downloads
+  work again: README "End-to-end test on Windows", ADR 0011 (amendment 2026-10-07).
+- `docs/CONTRACT.md` revision 7 (the same commit subject in both repositories; contract version still 1, compatible, no
+  MUST or MUST NOT relaxed). New for the launcher: an installation of the suite is sent to the release page of the package
+  (`https://github.com/DritteRippe/Empire-Earth-Community/releases/latest`), never to the product pages, which lead to the
+  official setup with the same AppId. New informative text for suite 1.1.1: a process that is ending counts as ended in
+  the freeze (1.7 point 2); the product setups of a suite release carry a `SetupBuild` (1.1); the Support and Updates
+  links of the suite's uninstall key (1.3); the byte samples, compared by `ci/compare_contract.py` (1.2, 2.2, 5, O12).
+  New open question O13: the update question of a product setup in the advanced mode of the suite. Corrections: status
+  Released with the tags of both releases, the links at the top lead to the forks of DritteRippe (the EE-modders
+  repositories have no copy), the freeze commit in "Based on" is 61797e6.
+- Suite: the links "Support" and "Updates" of the entry "Empire Earth Community (Launcher, EE, NeoEE)" in Windows "Apps"
+  lead to the repository Empire-Earth-Community and its releases, where the package is published, instead of
+  `https://empireearth.eu/`, which neither offers nor supports the suite. The publisher's link stays the one of EE.
+  `ci/check_suite.py` requires both values.
+- Suite build: a release build of the suite (no `-Placeholders`, `TestID` 0) stops before ISCC unless both product setups
+  have a `.setupbuild` record with an identifier; a record written for other bytes always stops the build. Build the
+  product setups of a release with `ci\build.ps1 -SetupBuild suite-1.1.1-<commit>`.
+- CI: every action of both workflows is pinned by its full commit with the release as a comment, at its Node.js 24 release
+  (`actions/checkout` 7.0.1, `actions/upload-artifact` 7.0.1, `actions/download-artifact` 8.0.1, `NuGet/setup-nuget` 4.0,
+  `microsoft/setup-msbuild` 3.0.0; `build.yml` used `@v4` tags before). The warning "Node.js 20 is deprecated" is gone.
+  Dependabot groups all action updates into one pull request a month and proposes a release only after seven days.
+  `ci/e2e/tests/test_suite_e2e.py` requires the pins in `build.yml`.
+- Documentation after the review of suite 1.1.0: the README says that the product setups are released inside the suite
+  only (with the setup version 1.7.2) and where players get the package; it calls the fix of the dead mouse confirmed
+  (TP-25 (b), 2026-10-07) instead of expected; it explains why the product setups use the AppIds of the official setups
+  1.7.2 and what follows from that, instead of a rule that forks generate their own; its links to the launcher lead to
+  the fork `DritteRippe/Empire-Earth-Launcher` (the upstream repository has neither the contract nor this launcher).
+  "Setup 1.1.0", a version no setup ever had, is "suite 1.1.0" in the README, the ADRs, the test plan and the comments.
+  ADR 0011 says that the real-data end-to-end test has never run successfully on GitHub (amendment of 2026-10-08), ADR
+  0013 is "Accepted, implemented", and ARCHITECTURE lists the open question O13.
+- `THIRD-PARTY-NOTICES.md` names BASS 2.4.16 of Un4seen Developments, the closed-source audio library that plays the
+  setup music (in this repository below `internal/lib/bass`, compiled into every product setup, never installed), with
+  its terms in short and the open points (no licence text in the repository, the combination with the GPL script not
+  checked legally). It also lists the other binary components the setups ship from `data\` (EE Stats, Discord Presence,
+  dreXmod, the DirectX wrappers of GOG and DDrawCompat, the NeoEE files, the diagnostic tool, `Language.dll`, the game
+  files, the DirectX web installer) with their origin as far as it is known.
+- `SECURITY.md` starts with the supported versions (the latest suite release and `main`), links the form of GitHub
+  private vulnerability reporting directly and names the new issue form as the fallback. The issue chooser links the
+  help for the package (issues of Empire-Earth-Community), the launcher repository, the security policy and the README
+  section "Support"; the bug form asks for the version of the package and, for a single setup (which always says
+  "Setup v1.7.2"), the `SetupBuild` line of its log. README "Support" links the issue chooser. All of this works once
+  Issues and private vulnerability reporting are switched on in the settings of the repository (a fork has both off);
+  step 1 of `docs/RELEASING.md` checks them before every release.
+- README: a banner (`.github/assets/banner-light.svg` and `banner-dark.svg`, chosen by the color scheme), badges of
+  this fork (latest release, the build of `main`, license, platform, Inno Setup 6.2.2) instead of the stars, forks and
+  setup version of upstream, a navigation line, a hint for players with the link to the package, and the new sections
+  "At a glance", "Quick start", "Download" and "Documentation". The paragraph on the suite installer is a list by topic
+  (one window, Cancel, the freeze, time limits, the window, shortcuts, .NET Framework 4.8, Windows "Apps"), and the
+  long developer details (the online files, both end-to-end tests, `ci/check_contract.py`) are folded. No content is
+  removed, and every heading keeps its anchor except the title.
+
+### Fixed
+- Suite: a process of a product setup that is just ending (Windows answers its suspension with
+  `STATUS_PROCESS_IS_TERMINATING`, `0xC000010A`) counts as ended in the freeze before a stop. A cancel at that moment is no
+  longer treated as "unclear" and repeated for that reason alone. Any other process that Windows refuses to suspend still
+  blocks the stop, and the log now names its NTSTATUS (`process <id> cannot be suspended (NTSTATUS 0x...)`). ADR 0013,
+  amendment of 2026-10-08.
+- Suite uninstaller: a product that stays installed is recognized also when its install root is written in its 8.3 short
+  form (`C:\PROGRA~2\...`), so the profiles and saves it shares with the removed product are not offered for deletion. A
+  subst drive or a link in the spelling of a root is still not resolved.
+- CI: the unit test "SuiteFreezeJob of a job whose program ended" no longer depends on timing: it waits until the job lists
+  no process (the console helper `conhost.exe` ends a moment after `cmd.exe`). It had failed once in run 48 on the
+  release commit `2b764e4` and passed in run 49 on the same commit. `ci/check_suite.py` (part [Freeze]) checks the new
+  classification (`SuiteSuspendFailureIsEnd`) with three mutants.
+- CI: the module docstrings of `ci/check_contract.py` and `ci/check_suite.py` are raw strings (one invalid escape `\<`,
+  and two `\v` that Python read as a vertical tab). `build.yml` runs every Python step with
+  `PYTHONWARNINGS=error::SyntaxWarning`, so such an escape fails CI instead of printing a warning.
+- CI: `ci/check_suite.py`, `ci/check_suite_texts.py`, `ci/check_contract.py` and `ci/check_messages.py` fail when
+  `suite/suite.iss` is missing, instead of skipping the rules of the suite and passing.
+- CI: the cancel scenarios S11 to S14 accept a cancel that is decided again because its first look met a log line with
+  only its time stamp (the processes run on, "the cancel stays requested (try N of 5)", contract 1.7 point 2). `/TestCancel`
+  asks as soon as the log of the product setup is open, while it writes many lines, and S14 failed on such a try on
+  2026-10-08 although NeoEE was then stopped as expected. Only the exact three lines of such a try are taken out
+  (`Remove-E2ECancelRetries`); a try that cannot freeze or read, and the last try, still fail the scenario.
+
+### Security
+- Suite uninstaller: each user data folder is checked for links again right before it is deleted. Before, the folders
+  were checked only before the question, and a junction created while the question was open (for example at `Data\dxm`,
+  which every user may replace in an installation for all users) could make the elevated `DelTree` delete outside the
+  installation. A folder that cannot be checked counts as a link (fail closed), and the cleanup of the empty folders
+  leaves links alone. What remains is the moment between the second check and the end of the deletion (ADR 0013,
+  amendment of 2026-10-08). The comment and the text of the CI check about `DelTree` and links are corrected.
+- CI: `ci/check_tls_policy.py` also reads the suite installer (`suite/suite.iss` and its `#include` files). Every rule of
+  ADR 0012 applies there, and the suite may hold no network code at all (no `http://` address, no WinHTTP, no `Option[...]`
+  of a COM object, no download function), because it downloads nothing itself (ADR 0012, amendment of 2026-10-08).
+
+## Suite 1.1.0 - 2026-10-07
+
+Setup v2 and the suite installer "Empire Earth Community" up to suite 1.1.0. Setup v2: the
+refactoring and quality fixes of the base branch and the work packages of the v2 plan
+(`docs/ARCHITECTURE.md`, "Plan", all done): built-in downloads instead of a plug-in, every online
+file pinned by its SHA-256 (also downloaded from a server with an invalid certificate), the
+compatibility defaults, a log of every run and checksums of the setups, the install record and the
+integrity manifest for the Empire Earth Launcher, hints before the installation, no elevated
+installation through links, and a complete German test plan for Windows. No new game content.
+Setup v2 has no release of its own: its product setups are released inside the suite, as suite
+1.0.0 (tag `suite-v1.0.0`, 2026-10-06) and suite 1.1.0 (tag `suite-v1.1.0`, 2026-10-07), and keep
+the setup version 1.7.2. The entries that name the suite describe the suite installer.
+
+### Added
 - Suite installer 1.1.0: `SuiteVersion` of `suite/suite.iss` is 1.1.0 (the suite has no changelog of its own; its entries are
   the ones of this file that name the suite). It packages launcher 1.1.0 (`LAUNCHER_COMMIT` of
   `.github/workflows/e2e-realdata.yml`); `MySetupVersion` of the product setups stays 1.7.2 until setup v2 is released.
@@ -468,8 +613,8 @@ setup version stays 1.7.2 until the release.
   After its review: every program the scenarios start has a time limit and each phase a budget
   below its step limit (a hang is stopped with its child processes, recorded as a failure, and the
   scenario still uninstalls), and each scenario reports and removes what earlier ones left (also
-  files, compatibility, GPU and firewall entries and shortcuts). The job runs by hand only (see Changed;
-  the repository must require approval of workflow runs for all external contributors), and the
+  files, compatibility, GPU and firewall entries and shortcuts). The job runs by hand only since suite
+  1.1.0 (see "Unreleased", Changed; the repository must require approval of workflow runs for all external contributors), and the
   launcher checks come from a pinned full commit that must be on the launcher branch. README: when it
   runs, the approval setting, the pin, the caches.
 
@@ -502,20 +647,6 @@ setup version stays 1.7.2 until the release.
   (step D5).
 
 ### Changed
-- One main line `main`: development happens on short-lived feature branches with a pull request into `main`, releases
-  are tags on `main` (this repository and the launcher repository; the work of the branch `v2` is merged into the base
-  branch, which is called `main` from now on, here after the rename of the fork's `master`). `build.yml` runs on a push
-  to `main` only (pull requests and manual runs as before), the real-data end-to-end test checks the launcher commit
-  against the launcher's `main`, README and the test plan name `main`. References to what happened at a past commit (CONTRACT.md "Based on", released changelog entries, ADR texts
-  about past decisions and runs) keep the branch names of that time.
-- The real-data end-to-end test (`.github/workflows/e2e-realdata.yml`) runs by hand only (`workflow_dispatch`, input
-  `launcher_commit`), not for pull requests: `r2.empireearth.eu` answers GitHub runners with HTTP 403 (an external block),
-  so the check failed on every run, and a check that is always red trains people to ignore red checks. The `pull_request`
-  trigger, the `paths` filter and the job condition with the label and fork checks are gone, the concurrency group is one
-  per ref; the launcher commit check, `guard_upload.py`, the hosts block and the rule that game data never leaves the runner
-  are unchanged, `LAUNCHER_BRANCH` is `main`. `ci/e2e/tests/test_e2e_tools.py` checks the new rules (manual only, no other
-  trigger, no job condition, the group per ref). To be switched back to pull requests with the label `e2e` when downloads
-  work again: README "End-to-end test on Windows", ADR 0011 (amendment 2026-10-07).
 - DirectX wrapper: dgVoodoo 2.87.5 instead of 2.82.1 (x86 `DDraw.dll` and `D3DImm.dll`; the control panel
   `dgVoodooCpl.exe`, x64 only since dgVoodoo 2.86.3, only on 64-bit Windows). The five configurations of the dgVoodoo
   levels have new window settings: fake fullscreen (`FullscreenAttributes = fake`), Alt+Enter off
